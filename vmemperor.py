@@ -1,11 +1,14 @@
 from flask import Flask
 from flask import session as flask_session
+from flask import render_template
 from functools import wraps
 from flask import request, Response
 
 import XenAPI
 import pprint
-import getpass
+import random
+import string
+import time
 from getvminfo import get_vms_list
 
 
@@ -34,6 +37,7 @@ def retrieve_vms_list(session):
             #pp.pprint(api.host_metrics.get_memory_actual(metrics))
 
     vm_list = get_vms_list(session)
+    vm_list = sorted(vm_list, key=lambda k: (k['power_state'].lower(), k['name_label'].lower()))
     return vm_list
 
 
@@ -79,10 +83,14 @@ def requires_auth(f):
 @app.route('/secret-page')
 @requires_auth
 def secret_page():
-    return str(retrieve_vms_list(flask_session['xen_session']))
+    start = time.clock()
+    vm_list = retrieve_vms_list(flask_session['xen_session'])
+    date = time.strftime("%d/%m/%y")
+    profiling = time.clock() - start
+    return render_template('index.html', vm_list=vm_list, date=date, profiling=profiling, len_vm_list=len(vm_list))
 
 
 if __name__ == '__main__':
-    app.secret_key = 'ASDcxzxqwe@3awe1@#fdscvaD'
+    app.secret_key = ''.join([random.choice(string.ascii_letters + string.digits) for n in xrange(32)])
     #retrieve_vms_list(session)
     app.run(debug=True)

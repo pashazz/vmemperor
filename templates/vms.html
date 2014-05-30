@@ -1,0 +1,24 @@
+<div class="table-responsive">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>VM name</th>
+          <th></th>
+          <th>Power state</th>
+          <th>VCPUs</th>
+          <th>Current RAM (MB)</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for vm in vm_list %}
+        <tr>
+          <td>{{ vm['name_label'] }}</td>
+          <td></td>
+          <td>{{ vm['power_state'] }}</td>
+          <td>{{ vm['VCPUs_at_startup'] }}</td>
+          <td>{{ vm['memory_target'] }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+</div>

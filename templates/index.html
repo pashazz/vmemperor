@@ -1,0 +1,50 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<html lang="en">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    {% block head %}
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+
+    <!-- Optional theme -->
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css">
+    <link rel="stylesheet" href="//getbootstrap.com/examples/sticky-footer-navbar/sticky-footer-navbar.css">
+
+    <!-- Latest compiled and minified JavaScript -->
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+    <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+    <title>{% block title %}{% endblock %} - My Webpage</title>
+    {% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-default navbar-fixed-top" role="navigation">
+        <div class="container">
+            <div class="navbar-header">
+                <a class="navbar-brand" href="/">Virtual Machine Emperor</a>
+            </div>
+            <div>
+                <ul class="nav nav-tabs pull-right">
+                  <li class="active"><a href="#vms" data-toggle="tab"><span class="badge pull-right">{{ len_vm_list }}</span>
+                      VMs states and properties</a></li>
+                  <li><a href="#create" data-toggle="tab">Create VM</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="container">
+        <div class="container-fluid">
+            <div class="tab-content">
+              <div class="tab-pane fade in active" id="vms">
+                {% include "vms.html" %}
+              </div>
+              <div class="tab-pane fade" id="create">
+                <h1>blablatest</h1>
+              </div>
+            </div>
+        </div>
+
+    </div>
+    <div id="footer">
+            <h5>ISPRAS, {{ date }}, generated in {{ profiling }} seconds.</h5>
+    </div>
+</body>
