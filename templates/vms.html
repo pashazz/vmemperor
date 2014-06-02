@@ -13,7 +13,7 @@
       {% for vm in vm_list %}
         <tr>
           <td>{{ vm['name_label'] }}</td>
-          <td></td>
+          <td>{% if vm['networks'] and '0/ip' in vm['networks'] %} {{ vm['networks']['0/ip'] }} {% endif %}</td>
           <td>{{ vm['power_state'] }}</td>
           <td>{{ vm['VCPUs_at_startup'] }}</td>
           <td>{{ vm['memory_target'] }}</td>

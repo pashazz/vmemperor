@@ -16,7 +16,7 @@ def get_vms_info_fallback(session):
             entry['name_label'] = api.VM.get_name_label(vm)
             entry['power_state'] = api.VM.get_power_state(vm)
             entry['VCPUs_at_startup'] = api.VM.get_VCPUs_at_startup(vm)
-            entry['VIFs'] = api.VM.get_VIFs(vm)
+            entry['networks'] = api.VM_guest_metrics.get_networks(api.VM.get_metrics(vm))
             entry['memory_target'] = str(int(api.VM.get_memory_target(vm))/(1024*1024))
 
             vm_list.append(entry)
@@ -39,7 +39,10 @@ def get_vms_info_fast(session):
             entry['allowed_operations'] = None or record['allowed_operations']
             entry['power_state'] = None or record['power_state']
             entry['VCPUs_at_startup'] = None or record['VCPUs_at_startup']
-            entry['VIFs'] = None or record['VIFs']
+            if not record['guest_metrics'] or record['guest_metrics'] == 'OpaqueRef:NULL':
+                entry['networks'] = None
+            else:
+                entry['networks'] = None or api.VM_guest_metrics.get_record(record['guest_metrics'])['networks']
             entry['memory_target'] = None or str(int(record['memory_target'])/(1024*1024))
 
             vm_list.append(entry)
@@ -49,10 +52,10 @@ def get_vms_info_fast(session):
 ### Returns list of virtual machines (DomN, not control domains or templates or snapshots). ###
 def get_vms_list(session):
     vm_list = []
-    try:
-        vm_list = get_vms_info_fast(session)
-    except:
-        print ("Fast method failed; using fallback.")
-        vm_list = get_vms_info_fallback(session)
-    finally:
-        return vm_list
+#    try:
+    vm_list = get_vms_info_fast(session)
+#    except:
+#        print ("Fast method failed; using fallback.")
+#        vm_list = get_vms_info_fallback(session)
+#    finally:
+    return vm_list
