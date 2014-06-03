@@ -2,10 +2,9 @@
 
 
 ### Get info about VMs using plain xe protocol. Should fit for any XenServer version that uses xe. ###
-def get_vms_info_fallback(session, endpoint):
-    print "Getting VM list using fallback method"
+def get_template_info_fallback(session, endpoint):
+    print "Getting template list using fallback method"
     vm_list = []
-    api = session.xenapi
     all_vms_list = api.VM.get_all()
     for vm in all_vms_list:
         is_control_domain = api.VM.get_is_control_domain(vm)
@@ -13,7 +12,6 @@ def get_vms_info_fallback(session, endpoint):
         is_a_snapshot = api.VM.get_is_a_snapshot(vm)
         if not is_control_domain and not is_a_template and not is_a_snapshot:
             entry = dict()
-            entry['uuid'] = api.VM.get_uuid(vm)
             entry['allowed_operations'] = api.VM.get_allowed_operations(vm)
             entry['name_label'] = api.VM.get_name_label(vm)
             entry['name_description'] = api.VM.get_name_description(vm)
@@ -28,41 +26,36 @@ def get_vms_info_fallback(session, endpoint):
 
 
 ### Get info about VMs parsing JSON-like structure from XenServer 6.1-6.2 ###
-def get_vms_info_fast(session, endpoint):
-    print "Getting VM list using fast method"
+def get_template_info_fast(session, endpoint):
+    print "Getting template list using fast method"
     api = session.xenapi
-    vm_list = []
+    template_list = []
     all_records = api.VM.get_all_records()
     for record in all_records.values():
         is_control_domain = record['is_control_domain']
         is_a_template = record['is_a_template']
         is_a_snapshot = record['is_a_snapshot']
-        if not is_control_domain and not is_a_template and not is_a_snapshot:
+        if not is_control_domain and is_a_template and not is_a_snapshot:
             entry = dict()
-            entry['uuid'] = None or record['uuid']
+            print (record)
+            entry['uuid'] = record['uuid']
             entry['name_label'] = None or record['name_label']
             entry['name_description'] = None or record['name_description']
             entry['allowed_operations'] = None or record['allowed_operations']
-            entry['power_state'] = None or record['power_state']
-            entry['VCPUs_at_startup'] = None or record['VCPUs_at_startup']
-            if not record['guest_metrics'] or record['guest_metrics'] == 'OpaqueRef:NULL':
-                entry['networks'] = None
-            else:
-                entry['networks'] = None or api.VM_guest_metrics.get_record(record['guest_metrics'])['networks']
-            entry['memory_target'] = None or str(int(record['memory_target'])/(1024*1024))
+            entry['tags'] = [] if 'tags' not in record or len(record['tags']) == 0 else record['tags']
             entry['endpoint'] = endpoint
 
-            vm_list.append(entry)
-    return vm_list
+            template_list.append(entry)
+    return template_list
 
 
 ### Returns list of virtual machines (DomN, not control domains or templates or snapshots). ###
-def get_vms_list(session, endpoint):
-    vm_list = []
-    try:
-        vm_list = get_vms_info_fast(session, endpoint)
-    except:
-        print ("Fast method failed; using fallback.")
-        vm_list = get_vms_info_fallback(session, endpoint)
-    finally:
-        return vm_list
+def get_template_list(session, endpoint):
+    template_list = []
+#    try:
+    template_list = get_template_info_fast(session, endpoint)
+#    except:
+#        print ("Fast method failed; using fallback.")
+#        template_list = get_vms_info_fallback(session, endpoint)
+#    finally:
+    return template_list

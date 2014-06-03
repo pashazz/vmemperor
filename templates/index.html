@@ -14,6 +14,50 @@
     <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
     <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
     <title>{% block title %}{% endblock %} - My Webpage</title>
+    <style type="text/css">
+        .table-vcenter td {
+            vertical-align: middle!important;
+        }
+    </style>
+
+    <script>
+        function retrieve_vms_tab_content() {
+            var notification_area = $('#notification');
+            var vms = $('#vms');
+            $(vms).fadeOut('slow');
+            $(notification_area).html('<p class="text-center">Getting VMs list</p>');
+            $(notification_area).show();
+            $.get('/listvms', function(data) {
+                var vms = $('#vms');
+                $(vms).html(data);
+                $(vms).fadeIn('fast');
+                var vms_count = $('#vms_table_body').find('tr').length;
+                $('#vms_count').html(vms_count).show();
+                $(notification_area).hide();
+            });
+        }
+
+        function retrieve_templates_tab_content() {
+            var notification_area = $('#notification');
+            $(notification_area).html('<p class="text-center">Getting templates list</p>');
+            $(notification_area).show();
+            $.get('/listtemplates', function(data) {
+                $('#templates').html(data);
+                var templates_count = $('#templates_table_body').find('tr').length;
+                $('#templates_count').html(templates_count).show();
+                $(notification_area).hide();
+            });
+        }
+
+        $(document).ready(function() {
+            var vms_tab = $('#vms_tab');
+            var templates_tab = $('#templates_tab');
+            retrieve_vms_tab_content();
+            $(vms_tab).click(retrieve_vms_tab_content);
+            $(templates_tab).click(retrieve_templates_tab_content);
+        })
+
+    </script>
     {% endblock %}
 </head>
 <body>
@@ -24,27 +68,46 @@
             </div>
             <div>
                 <ul class="nav nav-tabs pull-right">
-                  <li class="active"><a href="#vms" data-toggle="tab"><span class="badge pull-right">{{ len_vm_list }}</span>
-                      VMs states and properties</a></li>
+                  <li class="active">
+                      <a href="#vms" data-toggle="tab" id="vms_tab">
+                        <span class="badge pull-right" id="vms_count" style="display:none;">
+                        </span>
+                      VMs states and properties
+                      </a>
+                  </li>
                   <li><a href="#create" data-toggle="tab">Create VM</a></li>
+                  {% if 'is_su' in session and session['is_su'] == True %}
+                  <li>
+                      <a href="#templates" data-toggle="tab" id="templates_tab">
+                          <span class="badge pull-right" id="templates_count" style="display:none;">
+                          </span>
+                          Available Templates
+                      </a>
+                  </li>
+                  {% endif %}
                 </ul>
             </div>
         </div>
     </nav>
     <div class="container">
+        <div class='alert alert-info' style="display:none;" id="notification">
+        </div>
         <div class="container-fluid">
             <div class="tab-content">
               <div class="tab-pane fade in active" id="vms">
-                {% include "vms.html" %}
               </div>
               <div class="tab-pane fade" id="create">
                 <h1>blablatest</h1>
               </div>
+              {% if 'is_su' in session and session['is_su'] == True %}
+              <div class="tab-pane fade" id="templates">
+              </div>
+              {% endif %}
             </div>
         </div>
 
     </div>
     <div id="footer">
-            <h5>ISPRAS, {{ date }}, generated in {{ profiling }} seconds.</h5>
+            <p class="text-center lead">ISPRAS, 2014</p>
     </div>
 </body>

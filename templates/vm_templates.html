@@ -1,0 +1,36 @@
+<div class="table-responsive">
+    <table class="table table-hover table-vcenter">
+        <thead>
+        <tr>
+            <th class="col-sm-2">Location</th>
+            <th class="col-sm-3">Template name</th>
+            <th>Template description</th>
+            <th class="col-sm-1">Tags</th>
+        </tr>
+        </thead>
+        <tbody id="templates_table_body">
+        {% for template in template_list %}
+            <tr>
+                <td>
+                    <blockquote>
+                        <p>{{ template['endpoint']['description'] }}</p>
+                        <footer>{{ template['endpoint']['url'] }}</footer>
+                    </blockquote>
+                </td>
+                <td><p class="lead">{{ template['name_label'] }}</p></td>
+                <td><p class="text-muted small">{{ template['name_description'] }}</p></td>
+                <td>{% if 'vmemperor' not in template['tags'] %}
+                    <button type="button" class="btn btn-default" id="{{ template['uuid'] }}">
+                        Enable this template<br> in VM creation tab
+                    </button>
+                    {% else %}
+                    <button type="button" class="btn btn-danger" id="{{ template['uuid'] }}">
+                        Disable this template<br> in VM creation tab
+                    </button>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
