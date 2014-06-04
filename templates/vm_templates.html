@@ -20,12 +20,30 @@
                 <td><p class="lead">{{ template['name_label'] }}</p></td>
                 <td><p class="text-muted small">{{ template['name_description'] }}</p></td>
                 <td>{% if 'vmemperor' not in template['tags'] %}
-                    <button type="button" class="btn btn-default" id="{{ template['uuid'] }}">
+                    <button type="button"
+                            class="btn btn-default enable-template"
+                            id="{{ template['uuid'] }}"
+                            action="enable-template"
+                            description="enabling template {{ template['name_label'] }}">
                         Enable this template<br> in VM creation tab
+                        <form>
+                        <input name="vm_uuid" type="hidden" class="form-control" value="{{ template['uuid'] }}">
+                            <input name="endpoint_url" type="hidden" class="form-control" value="{{ template['endpoint']['url'] }}">
+                            <input name="endpoint_description" type="hidden" class="form-control" value="{{ template['endpoint']['description'] }}">
+                        </form>
                     </button>
                     {% else %}
-                    <button type="button" class="btn btn-danger" id="{{ template['uuid'] }}">
+                    <button type="button"
+                            class="btn btn-danger disable-template"
+                            id="{{ template['uuid'] }}"
+                            action="disable-template"
+                            description="disabling template {{ template['name_label'] }}">
                         Disable this template<br> in VM creation tab
+                        <form>
+                            <input name="vm_uuid" type="hidden" class="form-control" value="{{ template['uuid'] }}">
+                            <input name="endpoint_url" type="hidden" class="form-control" value="{{ template['endpoint']['url'] }}">
+                            <input name="endpoint_description" type="hidden" class="form-control" value="{{ template['endpoint']['description'] }}">
+                        </form>
                     </button>
                     {% endif %}
                 </td>

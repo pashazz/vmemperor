@@ -1,19 +1,20 @@
 from flask import Flask
 from flask import session as flask_session
-from flask import render_template
+from flask import render_template, jsonify
 from functools import wraps
 from flask import request, Response, redirect, url_for, abort
 
 import XenAPI
-import pprint
-import random
-import string
-import time
+import os
 from getvminfo import get_vms_list
 from gettemplateinfo import get_template_list
 
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='/static')
+
+#@app.route('/static/js/<path:path>', methods=['GET'])
+#def static(path):
+#    return app.send_static_file(os.path.join('js', path))
 
 
 def get_xen_session(endpoint):
@@ -120,7 +121,7 @@ def requires_auth(f):
     return decorated
 
 
-@app.route('/listvms')
+@app.route('/list-vms')
 @requires_auth
 def list_vms():
     vm_list = []
@@ -129,7 +130,7 @@ def list_vms():
     vm_list = sorted(vm_list, key=lambda k: (k['power_state'].lower(), k['name_label'].lower()))
     return render_template('vms.html', vm_list=vm_list)
 
-@app.route('/listtemplates')
+@app.route('/list-templates')
 @requires_auth
 def list_templates():
     template_list = []
@@ -140,32 +141,119 @@ def list_templates():
     return render_template('vm_templates.html', template_list=template_list)
 
 
+@app.route('/get-create-vm-params', methods=['GET'])
+@requires_auth
+def list_enabled_templates():
+    endpoint_url = request.args.get('pool-select')
+    if not endpoint_url:
+        response = {'status': 'error', 'details': 'Syntax error in your query', 'reason': 'missing argument'}
+        return jsonify(response), 406
+    if endpoint_url == '--':
+        response = jsonify({"": "Select template"})
+        response.status_code = 200
+        return response
+
+    endpoint = {'url': endpoint_url, 'description': ''}
+    template_list = []
+    template_list.extend(item for item in retrieve_template_list(endpoint) if 'tags' in item and 'vmemperor' in item['tags'])
+    template_dict = {}
+    for item in template_list:
+        template_dict[item['uuid']] = item['name_label']
+    response = jsonify(template_dict)
+    response.status_code = 200
+    return response
+
+
+
+@app.route('/create-vm', methods=['GET', 'POST'])
+@requires_auth
+def create_vm():
+    if request.method == 'GET':
+        return render_template('create_vm.html', xen_endpoints=app.config['xen_endpoints'])
+
+
 @app.route('/')
 @requires_auth
 def secret_page():
     return render_template('index.html')
 
 
-
-@app.route('/startvm', methods=['POST'])
+@app.route('/start-vm', methods=['POST'])
 @requires_auth
 def start_vm():
     vm_uuid = request.form.get('vm_uuid')
     endpoint_url = request.form.get('endpoint_url')
     endpoint_description = request.form.get('endpoint_description')
     if not vm_uuid or not endpoint_url or not endpoint_description:
-        abort(406, "Not acceptible: syntax error in your query")
+        response = {'status': 'error', 'details': 'Syntax error in your query', 'reason': 'missing argument'}
+        return jsonify(response), 406
 
     endpoint = {'url': endpoint_url, 'description': endpoint_description}
     session = get_xen_session(endpoint)
     api = session.xenapi
     vm_ref = api.VM.get_by_uuid(vm_uuid)
     try:
-        vm = api.VM.get_record(vm_ref)
         api.VM.start(vm_ref, False, False)
-        return "Success!"
-    except:
-        abort(500, "Couldn't start VM, reason unknown")
+        response = jsonify({'status': 'success', 'details': 'VM started', 'reason': ''})
+        response.status_code = 200
+        return response
+    except XenAPI.Failure as e:
+        print e.details
+        response = jsonify({'status': 'error', 'details': 'Can not start VM', 'reason': e.details})
+        response.status_code = 500
+        return response
+
+
+@app.route('/enable-template', methods=['POST'])
+@requires_auth
+def enable_template():
+    vm_uuid = request.form.get('vm_uuid')
+    endpoint_url = request.form.get('endpoint_url')
+    endpoint_description = request.form.get('endpoint_description')
+    if not vm_uuid or not endpoint_url or not endpoint_description:
+        response = {'status': 'error', 'details': 'Syntax error in your query', 'reason': 'missing argument'}
+        return jsonify(response), 406
+
+    endpoint = {'url': endpoint_url, 'description': endpoint_description}
+    session = get_xen_session(endpoint)
+    api = session.xenapi
+    vm_ref = api.VM.get_by_uuid(vm_uuid)
+    try:
+        api.VM.add_tags(vm_ref, 'vmemperor')
+        response = jsonify({'status': 'success', 'details': 'template is ready to use', 'reason': ''})
+        response.status_code = 200
+        return response
+    except XenAPI.Failure as e:
+        print e.details
+        response = jsonify({'status': 'error', 'details': 'Can not add template to user interface', 'reason': e.details})
+        response.status_code = 500
+        return response
+
+
+@app.route('/disable-template', methods=['POST'])
+@requires_auth
+def disable_template():
+    vm_uuid = request.form.get('vm_uuid')
+    endpoint_url = request.form.get('endpoint_url')
+    endpoint_description = request.form.get('endpoint_description')
+    if not vm_uuid or not endpoint_url or not endpoint_description:
+        response = {'status': 'error', 'details': 'Syntax error in your query', 'reason': 'missing argument'}
+        return jsonify(response), 406
+
+    endpoint = {'url': endpoint_url, 'description': endpoint_description}
+    session = get_xen_session(endpoint)
+    api = session.xenapi
+    vm_ref = api.VM.get_by_uuid(vm_uuid)
+    try:
+        api.VM.remove_tags(vm_ref, 'vmemperor')
+        response = jsonify({'status': 'success', 'details': 'template removed from user interface', 'reason': ''})
+        response.status_code = 200
+        return response
+    except XenAPI.Failure as e:
+        print e.details
+        response = jsonify({'status': 'error', 'details': 'Can not remove template from user interface', 'reason': e.details})
+        response.status_code = 500
+        return response
 
 
 #app.secret_key = ''.join([random.choice(string.ascii_letters + string.digits) for n in xrange(32)])

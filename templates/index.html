@@ -13,6 +13,8 @@
     <!-- Latest compiled and minified JavaScript -->
     <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
     <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+    <script src="/static/js/jquery.chained.remote.min.js"></script>
+    <script src="/static/js/jquery.watch.min.js"></script>
     <title>{% block title %}{% endblock %} - My Webpage</title>
     <style type="text/css">
         .table-vcenter td {
@@ -21,40 +23,137 @@
     </style>
 
     <script>
+        function retrieve_create_vm_tab_content() {
+            $.get('/create-vm', function(data) {
+                var create = $('#create');
+                create.html(data);
+                $("#template-select").remoteChainedTo({
+                    parents: "#pool-select",
+                    url: "/get-create-vm-params",
+                    clear: true,
+                    loading: "Loading.."
+                });
+
+                    $("#template-select").watch('disabled', function() {
+                        if(!this["disabled"]) {
+                            $("#user-fullname").prop('disabled', false);
+                            console.log('enabled');
+                        } else {
+                            $("#user-fullname").prop('disabled', true);
+                            console.log('disabled');
+                        }
+                    });
+
+
+            });
+
+        }
+
         function retrieve_vms_tab_content() {
+            var func = arguments.callee;
             var notification_area = $('#notification');
             var vms = $('#vms');
-            $(vms).fadeOut('slow');
-            $(notification_area).html('<p class="text-center">Getting VMs list</p>');
-            $(notification_area).show();
-            $.get('/listvms', function(data) {
+            $(notification_area).attr('class', 'alert alert-info')
+                    .html('<p class="text-center">Getting VMs list</p>')
+                    .fadeIn('slow');
+            $.get('/list-vms', function(data) {
                 var vms = $('#vms');
-                $(vms).html(data);
-                $(vms).fadeIn('fast');
+                vms.html(data);
                 var vms_count = $('#vms_table_body').find('tr').length;
-                $('#vms_count').html(vms_count).show();
+                $('#vms_count').html(vms_count);
                 $(notification_area).hide();
+                $('button.launch-vm').click(function(e) {
+                    e.preventDefault();
+                    simple_button(e, func);
+                });
             });
         }
 
         function retrieve_templates_tab_content() {
+            var func = arguments.callee;
             var notification_area = $('#notification');
-            $(notification_area).html('<p class="text-center">Getting templates list</p>');
-            $(notification_area).show();
-            $.get('/listtemplates', function(data) {
-                $('#templates').html(data);
+            $(notification_area).attr('class', 'alert alert-info')
+                    .html('<p class="text-center">Getting templates list</p>')
+                    .fadeIn('slow');
+            var templates = $('#templates');
+            $.get('/list-templates', function(data) {
+                var templates = $('#templates');
+                $(templates).html(data);
                 var templates_count = $('#templates_table_body').find('tr').length;
-                $('#templates_count').html(templates_count).show();
+                $('#templates_count').html(templates_count);
                 $(notification_area).hide();
+                $('button.enable-template').click(function(e) {
+                    console.log(e);
+                    e.preventDefault();
+                    simple_button(e, func);
+                });
+                $('button.disable-template').click(function(e) {
+                    console.log(e);
+                    e.preventDefault();
+                    simple_button(e, func);
+                });
+
+            });
+        }
+
+        function simple_button(e, func) {
+            console.log(e);
+            var button = $(e.target);
+            console.log(button);
+            var form = button.find('form');
+            console.log(form);
+            var notification_area = $('#notification');
+            $(notification_area).attr('class', 'alert alert-info');
+            $(notification_area).html('<p class="text-center">Sending request for ' + button.attr('description') + '</p>');
+            $(notification_area).show();
+
+            var postData = form.serializeArray();
+            console.log(postData);
+            var formURL = button.attr("action");
+            console.log(formURL);
+            $.ajax({
+                url: formURL,
+                type: "POST",
+                data: postData,
+                success: function(data, textStatus, jqXHR){
+                    console.log(data);
+                    console.log(jqXHR);
+                    console.log(button);
+                    var res = $.parseJSON(jqXHR.responseText);
+                    console.log(res);
+
+
+                    var notification_area = $('#notification');
+                    $(notification_area).attr('class', 'alert alert-success');
+                    $(notification_area).html('<p class="text-center">' +
+                            res['details'] +
+                            '</p>');
+                    $(notification_area).fadeIn().delay(3000).queue(func);
+                    console.log("ajax finished");
+                },
+                error: function(data, textStatus, errorThrown)
+                {
+                    console.log(data);
+                    var res = $.parseJSON(data.responseText);
+                    var notification_area = $('#notification');
+                    $(notification_area).attr('class', 'alert alert-danger');
+                    $(notification_area).html('<p class="text-center">' +
+                            res['details'] +
+                            ": " +
+                            res['reason'] +'</p>');
+                    $(notification_area).fadeIn();
+                }
             });
         }
 
         $(document).ready(function() {
             var vms_tab = $('#vms_tab');
             var templates_tab = $('#templates_tab');
+            var create_tab = $('#create_tab');
             retrieve_vms_tab_content();
-            $(vms_tab).click(retrieve_vms_tab_content);
-            $(templates_tab).click(retrieve_templates_tab_content);
+            vms_tab.click(retrieve_vms_tab_content);
+            templates_tab.click(retrieve_templates_tab_content);
+            create_tab.click(retrieve_create_vm_tab_content);
         })
 
     </script>
@@ -70,17 +169,15 @@
                 <ul class="nav nav-tabs pull-right">
                   <li class="active">
                       <a href="#vms" data-toggle="tab" id="vms_tab">
-                        <span class="badge pull-right" id="vms_count" style="display:none;">
-                        </span>
+                        <span class="badge pull-right" id="vms_count"></span>
                       VMs states and properties
                       </a>
                   </li>
-                  <li><a href="#create" data-toggle="tab">Create VM</a></li>
+                  <li><a href="#create" data-toggle="tab" id="create_tab">Create VM</a></li>
                   {% if 'is_su' in session and session['is_su'] == True %}
                   <li>
                       <a href="#templates" data-toggle="tab" id="templates_tab">
-                          <span class="badge pull-right" id="templates_count" style="display:none;">
-                          </span>
+                          <span class="badge pull-right" id="templates_count"></span>
                           Available Templates
                       </a>
                   </li>

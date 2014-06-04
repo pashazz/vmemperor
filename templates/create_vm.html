@@ -1,0 +1,115 @@
+<div class="row endpoint-select col-sm-8 col-lg-8" xmlns="http://www.w3.org/1999/html">
+    <form class="form-horizontal" role="form">
+        <div class="form-group">
+            <label for="pool-select" class="col-sm-6 col-lg-6 control-label">Select server/pool where your VM will be placed</label>
+            <div class="col-sm-6 col-lg-6">
+                <select class="form-control input-lg" id="pool-select" name="pool-select">
+                    <option value="--">Select where to deploy instance</option>
+                    {% for endpoint in xen_endpoints %}
+                    <option value="{{ endpoint['url'] }}">{{ endpoint['description'] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="template-select" class="col-sm-6 col-lg-6 control-label">Select template for your VM OS</label>
+            <div class="col-sm-6 col-lg-6">
+                <select class="form-control" id="template-select" name="template-select" disabled>
+                    <option value="--">Select template</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="user-fullname" class="col-sm-6 col-lg-6 control-label">Enter your full name</label>
+            <div class="col-sm-6 col-lg-6">
+                <input
+                        type="text"
+                        class="form-control"
+                        placeholder="Name Surname"
+                        id="user-fullname"
+                        name="user-fullname"
+                        disabled/>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="username" class="col-sm-6 col-lg-6 control-label">Choose username for your VM</label>
+            <div class="col-sm-6 col-lg-6">
+                <input
+                        type="text"
+                        class="form-control input-lg"
+                        placeholder="Your login for new VM"
+                        id="username"
+                        name="username"
+                        disabled/>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="password" class="col-sm-6 col-lg-6 control-label">Choose password for your VM</label>
+            <div class="col-sm-6 col-lg-6">
+                <input
+                        type="password"
+                        class="form-control input-lg"
+                        placeholder="Your password for new VM"
+                        id="password"
+                        name="password"
+                        disabled/>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="password2" class="col-sm-6 col-lg-6 control-label">Confirm password</label>
+            <div class="col-sm-6 col-lg-6">
+                <input
+                        type="password"
+                        class="form-control input-sm"
+                        placeholder="Type password one more time"
+                        id="password2"
+                        name="password2"
+                        disabled/>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="hostname" class="col-sm-6 col-lg-6 control-label">Choose hostname for your VM</label>
+            <div class="col-sm-6 col-lg-6">
+                <input
+                        type="text"
+                        class="form-control"
+                        placeholder="Alphanumeric hostname"
+                        id="hostname"
+                        name="hostname"
+                        disabled/>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="vm-description" class="col-sm-6 col-lg-6 control-label">Enter description for VM</label>
+            <div class="col-sm-6 col-lg-6">
+                <textarea
+                        type="text"
+                        class="form-control"
+                        placeholder="What do you want to do with this virtual machine?"
+                        id="vm-description"
+                        name="vm-description"
+                        disabled/>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="redirection-http" class="col-sm-6 col-lg-6 control-label">Select http redirection rule for Nginx</label>
+            <div class="col-sm-6 col-lg-6">
+                <select class="form-control input-sm" id="redirection-http" name="redirection-http" disabled>
+                    <option value="80to80">http://hostname.domain/ will go on port :80</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="redirection-ssl" class="col-sm-6 col-lg-6 control-label">Select https/ssl redirection rule for Nginx</label>
+            <div class="col-sm-6 col-lg-6">
+                <select class="form-control input-sm" id="redirection-ssl" name="redirection-ssl" disabled>
+                    <option value="443to443">https://hostname.domain/ will go on port :443</option>
+                </select>
+            </div>
+        </div>
+
+    </form>
+</div>
+<div>
+    Pool information
+</div>

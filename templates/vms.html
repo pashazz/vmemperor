@@ -11,6 +11,7 @@
         </tr>
       </thead>
       <tbody id="vms_table_body">
+
       {% for vm in vm_list %}
         <tr>
           <td>
@@ -31,22 +32,27 @@
           <td><p>{{ vm['power_state'] }}</p></td>
           <td>
               {% if vm['power_state'] == 'Halted' %}
-                  <p>
-                  <form class="form-inline" role="form" action="startvm" method="post">
-                      <span class="input-group-btn">
-                            <button class="btn btn-primary" type="submit">
-                                Turn on VM
-                            </button>
-                      </span>
-                      <input name="vm_uuid" type="hidden" class="form-control" value="{{ vm['uuid'] }}">
-                      <input name="endpoint_url" type="hidden" class="form-control" value="{{ vm['endpoint']['url'] }}">
-                      <input name="endpoint_description" type="hidden" class="form-control" value="{{ vm['endpoint']['description'] }}">
-                  </form>
-                  </p>
+              <p>
+                  <span class="input-group-btn">
+                      <button
+                              class="btn btn-primary launch-vm"
+                              type="button"
+                              description="launch {{ vm['name_label'] }} VM"
+                              action="start-vm">
+                          Turn on VM
+                          <form>
+                              <input name="vm_uuid" type="hidden" class="form-control" value="{{ vm['uuid'] }}">
+                              <input name="endpoint_url" type="hidden" class="form-control" value="{{ vm['endpoint']['url'] }}">
+                              <input name="endpoint_description" type="hidden" class="form-control" value="{{ vm['endpoint']['description'] }}">
+                          </form>
+                      </button>
+                  </span>
+              </p>
               {% endif %}
           </td>
         </tr>
       {% endfor %}
+
       </tbody>
     </table>
 </div>
