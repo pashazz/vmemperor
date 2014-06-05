@@ -10,6 +10,9 @@
     <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css">
     <link rel="stylesheet" href="//getbootstrap.com/examples/sticky-footer-navbar/sticky-footer-navbar.css">
 
+    <!-- Glyphs -->
+    <link rel="stylesheet" href="/static/css/whhg.css">
+
     <!-- Latest compiled and minified JavaScript -->
     <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
     <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
@@ -19,6 +22,11 @@
     <style type="text/css">
         .table-vcenter td {
             vertical-align: middle!important;
+        }
+        div.div-vcenter {
+            text-align: center;
+            display:table-cell;
+            vertical-align:middle!important;
         }
     </style>
 
@@ -35,12 +43,43 @@
                 });
 
                     $("#template-select").watch('disabled', function() {
+                        $("#user-fullname").prop('disabled', this["disabled"]);
+                        $("#username").prop('disabled', this["disabled"]);
+                        $("#hostname").prop('disabled', this["disabled"]);
+                        $("#password").prop('disabled', this["disabled"]);
+                        $("#password2").prop('disabled', this["disabled"]);
+                        $("#vm-description").prop('disabled', this["disabled"]);
+                        $("#vcpus").prop('disabled', this["disabled"]);
+                        $("#ram").prop('disabled', this["disabled"]);
+                        $("#hdd").prop('disabled', this["disabled"]);
+                        $("#redirection-http").prop('disabled', this["disabled"]);
+                        $("#redirection-http-alt").prop('disabled', this["disabled"]);
+                        $("#redirection-ssl").prop('disabled', this["disabled"]);
+                        $("#create-button").prop('disabled', this["disabled"]);
+                        var pool_info = $("#pool-info");
                         if(!this["disabled"]) {
-                            $("#user-fullname").prop('disabled', false);
-                            console.log('enabled');
+                            var postData = $("#create-vm-form").serializeArray();
+                            $.ajax({
+                                url: '/get-pool-info',
+                                type: "POST",
+                                data: postData,
+                                success: function(data, textStatus, jqXHR){
+                                    console.log(data);
+                                    pool_info.attr('class', 'container-fluid');
+                                    pool_info.html(data);
+                                    console.log("ajax finished");
+                                },
+                                error: function(data, textStatus, errorThrown)
+                                {
+                                    console.log(data);
+                                    pool_info.attr('class', 'alert alert-danger');
+                                    pool_info.html("<p>Can't get XenServer information. There is a chance that you will not be able to create VM here.</p>")
+                                }
+                            });
+
                         } else {
-                            $("#user-fullname").prop('disabled', true);
-                            console.log('disabled');
+                            pool_info.attr('class', 'alert alert-info');
+                            pool_info.html("<p>Select where to deploy VM to see XenServer info.</p>")
                         }
                     });
 
@@ -146,6 +185,7 @@
             });
         }
 
+
         $(document).ready(function() {
             var vms_tab = $('#vms_tab');
             var templates_tab = $('#templates_tab');
@@ -154,7 +194,8 @@
             vms_tab.click(retrieve_vms_tab_content);
             templates_tab.click(retrieve_templates_tab_content);
             create_tab.click(retrieve_create_vm_tab_content);
-        })
+        });
+
 
     </script>
     {% endblock %}
@@ -194,7 +235,6 @@
               <div class="tab-pane fade in active" id="vms">
               </div>
               <div class="tab-pane fade" id="create">
-                <h1>blablatest</h1>
               </div>
               {% if 'is_su' in session and session['is_su'] == True %}
               <div class="tab-pane fade" id="templates">
