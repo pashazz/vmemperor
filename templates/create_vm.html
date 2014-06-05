@@ -45,23 +45,20 @@
         </div>
         <div class="form-group">
             <label for="password" class="col-sm-6 col-lg-6 control-label">Choose password for your VM</label>
-            <div class="col-sm-6 col-lg-6">
+            <div class="col-sm-3 col-lg-3">
                 <input
                         type="password"
-                        class="form-control input-lg"
-                        placeholder="Your password for new VM"
+                        class="form-control"
+                        placeholder="Password for VM"
                         id="password"
                         name="password"
                         disabled/>
             </div>
-        </div>
-        <div class="form-group">
-            <label for="password2" class="col-sm-6 col-lg-6 control-label">Confirm password</label>
-            <div class="col-sm-6 col-lg-6">
+            <div class="col-sm-3 col-lg-3">
                 <input
                         type="password"
-                        class="form-control input-sm"
-                        placeholder="Type password one more time"
+                        class="form-control"
+                        placeholder="Confirm"
                         id="password2"
                         name="password2"
                         disabled/>
@@ -92,16 +89,13 @@
             </div>
         </div>
         <div class="form-group">
-            <label for="redirection-http" class="col-sm-6 col-lg-6 control-label">Select http redirection rule for Nginx</label>
-            <div class="col-sm-6 col-lg-6">
+            <label for="redirection-http" class="col-sm-6 col-lg-6 control-label">Select proxy rules for Nginx</label>
+            <div class="col-sm-3 col-lg-3">
                 <select class="form-control input-sm" id="redirection-http" name="redirection-http" disabled>
-                    <option value="80to80">http://hostname.domain/ will go on port :80</option>
+                    <option value="80to80">port:80 to port:80</option>
                 </select>
             </div>
-        </div>
-        <div class="form-group">
-            <label for="redirection-ssl" class="col-sm-6 col-lg-6 control-label">Select https/ssl redirection rule for Nginx</label>
-            <div class="col-sm-6 col-lg-6">
+            <div class="col-sm-3 col-lg-3">
                 <select class="form-control input-sm" id="redirection-ssl" name="redirection-ssl" disabled>
                     <option value="443to443">https://hostname.domain/ will go on port :443</option>
                 </select>
