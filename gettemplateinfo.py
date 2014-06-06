@@ -37,7 +37,7 @@ def get_template_info_fast(session, endpoint):
         is_a_snapshot = record['is_a_snapshot']
         if not is_control_domain and is_a_template and not is_a_snapshot:
             entry = dict()
-            print (record)
+            #print (record)
             entry['uuid'] = record['uuid']
             entry['name_label'] = None or record['name_label']
             entry['name_description'] = None or record['name_description']

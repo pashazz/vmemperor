@@ -8,7 +8,7 @@ import XenAPI
 import os
 from getvminfo import get_vms_list
 from gettemplateinfo import get_template_list
-
+import json
 
 app = Flask(__name__, static_url_path='/static')
 
@@ -25,19 +25,58 @@ def get_xen_session(endpoint):
     return session
 
 
-def retrieve_vms_list(endpoint):
+def retrieve_pool_info(endpoint):
     session = get_xen_session(endpoint)
     api = session.xenapi
-    pool_master = ""
-    for pool in api.pool.get_all():
-        pool_master = api.pool.get_master(pool)
+    pool_info = dict()
 
-        for host in api.host.get_all():
-            host_name_label = api.host.get_name_label(host)
-            free_mem = int(api.host.compute_free_memory(host))/(1024*1024)
+    pools = api.pool.get_all_records()
+    #there is always one pool in session in our case
+    default_sr = None
+    for pool in pools.values():
+        default_sr = pool['default_SR']
+    if default_sr != 'OpaqueRef:NULL':
+        sr_info = api.SR.get_record(default_sr)
+        pool_info['hdd_available'] = (int(sr_info['physical_size']) - int(sr_info['virtual_allocation']))/(1024*1024*1024)
+    else:
+        pool_info['hdd_available'] = None
+    pool_info['host_list'] = []
 
+
+    records = api.host.get_all_records()
+#    return api.host.get_all_records()
+    for host_ref, record in records.iteritems():
+        metrics = api.host_metrics.get_record(record['metrics'])
+        print record
+        host_entry = dict()
+        host_entry['name_label'] = record['name_label']
+        host_entry['resident_VMs'] = record['resident_VMs']
+        host_entry['software_version'] = dict()
+        host_entry['software_version'] = record['software_version']
+        host_entry['cpu_info'] = dict(record['cpu_info'])
+        host_entry['memory_total'] = int(metrics['memory_total'])/(1024*1024)
+        host_entry['memory_free'] = int(metrics['memory_free'])/(1024*1024)
+        memory_available = api.host.compute_free_memory(host_ref)
+        host_entry['memory_available'] = int(memory_available)/(1024*1024)
+        host_entry['live'] = metrics['live']
+        pool_info['host_list'].append(host_entry)
+    print(pool_info)
+    return pool_info
+
+
+#    pool_master = ""
+
+#    for pool in api.pool.get_all():
+#    pool_master = api.pool.get_master(pool)
+
+#    for host in api.host.get_all():
+#        host_name_label = api.host.get_name_label(host)
+#        free_mem = int(api.host.compute_free_memory(host))/(1024*1024)
+
+
+def retrieve_vms_list(endpoint):
+    session = get_xen_session(endpoint)
     vm_list = get_vms_list(session, endpoint)
-    vm_list = sorted(vm_list, key=lambda k: (k['power_state'].lower(), k['name_label'].lower()))
     return vm_list
 
 
@@ -137,7 +176,7 @@ def list_templates():
     if 'is_su' in flask_session and flask_session['is_su']:
         for endpoint in app.config['xen_endpoints']:
             template_list.extend(retrieve_template_list(endpoint))
-        template_list = sorted(template_list, key=lambda k: (k['name_label'].lower(), -len(k['tags'])))
+        template_list = sorted(template_list, key=lambda k: (-len(k['tags']), k['name_label'].lower()))
     return render_template('vm_templates.html', template_list=template_list)
 
 
@@ -200,7 +239,7 @@ def start_vm():
     except XenAPI.Failure as e:
         print e.details
         response = jsonify({'status': 'error', 'details': 'Can not start VM', 'reason': e.details})
-        response.status_code = 500
+        response.status_code = 409
         return response
 
 
@@ -226,7 +265,7 @@ def enable_template():
     except XenAPI.Failure as e:
         print e.details
         response = jsonify({'status': 'error', 'details': 'Can not add template to user interface', 'reason': e.details})
-        response.status_code = 500
+        response.status_code = 409
         return response
 
 
@@ -237,8 +276,9 @@ def disable_template():
     endpoint_url = request.form.get('endpoint_url')
     endpoint_description = request.form.get('endpoint_description')
     if not vm_uuid or not endpoint_url or not endpoint_description:
-        response = {'status': 'error', 'details': 'Syntax error in your query', 'reason': 'missing argument'}
-        return jsonify(response), 406
+        response = jsonify({'status': 'error', 'details': 'Syntax error in your query', 'reason': 'missing argument'})
+        response.status_code = 406
+        return response
 
     endpoint = {'url': endpoint_url, 'description': endpoint_description}
     session = get_xen_session(endpoint)
@@ -252,8 +292,35 @@ def disable_template():
     except XenAPI.Failure as e:
         print e.details
         response = jsonify({'status': 'error', 'details': 'Can not remove template from user interface', 'reason': e.details})
-        response.status_code = 500
+        response.status_code = 409
         return response
+
+@app.route('/logout', methods=['POST', 'GET'])
+def logout():
+    flask_session.clear()
+    response = jsonify({'status': 'success', 'details': 'Logout successful', 'reason': ''})
+    response.status_code = 200
+    return response
+
+@app.route('/get-pool-info', methods=['POST'])
+@requires_auth
+def get_pool_info():
+    pool = request.form.get('pool-select')
+    if not pool or pool == '--':
+        response = jsonify({'status': 'error', 'details': 'You must choose a pool', 'reason': 'Pool is not specified'})
+        response.status_code = 406
+        return response
+    pool_exists = False
+    for endpoint in app.config['xen_endpoints']:
+        if endpoint['url'] == pool:
+            pool_exists = True
+    if not pool_exists:
+        response = jsonify({'status': 'error', 'details': 'You have chosen unknown pool or server', 'reason': 'Pool url is invalid'})
+        response.status_code = 406
+        return response
+    endpoint = {'url': pool, 'description': ''}
+    pool_info = retrieve_pool_info(endpoint)
+    return render_template("pool_info.html", pool_info=pool_info)
 
 
 #app.secret_key = ''.join([random.choice(string.ascii_letters + string.digits) for n in xrange(32)])

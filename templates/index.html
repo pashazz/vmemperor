@@ -18,6 +18,7 @@
     <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
     <script src="/static/js/jquery.chained.remote.min.js"></script>
     <script src="/static/js/jquery.watch.min.js"></script>
+    <script type="application/javascript" src="/static/js/noty/packaged/jquery.noty.packaged.min.js"></script>
     <title>{% block title %}{% endblock %} - My Webpage</title>
     <style type="text/css">
         .table-vcenter td {
@@ -32,6 +33,7 @@
 
     <script>
         function retrieve_create_vm_tab_content() {
+            var func = arguments.callee;
             $.get('/create-vm', function(data) {
                 var create = $('#create');
                 create.html(data);
@@ -66,8 +68,14 @@
                                 success: function(data, textStatus, jqXHR){
                                     console.log(data);
                                     pool_info.attr('class', 'container-fluid');
+                                    console.log(data);
                                     pool_info.html(data);
-                                    console.log("ajax finished");
+                                    if ($("#no-sr-error").length) {
+                                        noty({text: "<p class='lead'>" +
+                                                "No default SR is associated with your XenServer pool/server:<br> " +
+                                                "you are not able to create any VM with this user interface " +
+                                                "until you assign it to the pool.</p>", timeout: false, type: "success"});
+                                    }
                                 },
                                 error: function(data, textStatus, errorThrown)
                                 {
@@ -82,27 +90,28 @@
                             pool_info.html("<p>Select where to deploy VM to see XenServer info.</p>")
                         }
                     });
-
-
+                $("#logout").click(function(e) {
+                    simple_button(e, func);
+                });
             });
 
         }
 
         function retrieve_vms_tab_content() {
             var func = arguments.callee;
-            var notification_area = $('#notification');
             var vms = $('#vms');
-            $(notification_area).attr('class', 'alert alert-info')
-                    .html('<p class="text-center">Getting VMs list</p>')
-                    .fadeIn('slow');
+            var notification = noty({text: "Getting VMs list"});
             $.get('/list-vms', function(data) {
                 var vms = $('#vms');
                 vms.html(data);
                 var vms_count = $('#vms_table_body').find('tr').length;
                 $('#vms_count').html(vms_count);
-                $(notification_area).hide();
+                notification.close();
                 $('button.launch-vm').click(function(e) {
                     e.preventDefault();
+                    simple_button(e, func);
+                });
+                $("#logout").click(function(e) {
                     simple_button(e, func);
                 });
             });
@@ -110,17 +119,14 @@
 
         function retrieve_templates_tab_content() {
             var func = arguments.callee;
-            var notification_area = $('#notification');
-            $(notification_area).attr('class', 'alert alert-info')
-                    .html('<p class="text-center">Getting templates list</p>')
-                    .fadeIn('slow');
+            var notification = noty({text:"Getting templates list"});
             var templates = $('#templates');
             $.get('/list-templates', function(data) {
                 var templates = $('#templates');
                 $(templates).html(data);
+                notification.close();
                 var templates_count = $('#templates_table_body').find('tr').length;
                 $('#templates_count').html(templates_count);
-                $(notification_area).hide();
                 $('button.enable-template').click(function(e) {
                     console.log(e);
                     e.preventDefault();
@@ -129,6 +135,9 @@
                 $('button.disable-template').click(function(e) {
                     console.log(e);
                     e.preventDefault();
+                    simple_button(e, func);
+                });
+                $("#logout").click(function(e) {
                     simple_button(e, func);
                 });
 
@@ -141,11 +150,8 @@
             console.log(button);
             var form = button.find('form');
             console.log(form);
-            var notification_area = $('#notification');
-            $(notification_area).attr('class', 'alert alert-info');
-            $(notification_area).html('<p class="text-center">Sending request for ' + button.attr('description') + '</p>');
-            $(notification_area).show();
-
+            var notification = noty({text:"Sending request for " + button.attr('description'), type: "information"});
+            console.log("notification:", notification);
             var postData = form.serializeArray();
             console.log(postData);
             var formURL = button.attr("action");
@@ -160,27 +166,16 @@
                     console.log(button);
                     var res = $.parseJSON(jqXHR.responseText);
                     console.log(res);
-
-
-                    var notification_area = $('#notification');
-                    $(notification_area).attr('class', 'alert alert-success');
-                    $(notification_area).html('<p class="text-center">' +
-                            res['details'] +
-                            '</p>');
-                    $(notification_area).fadeIn().delay(3000).queue(func);
-                    console.log("ajax finished");
+                    noty({text: res['details'], timeout: 3000, type: "success"});
+                    notification.close();
+                    func();
                 },
                 error: function(data, textStatus, errorThrown)
                 {
                     console.log(data);
                     var res = $.parseJSON(data.responseText);
-                    var notification_area = $('#notification');
-                    $(notification_area).attr('class', 'alert alert-danger');
-                    $(notification_area).html('<p class="text-center">' +
-                            res['details'] +
-                            ": " +
-                            res['reason'] +'</p>');
-                    $(notification_area).fadeIn();
+                    noty({text: res['details'] + ": " + res['reason'], timeout: 5000, type: "error"});
+                    notification.close();
                 }
             });
         }
@@ -190,10 +185,14 @@
             var vms_tab = $('#vms_tab');
             var templates_tab = $('#templates_tab');
             var create_tab = $('#create_tab');
+            $.noty.defaults.layout = 'bottom';
+            $.noty.defaults.timeout = 3000;
+
             retrieve_vms_tab_content();
             vms_tab.click(retrieve_vms_tab_content);
             templates_tab.click(retrieve_templates_tab_content);
             create_tab.click(retrieve_create_vm_tab_content);
+
         });
 
 
@@ -225,11 +224,22 @@
                   {% endif %}
                 </ul>
             </div>
+            <div>
+                <button
+                        class="btn btn-primary"
+                        type="button"
+                        description="logout"
+                        action="logout"
+                        id="logout">
+                    logout
+                    <form>
+                        <input name="logout" type="hidden" class="form-control" value="true">
+                    </form>
+                </button>
+            </div>
         </div>
     </nav>
     <div class="container">
-        <div class='alert alert-info' style="display:none;" id="notification">
-        </div>
         <div class="container-fluid">
             <div class="tab-content">
               <div class="tab-pane fade in active" id="vms">
