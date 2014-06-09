@@ -37,12 +37,9 @@ def get_template_info_fast(session, endpoint):
         is_a_snapshot = record['is_a_snapshot']
         if not is_control_domain and is_a_template and not is_a_snapshot:
             entry = dict()
-            if 'install-repository' in record['other_config']:
-                print (record['name_label'])
-                if 'install-distro' in record['other_config']:
-                    print(record['other_config']['install-distro'])
-                if 'install-repository' in record['other_config']:
-                    print(record['other_config']['install-repository'])
+            if 'install-distro' in record['other_config']:
+                print (record)
+
             entry['uuid'] = record['uuid']
             entry['name_label'] = None or record['name_label']
             entry['name_description'] = None or record['name_description']
@@ -50,6 +47,12 @@ def get_template_info_fast(session, endpoint):
             entry['tags'] = [] if 'tags' not in record or len(record['tags']) == 0 else record['tags']
             entry['endpoint'] = endpoint
             entry['other_config'] = record['other_config']
+            if 'ubuntu' in record['name_label'].lower():
+                entry['default_mirror'] = 'http://mirror.yandex.ru/ubuntu/'
+            elif 'debian' in record['name_label'].lower():
+                entry['default_mirror'] = 'http://mirror.yandex.ru/debian/'
+            else:
+                entry['default_mirror'] = ''
 
             template_list.append(entry)
     return template_list
