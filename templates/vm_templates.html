@@ -3,9 +3,8 @@
         <thead>
         <tr>
             <th class="col-sm-2">Location</th>
-            <th class="col-sm-3">Template name</th>
-            <th>Template description</th>
-            <th class="col-sm-1">Tags</th>
+            <th class="col-sm-5">Template name</th>
+            <th class="col-sm-5">Tags</th>
         </tr>
         </thead>
         <tbody id="templates_table_body">
@@ -17,34 +16,87 @@
                         <footer>{{ template['endpoint']['url'] }}</footer>
                     </blockquote>
                 </td>
-                <td><p class="lead">{{ template['name_label'] }}</p></td>
-                <td><p class="text-muted small">{{ template['name_description'] }}</p></td>
+                <td>
+                    <blockquote>
+                        <p class="lead">{{ template['name_label'] }}</p>
+                        <footer>{{ template['name_description'] }}</footer>
+                    </blockquote>
+                </td>
                 <td>{% if 'vmemperor' not in template['tags'] %}
+                    <form class="enable-template">
+                        <select class="form-control template-select">
+                            <option value="--">Select install method (required)</option>
+                            <option value="preseed">Preseed-based install method for Debian-based distros (e.g. Ubuntu)</option>
+                            <option value="anaconda" disabled>Anaconda-based install method for RHEL-based distros (e.g. CentOS) *not implemented</option>
+                            <option value="jumpstart" disabled>Jumpstart-based install method for Solaris-based distros *not implemented</option>
+                        </select>
+                        <select class="form-control proxy-select">
+                            <option value="--">Select reverse-proxy config style</option>
+                            <option value="nothing">I don't need it at all</option>
+                            <option value="nginx">Nginx configuration files</option>
+                            <option value="apache2" disabled> Apache2 configuration files (virtualhosts) *not implemented</option>
+                            <option value="lighttpd" disabled> Lighttpd configuration files *not implemented</option>
+                            <option value="varnish" disabled> Varnish cache backend director files *not implemented</option>
+                        </select>
+                    </form>
+                    {#
                     <button type="button"
-                            class="btn btn-default enable-template"
+                            class="btn btn-default btn-block enable-template"
                             id="{{ template['uuid'] }}"
-                            action="enable-template"
+                            action="change-tag"
                             description="enabling template {{ template['name_label'] }}">
                         Enable this template<br> in VM creation tab
                         <form>
-                        <input name="vm_uuid" type="hidden" class="form-control" value="{{ template['uuid'] }}">
+                            <input name="vm_uuid" type="hidden" class="form-control" value="{{ template['uuid'] }}">
                             <input name="endpoint_url" type="hidden" class="form-control" value="{{ template['endpoint']['url'] }}">
                             <input name="endpoint_description" type="hidden" class="form-control" value="{{ template['endpoint']['description'] }}">
+                            <input name="action" type="hidden" class="form-control" value="enable-template">
                         </form>
                     </button>
                     {% else %}
                     <button type="button"
-                            class="btn btn-danger disable-template"
+                            class="btn btn-danger btn-block disable-template"
                             id="{{ template['uuid'] }}"
-                            action="disable-template"
+                            action="change-tag"
                             description="disabling template {{ template['name_label'] }}">
                         Disable this template<br> in VM creation tab
                         <form>
                             <input name="vm_uuid" type="hidden" class="form-control" value="{{ template['uuid'] }}">
                             <input name="endpoint_url" type="hidden" class="form-control" value="{{ template['endpoint']['url'] }}">
                             <input name="endpoint_description" type="hidden" class="form-control" value="{{ template['endpoint']['description'] }}">
+                            <input name="action" type="hidden" class="form-control" value="disable-template">
                         </form>
                     </button>
+
+                    {% if 'ubuntu-preseed' not in template['tags'] %}
+                    <button type="button"
+                            class="btn btn-info btn-sm btn-block enable-preseed"
+                            id="{{ template['uuid'] }}"
+                            action="change-tag"
+                            description="enabling ubuntu preseed-based installation procedure on {{ template['name_label'] }}">
+                            Install using preseed auto-install<br>(required for ubuntu-based templates)
+                        <form>
+                            <input name="vm_uuid" type="hidden" class="form-control" value="{{ template['uuid'] }}">
+                            <input name="endpoint_url" type="hidden" class="form-control" value="{{ template['endpoint']['url'] }}">
+                            <input name="endpoint_description" type="hidden" class="form-control" value="{{ template['endpoint']['description'] }}">
+                            <input name="action" type="hidden" class="form-control" value="enable-ubuntu-preseed">
+                        </form>
+                    </button>
+                    {% else %}
+                    <button type="button"
+                            class="btn btn-info btn-sm btn-block enable-preseed"
+                            id="{{ template['uuid'] }}"
+                            action="change-tag"
+                            description="enabling ubuntu preseed-based installation procedure on {{ template['name_label'] }}">
+                        Disable this template<br> in VM creation tab
+                        <form>
+                            <input name="vm_uuid" type="hidden" class="form-control" value="{{ template['uuid'] }}">
+                            <input name="endpoint_url" type="hidden" class="form-control" value="{{ template['endpoint']['url'] }}">
+                            <input name="endpoint_description" type="hidden" class="form-control" value="{{ template['endpoint']['description'] }}">
+                            <input name="action" type="hidden" class="form-control" value="disable-ubuntu-preseed">
+                        </form>
+                    </button>
+                    {% endif %}  #}
                     {% endif %}
                 </td>
             </tr>

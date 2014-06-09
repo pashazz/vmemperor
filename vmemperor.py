@@ -151,10 +151,16 @@ def requires_auth(f):
                 if not flask_session[endpoint['url']]['url'] \
                         or not flask_session[endpoint['url']]['login'] \
                         or not flask_session[endpoint['url']]['password']:
-                    return redirect(url_for('authenticate'))
+                    response = jsonify({'status': 'error', 'details': url_for('authenticate'),
+                                        'reason': 'This page requires auth: session expired or have logged out'})
+                    response.status_code = 401
+                    return response
             else:
                 print ("Missing auth info for ", endpoint)
-                return redirect(url_for('authenticate'))
+                response = jsonify({'status': 'error', 'details': url_for('authenticate'),
+                                    'reason': 'This page requires auth: missing auth info for ' + endpoint['description']})
+                response.status_code = 401
+                return response
 
         return f(*args, **kwargs)
     return decorated
@@ -212,7 +218,6 @@ def create_vm():
 
 
 @app.route('/')
-@requires_auth
 def secret_page():
     return render_template('index.html')
 

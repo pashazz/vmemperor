@@ -32,6 +32,64 @@
     </style>
 
     <script>
+        function auth_error(data)
+        {
+            var res = $.parseJSON(data.responseText);
+            noty({text: res['reason'], timeout: 5000, type: "error"});
+            setTimeout(function () {
+                window.location.href = "/auth";
+            }, 5000);
+        }
+
+        function activate_forms() {
+            $("#template-select").watch('disabled', function() {
+                $("#user-fullname").prop('disabled', this["disabled"]);
+                $("#username").prop('disabled', this["disabled"]);
+                $("#hostname").prop('disabled', this["disabled"]);
+                $("#password").prop('disabled', this["disabled"]);
+                $("#password2").prop('disabled', this["disabled"]);
+                $("#vm-description").prop('disabled', this["disabled"]);
+                $("#vcpus").prop('disabled', this["disabled"]);
+                $("#ram").prop('disabled', this["disabled"]);
+                $("#hdd").prop('disabled', this["disabled"]);
+                $("#redirection-http").prop('disabled', this["disabled"]);
+                $("#redirection-http-alt").prop('disabled', this["disabled"]);
+                $("#redirection-ssl").prop('disabled', this["disabled"]);
+                $("#create-button").prop('disabled', this["disabled"]);
+                var pool_info = $("#pool-info");
+                if(!this["disabled"]) {
+                    var postData = $("#create-vm-form").serializeArray();
+                    $.ajax({
+                        url: '/get-pool-info',
+                        type: "POST",
+                        data: postData,
+                        success: function(data, textStatus, jqXHR){
+                            console.log(data);
+                            pool_info.attr('class', 'container-fluid');
+                            console.log(data);
+                            pool_info.html(data);
+                            if ($("#no-sr-error").length) {
+                                noty({text: "<p class='lead'>" +
+                                        "No default SR is associated with your XenServer pool/server:<br> " +
+                                        "you are not able to create any VM with this user interface " +
+                                        "until you assign it to the pool.</p>", timeout: false, type: "success"});
+                            }
+                        },
+                        error: function(data, textStatus, errorThrown)
+                        {
+                            console.log(data);
+                            pool_info.attr('class', 'alert alert-danger');
+                            pool_info.html("<p>Can't get XenServer information. There is a chance that you will not be able to create VM here.</p>")
+                        }
+                    });
+
+                } else {
+                    pool_info.attr('class', 'alert alert-info');
+                    pool_info.html("<p>Select where to deploy VM to see XenServer info.</p>")
+                }
+            });
+        }
+
         function retrieve_create_vm_tab_content() {
             var func = arguments.callee;
             $.get('/create-vm', function(data) {
@@ -44,57 +102,18 @@
                     loading: "Loading.."
                 });
 
-                    $("#template-select").watch('disabled', function() {
-                        $("#user-fullname").prop('disabled', this["disabled"]);
-                        $("#username").prop('disabled', this["disabled"]);
-                        $("#hostname").prop('disabled', this["disabled"]);
-                        $("#password").prop('disabled', this["disabled"]);
-                        $("#password2").prop('disabled', this["disabled"]);
-                        $("#vm-description").prop('disabled', this["disabled"]);
-                        $("#vcpus").prop('disabled', this["disabled"]);
-                        $("#ram").prop('disabled', this["disabled"]);
-                        $("#hdd").prop('disabled', this["disabled"]);
-                        $("#redirection-http").prop('disabled', this["disabled"]);
-                        $("#redirection-http-alt").prop('disabled', this["disabled"]);
-                        $("#redirection-ssl").prop('disabled', this["disabled"]);
-                        $("#create-button").prop('disabled', this["disabled"]);
-                        var pool_info = $("#pool-info");
-                        if(!this["disabled"]) {
-                            var postData = $("#create-vm-form").serializeArray();
-                            $.ajax({
-                                url: '/get-pool-info',
-                                type: "POST",
-                                data: postData,
-                                success: function(data, textStatus, jqXHR){
-                                    console.log(data);
-                                    pool_info.attr('class', 'container-fluid');
-                                    console.log(data);
-                                    pool_info.html(data);
-                                    if ($("#no-sr-error").length) {
-                                        noty({text: "<p class='lead'>" +
-                                                "No default SR is associated with your XenServer pool/server:<br> " +
-                                                "you are not able to create any VM with this user interface " +
-                                                "until you assign it to the pool.</p>", timeout: false, type: "success"});
-                                    }
-                                },
-                                error: function(data, textStatus, errorThrown)
-                                {
-                                    console.log(data);
-                                    pool_info.attr('class', 'alert alert-danger');
-                                    pool_info.html("<p>Can't get XenServer information. There is a chance that you will not be able to create VM here.</p>")
-                                }
-                            });
+                activate_forms();
 
-                        } else {
-                            pool_info.attr('class', 'alert alert-info');
-                            pool_info.html("<p>Select where to deploy VM to see XenServer info.</p>")
-                        }
-                    });
                 $("#logout").click(function(e) {
                     simple_button(e, func);
                 });
-            });
-
+            })
+                    .fail(function(data) {
+                       console.log(data);
+                       if (data.status == 401) {
+                           auth_error(data);
+                       }
+                    });
         }
 
         function retrieve_vms_tab_content() {
@@ -114,7 +133,13 @@
                 $("#logout").click(function(e) {
                     simple_button(e, func);
                 });
-            });
+            })
+                    .fail(function(data) {
+                        console.log(data);
+                        if (data.status == 401) {
+                            auth_error(data);
+                        }
+                    });
         }
 
         function retrieve_templates_tab_content() {
@@ -141,7 +166,13 @@
                     simple_button(e, func);
                 });
 
-            });
+            })
+                    .fail(function(data) {
+                        console.log(data);
+                        if (data.status == 401) {
+                            auth_error(data);
+                        }
+                    });
         }
 
         function simple_button(e, func) {
