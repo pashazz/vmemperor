@@ -1,3 +1,9 @@
+{% set nothing = "vmemperor-no-reverse-proxy" %}
+{% set nginx = "vmemperor-nginx" %}
+{% set apache2 = "vmemperor-apache2" %}
+{% set lighttpd = "vmemperor-lighttpd" %}
+{% set varnish = "vmemperor-varnish" %}
+
 <div class="table-responsive">
     <table class="table table-hover table-vcenter">
         <thead>
@@ -10,6 +16,7 @@
         <tbody id="templates_table_body">
         {% for template in template_list %}
             {% if 'install-distro' in template['other_config'] %}
+                {% if template['other_config']['install-distro'] == 'debianlike' %}
             <tr>
                 <td>
                     <blockquote>
@@ -24,99 +31,60 @@
                     </blockquote>
                 </td>
                 <td>
-                        {% if template['other_config']['install-distro'] == 'debianlike' %}
-                        <form class="enable-template" role="form">
-                            <div class="form-group">
-                                <label>Select installation mirror.</label>
-                                <input type="url" class="form-control" value="{{ template['default_mirror'] }}">
-                            </div>
-                            <div class="form-group">
-                                <label>Select reverse-proxy config style</label>
-                                <select class="form-control proxy-select">
-                                    <option value="nothing">I don't need it at all</option>
-                                    <option value="nginx">Nginx configuration files</option>
-                                    <option value="apache2" disabled> Apache2 configuration files (virtualhosts) *not implemented</option>
-                                    <option value="lighttpd" disabled> Lighttpd configuration files *not implemented</option>
-                                    <option value="varnish" disabled> Varnish cache backend director files *not implemented</option>
-                                </select>
-                            </div>
-                            <input name="vm_uuid" type="hidden" class="form-control" value="{{ template['uuid'] }}">
-                            <input name="endpoint_url" type="hidden" class="form-control" value="{{ template['endpoint']['url'] }}">
-                            <input name="endpoint_description" type="hidden" class="form-control" value="{{ template['endpoint']['description'] }}">
-                            <input name="action" type="hidden" class="form-control" value="enable-template">
+                    <form class="enable-template" role="form">
+                        <div class="form-group">
+                            <label>Select installation mirror.</label>
+                            {% if 'install_repository' in template['tags'] %}
+                                <input type="url" class="form-control" value="{{ template['install_repository'] }}">
+                            {% else %}
+                            <input type="url" class="form-control" value="{{ template['default_mirror'] }}">
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label>Select reverse-proxy config style</label>
+                            <select class="form-control proxy-select">
+                                <option value={{ nothing }}>I don't need it at all</option>
+                                <option value={{ nginx }}
+                                        {% if nginx in template['tags'] -%}
+                                        selected
+                                        {%- endif %}>
+                                    Nginx configuration files
+                                </option>
+                                <option value="vmemperor-apache2" disabled> Apache2 configuration files (virtualhosts) *not implemented</option>
+                                <option value="vmemperor-lighttpd" disabled> Lighttpd configuration files *not implemented</option>
+                                <option value="vmemperor-varnish" disabled> Varnish cache backend director files *not implemented</option>
+                            </select>
+                        </div>
+                        <input name="vm_uuid" type="hidden" class="form-control" value="{{ template['uuid'] }}">
+                        <input name="endpoint_url" type="hidden" class="form-control" value="{{ template['endpoint']['url'] }}">
+                        <input name="endpoint_description" type="hidden" class="form-control" value="{{ template['endpoint']['description'] }}">
+                        <input name="action" type="hidden" class="form-control" value="enable-template">
                         {% if 'vmemperor' not in template['tags'] %}
                             <button class="btn btn-default btn-block">Enable this template</button>
                         {% else %}
                             <button class="btn btn-danger">Disable this template</button>
                             <button class="btn btn-info">Update this template</button>
                         {% endif %}
-                        </form>
-                        {% else %}
-                        <p class="text-warning">You can not use this template until anybody
-                            commits automated installer script generator for
-                            <b>{{ template['other_config']['install-distro'] }}</b> systems
-                            (only preseed generator is implemented right now for debianlike systems)</p>
-                        {% endif %}
-                    {#
-                    <button type="button"
-                            class="btn btn-default btn-block enable-template"
-                            id="{{ template['uuid'] }}"
-                            action="change-tag"
-                            description="enabling template {{ template['name_label'] }}">
-                        Enable this template<br> in VM creation tab
-                        <form>
-
-                        </form>
-                    </button>
-                    {% else %}
-                    <button type="button"
-                            class="btn btn-danger btn-block disable-template"
-                            id="{{ template['uuid'] }}"
-                            action="change-tag"
-                            description="disabling template {{ template['name_label'] }}">
-                        Disable this template<br> in VM creation tab
-                        <form>
-                            <input name="vm_uuid" type="hidden" class="form-control" value="{{ template['uuid'] }}">
-                            <input name="endpoint_url" type="hidden" class="form-control" value="{{ template['endpoint']['url'] }}">
-                            <input name="endpoint_description" type="hidden" class="form-control" value="{{ template['endpoint']['description'] }}">
-                            <input name="action" type="hidden" class="form-control" value="disable-template">
-                        </form>
-                    </button>
-
-                    {% if 'ubuntu-preseed' not in template['tags'] %}
-                    <button type="button"
-                            class="btn btn-info btn-sm btn-block enable-preseed"
-                            id="{{ template['uuid'] }}"
-                            action="change-tag"
-                            description="enabling ubuntu preseed-based installation procedure on {{ template['name_label'] }}">
-                            Install using preseed auto-install<br>(required for ubuntu-based templates)
-                        <form>
-                            <input name="vm_uuid" type="hidden" class="form-control" value="{{ template['uuid'] }}">
-                            <input name="endpoint_url" type="hidden" class="form-control" value="{{ template['endpoint']['url'] }}">
-                            <input name="endpoint_description" type="hidden" class="form-control" value="{{ template['endpoint']['description'] }}">
-                            <input name="action" type="hidden" class="form-control" value="enable-ubuntu-preseed">
-                        </form>
-                    </button>
-                    {% else %}
-                    <button type="button"
-                            class="btn btn-info btn-sm btn-block enable-preseed"
-                            id="{{ template['uuid'] }}"
-                            action="change-tag"
-                            description="enabling ubuntu preseed-based installation procedure on {{ template['name_label'] }}">
-                        Disable this template<br> in VM creation tab
-                        <form>
-                            <input name="vm_uuid" type="hidden" class="form-control" value="{{ template['uuid'] }}">
-                            <input name="endpoint_url" type="hidden" class="form-control" value="{{ template['endpoint']['url'] }}">
-                            <input name="endpoint_description" type="hidden" class="form-control" value="{{ template['endpoint']['description'] }}">
-                            <input name="action" type="hidden" class="form-control" value="disable-ubuntu-preseed">
-                        </form>
-                    </button>
-                    {% endif %}  #}
-
+                    </form>
+                {% endif %}
                 </td>
             </tr>
             {% endif %}
         {% endfor %}
         </tbody>
     </table>
+</div>
+<div class="container-fluid">
+    <h1>The templates you can not use *yet*</h1>
+    <p class="lead">The following list of templates is able to work with VM emperor system but no one has implemented
+    automatic installer instructions generator. For this moment only
+        <a href="http://en.wikipedia.org/wiki/Preseed">preseed-generator</a> is available, commits are welcome.</p>
+    <p class="text-muted">
+    {% for template in template_list %}
+        {% if 'install-distro' in template['other_config'] and template['other_config']['install-distro'] != 'debianlike' %}
+            {{ template['name_label'] }}
+        {% endif %}
+    {% endfor %}
+
+    </p>
 </div>
