@@ -334,5 +334,9 @@ if __name__ == '__main__':
     #app.config.update(SESSION_COOKIE_SECURE=True)
     app.config['xen_endpoints'] = [{'url': 'https://172.31.0.10:443/', 'description': 'Pool A'},
                                    {'url': 'https://172.31.0.30:443/', 'description': 'Pool Z'}]
+    app.config['supported-distros'] = {'debianlike': 'all'}
+    app.config['enabled-distros'] = app.config['supported-distros']
+    app.config['supported-reverse-proxies'] = {'vmemperor-nginx': 'Nginx configuration files'}
+    app.config['enabled-reverse-proxies'] = app.config['supported-reverse-proxies']
     #retrieve_vms_list(session)
     app.run(debug=True)

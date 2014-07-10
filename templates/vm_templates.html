@@ -1,8 +1,4 @@
 {% set nothing = "vmemperor-no-reverse-proxy" %}
-{% set nginx = "vmemperor-nginx" %}
-{% set apache2 = "vmemperor-apache2" %}
-{% set lighttpd = "vmemperor-lighttpd" %}
-{% set varnish = "vmemperor-varnish" %}
 
 <div class="table-responsive">
     <table class="table table-hover table-vcenter">
@@ -16,7 +12,7 @@
         <tbody id="templates_table_body">
         {% for template in template_list %}
             {% if 'install-distro' in template['other_config'] %}
-                {% if template['other_config']['install-distro'] == 'debianlike' %}
+                {% if template['other_config']['install-distro'] in config['enabled-distros'] %}
             <tr>
                 <td>
                     <blockquote>
@@ -44,15 +40,14 @@
                             <label>Select reverse-proxy config style</label>
                             <select class="form-control proxy-select">
                                 <option value={{ nothing }}>I don't need it at all</option>
-                                <option value={{ nginx }}
-                                        {% if nginx in template['tags'] -%}
+                            {% for reverse_proxy in config['enabled-reverse-proxies'] %}
+                                <option value={{ reverse_proxy }}
+                                        {% if reverse_proxy in template['tags'] -%}
                                         selected
                                         {%- endif %}>
-                                    Nginx configuration files
+                                    {{ config['enabled-reverse-proxies'][reverse_proxy] }}
                                 </option>
-                                <option value="vmemperor-apache2" disabled> Apache2 configuration files (virtualhosts) *not implemented</option>
-                                <option value="vmemperor-lighttpd" disabled> Lighttpd configuration files *not implemented</option>
-                                <option value="vmemperor-varnish" disabled> Varnish cache backend director files *not implemented</option>
+                            {% endfor %}
                             </select>
                         </div>
                         <input name="vm_uuid" type="hidden" class="form-control" value="{{ template['uuid'] }}">
@@ -81,7 +76,7 @@
         <a href="http://en.wikipedia.org/wiki/Preseed">preseed-generator</a> is available, commits are welcome.</p>
     <p class="text-muted">
     {% for template in template_list %}
-        {% if 'install-distro' in template['other_config'] and template['other_config']['install-distro'] != 'debianlike' %}
+        {% if 'install-distro' in template['other_config'] and template['other_config']['install-distro'] not in config['supported-distros'] %}
             {{ template['name_label'] }}
         {% endif %}
     {% endfor %}
