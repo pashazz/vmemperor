@@ -1,5 +1,5 @@
 ### This module can fetch VM info using two methods. ###
-
+from XenAPI import Failure
 
 ### Get info about VMs using plain xe protocol. Should fit for any XenServer version that uses xe. ###
 def get_vms_info_fallback(session, endpoint):
@@ -14,13 +14,17 @@ def get_vms_info_fallback(session, endpoint):
         if not is_control_domain and not is_a_template and not is_a_snapshot:
             entry = dict()
             entry['uuid'] = api.VM.get_uuid(vm)
-            entry['allowed_operations'] = api.VM.get_allowed_operations(vm)
             entry['name_label'] = api.VM.get_name_label(vm)
             entry['name_description'] = api.VM.get_name_description(vm)
+            entry['allowed_operations'] = api.VM.get_allowed_operations(vm)
             entry['power_state'] = api.VM.get_power_state(vm)
             entry['VCPUs_at_startup'] = api.VM.get_VCPUs_at_startup(vm)
-            entry['networks'] = api.VM_guest_metrics.get_networks(api.VM.get_metrics(vm))
-            entry['memory_target'] = str(int(api.VM.get_memory_target(vm))/(1024*1024))
+            entry['memory_target'] = api.VM.get_memory_target(vm)
+            entry['memory_dynamic_min'] = api.VM.get_memory_dynamic_min(vm)
+            entry['memory_dynamic_max'] = api.VM.get_memory_dynamic_max(vm)
+            get_guest_metrics = lambda x: x if x != 'OpaqueRef:NULL' else None
+            entry['guest_metrics'] = get_guest_metrics(api.VM.get_guest_metrics(vm))
+            entry['networks'] = api.VM_guest_metrics.get_networks(entry['guest_metrics']) if entry['guest_metrics'] else None
             entry['endpoint'] = endpoint
 
             vm_list.append(entry)
@@ -34,25 +38,19 @@ def get_vms_info_fast(session, endpoint):
     vm_list = []
     all_records = api.VM.get_all_records()
     for record in all_records.values():
-        is_control_domain = record['is_control_domain']
-        is_a_template = record['is_a_template']
-        is_a_snapshot = record['is_a_snapshot']
-        if not is_control_domain and not is_a_template and not is_a_snapshot:
-            entry = dict()
-            entry['uuid'] = None or record['uuid']
-            entry['name_label'] = None or record['name_label']
-            entry['name_description'] = None or record['name_description']
-            entry['allowed_operations'] = None or record['allowed_operations']
-            entry['power_state'] = None or record['power_state']
-            entry['VCPUs_at_startup'] = None or record['VCPUs_at_startup']
-            if not record['guest_metrics'] or record['guest_metrics'] == 'OpaqueRef:NULL':
-                entry['networks'] = None
-            else:
-                entry['networks'] = None or api.VM_guest_metrics.get_record(record['guest_metrics'])['networks']
-            entry['memory_target'] = None or str(int(record['memory_target'])/(1024*1024))
+        entry = dict()
+        for field in ['is_control_domain', 'is_a_template', 'is_a_snapshot']:
+            entry[field] = record[field] if field in record and record[field] != 'OpaqueRef:NULL' else None
+        if not max([x for x in entry.values()]):
+            for field in ['uuid', 'name_label', 'name_description', 'allowed_operations',
+                          'power_state', 'VCPUs_at_startup', 'memory_target', 'guest_metrics',
+                          'memory_dynamic_min', 'memory_dynamic_max']:
+                entry[field] = record[field] if field in record and record[field] != 'OpaqueRef:NULL' else None
+            entry['networks'] = api.VM_guest_metrics.get_record(entry['guest_metrics'])['networks'] if entry['guest_metrics'] else None
             entry['endpoint'] = endpoint
 
             vm_list.append(entry)
+
     return vm_list
 
 
@@ -61,8 +59,11 @@ def get_vms_list(session, endpoint):
     vm_list = []
     try:
         vm_list = get_vms_info_fast(session, endpoint)
-    except:
-        print ("Fast method failed; using fallback.")
-        vm_list = get_vms_info_fallback(session, endpoint)
-    finally:
-        return vm_list
+    except Failure as e:
+        print ("Fast method failed, details:", e.details)
+        try:
+            vm_list = get_vms_info_fallback(session, endpoint)
+        except Failure as e2:
+            print ("Fallback method failed too", e2.details)
+
+    return vm_list

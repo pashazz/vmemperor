@@ -28,7 +28,16 @@
               </p>
           </td>
           <td><p class="text-center"><span class="badge">{{vm['VCPUs_at_startup']}}</span></p></td>
-          <td><p class="text-center"><span class="badge alert-info">{{ vm['memory_target'] }}MB</span></p></td>
+          {% if vm['power_state'] == 'Running' %}
+          <td><p class="text-center"><span class="badge alert-info">{{ (vm['memory_target'])|int // (1024*1024) }}MB</span></p></td>
+          {% else %}
+          <td>
+              <p class="text-center">
+                  <span class="badge alert-info">{{ (vm['memory_dynamic_min'])|int // (1024*1024) }}&ndash;{{ (vm['memory_dynamic_max'])|int // (1024*1024) }}MB
+                  </span>
+              </p>
+          </td>
+          {% endif %}
           <td><p>{{ vm['power_state'] }}</p></td>
           <td>
               {% if vm['power_state'] == 'Halted' %}
