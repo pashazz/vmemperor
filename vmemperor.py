@@ -172,8 +172,9 @@ def list_vms():
     vm_list = []
     for endpoint in app.config['xen_endpoints']:
         vm_list.extend(retrieve_vms_list(endpoint))
-    vm_list = sorted(vm_list, key=lambda k: (k['power_state'].lower(), k['name_label'].lower()))
-    return render_template('vms.html', vm_list=vm_list)
+    return json.dumps(vm_list)
+    # vm_list = sorted(vm_list, key=lambda k: (k['power_state'].lower(), k['name_label'].lower()))
+    # return render_template('vms.html', vm_list=vm_list)
 
 @app.route('/list-templates')
 @requires_auth
@@ -332,8 +333,8 @@ def get_pool_info():
 app.secret_key = 'SADFccadaeqw221fdssdvxccvsdf'
 if __name__ == '__main__':
     #app.config.update(SESSION_COOKIE_SECURE=True)
-    app.config['xen_endpoints'] = [{'url': 'https://172.31.0.10:443/', 'description': 'Pool A'},
-                                   {'url': 'https://172.31.0.30:443/', 'description': 'Pool Z'}]
+    app.config['xen_endpoints'] = [{'url': 'https://172.31.0.14:443/', 'description': 'Pool A'},
+                                   {'url': 'https://172.31.0.32:443/', 'description': 'Pool Z'}]
     app.config['supported-distros'] = {'debianlike': 'all'}
     app.config['enabled-distros'] = app.config['supported-distros']
     app.config['supported-reverse-proxies'] = {'vmemperor-nginx': 'Nginx configuration files'}

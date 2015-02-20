@@ -1,12 +1,16 @@
 var Reflux = require('reflux'),
     VMActions = require('./vm-actions'),
-    VMApi = require('../api/vmemp-api');
+    VMApi = require('../api/vmemp-api'),
+    VM = require('./vm-model');
 
 var VMStore = Reflux.createStore({
   
   init: function() {
     this.listenTo(VMActions.list, this.listVMs);
     this.listenTo(VMActions.start, this.startVM);
+    this.listenTo(VMActions.sort, this.changeSort)
+    this.sortField = '';
+    this.sortOrder = 1;
     this.status = '';
     this.vms = [];
   },
@@ -15,16 +19,48 @@ var VMStore = Reflux.createStore({
     return this.vms.length;
   },
 
+  changeSort: function(field) {
+    if(this.sortField === field) {
+      this.sortOrder = -this.sortOrder;
+    } else {
+      this.sortField = field;
+      this.sortOrder = 1;
+    }
+    this.sortVMs();
+    this.trigger();
+  },
+
+  sortVMs: function() {
+    if (!(this.sortOrder === 1 || this.sortOrder === -1 || this.sortField != '')) {
+      return ;
+    }
+    this.vms = this.vms.sort(function(a,b) {
+      if (a[this.sortField] === b[this.sortField]) {
+        return 0;
+      };
+      if (a[this.sortField] > b[this.sortField]) {
+        return (this.sortOrder === 1) ? 1 : -1;
+      };
+      return (this.sortOrder === 1) ? -1 : 1;
+    }.bind(this));
+  },
+
   listVMs: function() {
     this.status = 'PULL';
     this.trigger();
-    VMApi.listVMs(function(data){
-      this.vms = data;
-      this.status = 'READY';
-      this.trigger();
-      // VMActions.list.completed();
-    }.bind(this));
+    VMApi.listVMs()
+      .then(this.onListCompleted)
+      .fail(function() {
+        VMActions.listFail()
+      });
   },
+
+  onListCompleted: function(data) {
+    this.vms = data.map(function(single) { return new VM(single); });
+    this.status = 'READY';
+    this.trigger();
+  },
+
 
   startVM: function(vm) {
     this.status = 'PUSH';
@@ -39,8 +75,8 @@ var VMStore = Reflux.createStore({
 
 var errorStore = Reflux.createStore({
     init: function() {
-        this.listenTo(VMActions.list.failed, this.errCatched);
-        this.listenTo(VMActions.start.failed, this.errCatched);
+      this.listenTo(VMActions.listFail, this.errCatched);
+      this.listenTo(VMActions.startFail, this.errCatched);
     },
     errCatched: function(payload) {
       console.log("Error catched ", payload);

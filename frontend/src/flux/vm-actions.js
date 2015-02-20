@@ -1,8 +1,15 @@
 var Reflux = require('reflux');
 
-var VMActions = Reflux.createActions({
-  'list': {children: ['completed','failed']},
-  'start': {children: ['completed','failed']}
-});
+VMActions = Reflux.createActions([
+  'sort',
+
+  'list',
+  'listSuccess',
+  'listFail',
+
+  'start',
+  'startSuccess',
+  'startFail'
+]);
 
 module.exports = VMActions;
