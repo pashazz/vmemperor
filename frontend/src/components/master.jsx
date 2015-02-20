@@ -42,7 +42,7 @@ var Master = React.createClass({
     return (
       <div>
         <nav className="navbar navbar-default">
-          <div className="container-fluid">
+          <div className="container">
             <div className="navbar-header">
               {brand}
             </div>
