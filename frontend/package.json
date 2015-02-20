@@ -1,0 +1,30 @@
+{
+  "name": "vmemfe",
+  "version": "0.0.1",
+  "private": true,
+  "main": "src/app.jsx",
+  "scripts": {
+    "start": "watchify src/app.jsx -o js/bundle.js -v",
+    "build": "NODE_ENV=production browserify src/app.jsx -d | uglifyjs -cm > js/bundle.min.js"
+  },
+  "dependencies": {
+    "react": "^0.12.0",
+    "react-router": "^0.12.0",
+    "react-tap-event-plugin": "^0.1.0",
+    "reflux": "^0.2.5",
+    "zepto": "^0.0.4"
+  },
+  "devDependencies": {
+    "browserify": "^6.2.0",
+    "envify": "^3.0.0",
+    "reactify": "^0.15.2",
+    "uglify-js": "~2.4.15",
+    "watchify": "^2.1.1"
+  },
+  "browserify": {
+    "transform": [
+      "reactify",
+      "envify"
+    ]
+  }
+}
