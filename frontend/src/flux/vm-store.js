@@ -8,6 +8,7 @@ var VMStore = Reflux.createStore({
   init: function() {
     this.listenTo(VMActions.list, this.listVMs);
     this.listenTo(VMActions.start, this.startVM);
+    this.listenTo(VMActions.shutdown, this.shutdownVM);
     this.listenTo(VMActions.sort, this.changeSort)
     this.sortField = '';
     this.sortOrder = 1;
@@ -19,39 +20,13 @@ var VMStore = Reflux.createStore({
     return this.vms.length;
   },
 
-  changeSort: function(field) {
-    if(this.sortField === field) {
-      this.sortOrder = -this.sortOrder;
-    } else {
-      this.sortField = field;
-      this.sortOrder = 1;
-    }
-    this.sortVMs();
-    this.trigger();
-  },
-
-  sortVMs: function() {
-    if (!(this.sortOrder === 1 || this.sortOrder === -1 || this.sortField != '')) {
-      return ;
-    }
-    this.vms = this.vms.sort(function(a,b) {
-      if (a[this.sortField] === b[this.sortField]) {
-        return 0;
-      };
-      if (a[this.sortField] > b[this.sortField]) {
-        return (this.sortOrder === 1) ? 1 : -1;
-      };
-      return (this.sortOrder === 1) ? -1 : 1;
-    }.bind(this));
-  },
-
   listVMs: function() {
     this.status = 'PULL';
     this.trigger();
     VMApi.listVMs()
       .then(this.onListCompleted)
-      .fail(function() {
-        VMActions.listFail()
+      .fail(function(data) {
+        VMActions.listFail(data)
       });
   },
 
@@ -65,22 +40,47 @@ var VMStore = Reflux.createStore({
   startVM: function(vm) {
     this.status = 'PUSH';
     this.trigger();
-    VMApi.startVM(vm, function(){
-      this.status = 'READY';
-      this.trigger();
-    }.bind(this));
+    VMApi.startVM(vm)
+      .then(this.onStartCompleted)
+      .fail(function(data) {
+        VMActions.startFail(vm, data);
+      });
+  },
+
+  onStartCompleted: function(data) {
+    console.log(data);
+    VMActions.list(); 
+  },
+
+  shutdownVM: function(vm) {
+    this.status = 'PUSH';
+    this.trigger();
+    VMApi.shutdownVM(vm)
+      .then(this.onShutdownCompleted)
+      .fail(function(data) {
+        VMActions.shutdownFail(vm, data);
+      });
+  },
+
+  onShutdownCompleted: function(data) {
+    console.log(data);
+    VMActions.list(); 
   }
 
 });
 
 var errorStore = Reflux.createStore({
+
     init: function() {
       this.listenTo(VMActions.listFail, this.errCatched);
       this.listenTo(VMActions.startFail, this.errCatched);
+      this.listenTo(VMActions.shutdownFail, this.errCatched);
     },
+
     errCatched: function(payload) {
       console.log("Error catched ", payload);
     },
+
     getDefaultData: function() { return ""; }
 });
 

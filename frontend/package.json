@@ -13,7 +13,7 @@
     "react-tap-event-plugin": "^0.1.0",
     "reflux": "^0.2.5",
     "jquery": "^2.1.0",
-    "tablesorter": "^2.19.0"
+    "lodash": "^3.3.0"
   },
   "devDependencies": {
     "browserify": "^6.2.0",
