@@ -9,7 +9,11 @@ VMActions = Reflux.createActions([
 
   'start',
   'startSuccess',
-  'startFail'
+  'startFail',
+  
+  'shutdown',
+  'shutdownSuccess',
+  'shutdownFail'
 ]);
 
 module.exports = VMActions;

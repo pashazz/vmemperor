@@ -248,6 +248,31 @@ def start_vm():
         response.status_code = 409
         return response
 
+@app.route('/shutdown-vm', methods=['POST'])
+@requires_auth
+def shutdown_vm():
+    vm_uuid = request.form.get('vm_uuid')
+    endpoint_url = request.form.get('endpoint_url')
+    endpoint_description = request.form.get('endpoint_description')
+    if not vm_uuid or not endpoint_url or not endpoint_description:
+        response = {'status': 'error', 'details': 'Syntax error in your query', 'reason': 'missing argument'}
+        return jsonify(response), 406
+
+    endpoint = {'url': endpoint_url, 'description': endpoint_description}
+    session = get_xen_session(endpoint)
+    api = session.xenapi
+    vm_ref = api.VM.get_by_uuid(vm_uuid)
+    try:
+        api.VM.shutdown(vm_ref)
+        response = jsonify({'status': 'success', 'details': 'VM shutdown', 'reason': ''})
+        response.status_code = 200
+        return response
+    except XenAPI.Failure as e:
+        print e.details
+        response = jsonify({'status': 'error', 'details': 'Can not shutdown VM', 'reason': e.details})
+        response.status_code = 409
+        return response
+
 
 @app.route('/enable-template', methods=['POST'])
 @requires_auth
