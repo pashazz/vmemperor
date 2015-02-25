@@ -1,5 +1,6 @@
 var Reflux = require('reflux'),
     VMActions = require('./vm-actions'),
+    AlertActions = require('./alert-actions'),
     VMApi = require('../api/vmemp-api'),
     VM = require('./vm-model');
 
@@ -9,9 +10,7 @@ var VMStore = Reflux.createStore({
     this.listenTo(VMActions.list, this.listVMs);
     this.listenTo(VMActions.start, this.startVM);
     this.listenTo(VMActions.shutdown, this.shutdownVM);
-    this.listenTo(VMActions.sort, this.changeSort)
-    this.sortField = '';
-    this.sortOrder = 1;
+    
     this.status = '';
     this.vms = [];
   },
@@ -22,66 +21,57 @@ var VMStore = Reflux.createStore({
 
   listVMs: function() {
     this.status = 'PULL';
+    AlertActions.log('Getting VM list...');
     this.trigger();
     VMApi.listVMs()
       .then(this.onListCompleted)
-      .fail(function(data) {
-        VMActions.listFail(data)
+      .catch(function(response) {
+        VMActions.listFail(response);
+        AlertActions.err("Error while getting VM list!");
       });
   },
 
-  onListCompleted: function(data) {
-    this.vms = data.map(function(single) { return new VM(single); });
+  onListCompleted: function(response) {
+    this.vms = response.data.map(function(single) { return new VM(single); });
     this.status = 'READY';
+    AlertActions.suc('Got VM list');
     this.trigger();
   },
-
 
   startVM: function(vm) {
     this.status = 'PUSH';
+    AlertActions.log('Starting VM:' + vm.name);
     this.trigger();
     VMApi.startVM(vm)
       .then(this.onStartCompleted)
-      .fail(function(data) {
-        VMActions.startFail(vm, data);
+      .catch(function(response) {
+        AlertActions.err("Error while starting VM:" + vm.name);
+        VMActions.startFail(vm, response);
       });
   },
 
-  onStartCompleted: function(data) {
-    console.log(data);
+  onStartCompleted: function(response) {
+    AlertActions.suc('VM started');
     VMActions.list(); 
   },
 
   shutdownVM: function(vm) {
     this.status = 'PUSH';
+    AlertActions.log('Shutting down VM:' + vm.name);
     this.trigger();
     VMApi.shutdownVM(vm)
       .then(this.onShutdownCompleted)
-      .fail(function(data) {
-        VMActions.shutdownFail(vm, data);
+      .catch(function(response) {
+        AlertActions.err("Error while shutting down VM:" + vm.name);
+        VMActions.shutdownFail(vm, response);
       });
   },
 
-  onShutdownCompleted: function(data) {
-    console.log(data);
+  onShutdownCompleted: function(response) {
+    AlertActions.suc('VM shutdown');
     VMActions.list(); 
   }
 
-});
-
-var errorStore = Reflux.createStore({
-
-    init: function() {
-      this.listenTo(VMActions.listFail, this.errCatched);
-      this.listenTo(VMActions.startFail, this.errCatched);
-      this.listenTo(VMActions.shutdownFail, this.errCatched);
-    },
-
-    errCatched: function(payload) {
-      console.log("Error catched ", payload);
-    },
-
-    getDefaultData: function() { return ""; }
 });
 
 module.exports = VMStore;

@@ -1,6 +1,5 @@
 var React = require('react'),
     Reflux = require('reflux'),
-    Router = require('react-router'),
     _ = require('lodash');
 
 var VMStore = require('../flux/vm-store'),
@@ -50,7 +49,7 @@ var VMItem = React.createClass({
 
     return (
       <tr>
-        <td><strong>{this.props.vm.name}</strong> <span style={ {textAlign: 'right'} }>{this.props.vm.description}</span></td>
+        <td><strong>{this.props.vm.name}</strong> <i>{this.props.vm.description}</i></td>
         <td>{this.props.vm.pool}</td>
         <td>{this.props.vm.ip}</td>
         <td>{stateLabel}</td>
@@ -217,7 +216,6 @@ var VMList = React.createClass({
   render: function () {
     return (
       <div>
-        {this.renderStatus()}
         <VMTable items={this.state.vms} config={CONFIG} />
       </div>
     );
