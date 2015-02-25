@@ -184,7 +184,8 @@ def list_templates():
         for endpoint in app.config['xen_endpoints']:
             template_list.extend(retrieve_template_list(endpoint))
         template_list = sorted(template_list, key=lambda k: (-len(k['tags']), k['name_label'].lower()))
-    return render_template('vm_templates.html', template_list=template_list)
+    return json.dumps(template_list)
+    # return render_template('vm_templates.html', template_list=template_list)
 
 
 @app.route('/get-create-vm-params', methods=['GET'])
@@ -226,9 +227,10 @@ def secret_page():
 @app.route('/start-vm', methods=['POST'])
 @requires_auth
 def start_vm():
-    vm_uuid = request.form.get('vm_uuid')
-    endpoint_url = request.form.get('endpoint_url')
-    endpoint_description = request.form.get('endpoint_description')
+    form = request.form if request.form else json.loads(request.data)
+    vm_uuid = form.get('vm_uuid')
+    endpoint_url = form.get('endpoint_url')
+    endpoint_description = form.get('endpoint_description')
     if not vm_uuid or not endpoint_url or not endpoint_description:
         response = {'status': 'error', 'details': 'Syntax error in your query', 'reason': 'missing argument'}
         return jsonify(response), 406
@@ -251,9 +253,10 @@ def start_vm():
 @app.route('/shutdown-vm', methods=['POST'])
 @requires_auth
 def shutdown_vm():
-    vm_uuid = request.form.get('vm_uuid')
-    endpoint_url = request.form.get('endpoint_url')
-    endpoint_description = request.form.get('endpoint_description')
+    form = request.form if request.form else json.loads(request.data)
+    vm_uuid = form.get('vm_uuid')
+    endpoint_url = form.get('endpoint_url')
+    endpoint_description = form.get('endpoint_description')
     if not vm_uuid or not endpoint_url or not endpoint_description:
         response = {'status': 'error', 'details': 'Syntax error in your query', 'reason': 'missing argument'}
         return jsonify(response), 406

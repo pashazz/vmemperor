@@ -1,14 +1,14 @@
 var VMActions = require('../flux/vm-actions'),
-    $ = require('jquery');
+    axios = require('axios');
 
-var VMAPI = {  
+VMAPI = {  
 
     listVMs: function() {
-      return $.getJSON('/list-vms');
+      return axios.get('/list-vms');
     },
 
     startVM: function(vm) {
-      return $.post('/start-vm', {
+      return axios.post('/start-vm', {
         vm_uuid: vm.id,
         endpoint_url: vm.endpoint_url,
         endpoint_description: vm.endpoint_description
@@ -16,15 +16,15 @@ var VMAPI = {
     },
 
     shutdownVM: function(vm) {
-      return $.post('/shutdown-vm', {
+      return axios.post('/shutdown-vm', {
         vm_uuid: vm.id,
         endpoint_url: vm.endpoint_url,
         endpoint_description: vm.endpoint_description
       });
     },
 
-    listTemlates: function(callback) {
-
+    listTemplates: function() {
+      return axios.get('/list-templates');
     }
 };
 

@@ -1,8 +1,6 @@
 var Reflux = require('reflux');
 
 VMActions = Reflux.createActions([
-  'sort',
-
   'list',
   'listSuccess',
   'listFail',
@@ -10,7 +8,7 @@ VMActions = Reflux.createActions([
   'start',
   'startSuccess',
   'startFail',
-  
+
   'shutdown',
   'shutdownSuccess',
   'shutdownFail'

@@ -5,14 +5,14 @@
   "main": "src/app.jsx",
   "scripts": {
     "start": "watchify src/app.jsx -o ../static/js/bundle.js -v",
-    "build": "NODE_ENV=production browserify src/app.jsx -d | uglifyjs -cm > js/bundle.min.js"
+    "build": "NODE_ENV=production browserify src/app.jsx -d | uglifyjs -cm > ../static/js/bundle.min.js"
   },
   "dependencies": {
     "react": "^0.12.0",
     "react-router": "^0.12.0",
     "react-tap-event-plugin": "^0.1.0",
     "reflux": "^0.2.5",
-    "jquery": "^2.1.0",
+    "axios": "^0.5.0",
     "lodash": "^3.3.0"
   },
   "devDependencies": {
