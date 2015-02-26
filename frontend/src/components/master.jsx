@@ -6,6 +6,9 @@ var React = require('react'),
 
 var VMStore = require('../flux/vm-store')
     TemplateStore = require('../flux/template-store'),
+    SessionStore = require('../flux/session-store'),
+    SessionActions = require('../flux/session-actions')
+    AlertActions = require('../flux/alert-actions'),
     Snackbar = require('./snackbar.jsx');
 
 
@@ -76,11 +79,12 @@ var Master = React.createClass({
     );
   },
 
-  _logout: function(event) {
+  _logout: function(e) {
+    e.preventDefault();
     if (confirm("Are you sure you want to log out?")) {
-      console.log("You were logged out");
+      SessionActions.logout();
     } else {
-      console.log("You were NOT logged out");
+      AlertActions.err("You were NOT logged out");
     }
   }
 });

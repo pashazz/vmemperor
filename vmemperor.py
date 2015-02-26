@@ -126,9 +126,10 @@ def authenticate():
     if request.method == 'POST':
         counter = 0
         is_su = True
+        form = request.form if request.form else json.loads(request.data)
         for endpoint in app.config['xen_endpoints']:
-            login = request.form['login' + str(counter)]
-            password = request.form['password' + str(counter)]
+            login = form['login' + str(counter)]
+            password = form['password' + str(counter)]
             session = XenAPI.Session(endpoint['url'])
             if check_auth(login, password, session):
                 flask_session[endpoint['url']] = {'url': endpoint['url'], 'login': login, 'password': password}
@@ -361,6 +362,7 @@ def get_pool_info():
 app.secret_key = 'SADFccadaeqw221fdssdvxccvsdf'
 if __name__ == '__main__':
     #app.config.update(SESSION_COOKIE_SECURE=True)
+    app.config['SESSION_COOKIE_HTTPONLY'] = False
     app.config['xen_endpoints'] = [{'url': 'https://172.31.0.14:443/', 'description': 'Pool A'},
                                    {'url': 'https://172.31.0.32:443/', 'description': 'Pool Z'}]
     app.config['supported-distros'] = {'debianlike': 'all'}
