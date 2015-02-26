@@ -1,0 +1,59 @@
+th.headerSortAsc,
+th.tablesorter-headerSortAsc {
+  color: #333;
+  background: #f5f5f5 url(../img/asc.gif) no-repeat right 5px center;
+}
+
+th.headerSortDesc,
+th.tablesorter-headerSortDesc {
+  color: #333;
+  background: #f5f5f5 url(../img/desc.gif) no-repeat right 5px center;
+}
+
+tr input[type="text"] {
+  padding: 1px;
+  border: solid 1px #dcdcdc;
+  transition: box-shadow 0.3s, border 0.3s;
+}
+
+tr input[type="text"]:focus,
+tr input[type="text"].focus {
+  border: solid 1px #707070;
+  box-shadow: 0 0 5px 1px #969696;
+}
+
+#snackbar-container {
+  position: fixed;
+  left: 20px;
+  bottom: 10px;
+  z-index: 99999;
+}
+.snackbar {
+  overflow: hidden;
+  clear: both;
+  min-width: 288px;
+  max-width: 568px;
+  cursor: pointer;
+  opacity: 0;
+}
+.snackbar.snackbar-opened {
+  height: auto;
+  opacity: 0.8;
+}
+@media (max-width: 767px) {
+  #snackbar-container {
+    left: 0px !important;
+    right: 0px;
+    width: 100%;
+  }
+  #snackbar-container .snackbar {
+    min-width: 100%;
+  }
+  #snackbar-container [class="snackbar snackbar-opened"] ~ .snackbar.toast {
+    margin-top: 20px;
+  }
+  #snackbar-container [class="snackbar snackbar-opened"] {
+    border-radius: 0;
+    margin-bottom: 0;
+  }
+}

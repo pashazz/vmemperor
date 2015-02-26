@@ -126,9 +126,10 @@ def authenticate():
     if request.method == 'POST':
         counter = 0
         is_su = True
+        form = request.form if request.form else json.loads(request.data)
         for endpoint in app.config['xen_endpoints']:
-            login = request.form['login' + str(counter)]
-            password = request.form['password' + str(counter)]
+            login = form['login' + str(counter)]
+            password = form['password' + str(counter)]
             session = XenAPI.Session(endpoint['url'])
             if check_auth(login, password, session):
                 flask_session[endpoint['url']] = {'url': endpoint['url'], 'login': login, 'password': password}
@@ -172,8 +173,9 @@ def list_vms():
     vm_list = []
     for endpoint in app.config['xen_endpoints']:
         vm_list.extend(retrieve_vms_list(endpoint))
-    vm_list = sorted(vm_list, key=lambda k: (k['power_state'].lower(), k['name_label'].lower()))
-    return render_template('vms.html', vm_list=vm_list)
+    return json.dumps(vm_list)
+    # vm_list = sorted(vm_list, key=lambda k: (k['power_state'].lower(), k['name_label'].lower()))
+    # return render_template('vms.html', vm_list=vm_list)
 
 @app.route('/list-templates')
 @requires_auth
@@ -183,7 +185,8 @@ def list_templates():
         for endpoint in app.config['xen_endpoints']:
             template_list.extend(retrieve_template_list(endpoint))
         template_list = sorted(template_list, key=lambda k: (-len(k['tags']), k['name_label'].lower()))
-    return render_template('vm_templates.html', template_list=template_list)
+    return json.dumps(template_list)
+    # return render_template('vm_templates.html', template_list=template_list)
 
 
 @app.route('/get-create-vm-params', methods=['GET'])
@@ -225,9 +228,10 @@ def secret_page():
 @app.route('/start-vm', methods=['POST'])
 @requires_auth
 def start_vm():
-    vm_uuid = request.form.get('vm_uuid')
-    endpoint_url = request.form.get('endpoint_url')
-    endpoint_description = request.form.get('endpoint_description')
+    form = request.form if request.form else json.loads(request.data)
+    vm_uuid = form.get('vm_uuid')
+    endpoint_url = form.get('endpoint_url')
+    endpoint_description = form.get('endpoint_description')
     if not vm_uuid or not endpoint_url or not endpoint_description:
         response = {'status': 'error', 'details': 'Syntax error in your query', 'reason': 'missing argument'}
         return jsonify(response), 406
@@ -244,6 +248,32 @@ def start_vm():
     except XenAPI.Failure as e:
         print e.details
         response = jsonify({'status': 'error', 'details': 'Can not start VM', 'reason': e.details})
+        response.status_code = 409
+        return response
+
+@app.route('/shutdown-vm', methods=['POST'])
+@requires_auth
+def shutdown_vm():
+    form = request.form if request.form else json.loads(request.data)
+    vm_uuid = form.get('vm_uuid')
+    endpoint_url = form.get('endpoint_url')
+    endpoint_description = form.get('endpoint_description')
+    if not vm_uuid or not endpoint_url or not endpoint_description:
+        response = {'status': 'error', 'details': 'Syntax error in your query', 'reason': 'missing argument'}
+        return jsonify(response), 406
+
+    endpoint = {'url': endpoint_url, 'description': endpoint_description}
+    session = get_xen_session(endpoint)
+    api = session.xenapi
+    vm_ref = api.VM.get_by_uuid(vm_uuid)
+    try:
+        api.VM.shutdown(vm_ref)
+        response = jsonify({'status': 'success', 'details': 'VM shutdown', 'reason': ''})
+        response.status_code = 200
+        return response
+    except XenAPI.Failure as e:
+        print e.details
+        response = jsonify({'status': 'error', 'details': 'Can not shutdown VM', 'reason': e.details})
         response.status_code = 409
         return response
 
@@ -332,8 +362,9 @@ def get_pool_info():
 app.secret_key = 'SADFccadaeqw221fdssdvxccvsdf'
 if __name__ == '__main__':
     #app.config.update(SESSION_COOKIE_SECURE=True)
-    app.config['xen_endpoints'] = [{'url': 'https://172.31.0.10:443/', 'description': 'Pool A'},
-                                   {'url': 'https://172.31.0.30:443/', 'description': 'Pool Z'}]
+    app.config['SESSION_COOKIE_HTTPONLY'] = False
+    app.config['xen_endpoints'] = [{'url': 'https://172.31.0.14:443/', 'description': 'Pool A'},
+                                   {'url': 'https://172.31.0.32:443/', 'description': 'Pool Z'}]
     app.config['supported-distros'] = {'debianlike': 'all'}
     app.config['enabled-distros'] = app.config['supported-distros']
     app.config['supported-reverse-proxies'] = {'vmemperor-nginx': 'Nginx configuration files'}
