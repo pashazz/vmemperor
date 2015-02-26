@@ -35919,16 +35919,50 @@ process.umask = function() { return 0; };
 
 },{}],"/home/alexlag/projects/vmemperor/frontend/src/api/vmemp-api.js":[function(require,module,exports){
 var VMActions = require('../flux/vm-actions'),
-    axios = require('axios');
+    HTTP = require('axios');
+
+var _session = null;
+
+var loadFromCookie = function() {
+  var cookies = document.cookie ? document.cookie.split('; ') : [];
+  for (var i = cookies.length - 1; i >= 0; i--) {
+    var parts = cookies[i].split('=');
+    var name = parts.shift();
+    if(name === 'session') {
+      _session = parts.join('=');
+      break;
+    }
+  };
+  return _session;
+};
 
 VMAPI = {  
 
+    session: function() {
+      if (_session) {
+        return _session;
+      } else {
+        return loadFromCookie();
+      }
+    },
+
+    auth: function(data) {
+      return HTTP.post('/auth', data)
+    },
+
+    logout: function() {
+      return HTTP.get('/logout')
+        .then(function(response) {
+          _session = null;
+        });
+    },
+
     listVMs: function() {
-      return axios.get('/list-vms');
+      return HTTP.get('/list-vms');
     },
 
     startVM: function(vm) {
-      return axios.post('/start-vm', {
+      return HTTP.post('/start-vm', {
         vm_uuid: vm.id,
         endpoint_url: vm.endpoint_url,
         endpoint_description: vm.endpoint_description
@@ -35936,7 +35970,7 @@ VMAPI = {
     },
 
     shutdownVM: function(vm) {
-      return axios.post('/shutdown-vm', {
+      return HTTP.post('/shutdown-vm', {
         vm_uuid: vm.id,
         endpoint_url: vm.endpoint_url,
         endpoint_description: vm.endpoint_description
@@ -35944,7 +35978,7 @@ VMAPI = {
     },
 
     listTemplates: function() {
-      return axios.get('/list-templates');
+      return HTTP.get('/list-templates');
     }
 };
 
@@ -35977,24 +36011,36 @@ module.exports = AppRoutes;
 
   var React = require('react'),
     Router = require('react-router'),
+    Login = require('./login.jsx'),
     AppRoutes = require('./app-routes.jsx'),
+    SessionStore = require('./flux/session-store'),
     injectTapEventPlugin = require("react-tap-event-plugin");
 
   window.React = React;
 
   injectTapEventPlugin();
 
-  Router
-    .create({
-      routes: AppRoutes,
-      scrollBehavior: Router.ScrollToTopBehavior
-    })
-    .run(function (Handler) {
-      React.render(React.createElement(Handler, null), document.body);
-    });
+  var init = function(session) {
+    if(session !== null) {
+      Router
+        .create({
+          routes: AppRoutes,
+          scrollBehavior: Router.ScrollToTopBehavior
+        })
+        .run(function (Handler) {
+          React.render(React.createElement(Handler, null), document.body);
+        });
+    } else {
+      React.render(React.createElement(Login, null), document.body);
+    }
+  };
+
+  init(SessionStore.getData());
+
+  SessionStore.listen(init);
 
 })();
-},{"./app-routes.jsx":"/home/alexlag/projects/vmemperor/frontend/src/app-routes.jsx","react":"/home/alexlag/projects/vmemperor/frontend/node_modules/react/react.js","react-router":"/home/alexlag/projects/vmemperor/frontend/node_modules/react-router/modules/index.js","react-tap-event-plugin":"/home/alexlag/projects/vmemperor/frontend/node_modules/react-tap-event-plugin/src/injectTapEventPlugin.js"}],"/home/alexlag/projects/vmemperor/frontend/src/components/create-vm.jsx":[function(require,module,exports){
+},{"./app-routes.jsx":"/home/alexlag/projects/vmemperor/frontend/src/app-routes.jsx","./flux/session-store":"/home/alexlag/projects/vmemperor/frontend/src/flux/session-store.js","./login.jsx":"/home/alexlag/projects/vmemperor/frontend/src/login.jsx","react":"/home/alexlag/projects/vmemperor/frontend/node_modules/react/react.js","react-router":"/home/alexlag/projects/vmemperor/frontend/node_modules/react-router/modules/index.js","react-tap-event-plugin":"/home/alexlag/projects/vmemperor/frontend/node_modules/react-tap-event-plugin/src/injectTapEventPlugin.js"}],"/home/alexlag/projects/vmemperor/frontend/src/components/create-vm.jsx":[function(require,module,exports){
 var React = require('react'),
     Router = require('react-router'),
     Link = Router.Link;
@@ -36021,6 +36067,9 @@ var React = require('react'),
 
 var VMStore = require('../flux/vm-store')
     TemplateStore = require('../flux/template-store'),
+    SessionStore = require('../flux/session-store'),
+    SessionActions = require('../flux/session-actions')
+    AlertActions = require('../flux/alert-actions'),
     Snackbar = require('./snackbar.jsx');
 
 
@@ -36091,17 +36140,18 @@ var Master = React.createClass({displayName: "Master",
     );
   },
 
-  _logout: function(event) {
+  _logout: function(e) {
+    e.preventDefault();
     if (confirm("Are you sure you want to log out?")) {
-      console.log("You were logged out");
+      SessionActions.logout();
     } else {
-      console.log("You were NOT logged out");
+      AlertActions.err("You were NOT logged out");
     }
   }
 });
 
 module.exports = Master;
-},{"../flux/template-store":"/home/alexlag/projects/vmemperor/frontend/src/flux/template-store.js","../flux/vm-store":"/home/alexlag/projects/vmemperor/frontend/src/flux/vm-store.js","./snackbar.jsx":"/home/alexlag/projects/vmemperor/frontend/src/components/snackbar.jsx","react":"/home/alexlag/projects/vmemperor/frontend/node_modules/react/react.js","react-router":"/home/alexlag/projects/vmemperor/frontend/node_modules/react-router/modules/index.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/components/snackbar.jsx":[function(require,module,exports){
+},{"../flux/alert-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/alert-actions.js","../flux/session-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/session-actions.js","../flux/session-store":"/home/alexlag/projects/vmemperor/frontend/src/flux/session-store.js","../flux/template-store":"/home/alexlag/projects/vmemperor/frontend/src/flux/template-store.js","../flux/vm-store":"/home/alexlag/projects/vmemperor/frontend/src/flux/vm-store.js","./snackbar.jsx":"/home/alexlag/projects/vmemperor/frontend/src/components/snackbar.jsx","react":"/home/alexlag/projects/vmemperor/frontend/node_modules/react/react.js","react-router":"/home/alexlag/projects/vmemperor/frontend/node_modules/react-router/modules/index.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/components/snackbar.jsx":[function(require,module,exports){
 var React = require('react'),
     Reflux = require('reflux')
     AlertsStore = require('../flux/alert-store');
@@ -36598,7 +36648,68 @@ var AlertStore = Reflux.createStore({
 });
 
 module.exports = AlertStore;
-},{"./alert-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/alert-actions.js","lodash":"/home/alexlag/projects/vmemperor/frontend/node_modules/lodash/index.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/template-actions.js":[function(require,module,exports){
+},{"./alert-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/alert-actions.js","lodash":"/home/alexlag/projects/vmemperor/frontend/node_modules/lodash/index.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/session-actions.js":[function(require,module,exports){
+var Reflux = require('reflux');
+
+SessionActions = Reflux.createActions([
+  'auth',
+  'authSuccess',
+  'authFail',
+
+  'logout',
+  'logoutSuccess',
+  'logoutFail'
+]);
+
+module.exports = SessionActions;
+},{"reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/session-store.js":[function(require,module,exports){
+var Reflux = require('reflux'),
+    SessionActions = require('./session-actions'),
+    AlertActions = require('./alert-actions'),
+    VMAPI = require('../api/vmemp-api');
+
+var SessionStore = Reflux.createStore({
+  init: function() {
+    this.listenTo(SessionActions.auth, this.auth);
+    this.listenTo(SessionActions.logout, this.logout);
+
+    this.session = VMAPI.session();
+    this.trigger(this.session);
+  },
+
+  logout: function() {
+    VMAPI.logout()
+      .then(this.onLogoutSuccess)
+      .catch(function(response) {
+        AlertActions.err("Coudn't logout");
+      });
+  },
+
+  onLogoutSuccess: function(response) {
+    this.session = null;
+    this.trigger(null);
+  },
+
+  auth: function(data) {
+    VMAPI.auth(data)
+      .then(this.onAuthSuccess)
+      .catch(function(response) {
+        AlertActions.err("Coudn't login");
+      });
+  },
+
+  onAuthSuccess: function(response) {
+    this.session = VMAPI.session();
+    this.trigger(this.session);
+  },
+
+  getData: function() {
+    return this.session;
+  }
+});
+
+module.exports = SessionStore;
+},{"../api/vmemp-api":"/home/alexlag/projects/vmemperor/frontend/src/api/vmemp-api.js","./alert-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/alert-actions.js","./session-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/session-actions.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/template-actions.js":[function(require,module,exports){
 var Reflux = require('reflux');
 
 TemplateActions = Reflux.createActions([
@@ -36767,4 +36878,77 @@ var VMStore = Reflux.createStore({
 
 module.exports = VMStore;
 
-},{"../api/vmemp-api":"/home/alexlag/projects/vmemperor/frontend/src/api/vmemp-api.js","./alert-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/alert-actions.js","./vm-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/vm-actions.js","./vm-model":"/home/alexlag/projects/vmemperor/frontend/src/flux/vm-model.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}]},{},["/home/alexlag/projects/vmemperor/frontend/src/app.jsx"]);
+},{"../api/vmemp-api":"/home/alexlag/projects/vmemperor/frontend/src/api/vmemp-api.js","./alert-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/alert-actions.js","./vm-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/vm-actions.js","./vm-model":"/home/alexlag/projects/vmemperor/frontend/src/flux/vm-model.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/login.jsx":[function(require,module,exports){
+var React = require('react'),
+    SessionActions = require('./flux/session-actions');
+
+var LoginForm = React.createClass({displayName: "LoginForm",
+
+  getInitialState: function() {
+    return {};
+  },
+
+  handleSubmit: function(e) {
+    e.preventDefault();
+    SessionActions.auth(this.state);
+  },
+
+  handleChange: function(e) {
+    var newState = {};
+    newState[e.target.name] = e.target.value;
+    this.setState(newState);
+  },
+  
+  render: function (argument) {
+    return(
+      React.createElement("form", {role: "form", onChange: this.handleChange, onSubmit: this.handleSubmit}, 
+        React.createElement("div", {className: "modal-body"}, 
+          React.createElement("div", {className: "form-inline"}, 
+            React.createElement("div", {className: "input-group"}, 
+              React.createElement("div", {className: "input-group-addon"}, "Pool A"), 
+              React.createElement("input", {type: "text", className: "form-control", placeholder: "Login", name: "login0"}), 
+              React.createElement("input", {type: "password", className: "form-control", placeholder: "Password", name: "password0"})
+            )
+          ), 
+          React.createElement("br", null), 
+          React.createElement("div", {className: "form-inline"}, 
+            React.createElement("div", {className: "input-group"}, 
+              React.createElement("div", {className: "input-group-addon"}, "Pool Z"), 
+              React.createElement("input", {type: "text", className: "form-control", placeholder: "Login", name: "login1"}), 
+              React.createElement("input", {type: "password", className: "form-control", placeholder: "Password", name: "password1"})
+            )
+          )
+        ), 
+        React.createElement("div", {className: "modal-footer"}, 
+          React.createElement("button", {type: "submit", className: "btn btn-primary"}, "Login")
+        )
+      )
+    );
+  }
+
+});
+
+var LoginModal = React.createClass({displayName: "LoginModal",
+    
+    render: function () {
+      return (
+        React.createElement("div", {className: "modal fade in", role: "dialog", "aria-hidden": "false", style: { display: 'block'}}, 
+          React.createElement("div", {className: "modal-backdrop fade in", style: { height: '100%'}}), 
+          
+          React.createElement("div", {className: "modal-dialog"}, 
+            React.createElement("div", {className: "modal-content"}, 
+              React.createElement("div", {className: "modal-header"}, 
+                React.createElement("h4", {className: "modal-title"}, "VM Emperor Login")
+              ), 
+
+              React.createElement(LoginForm, null)
+            )
+          )
+        )
+      );
+    }
+
+});
+
+module.exports = LoginModal;
+},{"./flux/session-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/session-actions.js","react":"/home/alexlag/projects/vmemperor/frontend/node_modules/react/react.js"}]},{},["/home/alexlag/projects/vmemperor/frontend/src/app.jsx"]);
