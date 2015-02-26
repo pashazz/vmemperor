@@ -31,8 +31,8 @@ server {
          server_name {{ hostname }}.{{ domain_name }};
          access_log /var/log/nginx/{{ hostname }}.log;
          location / {
-             set $openapi "openapi:3031";
-             proxy_pass http://$openapi;
+             set $backend "{{ hostname }}.{{ domain_name }}";
+             proxy_pass http://$backend:{{ redirection_ssl_port }};
              include {{ ssl_params_location }};
              {% if additional_params_location != "" %}
              include {{ additional_params_location }};
