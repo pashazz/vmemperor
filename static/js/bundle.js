@@ -35957,11 +35957,11 @@ VMAPI = {
         });
     },
 
-    listVMs: function() {
+    vms: function() {
       return HTTP.get('/list-vms');
     },
 
-    startVM: function(vm) {
+    vm_start: function(vm) {
       return HTTP.post('/start-vm', {
         vm_uuid: vm.id,
         endpoint_url: vm.endpoint_url,
@@ -35969,7 +35969,7 @@ VMAPI = {
       });
     },
 
-    shutdownVM: function(vm) {
+    vm_shutdown: function(vm) {
       return HTTP.post('/shutdown-vm', {
         vm_uuid: vm.id,
         endpoint_url: vm.endpoint_url,
@@ -35977,9 +35977,13 @@ VMAPI = {
       });
     },
 
-    listTemplates: function() {
+    templates: function() {
       return HTTP.get('/list-templates');
-    }
+    }, 
+
+    pools: function() {
+      return HTTP.get('/list-pools');
+    }, 
 };
 
 module.exports = VMAPI;
@@ -36042,23 +36046,206 @@ module.exports = AppRoutes;
 })();
 },{"./app-routes.jsx":"/home/alexlag/projects/vmemperor/frontend/src/app-routes.jsx","./flux/session-store":"/home/alexlag/projects/vmemperor/frontend/src/flux/session-store.js","./login.jsx":"/home/alexlag/projects/vmemperor/frontend/src/login.jsx","react":"/home/alexlag/projects/vmemperor/frontend/node_modules/react/react.js","react-router":"/home/alexlag/projects/vmemperor/frontend/node_modules/react-router/modules/index.js","react-tap-event-plugin":"/home/alexlag/projects/vmemperor/frontend/node_modules/react-tap-event-plugin/src/injectTapEventPlugin.js"}],"/home/alexlag/projects/vmemperor/frontend/src/components/create-vm.jsx":[function(require,module,exports){
 var React = require('react'),
-    Router = require('react-router'),
-    Link = Router.Link;
+    Modal = require('./modal.jsx');
+
+var VMForm = React.createClass({displayName: "VMForm",
+  render: function() {
+    return (
+      React.createElement("form", {role: "form", id: "create-vm-form"}, 
+        React.createElement("div", {className: "input-group"}, 
+          React.createElement("span", {className: "input-group-addon"}, React.createElement("i", {className: "icon-servers"})), 
+          React.createElement("select", {className: "form-control input", id: "pool-select", name: "pool-select"}, 
+              React.createElement("option", {value: "--"}, "Select where to deploy instance"), 
+              React.createElement("option", {value: "https://172.31.0.14:443/"}, "Pool A"), 
+              React.createElement("option", {value: "https://172.31.0.32:443/"}, "Pool Z")
+          )
+        ), 
+        React.createElement("br", null), 
+        React.createElement("div", {className: "input-group"}, 
+          React.createElement("span", {className: "input-group-addon"}, React.createElement("i", {className: "icon-ubuntu"})), 
+          React.createElement("select", {className: "form-control", id: "template-select", name: "template-select", enabled: true}, 
+              React.createElement("option", {value: "--"}, "Select OS template for your virtual machine")
+          )
+        ), 
+        React.createElement("hr", null), 
+        React.createElement("div", {className: "input-group"}, 
+          React.createElement("span", {className: "input-group-addon"}, React.createElement("i", {className: "icon-address"})), 
+          React.createElement("input", {type: "text", 
+                  className: "form-control", 
+                  placeholder: "Your full name (e.g. John Smith)", 
+                  id: "user-fullname", 
+                  name: "user-fullname", 
+                  enabled: true})
+        ), 
+        React.createElement("br", null), 
+        React.createElement("div", {className: "row"}, 
+          React.createElement("div", {className: "col-sm-12 col-lg-12"}, 
+            React.createElement("div", {className: "input-group"}, 
+              React.createElement("span", {className: "input-group-addon"}, React.createElement("i", {className: "icon-user"})), 
+              React.createElement("input", {type: "text", 
+                      className: "form-control", 
+                      placeholder: "Your login for new VM", 
+                      id: "username", 
+                      name: "username", 
+                      enabled: true}), 
+              React.createElement("span", {className: "input-group-addon"}, React.createElement("i", {className: "icon-at"})), 
+              React.createElement("input", {type: "text", 
+                  className: "form-control", 
+                  placeholder: "Choose hostname for your VM", 
+                  id: "hostname", 
+                  name: "hostname", 
+                  enabled: true}), 
+              React.createElement("span", {className: "input-group-addon"}, ".at.ispras.ru")
+            )
+          )
+        ), 
+        React.createElement("br", null), 
+        React.createElement("div", {className: "input-group"}, 
+          React.createElement("span", {className: "input-group-addon"}, React.createElement("i", {className: "icon-password"})), 
+          React.createElement("input", {type: "password", 
+                  className: "form-control input", 
+                  placeholder: "Choose password for your VM", 
+                  id: "password", 
+                  name: "password", 
+                  enabled: true}), 
+          React.createElement("span", {className: "input-group-addon"}, React.createElement("i", {className: "icon-password"})), 
+          React.createElement("input", {type: "password", 
+                  className: "form-control input", 
+                  placeholder: "Confirm password", 
+                  id: "password2", 
+                  name: "password2", 
+                  enabled: true})
+        ), 
+        React.createElement("br", null), 
+        React.createElement("div", {className: "input-group"}, 
+          React.createElement("span", {className: "input-group-addon"}, React.createElement("i", {className: "icon-noteslist", style: { fontSize: '28px'}})), 
+          React.createElement("textarea", {
+                  type: "text", 
+                  className: "form-control input", 
+                  placeholder: "What do you want to do with this virtual machine?", 
+                  id: "vm-description", 
+                  name: "vm-description", 
+                  style: {resize: 'vertical'}, 
+                  enabled: true})
+        ), 
+        React.createElement("br", null), 
+        React.createElement("h4", null, "Resources settings"), 
+        React.createElement("div", {className: "row"}, 
+          
+          React.createElement("div", {className: "col-sm-4 col-lg-4"}, 
+            React.createElement("div", {className: "input-group"}, 
+              React.createElement("span", {className: "input-group-addon"}, React.createElement("i", {className: "icon-processorthree"})), 
+              React.createElement("input", {type: "number", pattern: "\\d*", 
+                      className: "form-control", id: "vcpus", name: "vcpus", defaultValue: "1", enabled: true}), 
+              React.createElement("span", {className: "input-group-addon"}, "cores")
+            )
+          ), 
+
+          React.createElement("div", {className: "col-sm-4 col-lg-4"}, 
+            React.createElement("div", {className: "input-group"}, 
+              React.createElement("span", {className: "input-group-addon"}, React.createElement("i", {className: "icon-ram"})), 
+              React.createElement("input", {type: "number", pattern: "\\d*", 
+                     className: "form-control", id: "ram", name: "ram", defaultValue: "256", enabled: true}), 
+              React.createElement("span", {className: "input-group-addon"}, "MB")
+            )
+          ), 
+
+          React.createElement("div", {className: "col-sm-4 col-lg-4"}, 
+            React.createElement("div", {className: "input-group"}, 
+              React.createElement("span", {className: "input-group-addon"}, React.createElement("i", {className: "icon-hdd"})), 
+              React.createElement("input", {type: "number", pattern: "\\d*", 
+                     className: "form-control", id: "hdd", name: "hdd", defaultValue: "9", enabled: true}), 
+              React.createElement("span", {className: "input-group-addon"}, "GB")
+            )
+          )
+        ), 
+        React.createElement("br", null), 
+        React.createElement("h4", null, "HTTP/HTTPS reverse-proxy settings"), 
+        React.createElement("div", {className: "row"}, 
+          
+          React.createElement("div", {className: "col-sm-4 col-lg-4"}, 
+            React.createElement("div", {className: "input-group"}, 
+              React.createElement("span", {className: "input-group-addon"}, React.createElement("i", {className: "icon-network"}, ":80")), 
+              React.createElement("input", {type: "number", pattern: "\\d*", 
+                     className: "form-control input", 
+                     id: "redirection-http", 
+                     name: "redirection-http", 
+                     defaultValue: "80", 
+                     enabled: true})
+            )
+          ), 
+          React.createElement("div", {className: "col-sm-4 col-lg-4"}, 
+            React.createElement("div", {className: "input-group"}, 
+              React.createElement("span", {className: "input-group-addon"}, React.createElement("i", {className: "icon-network"}, ":8080")), 
+              React.createElement("input", {type: "textnumber", pattern: "\\d*", 
+                     className: "form-control input", 
+                     id: "redirection-http-alt", 
+                     name: "redirection-http-alt", 
+                     defaultValue: "8080", 
+                     enabled: true})
+            )
+          ), 
+          React.createElement("div", {className: "col-sm-4 col-lg-4"}, 
+            React.createElement("div", {className: "input-group"}, 
+              React.createElement("span", {className: "input-group-addon"}, React.createElement("i", {className: "icon-network"}, ":443")), 
+              React.createElement("input", {type: "number", pattern: "\\d*", 
+                     className: "form-control input", 
+                     id: "redirection-ssl", 
+                     name: "redirection-ssl", 
+                     defaultValue: "443", 
+                     enabled: true})
+            )
+          )
+        ), 
+        React.createElement("br", null), 
+        React.createElement("button", {className: "btn btn-lg btn-primary btn-block", id: "create-button", enabled: true}, "Create VM")
+      )
+    );
+  }
+});
 
 var CreateVM = React.createClass({displayName: "CreateVM",
 
+  getInitialState: function() {
+    return({
+      modalShow: false
+    })
+  },
+
+  showModal: function() {
+    this.setState({
+      modalShow: true
+    });
+  },
+
+  hideModal: function() {
+    this.setState({
+      modalShow: false
+    });
+  },
+
+  renderModal: function() {
+    return this.state.modalShow ?
+      React.createElement(Modal, {title: "Virtual machine options", show: true, lg: true, close: this.hideModal}, 
+        React.createElement(VMForm, null)
+      ) :
+      null;
+  },
+
   render: function () {
+
     return (
       React.createElement("div", null, 
-        "CreateVM"
-      )
+        React.createElement("a", {onClick: this.showModal}, "CreateVM"), 
+        this.renderModal()
+      )      
     );
   }
   
 });
 
 module.exports = CreateVM;
-},{"react":"/home/alexlag/projects/vmemperor/frontend/node_modules/react/react.js","react-router":"/home/alexlag/projects/vmemperor/frontend/node_modules/react-router/modules/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/components/master.jsx":[function(require,module,exports){
+},{"./modal.jsx":"/home/alexlag/projects/vmemperor/frontend/src/components/modal.jsx","react":"/home/alexlag/projects/vmemperor/frontend/node_modules/react/react.js"}],"/home/alexlag/projects/vmemperor/frontend/src/components/master.jsx":[function(require,module,exports){
 var React = require('react'),
     Reflux = require('reflux'),
     Router = require('react-router'),
@@ -36151,7 +36338,61 @@ var Master = React.createClass({displayName: "Master",
 });
 
 module.exports = Master;
-},{"../flux/alert-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/alert-actions.js","../flux/session-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/session-actions.js","../flux/session-store":"/home/alexlag/projects/vmemperor/frontend/src/flux/session-store.js","../flux/template-store":"/home/alexlag/projects/vmemperor/frontend/src/flux/template-store.js","../flux/vm-store":"/home/alexlag/projects/vmemperor/frontend/src/flux/vm-store.js","./snackbar.jsx":"/home/alexlag/projects/vmemperor/frontend/src/components/snackbar.jsx","react":"/home/alexlag/projects/vmemperor/frontend/node_modules/react/react.js","react-router":"/home/alexlag/projects/vmemperor/frontend/node_modules/react-router/modules/index.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/components/snackbar.jsx":[function(require,module,exports){
+},{"../flux/alert-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/alert-actions.js","../flux/session-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/session-actions.js","../flux/session-store":"/home/alexlag/projects/vmemperor/frontend/src/flux/session-store.js","../flux/template-store":"/home/alexlag/projects/vmemperor/frontend/src/flux/template-store.js","../flux/vm-store":"/home/alexlag/projects/vmemperor/frontend/src/flux/vm-store.js","./snackbar.jsx":"/home/alexlag/projects/vmemperor/frontend/src/components/snackbar.jsx","react":"/home/alexlag/projects/vmemperor/frontend/node_modules/react/react.js","react-router":"/home/alexlag/projects/vmemperor/frontend/node_modules/react-router/modules/index.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/components/modal.jsx":[function(require,module,exports){
+var React = require('react'),
+    _ = require('lodash');
+
+var Modal = React.createClass({displayName: "Modal",
+
+  hide: function() {
+    if(_.isFunction(this.props.close)) {
+      this.props.close();
+    } else {
+      if(this.props.close) {
+        this.setState({show: false});
+      }
+    }
+  },
+
+  getInitialState: function() {
+    return {
+      show: this.props.show
+    };
+  },
+
+  renderCloseButton: function() {
+    return this.props.close ?
+      React.createElement("button", {type: "button", className: "close", "aria-label": "Close", onClick: this.hide}, React.createElement("span", {"aria-hidden": "true"}, "×")) :
+      null;
+  },
+    
+  render: function () {
+    if(!this.state.show) {
+      return null;
+    }
+    var modalSizeClass = this.props.lg ? "modal-dialog modal-lg" : "modal-dialog";
+    
+    return (
+      React.createElement("div", {className: "modal fade in", role: "dialog", "aria-hidden": "false", style: { display: 'block'}}, 
+        React.createElement("div", {className: "modal-backdrop fade in", style: { height: '100%'}, onClick: this.hide}), 
+        React.createElement("div", {className: modalSizeClass}, 
+          React.createElement("div", {className: "modal-content"}, 
+            React.createElement("div", {className: "modal-header"}, 
+              this.renderCloseButton(), 
+              React.createElement("h4", {className: "modal-title"}, this.props.title)
+            ), 
+            React.createElement("div", {className: "modal-body"}, 
+              this.props.children
+            )
+          )
+        )
+      )
+    );
+  }
+});
+
+module.exports = Modal;
+},{"lodash":"/home/alexlag/projects/vmemperor/frontend/node_modules/lodash/index.js","react":"/home/alexlag/projects/vmemperor/frontend/node_modules/react/react.js"}],"/home/alexlag/projects/vmemperor/frontend/src/components/snackbar.jsx":[function(require,module,exports){
 var React = require('react'),
     Reflux = require('reflux')
     AlertsStore = require('../flux/alert-store');
@@ -36546,15 +36787,6 @@ var VMList = React.createClass({displayName: "VMList",
     };
   },
 
-  renderStatus: function() {
-    switch(this.state.status) {
-      case 'PULL': return (React.createElement("div", {className: "col-md-12"}, "Pulling…"));
-      case 'PUSH': return (React.createElement("div", {className: "col-md-12"}, "Pushing…"));
-      case 'READY': return (React.createElement("div", {className: "col-md-12"}, "Up to date"));
-    }
-    return '';
-  },
-
   render: function () {
     return (
       React.createElement("div", null, 
@@ -36648,7 +36880,58 @@ var AlertStore = Reflux.createStore({
 });
 
 module.exports = AlertStore;
-},{"./alert-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/alert-actions.js","lodash":"/home/alexlag/projects/vmemperor/frontend/node_modules/lodash/index.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/session-actions.js":[function(require,module,exports){
+},{"./alert-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/alert-actions.js","lodash":"/home/alexlag/projects/vmemperor/frontend/node_modules/lodash/index.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/pool-actions.js":[function(require,module,exports){
+var Reflux = require('reflux');
+
+PoolActions = Reflux.createActions([
+  'list',
+  'listSuccess',
+  'listFail'
+]);
+
+module.exports = PoolActions;
+},{"reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/pool-store.js":[function(require,module,exports){
+var Reflux = require('reflux'),
+    PoolActions = require('./pool-actions'),
+    AlertActions = require('./alert-actions'),
+    VMAPI = require('../api/vmemp-api');
+
+var tryParsing = function(text) {
+  try {
+    return JSON.parse(text);
+  } catch(e) {
+    return [];
+  }
+}
+
+PoolsStore = Reflux.createStore({
+  init: function() {
+    this.listenTo(PoolActions.list, this.list);
+    this.listenTo(PoolActions.listSuccess, this.onListSuccess);
+
+    this.pools = document && document.getElementById("pools-data") ? tryParsing(document.getElementById("pools-data").text) : [];
+  },
+
+  list: function() {
+    VMAPI.pools()
+      .then(this.onListSucess)
+      .catch(function(response) {
+        AlertActions.err("Coudn't get pools list");
+      });
+  },
+
+  onListSuccess: function(response) {
+    this.pools = response.data;
+    this.trigger();
+  },
+
+  getData: function() {
+    return this.pools;
+  }
+});
+
+module.exports = PoolsStore;
+},{"../api/vmemp-api":"/home/alexlag/projects/vmemperor/frontend/src/api/vmemp-api.js","./alert-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/alert-actions.js","./pool-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/pool-actions.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/session-actions.js":[function(require,module,exports){
 var Reflux = require('reflux');
 
 SessionActions = Reflux.createActions([
@@ -36719,16 +37002,59 @@ TemplateActions = Reflux.createActions([
 ]);
 
 module.exports = TemplateActions;
-},{"reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/template-store.js":[function(require,module,exports){
+},{"reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/template-model.js":[function(require,module,exports){
+// {  
+//   "endpoint":{  
+//     "url":"https://172.31.0.14:443/",
+//     "description":"Pool A"
+//   },
+//   "uuid":"605ee855-77d5-2bcc-c46f-038b416e77de",
+//   "tags":[  
+//
+//   ],
+//   "other_config":{  
+//     "mac_seed":"7673108a-1f7e-4518-6fde-5c29e95f5f7e",
+//     "suppress-spurious-page-faults":"true",
+//     "install-methods":"cdrom,nfs,http,ftp",
+//     "disks":"<provision><disk device=\"0\" size=\"8589934592\" sr=\"\" bootable=\"true\" type=\"system\"/></provision>",
+//     "default_template":"true",
+//     "linux_template":"true",
+//     "install-distro":"rhlike"
+//   },
+//   "name_label":"CentOS 4.5 (32-bit)",
+//   "default_mirror":"",
+//   "allowed_operations":[  
+//     "changing_dynamic_range",
+//     "changing_shadow_memory",
+//     "changing_static_range",
+//     "provision",
+//     "export",
+//     "clone",
+//     "copy"
+//   ],
+//   "is_a_template":true,
+//   "name_description":"Template that allows VM installation from Xen-aware EL-based distros. To use this template from the CLI, install your VM using vm-install, then set other-config-install-repository to the path to your network repository, e.g. http://<server>/<path> or nfs:server:/<path>",
+//   "is_control_domain":false,
+//   "is_a_snapshot":false
+// }
+
+
+var Template = function(object) {
+  
+}
+
+module.exports = Template;
+},{}],"/home/alexlag/projects/vmemperor/frontend/src/flux/template-store.js":[function(require,module,exports){
 var Reflux = require('reflux'),
     TemplateActions = require('./template-actions'),
     AlertActions = require('./alert-actions'),
-    VMApi = require('../api/vmemp-api');
+    VMApi = require('../api/vmemp-api'),
+    Template = require('./template-model');
 
 var TemplateStore = Reflux.createStore({
   
   init: function() {
-    this.listenTo(TemplateActions.list, this.listTemplates);
+    this.listenTo(TemplateActions.list, this.onList);
     
     this.status = '';
     this.templates = [];
@@ -36738,11 +37064,11 @@ var TemplateStore = Reflux.createStore({
     return this.templates.length;
   },
 
-  listTemplates: function() {
+  onList: function() {
     this.status = 'PULL';
     AlertActions.log('Getting Template list...');
     this.trigger();
-    VMApi.listTemplates()
+    VMApi.templates()
       .then(this.onListCompleted)
       .catch(function(response) {
         TemplateActions.listFail(response);
@@ -36761,7 +37087,7 @@ var TemplateStore = Reflux.createStore({
 
 module.exports = TemplateStore;
 
-},{"../api/vmemp-api":"/home/alexlag/projects/vmemperor/frontend/src/api/vmemp-api.js","./alert-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/alert-actions.js","./template-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/template-actions.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/vm-actions.js":[function(require,module,exports){
+},{"../api/vmemp-api":"/home/alexlag/projects/vmemperor/frontend/src/api/vmemp-api.js","./alert-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/alert-actions.js","./template-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/template-actions.js","./template-model":"/home/alexlag/projects/vmemperor/frontend/src/flux/template-model.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/vm-actions.js":[function(require,module,exports){
 var Reflux = require('reflux');
 
 VMActions = Reflux.createActions([
@@ -36780,6 +37106,44 @@ VMActions = Reflux.createActions([
 
 module.exports = VMActions;
 },{"reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/vm-model.js":[function(require,module,exports){
+// POJO from  
+// {  
+//    "VCPUs_at_startup":"1",
+//    "allowed_operations":[  
+//       "changing_dynamic_range",
+//       "migrate_send",
+//       "pool_migrate",
+//       "changing_VCPUs_live",
+//       "suspend",
+//       "hard_reboot",
+//       "hard_shutdown",
+//       "clean_reboot",
+//       "clean_shutdown",
+//       "pause",
+//       "checkpoint",
+//       "snapshot"
+//    ],
+//    "endpoint":{  
+//       "url":"https://172.31.0.14:443/",
+//       "description":"Pool A"
+//    },
+//    "guest_metrics":"OpaqueRef:be184b05-d3bd-0887-cd3a-ff77887da5da",
+//    "is_a_snapshot":false,
+//    "is_a_template":false,
+//    "is_control_domain":false,
+//    "memory_dynamic_max":"1610612736",
+//    "memory_dynamic_min":"268435456",
+//    "memory_target":"1610612736",
+//    "name_description":"Installed via xe CLI",
+//    "name_label":"sentanal",
+//    "networks":{  
+//       "0/ip":"172.31.167.66",
+//       "0/ipv6/0":"fe80::b0c9:5bff:fe1f:5896"
+//    },
+//    "power_state":"Running",
+//    "uuid":"6a302da8-80a1-f795-950c-e2025a2cf530"
+// }
+
 var VM = function(object) {
   this.id = object['uuid'];
   this.name = object['name_label'];
@@ -36809,9 +37173,9 @@ var Reflux = require('reflux'),
 var VMStore = Reflux.createStore({
   
   init: function() {
-    this.listenTo(VMActions.list, this.listVMs);
-    this.listenTo(VMActions.start, this.startVM);
-    this.listenTo(VMActions.shutdown, this.shutdownVM);
+    this.listenTo(VMActions.list, this.onList);
+    this.listenTo(VMActions.start, this.onStart);
+    this.listenTo(VMActions.shutdown, this.onShutdown);
     
     this.status = '';
     this.vms = [];
@@ -36821,11 +37185,11 @@ var VMStore = Reflux.createStore({
     return this.vms.length;
   },
 
-  listVMs: function() {
+  onList: function() {
     this.status = 'PULL';
     AlertActions.log('Getting VM list...');
     this.trigger();
-    VMApi.listVMs()
+    VMApi.vms()
       .then(this.onListCompleted)
       .catch(function(response) {
         VMActions.listFail(response);
@@ -36840,11 +37204,11 @@ var VMStore = Reflux.createStore({
     this.trigger();
   },
 
-  startVM: function(vm) {
+  onStart: function(vm) {
     this.status = 'PUSH';
     AlertActions.log('Starting VM:' + vm.name);
     this.trigger();
-    VMApi.startVM(vm)
+    VMApi.vm_start(vm)
       .then(this.onStartCompleted)
       .catch(function(response) {
         AlertActions.err("Error while starting VM:" + vm.name);
@@ -36857,11 +37221,11 @@ var VMStore = Reflux.createStore({
     VMActions.list(); 
   },
 
-  shutdownVM: function(vm) {
+  onShutdown: function(vm) {
     this.status = 'PUSH';
     AlertActions.log('Shutting down VM:' + vm.name);
     this.trigger();
-    VMApi.shutdownVM(vm)
+    VMApi.vm_shutdown(vm)
       .then(this.onShutdownCompleted)
       .catch(function(response) {
         AlertActions.err("Error while shutting down VM:" + vm.name);
@@ -36880,7 +37244,9 @@ module.exports = VMStore;
 
 },{"../api/vmemp-api":"/home/alexlag/projects/vmemperor/frontend/src/api/vmemp-api.js","./alert-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/alert-actions.js","./vm-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/vm-actions.js","./vm-model":"/home/alexlag/projects/vmemperor/frontend/src/flux/vm-model.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/login.jsx":[function(require,module,exports){
 var React = require('react'),
-    SessionActions = require('./flux/session-actions');
+    SessionActions = require('./flux/session-actions'),
+    PoolStore = require('./flux/pool-store'),
+    Modal = require('./components/modal.jsx');;
 
 var LoginForm = React.createClass({displayName: "LoginForm",
 
@@ -36919,9 +37285,8 @@ var LoginForm = React.createClass({displayName: "LoginForm",
             )
           )
         ), 
-        React.createElement("div", {className: "modal-footer"}, 
-          React.createElement("button", {type: "submit", className: "btn btn-primary"}, "Login")
-        )
+        React.createElement("br", null), 
+        React.createElement("button", {type: "submit", className: "btn btn-lg btn-primary btn-block"}, "Login")
       )
     );
   }
@@ -36932,18 +37297,8 @@ var LoginModal = React.createClass({displayName: "LoginModal",
     
     render: function () {
       return (
-        React.createElement("div", {className: "modal fade in", role: "dialog", "aria-hidden": "false", style: { display: 'block'}}, 
-          React.createElement("div", {className: "modal-backdrop fade in", style: { height: '100%'}}), 
-          
-          React.createElement("div", {className: "modal-dialog"}, 
-            React.createElement("div", {className: "modal-content"}, 
-              React.createElement("div", {className: "modal-header"}, 
-                React.createElement("h4", {className: "modal-title"}, "VM Emperor Login")
-              ), 
-
-              React.createElement(LoginForm, null)
-            )
-          )
+        React.createElement(Modal, {title: "VM Emperor Login", show: true}, 
+          React.createElement(LoginForm, null)
         )
       );
     }
@@ -36951,4 +37306,4 @@ var LoginModal = React.createClass({displayName: "LoginModal",
 });
 
 module.exports = LoginModal;
-},{"./flux/session-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/session-actions.js","react":"/home/alexlag/projects/vmemperor/frontend/node_modules/react/react.js"}]},{},["/home/alexlag/projects/vmemperor/frontend/src/app.jsx"]);
+},{"./components/modal.jsx":"/home/alexlag/projects/vmemperor/frontend/src/components/modal.jsx","./flux/pool-store":"/home/alexlag/projects/vmemperor/frontend/src/flux/pool-store.js","./flux/session-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/session-actions.js","react":"/home/alexlag/projects/vmemperor/frontend/node_modules/react/react.js"}]},{},["/home/alexlag/projects/vmemperor/frontend/src/app.jsx"]);

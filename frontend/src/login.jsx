@@ -1,5 +1,7 @@
 var React = require('react'),
-    SessionActions = require('./flux/session-actions');
+    SessionActions = require('./flux/session-actions'),
+    PoolStore = require('./flux/pool-store'),
+    Modal = require('./components/modal.jsx');;
 
 var LoginForm = React.createClass({
 
@@ -38,9 +40,8 @@ var LoginForm = React.createClass({
             </div>
           </div>
         </div>
-        <div className="modal-footer">
-          <button type="submit" className="btn btn-primary">Login</button>
-        </div>
+        <br />
+        <button type="submit" className="btn btn-lg btn-primary btn-block">Login</button>
       </form>
     );
   }
@@ -51,19 +52,9 @@ var LoginModal = React.createClass({
     
     render: function () {
       return (
-        <div className="modal fade in" role="dialog" aria-hidden="false" style={{ display: 'block' }}>
-          <div className="modal-backdrop fade in" style={{ height: '100%' }}></div>
-          
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h4 className="modal-title">VM Emperor Login</h4>
-              </div>
-
-              <LoginForm />
-            </div>
-          </div>
-        </div>
+        <Modal title="VM Emperor Login" show>
+          <LoginForm />
+        </Modal>
       );
     }
 

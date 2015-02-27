@@ -37,11 +37,11 @@ VMAPI = {
         });
     },
 
-    listVMs: function() {
+    vms: function() {
       return HTTP.get('/list-vms');
     },
 
-    startVM: function(vm) {
+    vm_start: function(vm) {
       return HTTP.post('/start-vm', {
         vm_uuid: vm.id,
         endpoint_url: vm.endpoint_url,
@@ -49,7 +49,7 @@ VMAPI = {
       });
     },
 
-    shutdownVM: function(vm) {
+    vm_shutdown: function(vm) {
       return HTTP.post('/shutdown-vm', {
         vm_uuid: vm.id,
         endpoint_url: vm.endpoint_url,
@@ -57,9 +57,13 @@ VMAPI = {
       });
     },
 
-    listTemplates: function() {
+    templates: function() {
       return HTTP.get('/list-templates');
-    }
+    }, 
+
+    pools: function() {
+      return HTTP.get('/list-pools');
+    }, 
 };
 
 module.exports = VMAPI;

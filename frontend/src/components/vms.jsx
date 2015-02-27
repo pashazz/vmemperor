@@ -204,15 +204,6 @@ var VMList = React.createClass({
     };
   },
 
-  renderStatus: function() {
-    switch(this.state.status) {
-      case 'PULL': return (<div className="col-md-12">Pulling…</div>);
-      case 'PUSH': return (<div className="col-md-12">Pushing…</div>);
-      case 'READY': return (<div className="col-md-12">Up to date</div>);
-    }
-    return '';
-  },
-
   render: function () {
     return (
       <div>
