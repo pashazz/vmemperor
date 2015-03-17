@@ -5,37 +5,28 @@ var Reflux = require('reflux'),
 
 var SessionStore = Reflux.createStore({
   init: function() {
-    this.listenTo(SessionActions.auth, this.auth);
-    this.listenTo(SessionActions.logout, this.logout);
+    this.listenToMany(SessionActions);
 
-    this.session = VMAPI.session();
+    this.session = VMAPI.user.session();
     this.trigger(this.session);
   },
 
-  logout: function() {
-    VMAPI.logout()
-      .then(this.onLogoutSuccess)
-      .catch(function(response) {
-        AlertActions.err("Coudn't logout");
-      });
-  },
-
-  onLogoutSuccess: function(response) {
+  onLogoutCompleted: function(response) {
     this.session = null;
     this.trigger(null);
   },
 
-  auth: function(data) {
-    VMAPI.auth(data)
-      .then(this.onAuthSuccess)
-      .catch(function(response) {
-        AlertActions.err("Coudn't login");
-      });
+  onLogoutFailed: function(response) {
+    AlertActions.err("Coudn't logout");
   },
 
-  onAuthSuccess: function(response) {
-    this.session = VMAPI.session();
+  onAuthCompleted: function(response) {
+    this.session = VMAPI.user.session();
     this.trigger(this.session);
+  },
+
+  onAuthFailed: function(response) {
+    AlertActions.err("Coudn't login");
   },
 
   getData: function() {

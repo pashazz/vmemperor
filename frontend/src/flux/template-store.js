@@ -7,7 +7,7 @@ var Reflux = require('reflux'),
 var TemplateStore = Reflux.createStore({
   
   init: function() {
-    this.listenTo(TemplateActions.list, this.onList);
+    this.listenToMany(TemplateActions);
     
     this.status = '';
     this.templates = [];
@@ -21,19 +21,17 @@ var TemplateStore = Reflux.createStore({
     this.status = 'PULL';
     AlertActions.log('Getting Template list...');
     this.trigger();
-    VMApi.templates()
-      .then(this.onListCompleted)
-      .catch(function(response) {
-        TemplateActions.listFail(response);
-        AlertActions.err("Error while getting Template list!");
-      });
   },
 
   onListCompleted: function(response) {
-    this.templates = response.data;
+    this.templates = response;
     this.status = 'READY';
     AlertActions.suc('Got Template list');
     this.trigger();
+  },
+
+  onListFailed: function(response) {
+    AlertActions.err("Error while getting Template list!");
   }
 
 });

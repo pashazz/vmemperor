@@ -1,13 +1,12 @@
-var Reflux = require('reflux');
+var Reflux = require('reflux'),
+    VMAPI = require('../api/vmemp-api');
 
-SessionActions = Reflux.createActions([
-  'auth',
-  'authSuccess',
-  'authFail',
+SessionActions = Reflux.createActions({
+  'auth': { asyncResult: true },
+  'logout': { asyncResult: true }
+});
 
-  'logout',
-  'logoutSuccess',
-  'logoutFail'
-]);
+SessionActions.auth.listenAndPromise( VMAPI.user.auth );
+SessionActions.logout.listenAndPromise( VMAPI.user.logout );
 
 module.exports = SessionActions;

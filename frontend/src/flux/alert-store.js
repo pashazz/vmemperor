@@ -5,10 +5,7 @@ var Reflux = require('reflux'),
 var AlertStore = Reflux.createStore({
 
     init: function() {
-      this.listenTo(AlertActions.suc, this.onSuc);
-      this.listenTo(AlertActions.log, this.onLog);
-      this.listenTo(AlertActions.warn, this.onWarn);
-      this.listenTo(AlertActions.err, this.onErr);
+      this.listenToMany(AlertActions);
 
       this.alerts = []
 

@@ -1,5 +1,4 @@
-var VMActions = require('../flux/vm-actions'),
-    HTTP = require('axios');
+var HTTP = require('./http');
 
 var _session = null;
 
@@ -16,54 +15,59 @@ var loadFromCookie = function() {
   return _session;
 };
 
-VMAPI = {  
+var user = {  
+  session: function() {
+    return (_session !== null) ? _session : loadFromCookie();
+  },
 
-    session: function() {
-      if (_session) {
-        return _session;
-      } else {
-        return loadFromCookie();
-      }
-    },
+  auth: function(data) {
+    return HTTP.post('/auth', data)
+  },
 
-    auth: function(data) {
-      return HTTP.post('/auth', data)
-    },
-
-    logout: function() {
-      return HTTP.get('/logout')
-        .then(function(response) {
-          _session = null;
-        });
-    },
-
-    vms: function() {
-      return HTTP.get('/list-vms');
-    },
-
-    vm_start: function(vm) {
-      return HTTP.post('/start-vm', {
-        vm_uuid: vm.id,
-        endpoint_url: vm.endpoint_url,
-        endpoint_description: vm.endpoint_description
+  logout: function() {
+    return HTTP.get('/logout')
+      .then(function(response) {
+        _session = null;
       });
-    },
-
-    vm_shutdown: function(vm) {
-      return HTTP.post('/shutdown-vm', {
-        vm_uuid: vm.id,
-        endpoint_url: vm.endpoint_url,
-        endpoint_description: vm.endpoint_description
-      });
-    },
-
-    templates: function() {
-      return HTTP.get('/list-templates');
-    }, 
-
-    pools: function() {
-      return HTTP.get('/list-pools');
-    }, 
+  }
 };
 
-module.exports = VMAPI;
+var vm = {
+
+  list: function() {
+    return HTTP.get('/list-vms');
+  },
+
+  start: function(vm) {
+    return HTTP.post('/start-vm', {
+      vm_uuid: vm.id,
+      endpoint_url: vm.endpoint_url,
+      endpoint_description: vm.endpoint_description
+    });
+  },
+
+  shutdown: function(vm) {
+    return HTTP.post('/shutdown-vm', {
+      vm_uuid: vm.id,
+      endpoint_url: vm.endpoint_url,
+      endpoint_description: vm.endpoint_description
+    });
+  }
+};
+
+var template = {
+  list: function() {
+    return HTTP.get('/list-templates');
+  }
+};
+
+var pools = function() {
+  return HTTP.get('/list-pools');
+};
+
+module.exports = {
+  user: user,
+  vm: vm,
+  template: template,
+  pools: pools
+};
