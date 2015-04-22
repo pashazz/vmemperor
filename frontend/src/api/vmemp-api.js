@@ -21,7 +21,7 @@ var user = {
   },
 
   auth: function(data) {
-    return HTTP.post('/auth', data)
+    return HTTP.post('/auth', data);
   },
 
   logout: function() {
@@ -33,7 +33,6 @@ var user = {
 };
 
 var vm = {
-
   list: function() {
     return HTTP.get('/list-vms');
   },
@@ -61,13 +60,15 @@ var template = {
   }
 };
 
-var pools = function() {
-  return HTTP.get('/list-pools');
+var pool = {
+  list: function() {
+    return HTTP.get('/list-pools');
+  }
 };
 
 module.exports = {
   user: user,
   vm: vm,
   template: template,
-  pools: pools
+  pool: pool
 };

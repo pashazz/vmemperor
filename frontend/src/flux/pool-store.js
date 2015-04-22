@@ -1,7 +1,6 @@
 var Reflux = require('reflux'),
     PoolActions = require('./pool-actions'),
-    AlertActions = require('./alert-actions'),
-    VMAPI = require('../api/vmemp-api');
+    AlertActions = require('./alert-actions');
 
 var tryParsing = function(text) {
   try {
@@ -11,25 +10,20 @@ var tryParsing = function(text) {
   }
 }
 
-PoolsStore = Reflux.createStore({
+PoolStore = Reflux.createStore({
   init: function() {
-    this.listenTo(PoolActions.list, this.list);
-    this.listenTo(PoolActions.listSuccess, this.onListSuccess);
+    this.listenToMany(PoolActions);
 
     this.pools = document && document.getElementById("pools-data") ? tryParsing(document.getElementById("pools-data").text) : [];
   },
 
-  list: function() {
-    VMAPI.pools()
-      .then(this.onListSucess)
-      .catch(function(response) {
-        AlertActions.err("Coudn't get pools list");
-      });
+  onListCompleted: function(response) {
+    this.pools = response;
+    this.trigger();
   },
 
-  onListSuccess: function(response) {
-    this.pools = response.data;
-    this.trigger();
+  onListFailed: function(response) {
+    AlertActions.err("Coudn't get pools list");
   },
 
   getData: function() {
@@ -37,4 +31,4 @@ PoolsStore = Reflux.createStore({
   }
 });
 
-module.exports = PoolsStore;
+module.exports = PoolStore;

@@ -34202,7 +34202,7 @@ var user = {
   },
 
   auth: function(data) {
-    return HTTP.post('/auth', data)
+    return HTTP.post('/auth', data);
   },
 
   logout: function() {
@@ -34214,7 +34214,6 @@ var user = {
 };
 
 var vm = {
-
   list: function() {
     return HTTP.get('/list-vms');
   },
@@ -34242,15 +34241,17 @@ var template = {
   }
 };
 
-var pools = function() {
-  return HTTP.get('/list-pools');
+var pool = {
+  list: function() {
+    return HTTP.get('/list-pools');
+  }
 };
 
 module.exports = {
   user: user,
   vm: vm,
   template: template,
-  pools: pools
+  pool: pool
 };
 },{"./http":"/home/alexlag/projects/vmemperor/frontend/src/api/http.js"}],"/home/alexlag/projects/vmemperor/frontend/src/app-routes.jsx":[function(require,module,exports){
 var React = require('react'),
@@ -35143,20 +35144,20 @@ var AlertStore = Reflux.createStore({
 
 module.exports = AlertStore;
 },{"./alert-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/alert-actions.js","lodash":"/home/alexlag/projects/vmemperor/frontend/node_modules/lodash/index.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/pool-actions.js":[function(require,module,exports){
-var Reflux = require('reflux');
+var Reflux = require('reflux'),
+    VMAPI = require('../api/vmemp-api');
 
-PoolActions = Reflux.createActions([
-  'list',
-  'listSuccess',
-  'listFail'
-]);
+PoolActions = Reflux.createActions({
+  'list': { asyncResult: true }
+});
+
+PoolActions.list.listenAndPromise( VMAPI.pool.list );
 
 module.exports = PoolActions;
-},{"reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/pool-store.js":[function(require,module,exports){
+},{"../api/vmemp-api":"/home/alexlag/projects/vmemperor/frontend/src/api/vmemp-api.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/pool-store.js":[function(require,module,exports){
 var Reflux = require('reflux'),
     PoolActions = require('./pool-actions'),
-    AlertActions = require('./alert-actions'),
-    VMAPI = require('../api/vmemp-api');
+    AlertActions = require('./alert-actions');
 
 var tryParsing = function(text) {
   try {
@@ -35166,25 +35167,20 @@ var tryParsing = function(text) {
   }
 }
 
-PoolsStore = Reflux.createStore({
+PoolStore = Reflux.createStore({
   init: function() {
-    this.listenTo(PoolActions.list, this.list);
-    this.listenTo(PoolActions.listSuccess, this.onListSuccess);
+    this.listenToMany(PoolActions);
 
     this.pools = document && document.getElementById("pools-data") ? tryParsing(document.getElementById("pools-data").text) : [];
   },
 
-  list: function() {
-    VMAPI.pools()
-      .then(this.onListSucess)
-      .catch(function(response) {
-        AlertActions.err("Coudn't get pools list");
-      });
+  onListCompleted: function(response) {
+    this.pools = response;
+    this.trigger();
   },
 
-  onListSuccess: function(response) {
-    this.pools = response.data;
-    this.trigger();
+  onListFailed: function(response) {
+    AlertActions.err("Coudn't get pools list");
   },
 
   getData: function() {
@@ -35192,8 +35188,8 @@ PoolsStore = Reflux.createStore({
   }
 });
 
-module.exports = PoolsStore;
-},{"../api/vmemp-api":"/home/alexlag/projects/vmemperor/frontend/src/api/vmemp-api.js","./alert-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/alert-actions.js","./pool-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/pool-actions.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/session-actions.js":[function(require,module,exports){
+module.exports = PoolStore;
+},{"./alert-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/alert-actions.js","./pool-actions":"/home/alexlag/projects/vmemperor/frontend/src/flux/pool-actions.js","reflux":"/home/alexlag/projects/vmemperor/frontend/node_modules/reflux/index.js"}],"/home/alexlag/projects/vmemperor/frontend/src/flux/session-actions.js":[function(require,module,exports){
 var Reflux = require('reflux'),
     VMAPI = require('../api/vmemp-api');
 
