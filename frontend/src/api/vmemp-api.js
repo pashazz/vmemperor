@@ -15,7 +15,7 @@ var loadFromCookie = function() {
   return _session;
 };
 
-var user = {  
+var user = {
   session: function() {
     return (_session !== null) ? _session : loadFromCookie();
   },

@@ -10,7 +10,7 @@ var status = function(response) {
   };
 
 var HTTP = {
-  
+
   get: function(url) {
     return fetch(url)
       .then(status)

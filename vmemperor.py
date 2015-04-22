@@ -141,7 +141,8 @@ def authenticate():
                 print "FAILED TO AUTH ON " + endpoint['description']
         flask_session['is_su'] = is_su
 
-        return redirect("/")
+        response = {'status': 'ok' }
+        return jsonify(response)
 
 
 def requires_auth(f):

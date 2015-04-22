@@ -1,5 +1,5 @@
 var React = require('react'),
-    Reflux = require('reflux')
+    Reflux = require('reflux'),
     AlertsStore = require('../flux/alert-store');
 
 var Snackbar = React.createClass({
@@ -21,7 +21,7 @@ var Snackbar = React.createClass({
       alerts: AlertsStore.getData()
     };
   },
-    
+
   render: function () {
     if(this.state.alerts.length === 0) {
       return null
@@ -47,7 +47,7 @@ var Snackbar = React.createClass({
             </span>
           </div>
         </div>
-      );  
+      );
     }
   }
 

@@ -1,7 +1,7 @@
 var React = require('react'),
     SessionActions = require('./flux/session-actions'),
     PoolStore = require('./flux/pool-store'),
-    Modal = require('./components/modal.jsx');;
+    Modal = require('./components/modal.jsx');
 
 var LoginForm = React.createClass({
 
@@ -19,7 +19,7 @@ var LoginForm = React.createClass({
     newState[e.target.name] = e.target.value;
     this.setState(newState);
   },
-  
+
   render: function (argument) {
     return(
       <form role="form" onChange={this.handleChange} onSubmit={this.handleSubmit}>
@@ -49,7 +49,7 @@ var LoginForm = React.createClass({
 });
 
 var LoginModal = React.createClass({
-    
+
     render: function () {
       return (
         <Modal title="VM Emperor Login" show>

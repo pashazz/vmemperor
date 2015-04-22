@@ -10,7 +10,7 @@ var tryParsing = function(text) {
   }
 }
 
-PoolStore = Reflux.createStore({
+var PoolStore = Reflux.createStore({
   init: function() {
     this.listenToMany(PoolActions);
 

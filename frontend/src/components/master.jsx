@@ -4,10 +4,10 @@ var React = require('react'),
     RouteHandler = Router.RouteHandler,
     Link = Router.Link;
 
-var VMStore = require('../flux/vm-store')
+var VMStore = require('../flux/vm-store'),
     TemplateStore = require('../flux/template-store'),
     SessionStore = require('../flux/session-store'),
-    SessionActions = require('../flux/session-actions')
+    SessionActions = require('../flux/session-actions'),
     AlertActions = require('../flux/alert-actions'),
     Snackbar = require('./snackbar.jsx');
 
@@ -29,15 +29,15 @@ var Master = React.createClass({
   mixins: [Reflux.ListenerMixin],
 
   getInitialState: function() {
-    return { 
-      vmcol: VMStore.length(), 
+    return {
+      vmcol: VMStore.length(),
       templatecol: TemplateStore.length()
     };
   },
 
   onChange: function() {
-    this.setState({ 
-      vmcol: VMStore.length(), 
+    this.setState({
+      vmcol: VMStore.length(),
       templatecol: TemplateStore.length()
     });
   },

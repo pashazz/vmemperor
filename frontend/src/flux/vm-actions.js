@@ -1,7 +1,7 @@
 var Reflux = require('reflux'),
     VMAPI = require('../api/vmemp-api');
 
-VMActions = Reflux.createActions({
+var VMActions = Reflux.createActions({
   'list': { asyncResult: true },
   'start': { asyncResult: true },
   'shutdown': { asyncResult: true }

@@ -1,6 +1,6 @@
 var Reflux = require('reflux');
 
-AlertActions = Reflux.createActions([
+var AlertActions = Reflux.createActions([
   'suc',
   'log',
   'warn',
