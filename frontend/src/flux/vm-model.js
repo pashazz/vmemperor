@@ -1,7 +1,7 @@
-// POJO from  
-// {  
+// POJO from
+// {
 //    "VCPUs_at_startup":"1",
-//    "allowed_operations":[  
+//    "allowed_operations":[
 //       "changing_dynamic_range",
 //       "migrate_send",
 //       "pool_migrate",
@@ -15,7 +15,7 @@
 //       "checkpoint",
 //       "snapshot"
 //    ],
-//    "endpoint":{  
+//    "endpoint":{
 //       "url":"https://172.31.0.14:443/",
 //       "description":"Pool A"
 //    },
@@ -28,7 +28,7 @@
 //    "memory_target":"1610612736",
 //    "name_description":"Installed via xe CLI",
 //    "name_label":"sentanal",
-//    "networks":{  
+//    "networks":{
 //       "0/ip":"172.31.167.66",
 //       "0/ipv6/0":"fe80::b0c9:5bff:fe1f:5896"
 //    },
@@ -36,22 +36,20 @@
 //    "uuid":"6a302da8-80a1-f795-950c-e2025a2cf530"
 // }
 
-var VM = function(object) {
+export default function VM(object) {
   this.id = object['uuid'];
   this.name = object['name_label'];
   this.endpoint_url = object['endpoint']['url'];
   this.endpoint_description = this.pool = object['endpoint']['description'];
   this.description = object['name_description'] || '';
   if(object['networks']) {
-    this.ip = object['networks']['0/ip'] || '';  
+    this.ip = object['networks']['0/ip'] || '';
   } else {
-    this.ip = '';  
+    this.ip = '';
   }
 
-  
+
   this.vcpus = parseInt(object['VCPUs_at_startup']) || 0;
   this.RAM = 'hard =(';
   this.state = object['power_state'] || '';
-} 
-
-module.exports = VM;
+}

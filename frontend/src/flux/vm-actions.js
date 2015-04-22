@@ -1,7 +1,7 @@
-var Reflux = require('reflux'),
-    VMAPI = require('../api/vmemp-api');
+import Reflux from 'reflux';
+import VMAPI from '../api/vmemp-api';
 
-var VMActions = Reflux.createActions({
+const VMActions = Reflux.createActions({
   'list': { asyncResult: true },
   'start': { asyncResult: true },
   'shutdown': { asyncResult: true }
@@ -11,4 +11,4 @@ VMActions.list.listenAndPromise( VMAPI.vm.list );
 VMActions.start.listenAndPromise( VMAPI.vm.start );
 VMActions.shutdown.listenAndPromise( VMAPI.vm.shutdown );
 
-module.exports = VMActions;
+export default VMActions;

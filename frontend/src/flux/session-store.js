@@ -1,37 +1,37 @@
-var Reflux = require('reflux'),
-    SessionActions = require('./session-actions'),
-    AlertActions = require('./alert-actions'),
-    VMAPI = require('../api/vmemp-api');
+import Reflux from 'reflux';
+import SessionActions from './session-actions';
+import AlertActions from './alert-actions';
+import VMAPI from '../api/vmemp-api';
 
-var SessionStore = Reflux.createStore({
-  init: function() {
+const SessionStore = Reflux.createStore({
+  init() {
     this.listenToMany(SessionActions);
 
     this.session = VMAPI.user.session();
     this.trigger(this.session);
   },
 
-  onLogoutCompleted: function(response) {
+  onLogoutCompleted(response) {
     this.session = null;
     this.trigger(null);
   },
 
-  onLogoutFailed: function(response) {
+  onLogoutFailed(response) {
     AlertActions.err("Coudn't logout");
   },
 
-  onAuthCompleted: function(response) {
+  onAuthCompleted(response) {
     this.session = VMAPI.user.session();
     this.trigger(this.session);
   },
 
-  onAuthFailed: function(response) {
+  onAuthFailed(response) {
     AlertActions.err("Coudn't login");
   },
 
-  getData: function() {
+  getData() {
     return this.session;
   }
 });
 
-module.exports = SessionStore;
+export default SessionStore;

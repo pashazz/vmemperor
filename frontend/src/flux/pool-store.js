@@ -1,8 +1,8 @@
-var Reflux = require('reflux'),
-    PoolActions = require('./pool-actions'),
-    AlertActions = require('./alert-actions');
+import Reflux from 'reflux';
+import PoolActions from './pool-actions';
+import AlertActions from './alert-actions';
 
-var tryParsing = function(text) {
+const tryParsing = function(text) {
   try {
     return JSON.parse(text);
   } catch(e) {
@@ -10,25 +10,25 @@ var tryParsing = function(text) {
   }
 }
 
-var PoolStore = Reflux.createStore({
-  init: function() {
+const PoolStore = Reflux.createStore({
+  init() {
     this.listenToMany(PoolActions);
 
     this.pools = document && document.getElementById("pools-data") ? tryParsing(document.getElementById("pools-data").text) : [];
   },
 
-  onListCompleted: function(response) {
+  onListCompleted(response) {
     this.pools = response;
     this.trigger();
   },
 
-  onListFailed: function(response) {
+  onListFailed(response) {
     AlertActions.err("Coudn't get pools list");
   },
 
-  getData: function() {
+  getData() {
     return this.pools;
   }
 });
 
-module.exports = PoolStore;
+export default PoolStore;

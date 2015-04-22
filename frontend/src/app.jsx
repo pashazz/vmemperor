@@ -1,11 +1,10 @@
+import React from 'react';
+import Router from 'react-router';
+import Login from './login.jsx';
+import AppRoutes from './app-routes.jsx';
+import SessionStore from './flux/session-store';
+
 (function () {
-
-  var React = require('react'),
-    Router = require('react-router'),
-    Login = require('./login.jsx'),
-    AppRoutes = require('./app-routes.jsx'),
-    SessionStore = require('./flux/session-store');
-
   window.React = React;
 
   var init = function(session) {

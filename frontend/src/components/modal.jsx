@@ -1,36 +1,37 @@
-var React = require('react'),
-    _ = require('lodash');
+import _ from 'lodash';
+import React from 'react';
 
-var Modal = React.createClass({
+class Modal extends React.Component {
+  constructor(props) {
+    super();
+    this.hide = this.hide.bind(this);
+    this.renderCloseButton = this.renderCloseButton.bind(this);
 
-  hide: function() {
+    this.state = { show: props.show };
+  }
+
+  hide() {
     if(_.isFunction(this.props.close)) {
       this.props.close();
     } else {
       if(this.props.close) {
-        this.setState({show: false});
+        this.setState({ show: false });
       }
     }
-  },
+  }
 
-  getInitialState: function() {
-    return {
-      show: this.props.show
-    };
-  },
-
-  renderCloseButton: function() {
+  renderCloseButton() {
     return this.props.close ?
       <button type="button" className="close" aria-label="Close" onClick={this.hide}><span aria-hidden="true">×</span></button> :
       null;
-  },
-    
-  render: function () {
+  }
+
+  render() {
     if(!this.state.show) {
       return null;
     }
-    var modalSizeClass = this.props.lg ? "modal-dialog modal-lg" : "modal-dialog";
-    
+    const modalSizeClass = this.props.lg ? "modal-dialog modal-lg" : "modal-dialog";
+
     return (
       <div className='modal fade in' role="dialog" aria-hidden="false" style={{ display: 'block' }}>
         <div className="modal-backdrop fade in" style={{ height: '100%' }} onClick={this.hide}></div>
@@ -48,6 +49,6 @@ var Modal = React.createClass({
       </div>
     );
   }
-});
+};
 
-module.exports = Modal;
+export default Modal;

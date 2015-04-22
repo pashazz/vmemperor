@@ -1,26 +1,28 @@
-var React = require('react'),
-    SessionActions = require('./flux/session-actions'),
-    PoolStore = require('./flux/pool-store'),
-    Modal = require('./components/modal.jsx');
+import React from 'react';
+import SessionActions from './flux/session-actions';
+import PoolStore from './flux/pool-store';
+import Modal from './components/modal.jsx';
 
-var LoginForm = React.createClass({
+class LoginForm extends React.Component {
+  constructor() {
+    super();
+    this.handleSubmit = this.handleSubmit.bind(this);
+    this.handleChange = this.handleChange.bind(this);
+    this.state = {};
+  }
 
-  getInitialState: function() {
-    return {};
-  },
-
-  handleSubmit: function(e) {
+  handleSubmit(e) {
     e.preventDefault();
     SessionActions.auth(this.state);
-  },
+  }
 
-  handleChange: function(e) {
+  handleChange(e) {
     var newState = {};
     newState[e.target.name] = e.target.value;
     this.setState(newState);
-  },
+  }
 
-  render: function (argument) {
+  render() {
     return(
       <form role="form" onChange={this.handleChange} onSubmit={this.handleSubmit}>
         <div className="modal-body">
@@ -45,19 +47,16 @@ var LoginForm = React.createClass({
       </form>
     );
   }
+}
 
-});
+class LoginModal extends React.Component {
+  render() {
+    return (
+      <Modal title="VM Emperor Login" show>
+        <LoginForm />
+      </Modal>
+    );
+  }
+}
 
-var LoginModal = React.createClass({
-
-    render: function () {
-      return (
-        <Modal title="VM Emperor Login" show>
-          <LoginForm />
-        </Modal>
-      );
-    }
-
-});
-
-module.exports = LoginModal;
+export default LoginModal;

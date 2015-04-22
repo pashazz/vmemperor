@@ -1,20 +1,25 @@
-var React = require('react'),
-    Reflux = require('reflux'),
-    _ = require('lodash');
+import _ from 'lodash';
+import React from 'react';
+import Reflux from 'reflux';
 
-var TemplateStore = require('../flux/template-store'),
-    TemplateActions = require('../flux/template-actions');
+import TemplateStore from '../flux/template-store';
+import TemplateActions from '../flux/template-actions';
 
-var TemplateInfo = React.createClass({
+class TemplateInfo extends React.Component {
+  constructor() {
+    super();
+    this.handleSubmit = this.handleSubmit.bind(handleSubmit);
+    this.renderActions = this.renderActions.bind(renderActions);
+  }
 
-  handleSubmit: function(e) {
+  handleSubmit(e) {
     e.preventDefault();
     console.log(e.target.value);
-  },
+  }
 
-  renderActions: function(template) {
-    var urlValue = (template['tags']['install_repository'] === undefined) ? template['install_repository'] : template['default_mirror'];
-    var proxies = null;
+  renderActions(template) {
+    const urlValue = (template['tags']['install_repository'] === undefined) ? template['install_repository'] : template['default_mirror'];
+    const proxies = null;
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -36,10 +41,10 @@ var TemplateInfo = React.createClass({
         </div>
       </form>
     );
-  },
+  }
 
-  render: function() {
-    var template = this.props.template;
+  render() {
+    const template = this.props.template;
     return (
       <tr>
         <td>
@@ -60,58 +65,56 @@ var TemplateInfo = React.createClass({
       </tr>
     );
   }
-});
+};
 
-var TemplateTable = React.createClass({
-    
-    render: function () {
-      var templates = this.props.templates.map(function(template, id) {
-        return <TemplateInfo key={id} template={template} />;
-      });
+class TemplateTable extends React.Component {
+  render() {
+    var templates = this.props.templates.map((template, id) => {
+      return <TemplateInfo key={id} template={template} />;
+    });
 
-      return (
-        <div className="table-responsive">
-          <table className="table table-hover table-vcenter">
-            <thead>
-              <tr>
-                <th className="col-sm-2">Location</th>
-                <th className="col-sm-6">Template name</th>
-                <th className="col-sm-4">Tags</th>
-              </tr>
-            </thead>
-            <tbody>
-              {templates}
-            </tbody>
-          </table>
-        </div>
-      );
-    }
-});
+    return (
+      <div className="table-responsive">
+        <table className="table table-hover table-vcenter">
+          <thead>
+            <tr>
+              <th className="col-sm-2">Location</th>
+              <th className="col-sm-6">Template name</th>
+              <th className="col-sm-4">Tags</th>
+            </tr>
+          </thead>
+          <tbody>
+            {templates}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+};
 
-var Templates = React.createClass({
+const Templates = React.createClass({
   mixins: [Reflux.ListenerMixin],
 
-  onTemplatesChange: function() {
+  onTemplatesChange() {
     this.setState({
       status: TemplateStore.status,
       templates: TemplateStore.templates
     });
   },
 
-  componentDidMount: function() {
+  componentDidMount() {
     this.listenTo(TemplateStore, this.onTemplatesChange);
     TemplateActions.list();
   },
 
-  getInitialState: function() {
+  getInitialState() {
     return {
       status: TemplateStore.status,
       templates: TemplateStore.templates
     };
   },
 
-  render: function () {
-    
+  render() {
     return (
       <div>
         <TemplateTable templates={this.state.templates} />
@@ -124,7 +127,6 @@ var Templates = React.createClass({
       </div>
     );
   }
-  
 });
 
-module.exports = Templates;
+export default Templates;

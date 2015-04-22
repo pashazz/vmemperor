@@ -46,32 +46,47 @@
 
 	'use strict';
 
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
+
+	var _React = __webpack_require__(4);
+
+	var _React2 = _interopRequireWildcard(_React);
+
+	var _Router = __webpack_require__(5);
+
+	var _Router2 = _interopRequireWildcard(_Router);
+
+	var _Login = __webpack_require__(1);
+
+	var _Login2 = _interopRequireWildcard(_Login);
+
+	var _AppRoutes = __webpack_require__(2);
+
+	var _AppRoutes2 = _interopRequireWildcard(_AppRoutes);
+
+	var _SessionStore = __webpack_require__(3);
+
+	var _SessionStore2 = _interopRequireWildcard(_SessionStore);
+
 	(function () {
-
-	  var React = __webpack_require__(4),
-	      Router = __webpack_require__(5),
-	      Login = __webpack_require__(1),
-	      AppRoutes = __webpack_require__(2),
-	      SessionStore = __webpack_require__(3);
-
-	  window.React = React;
+	  window.React = _React2['default'];
 
 	  var init = function init(session) {
 	    if (session !== null) {
-	      Router.create({
-	        routes: AppRoutes,
-	        scrollBehavior: Router.ScrollToTopBehavior
+	      _Router2['default'].create({
+	        routes: _AppRoutes2['default'],
+	        scrollBehavior: _Router2['default'].ScrollToTopBehavior
 	      }).run(function (Handler) {
-	        React.render(React.createElement(Handler, null), document.body);
+	        _React2['default'].render(_React2['default'].createElement(Handler, null), document.body);
 	      });
 	    } else {
-	      React.render(React.createElement(Login, null), document.body);
+	      _React2['default'].render(_React2['default'].createElement(_Login2['default'], null), document.body);
 	    }
 	  };
 
-	  init(SessionStore.getData());
+	  init(_SessionStore2['default'].getData());
 
-	  SessionStore.listen(init);
+	  _SessionStore2['default'].listen(init);
 	})();
 
 /***/ },
@@ -80,93 +95,142 @@
 
 	'use strict';
 
-	var React = __webpack_require__(4),
-	    SessionActions = __webpack_require__(6),
-	    PoolStore = __webpack_require__(7),
-	    Modal = __webpack_require__(8);
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
 
-	var LoginForm = React.createClass({
-	  displayName: 'LoginForm',
+	var _classCallCheck = function (instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } };
 
-	  getInitialState: function getInitialState() {
-	    return {};
-	  },
+	var _createClass = (function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ('value' in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
 
-	  handleSubmit: function handleSubmit(e) {
-	    e.preventDefault();
-	    SessionActions.auth(this.state);
-	  },
+	var _get = function get(object, property, receiver) { var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ('value' in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
 
-	  handleChange: function handleChange(e) {
-	    var newState = {};
-	    newState[e.target.name] = e.target.value;
-	    this.setState(newState);
-	  },
+	var _inherits = function (subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) subClass.__proto__ = superClass; };
 
-	  render: function render(argument) {
-	    return React.createElement(
-	      'form',
-	      { role: 'form', onChange: this.handleChange, onSubmit: this.handleSubmit },
-	      React.createElement(
-	        'div',
-	        { className: 'modal-body' },
-	        React.createElement(
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+
+	var _React = __webpack_require__(4);
+
+	var _React2 = _interopRequireWildcard(_React);
+
+	var _SessionActions = __webpack_require__(6);
+
+	var _SessionActions2 = _interopRequireWildcard(_SessionActions);
+
+	var _PoolStore = __webpack_require__(7);
+
+	var _PoolStore2 = _interopRequireWildcard(_PoolStore);
+
+	var _Modal = __webpack_require__(8);
+
+	var _Modal2 = _interopRequireWildcard(_Modal);
+
+	var LoginForm = (function (_React$Component) {
+	  function LoginForm() {
+	    _classCallCheck(this, LoginForm);
+
+	    _get(Object.getPrototypeOf(LoginForm.prototype), 'constructor', this).call(this);
+	    this.handleSubmit = this.handleSubmit.bind(this);
+	    this.handleChange = this.handleChange.bind(this);
+	    this.state = {};
+	  }
+
+	  _inherits(LoginForm, _React$Component);
+
+	  _createClass(LoginForm, [{
+	    key: 'handleSubmit',
+	    value: function handleSubmit(e) {
+	      e.preventDefault();
+	      _SessionActions2['default'].auth(this.state);
+	    }
+	  }, {
+	    key: 'handleChange',
+	    value: function handleChange(e) {
+	      var newState = {};
+	      newState[e.target.name] = e.target.value;
+	      this.setState(newState);
+	    }
+	  }, {
+	    key: 'render',
+	    value: function render() {
+	      return _React2['default'].createElement(
+	        'form',
+	        { role: 'form', onChange: this.handleChange, onSubmit: this.handleSubmit },
+	        _React2['default'].createElement(
 	          'div',
-	          { className: 'form-inline' },
-	          React.createElement(
+	          { className: 'modal-body' },
+	          _React2['default'].createElement(
 	            'div',
-	            { className: 'input-group' },
-	            React.createElement(
+	            { className: 'form-inline' },
+	            _React2['default'].createElement(
 	              'div',
-	              { className: 'input-group-addon' },
-	              'Pool A'
-	            ),
-	            React.createElement('input', { type: 'text', className: 'form-control', placeholder: 'Login', name: 'login0' }),
-	            React.createElement('input', { type: 'password', className: 'form-control', placeholder: 'Password', name: 'password0' })
+	              { className: 'input-group' },
+	              _React2['default'].createElement(
+	                'div',
+	                { className: 'input-group-addon' },
+	                'Pool A'
+	              ),
+	              _React2['default'].createElement('input', { type: 'text', className: 'form-control', placeholder: 'Login', name: 'login0' }),
+	              _React2['default'].createElement('input', { type: 'password', className: 'form-control', placeholder: 'Password', name: 'password0' })
+	            )
+	          ),
+	          _React2['default'].createElement('br', null),
+	          _React2['default'].createElement(
+	            'div',
+	            { className: 'form-inline' },
+	            _React2['default'].createElement(
+	              'div',
+	              { className: 'input-group' },
+	              _React2['default'].createElement(
+	                'div',
+	                { className: 'input-group-addon' },
+	                'Pool Z'
+	              ),
+	              _React2['default'].createElement('input', { type: 'text', className: 'form-control', placeholder: 'Login', name: 'login1' }),
+	              _React2['default'].createElement('input', { type: 'password', className: 'form-control', placeholder: 'Password', name: 'password1' })
+	            )
 	          )
 	        ),
-	        React.createElement('br', null),
-	        React.createElement(
-	          'div',
-	          { className: 'form-inline' },
-	          React.createElement(
-	            'div',
-	            { className: 'input-group' },
-	            React.createElement(
-	              'div',
-	              { className: 'input-group-addon' },
-	              'Pool Z'
-	            ),
-	            React.createElement('input', { type: 'text', className: 'form-control', placeholder: 'Login', name: 'login1' }),
-	            React.createElement('input', { type: 'password', className: 'form-control', placeholder: 'Password', name: 'password1' })
-	          )
+	        _React2['default'].createElement('br', null),
+	        _React2['default'].createElement(
+	          'button',
+	          { type: 'submit', className: 'btn btn-lg btn-primary btn-block' },
+	          'Login'
 	        )
-	      ),
-	      React.createElement('br', null),
-	      React.createElement(
-	        'button',
-	        { type: 'submit', className: 'btn btn-lg btn-primary btn-block' },
-	        'Login'
-	      )
-	    );
+	      );
+	    }
+	  }]);
+
+	  return LoginForm;
+	})(_React2['default'].Component);
+
+	var LoginModal = (function (_React$Component2) {
+	  function LoginModal() {
+	    _classCallCheck(this, LoginModal);
+
+	    if (_React$Component2 != null) {
+	      _React$Component2.apply(this, arguments);
+	    }
 	  }
 
-	});
+	  _inherits(LoginModal, _React$Component2);
 
-	var LoginModal = React.createClass({
-	  displayName: 'LoginModal',
+	  _createClass(LoginModal, [{
+	    key: 'render',
+	    value: function render() {
+	      return _React2['default'].createElement(
+	        _Modal2['default'],
+	        { title: 'VM Emperor Login', show: true },
+	        _React2['default'].createElement(LoginForm, null)
+	      );
+	    }
+	  }]);
 
-	  render: function render() {
-	    return React.createElement(
-	      Modal,
-	      { title: 'VM Emperor Login', show: true },
-	      React.createElement(LoginForm, null)
-	    );
-	  }
+	  return LoginModal;
+	})(_React2['default'].Component);
 
-	});
-
-	module.exports = LoginModal;
+	exports['default'] = LoginModal;
+	module.exports = exports['default'];
 
 /***/ },
 /* 2 */
@@ -174,27 +238,45 @@
 
 	'use strict';
 
-	var React = __webpack_require__(4),
-	    Router = __webpack_require__(5),
-	    Route = Router.Route,
-	    Redirect = Router.Redirect,
-	    DefaultRoute = Router.DefaultRoute;
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
 
-	var Master = __webpack_require__(9),
-	    VMs = __webpack_require__(10),
-	    Templates = __webpack_require__(11),
-	    CreateVM = __webpack_require__(12);
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
 
-	var AppRoutes = React.createElement(
-	    Route,
-	    { name: 'root', path: '/', handler: Master },
-	    React.createElement(Route, { name: 'vms', handler: VMs }),
-	    React.createElement(Route, { name: 'templates', handler: Templates }),
-	    React.createElement(Route, { name: 'create-vm', handler: CreateVM }),
-	    React.createElement(Redirect, { from: '/', to: 'vms' })
+	var _React = __webpack_require__(4);
+
+	var _React2 = _interopRequireWildcard(_React);
+
+	var _Route$Redirect = __webpack_require__(5);
+
+	var _Master = __webpack_require__(9);
+
+	var _Master2 = _interopRequireWildcard(_Master);
+
+	var _VMs = __webpack_require__(10);
+
+	var _VMs2 = _interopRequireWildcard(_VMs);
+
+	var _Templates = __webpack_require__(11);
+
+	var _Templates2 = _interopRequireWildcard(_Templates);
+
+	var _CreateVM = __webpack_require__(12);
+
+	var _CreateVM2 = _interopRequireWildcard(_CreateVM);
+
+	var AppRoutes = _React2['default'].createElement(
+	  _Route$Redirect.Route,
+	  { name: 'root', path: '/', handler: _Master2['default'] },
+	  _React2['default'].createElement(_Route$Redirect.Route, { name: 'vms', handler: _VMs2['default'] }),
+	  _React2['default'].createElement(_Route$Redirect.Route, { name: 'templates', handler: _Templates2['default'] }),
+	  _React2['default'].createElement(_Route$Redirect.Route, { name: 'create-vm', handler: _CreateVM2['default'] }),
+	  _React2['default'].createElement(_Route$Redirect.Redirect, { from: '/', to: 'vms' })
 	);
 
-	module.exports = AppRoutes;
+	exports['default'] = AppRoutes;
+	module.exports = exports['default'];
 
 /***/ },
 /* 3 */
@@ -202,16 +284,33 @@
 
 	'use strict';
 
-	var Reflux = __webpack_require__(15),
-	    SessionActions = __webpack_require__(6),
-	    AlertActions = __webpack_require__(13),
-	    VMAPI = __webpack_require__(14);
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
 
-	var SessionStore = Reflux.createStore({
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+
+	var _Reflux = __webpack_require__(15);
+
+	var _Reflux2 = _interopRequireWildcard(_Reflux);
+
+	var _SessionActions = __webpack_require__(6);
+
+	var _SessionActions2 = _interopRequireWildcard(_SessionActions);
+
+	var _AlertActions = __webpack_require__(13);
+
+	var _AlertActions2 = _interopRequireWildcard(_AlertActions);
+
+	var _VMAPI = __webpack_require__(14);
+
+	var _VMAPI2 = _interopRequireWildcard(_VMAPI);
+
+	var SessionStore = _Reflux2['default'].createStore({
 	  init: function init() {
-	    this.listenToMany(SessionActions);
+	    this.listenToMany(_SessionActions2['default']);
 
-	    this.session = VMAPI.user.session();
+	    this.session = _VMAPI2['default'].user.session();
 	    this.trigger(this.session);
 	  },
 
@@ -221,16 +320,16 @@
 	  },
 
 	  onLogoutFailed: function onLogoutFailed(response) {
-	    AlertActions.err('Coudn\'t logout');
+	    _AlertActions2['default'].err('Coudn\'t logout');
 	  },
 
 	  onAuthCompleted: function onAuthCompleted(response) {
-	    this.session = VMAPI.user.session();
+	    this.session = _VMAPI2['default'].user.session();
 	    this.trigger(this.session);
 	  },
 
 	  onAuthFailed: function onAuthFailed(response) {
-	    AlertActions.err('Coudn\'t login');
+	    _AlertActions2['default'].err('Coudn\'t login');
 	  },
 
 	  getData: function getData() {
@@ -238,7 +337,8 @@
 	  }
 	});
 
-	module.exports = SessionStore;
+	exports['default'] = SessionStore;
+	module.exports = exports['default'];
 
 /***/ },
 /* 4 */
@@ -287,18 +387,30 @@
 
 	'use strict';
 
-	var Reflux = __webpack_require__(15),
-	    VMAPI = __webpack_require__(14);
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
 
-	var SessionActions = Reflux.createActions({
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+
+	var _Reflux = __webpack_require__(15);
+
+	var _Reflux2 = _interopRequireWildcard(_Reflux);
+
+	var _VMAPI = __webpack_require__(14);
+
+	var _VMAPI2 = _interopRequireWildcard(_VMAPI);
+
+	var SessionActions = _Reflux2['default'].createActions({
 	  auth: { asyncResult: true },
 	  logout: { asyncResult: true }
 	});
 
-	SessionActions.auth.listenAndPromise(VMAPI.user.auth);
-	SessionActions.logout.listenAndPromise(VMAPI.user.logout);
+	SessionActions.auth.listenAndPromise(_VMAPI2['default'].user.auth);
+	SessionActions.logout.listenAndPromise(_VMAPI2['default'].user.logout);
 
-	module.exports = SessionActions;
+	exports['default'] = SessionActions;
+	module.exports = exports['default'];
 
 /***/ },
 /* 7 */
@@ -306,9 +418,23 @@
 
 	'use strict';
 
-	var Reflux = __webpack_require__(15),
-	    PoolActions = __webpack_require__(37),
-	    AlertActions = __webpack_require__(13);
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
+
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+
+	var _Reflux = __webpack_require__(15);
+
+	var _Reflux2 = _interopRequireWildcard(_Reflux);
+
+	var _PoolActions = __webpack_require__(37);
+
+	var _PoolActions2 = _interopRequireWildcard(_PoolActions);
+
+	var _AlertActions = __webpack_require__(13);
+
+	var _AlertActions2 = _interopRequireWildcard(_AlertActions);
 
 	var tryParsing = function tryParsing(text) {
 	  try {
@@ -318,9 +444,9 @@
 	  }
 	};
 
-	var PoolStore = Reflux.createStore({
+	var PoolStore = _Reflux2['default'].createStore({
 	  init: function init() {
-	    this.listenToMany(PoolActions);
+	    this.listenToMany(_PoolActions2['default']);
 
 	    this.pools = document && document.getElementById('pools-data') ? tryParsing(document.getElementById('pools-data').text) : [];
 	  },
@@ -331,7 +457,7 @@
 	  },
 
 	  onListFailed: function onListFailed(response) {
-	    AlertActions.err('Coudn\'t get pools list');
+	    _AlertActions2['default'].err('Coudn\'t get pools list');
 	  },
 
 	  getData: function getData() {
@@ -339,7 +465,8 @@
 	  }
 	});
 
-	module.exports = PoolStore;
+	exports['default'] = PoolStore;
+	module.exports = exports['default'];
 
 /***/ },
 /* 8 */
@@ -347,78 +474,111 @@
 
 	'use strict';
 
-	var React = __webpack_require__(4),
-	    _ = __webpack_require__(44);
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
 
-	var Modal = React.createClass({
-	  displayName: 'Modal',
+	var _classCallCheck = function (instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } };
 
-	  hide: function hide() {
-	    if (_.isFunction(this.props.close)) {
-	      this.props.close();
-	    } else {
-	      if (this.props.close) {
-	        this.setState({ show: false });
-	      }
-	    }
-	  },
+	var _createClass = (function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ('value' in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
 
-	  getInitialState: function getInitialState() {
-	    return {
-	      show: this.props.show
-	    };
-	  },
+	var _get = function get(object, property, receiver) { var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ('value' in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
 
-	  renderCloseButton: function renderCloseButton() {
-	    return this.props.close ? React.createElement(
-	      'button',
-	      { type: 'button', className: 'close', 'aria-label': 'Close', onClick: this.hide },
-	      React.createElement(
-	        'span',
-	        { 'aria-hidden': 'true' },
-	        '×'
-	      )
-	    ) : null;
-	  },
+	var _inherits = function (subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) subClass.__proto__ = superClass; };
 
-	  render: function render() {
-	    if (!this.state.show) {
-	      return null;
-	    }
-	    var modalSizeClass = this.props.lg ? 'modal-dialog modal-lg' : 'modal-dialog';
-
-	    return React.createElement(
-	      'div',
-	      { className: 'modal fade in', role: 'dialog', 'aria-hidden': 'false', style: { display: 'block' } },
-	      React.createElement('div', { className: 'modal-backdrop fade in', style: { height: '100%' }, onClick: this.hide }),
-	      React.createElement(
-	        'div',
-	        { className: modalSizeClass },
-	        React.createElement(
-	          'div',
-	          { className: 'modal-content' },
-	          React.createElement(
-	            'div',
-	            { className: 'modal-header' },
-	            this.renderCloseButton(),
-	            React.createElement(
-	              'h4',
-	              { className: 'modal-title' },
-	              this.props.title
-	            )
-	          ),
-	          React.createElement(
-	            'div',
-	            { className: 'modal-body' },
-	            this.props.children
-	          )
-	        )
-	      )
-	    );
-	  }
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
 	});
 
-	module.exports = Modal;
+	var _import = __webpack_require__(44);
+
+	var _import2 = _interopRequireWildcard(_import);
+
+	var _React = __webpack_require__(4);
+
+	var _React2 = _interopRequireWildcard(_React);
+
+	var Modal = (function (_React$Component) {
+	  function Modal(props) {
+	    _classCallCheck(this, Modal);
+
+	    _get(Object.getPrototypeOf(Modal.prototype), 'constructor', this).call(this);
+	    this.hide = this.hide.bind(this);
+	    this.renderCloseButton = this.renderCloseButton.bind(this);
+
+	    this.state = { show: props.show };
+	  }
+
+	  _inherits(Modal, _React$Component);
+
+	  _createClass(Modal, [{
+	    key: 'hide',
+	    value: function hide() {
+	      if (_import2['default'].isFunction(this.props.close)) {
+	        this.props.close();
+	      } else {
+	        if (this.props.close) {
+	          this.setState({ show: false });
+	        }
+	      }
+	    }
+	  }, {
+	    key: 'renderCloseButton',
+	    value: function renderCloseButton() {
+	      return this.props.close ? _React2['default'].createElement(
+	        'button',
+	        { type: 'button', className: 'close', 'aria-label': 'Close', onClick: this.hide },
+	        _React2['default'].createElement(
+	          'span',
+	          { 'aria-hidden': 'true' },
+	          '×'
+	        )
+	      ) : null;
+	    }
+	  }, {
+	    key: 'render',
+	    value: function render() {
+	      if (!this.state.show) {
+	        return null;
+	      }
+	      var modalSizeClass = this.props.lg ? 'modal-dialog modal-lg' : 'modal-dialog';
+
+	      return _React2['default'].createElement(
+	        'div',
+	        { className: 'modal fade in', role: 'dialog', 'aria-hidden': 'false', style: { display: 'block' } },
+	        _React2['default'].createElement('div', { className: 'modal-backdrop fade in', style: { height: '100%' }, onClick: this.hide }),
+	        _React2['default'].createElement(
+	          'div',
+	          { className: modalSizeClass },
+	          _React2['default'].createElement(
+	            'div',
+	            { className: 'modal-content' },
+	            _React2['default'].createElement(
+	              'div',
+	              { className: 'modal-header' },
+	              this.renderCloseButton(),
+	              _React2['default'].createElement(
+	                'h4',
+	                { className: 'modal-title' },
+	                this.props.title
+	              )
+	            ),
+	            _React2['default'].createElement(
+	              'div',
+	              { className: 'modal-body' },
+	              this.props.children
+	            )
+	          )
+	        )
+	      );
+	    }
+	  }]);
+
+	  return Modal;
+	})(_React2['default'].Component);
+
+	;
+
+	exports['default'] = Modal;
+	module.exports = exports['default'];
 
 /***/ },
 /* 9 */
@@ -426,30 +586,59 @@
 
 	'use strict';
 
-	var React = __webpack_require__(4),
-	    Reflux = __webpack_require__(15),
-	    Router = __webpack_require__(5),
-	    RouteHandler = Router.RouteHandler,
-	    Link = Router.Link;
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
 
-	var VMStore = __webpack_require__(38),
-	    TemplateStore = __webpack_require__(39),
-	    SessionStore = __webpack_require__(3),
-	    SessionActions = __webpack_require__(6),
-	    AlertActions = __webpack_require__(13),
-	    Snackbar = __webpack_require__(40);
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
 
-	var NavElem = React.createClass({
+	var _React = __webpack_require__(4);
+
+	var _React2 = _interopRequireWildcard(_React);
+
+	var _Reflux = __webpack_require__(15);
+
+	var _Reflux2 = _interopRequireWildcard(_Reflux);
+
+	var _RouteHandler$Link = __webpack_require__(5);
+
+	var _VMStore = __webpack_require__(38);
+
+	var _VMStore2 = _interopRequireWildcard(_VMStore);
+
+	var _TemplateStore = __webpack_require__(39);
+
+	var _TemplateStore2 = _interopRequireWildcard(_TemplateStore);
+
+	var _SessionStore = __webpack_require__(3);
+
+	var _SessionStore2 = _interopRequireWildcard(_SessionStore);
+
+	var _SessionActions = __webpack_require__(6);
+
+	var _SessionActions2 = _interopRequireWildcard(_SessionActions);
+
+	var _AlertActions = __webpack_require__(13);
+
+	var _AlertActions2 = _interopRequireWildcard(_AlertActions);
+
+	var _Snackbar = __webpack_require__(40);
+
+	var _Snackbar2 = _interopRequireWildcard(_Snackbar);
+
+	var NavElem = _React2['default'].createClass({
 	  displayName: 'NavElem',
 
-	  mixins: [Router.State],
+	  contextTypes: {
+	    router: _React2['default'].PropTypes.func
+	  },
 
 	  render: function render() {
-	    return React.createElement(
+	    return _React2['default'].createElement(
 	      'li',
-	      { className: this.isActive(this.props.to) ? 'active' : '' },
-	      React.createElement(
-	        Link,
+	      { className: this.context.router.isActive(this.props.to) ? 'active' : '' },
+	      _React2['default'].createElement(
+	        _RouteHandler$Link.Link,
 	        { to: this.props.to },
 	        this.props.children
 	      )
@@ -457,89 +646,89 @@
 	  }
 	});
 
-	var Master = React.createClass({
+	var Master = _React2['default'].createClass({
 	  displayName: 'Master',
 
-	  mixins: [Reflux.ListenerMixin],
+	  mixins: [_Reflux2['default'].ListenerMixin],
 
 	  getInitialState: function getInitialState() {
 	    return {
-	      vmcol: VMStore.length(),
-	      templatecol: TemplateStore.length()
+	      vmcol: _VMStore2['default'].length(),
+	      templatecol: _TemplateStore2['default'].length()
 	    };
 	  },
 
 	  onChange: function onChange() {
 	    this.setState({
-	      vmcol: VMStore.length(),
-	      templatecol: TemplateStore.length()
+	      vmcol: _VMStore2['default'].length(),
+	      templatecol: _TemplateStore2['default'].length()
 	    });
 	  },
 
 	  componentDidMount: function componentDidMount() {
-	    this.listenTo(VMStore, this.onChange);
-	    this.listenTo(TemplateStore, this.onChange);
+	    this.listenTo(_VMStore2['default'], this.onChange);
+	    this.listenTo(_TemplateStore2['default'], this.onChange);
 	  },
 
 	  render: function render() {
-	    var brand = React.createElement(
-	      Link,
+	    var brand = _React2['default'].createElement(
+	      _RouteHandler$Link.Link,
 	      { to: '/', className: 'navbar-brand' },
 	      'VM Emperor'
 	    );
-	    var vmCounter = this.state.vmcol > 0 ? React.createElement(
+	    var vmCounter = this.state.vmcol > 0 ? _React2['default'].createElement(
 	      'span',
 	      { className: 'badge' },
 	      this.state.vmcol
 	    ) : '';
-	    var templateCounter = this.state.templatecol > 0 ? React.createElement(
+	    var templateCounter = this.state.templatecol > 0 ? _React2['default'].createElement(
 	      'span',
 	      { className: 'badge' },
 	      this.state.templatecol
 	    ) : '';
 
-	    return React.createElement(
+	    return _React2['default'].createElement(
 	      'div',
 	      null,
-	      React.createElement(
+	      _React2['default'].createElement(
 	        'nav',
 	        { className: 'navbar navbar-default' },
-	        React.createElement(
+	        _React2['default'].createElement(
 	          'div',
 	          { className: 'container' },
-	          React.createElement(
+	          _React2['default'].createElement(
 	            'div',
 	            { className: 'navbar-header' },
 	            brand
 	          ),
-	          React.createElement(
+	          _React2['default'].createElement(
 	            'ul',
 	            { className: 'nav navbar-nav' },
-	            React.createElement(
+	            _React2['default'].createElement(
 	              NavElem,
 	              { to: 'vms' },
 	              'VMs ',
 	              vmCounter
 	            ),
-	            React.createElement(
+	            _React2['default'].createElement(
 	              NavElem,
 	              { to: 'templates' },
 	              'Templates ',
 	              templateCounter
 	            ),
-	            React.createElement(
+	            _React2['default'].createElement(
 	              NavElem,
 	              { to: 'create-vm' },
 	              'Create VM'
 	            )
 	          ),
-	          React.createElement(
+	          _React2['default'].createElement(
 	            'ul',
 	            { className: 'nav navbar-nav navbar-right' },
-	            React.createElement(
+	            _React2['default'].createElement(
 	              'li',
 	              null,
-	              React.createElement(
+	              _React2['default'].createElement(
 	                'a',
 	                { onClick: this._logout, href: '#' },
 	                'Logout'
@@ -548,26 +737,27 @@
 	          )
 	        )
 	      ),
-	      React.createElement(
+	      _React2['default'].createElement(
 	        'div',
 	        { className: 'container' },
-	        React.createElement(RouteHandler, null)
+	        _React2['default'].createElement(_RouteHandler$Link.RouteHandler, null)
 	      ),
-	      React.createElement(Snackbar, null)
+	      _React2['default'].createElement(_Snackbar2['default'], null)
 	    );
 	  },
 
 	  _logout: function _logout(e) {
 	    e.preventDefault();
 	    if (confirm('Are you sure you want to log out?')) {
-	      SessionActions.logout();
+	      _SessionActions2['default'].logout();
 	    } else {
-	      AlertActions.err('You were NOT logged out');
+	      _AlertActions2['default'].err('You were NOT logged out');
 	    }
 	  }
 	});
 
-	module.exports = Master;
+	exports['default'] = Master;
+	module.exports = exports['default'];
 
 /***/ },
 /* 10 */
@@ -886,231 +1076,289 @@
 
 	'use strict';
 
-	var React = __webpack_require__(4),
-	    Reflux = __webpack_require__(15),
-	    _ = __webpack_require__(44);
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
 
-	var TemplateStore = __webpack_require__(39),
-	    TemplateActions = __webpack_require__(42);
+	var _classCallCheck = function (instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } };
 
-	var TemplateInfo = React.createClass({
-	  displayName: 'TemplateInfo',
+	var _createClass = (function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ('value' in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
 
-	  handleSubmit: function handleSubmit(e) {
-	    e.preventDefault();
-	    console.log(e.target.value);
-	  },
+	var _get = function get(object, property, receiver) { var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ('value' in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
 
-	  renderActions: function renderActions(template) {
-	    var urlValue = template.tags.install_repository === undefined ? template.install_repository : template.default_mirror;
-	    var proxies = null;
+	var _inherits = function (subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) subClass.__proto__ = superClass; };
 
-	    return React.createElement(
-	      'form',
-	      { onSubmit: this.handleSubmit },
-	      React.createElement(
-	        'div',
-	        { className: 'form-group' },
-	        React.createElement(
-	          'label',
-	          null,
-	          'Select installation mirror.'
-	        ),
-	        React.createElement('input', { type: 'url', className: 'form-control', value: urlValue })
-	      ),
-	      React.createElement(
-	        'div',
-	        { className: 'form-group' },
-	        React.createElement(
-	          'label',
-	          null,
-	          'Select reverse-proxy config style'
-	        ),
-	        React.createElement(
-	          'select',
-	          { className: 'form-control proxy-select' },
-	          React.createElement(
-	            'option',
-	            { value: null },
-	            'I don\'t need it at all'
-	          ),
-	          proxies
-	        )
-	      ),
-	      React.createElement(
-	        'div',
-	        { className: 'btn btn-group' },
-	        React.createElement(
-	          'button',
-	          { onClick: this.handleSubmit, value: 'enable', className: 'btn btn-sm btn-primary' },
-	          'Enable'
-	        ),
-	        React.createElement(
-	          'button',
-	          { onClick: this.handleSubmit, value: 'disable', className: 'btn btn-sm btn-danger' },
-	          'Disable'
-	        ),
-	        React.createElement(
-	          'button',
-	          { onClick: this.handleSubmit, value: 'update', className: 'btn btn-sm btn-info' },
-	          'Update'
-	        )
-	      )
-	    );
-	  },
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
 
-	  render: function render() {
-	    var template = this.props.template;
-	    return React.createElement(
-	      'tr',
-	      null,
-	      React.createElement(
-	        'td',
-	        null,
-	        React.createElement(
-	          'blockquote',
-	          null,
-	          React.createElement(
-	            'p',
+	var _import = __webpack_require__(44);
+
+	var _import2 = _interopRequireWildcard(_import);
+
+	var _React = __webpack_require__(4);
+
+	var _React2 = _interopRequireWildcard(_React);
+
+	var _Reflux = __webpack_require__(15);
+
+	var _Reflux2 = _interopRequireWildcard(_Reflux);
+
+	var _TemplateStore = __webpack_require__(39);
+
+	var _TemplateStore2 = _interopRequireWildcard(_TemplateStore);
+
+	var _TemplateActions = __webpack_require__(42);
+
+	var _TemplateActions2 = _interopRequireWildcard(_TemplateActions);
+
+	var TemplateInfo = (function (_React$Component) {
+	  function TemplateInfo() {
+	    _classCallCheck(this, TemplateInfo);
+
+	    _get(Object.getPrototypeOf(TemplateInfo.prototype), 'constructor', this).call(this);
+	    this.handleSubmit = this.handleSubmit.bind(handleSubmit);
+	    this.renderActions = this.renderActions.bind(renderActions);
+	  }
+
+	  _inherits(TemplateInfo, _React$Component);
+
+	  _createClass(TemplateInfo, [{
+	    key: 'handleSubmit',
+	    value: function handleSubmit(e) {
+	      e.preventDefault();
+	      console.log(e.target.value);
+	    }
+	  }, {
+	    key: 'renderActions',
+	    value: function renderActions(template) {
+	      var urlValue = template.tags.install_repository === undefined ? template.install_repository : template.default_mirror;
+	      var proxies = null;
+
+	      return _React2['default'].createElement(
+	        'form',
+	        { onSubmit: this.handleSubmit },
+	        _React2['default'].createElement(
+	          'div',
+	          { className: 'form-group' },
+	          _React2['default'].createElement(
+	            'label',
 	            null,
-	            template.endpoint.description
+	            'Select installation mirror.'
 	          ),
-	          React.createElement(
-	            'footer',
+	          _React2['default'].createElement('input', { type: 'url', className: 'form-control', value: urlValue })
+	        ),
+	        _React2['default'].createElement(
+	          'div',
+	          { className: 'form-group' },
+	          _React2['default'].createElement(
+	            'label',
 	            null,
-	            template.endpoint.url
+	            'Select reverse-proxy config style'
+	          ),
+	          _React2['default'].createElement(
+	            'select',
+	            { className: 'form-control proxy-select' },
+	            _React2['default'].createElement(
+	              'option',
+	              { value: null },
+	              'I don\'t need it at all'
+	            ),
+	            proxies
 	          )
 	        ),
-	        React.createElement(
+	        _React2['default'].createElement(
+	          'div',
+	          { className: 'btn btn-group' },
+	          _React2['default'].createElement(
+	            'button',
+	            { onClick: this.handleSubmit, value: 'enable', className: 'btn btn-sm btn-primary' },
+	            'Enable'
+	          ),
+	          _React2['default'].createElement(
+	            'button',
+	            { onClick: this.handleSubmit, value: 'disable', className: 'btn btn-sm btn-danger' },
+	            'Disable'
+	          ),
+	          _React2['default'].createElement(
+	            'button',
+	            { onClick: this.handleSubmit, value: 'update', className: 'btn btn-sm btn-info' },
+	            'Update'
+	          )
+	        )
+	      );
+	    }
+	  }, {
+	    key: 'render',
+	    value: function render() {
+	      var template = this.props.template;
+	      return _React2['default'].createElement(
+	        'tr',
+	        null,
+	        _React2['default'].createElement(
 	          'td',
 	          null,
-	          React.createElement(
+	          _React2['default'].createElement(
 	            'blockquote',
 	            null,
-	            React.createElement(
+	            _React2['default'].createElement(
 	              'p',
-	              { className: 'lead' },
-	              template.name_label
+	              null,
+	              template.endpoint.description
 	            ),
-	            React.createElement(
+	            _React2['default'].createElement(
 	              'footer',
 	              null,
-	              template.name_description
+	              template.endpoint.url
 	            )
-	          )
-	        ),
-	        React.createElement(
-	          'td',
-	          null,
-	          this.renderActions(template)
-	        )
-	      )
-	    );
-	  }
-	});
-
-	var TemplateTable = React.createClass({
-	  displayName: 'TemplateTable',
-
-	  render: function render() {
-	    var templates = this.props.templates.map(function (template, id) {
-	      return React.createElement(TemplateInfo, { key: id, template: template });
-	    });
-
-	    return React.createElement(
-	      'div',
-	      { className: 'table-responsive' },
-	      React.createElement(
-	        'table',
-	        { className: 'table table-hover table-vcenter' },
-	        React.createElement(
-	          'thead',
-	          null,
-	          React.createElement(
-	            'tr',
+	          ),
+	          _React2['default'].createElement(
+	            'td',
 	            null,
-	            React.createElement(
-	              'th',
-	              { className: 'col-sm-2' },
-	              'Location'
-	            ),
-	            React.createElement(
-	              'th',
-	              { className: 'col-sm-6' },
-	              'Template name'
-	            ),
-	            React.createElement(
-	              'th',
-	              { className: 'col-sm-4' },
-	              'Tags'
+	            _React2['default'].createElement(
+	              'blockquote',
+	              null,
+	              _React2['default'].createElement(
+	                'p',
+	                { className: 'lead' },
+	                template.name_label
+	              ),
+	              _React2['default'].createElement(
+	                'footer',
+	                null,
+	                template.name_description
+	              )
 	            )
+	          ),
+	          _React2['default'].createElement(
+	            'td',
+	            null,
+	            this.renderActions(template)
 	          )
-	        ),
-	        React.createElement(
-	          'tbody',
-	          null,
-	          templates
 	        )
-	      )
-	    );
-	  }
-	});
+	      );
+	    }
+	  }]);
 
-	var Templates = React.createClass({
+	  return TemplateInfo;
+	})(_React2['default'].Component);
+
+	;
+
+	var TemplateTable = (function (_React$Component2) {
+	  function TemplateTable() {
+	    _classCallCheck(this, TemplateTable);
+
+	    if (_React$Component2 != null) {
+	      _React$Component2.apply(this, arguments);
+	    }
+	  }
+
+	  _inherits(TemplateTable, _React$Component2);
+
+	  _createClass(TemplateTable, [{
+	    key: 'render',
+	    value: function render() {
+	      var templates = this.props.templates.map(function (template, id) {
+	        return _React2['default'].createElement(TemplateInfo, { key: id, template: template });
+	      });
+
+	      return _React2['default'].createElement(
+	        'div',
+	        { className: 'table-responsive' },
+	        _React2['default'].createElement(
+	          'table',
+	          { className: 'table table-hover table-vcenter' },
+	          _React2['default'].createElement(
+	            'thead',
+	            null,
+	            _React2['default'].createElement(
+	              'tr',
+	              null,
+	              _React2['default'].createElement(
+	                'th',
+	                { className: 'col-sm-2' },
+	                'Location'
+	              ),
+	              _React2['default'].createElement(
+	                'th',
+	                { className: 'col-sm-6' },
+	                'Template name'
+	              ),
+	              _React2['default'].createElement(
+	                'th',
+	                { className: 'col-sm-4' },
+	                'Tags'
+	              )
+	            )
+	          ),
+	          _React2['default'].createElement(
+	            'tbody',
+	            null,
+	            templates
+	          )
+	        )
+	      );
+	    }
+	  }]);
+
+	  return TemplateTable;
+	})(_React2['default'].Component);
+
+	;
+
+	var Templates = _React2['default'].createClass({
 	  displayName: 'Templates',
 
-	  mixins: [Reflux.ListenerMixin],
+	  mixins: [_Reflux2['default'].ListenerMixin],
 
 	  onTemplatesChange: function onTemplatesChange() {
 	    this.setState({
-	      status: TemplateStore.status,
-	      templates: TemplateStore.templates
+	      status: _TemplateStore2['default'].status,
+	      templates: _TemplateStore2['default'].templates
 	    });
 	  },
 
 	  componentDidMount: function componentDidMount() {
-	    this.listenTo(TemplateStore, this.onTemplatesChange);
-	    TemplateActions.list();
+	    this.listenTo(_TemplateStore2['default'], this.onTemplatesChange);
+	    _TemplateActions2['default'].list();
 	  },
 
 	  getInitialState: function getInitialState() {
 	    return {
-	      status: TemplateStore.status,
-	      templates: TemplateStore.templates
+	      status: _TemplateStore2['default'].status,
+	      templates: _TemplateStore2['default'].templates
 	    };
 	  },
 
 	  render: function render() {
-
-	    return React.createElement(
+	    return _React2['default'].createElement(
 	      'div',
 	      null,
-	      React.createElement(TemplateTable, { templates: this.state.templates }),
-	      React.createElement(
+	      _React2['default'].createElement(TemplateTable, { templates: this.state.templates }),
+	      _React2['default'].createElement(
 	        'div',
 	        { className: 'container-fluid' },
-	        React.createElement(
+	        _React2['default'].createElement(
 	          'h1',
 	          null,
 	          'The templates you can not use ',
-	          React.createElement(
+	          _React2['default'].createElement(
 	            'i',
 	            null,
 	            'yet'
 	          )
 	        ),
-	        React.createElement(
+	        _React2['default'].createElement(
 	          'p',
 	          { className: 'lead' },
 	          'The following list of templates is able to work with VM emperor system but no one has implemented automatic installer instructions generator. For this moment only ',
-	          React.createElement(
+	          _React2['default'].createElement(
 	            'a',
 	            { href: 'http://en.wikipedia.org/wiki/Preseed' },
 	            'preseed-generator'
 	          ),
 	          ' is available, commits are welcome.'
 	        ),
-	        React.createElement(
+	        _React2['default'].createElement(
 	          'p',
 	          { className: 'text-muted' },
 	          'TODO'
@@ -1118,10 +1366,10 @@
 	      )
 	    );
 	  }
-
 	});
 
-	module.exports = Templates;
+	exports['default'] = Templates;
+	module.exports = exports['default'];
 
 /***/ },
 /* 12 */
@@ -1129,369 +1377,411 @@
 
 	'use strict';
 
-	var React = __webpack_require__(4),
-	    Modal = __webpack_require__(8);
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
 
-	var VMForm = React.createClass({
-	  displayName: 'VMForm',
+	var _get = function get(object, property, receiver) { var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ('value' in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
 
-	  render: function render() {
-	    return React.createElement(
-	      'form',
-	      { role: 'form', id: 'create-vm-form' },
-	      React.createElement(
-	        'div',
-	        { className: 'input-group' },
-	        React.createElement(
-	          'span',
-	          { className: 'input-group-addon' },
-	          React.createElement('i', { className: 'icon-servers' })
-	        ),
-	        React.createElement(
-	          'select',
-	          { className: 'form-control input', id: 'pool-select', name: 'pool-select' },
-	          React.createElement(
-	            'option',
-	            { value: '--' },
-	            'Select where to deploy instance'
-	          ),
-	          React.createElement(
-	            'option',
-	            { value: 'https://172.31.0.14:443/' },
-	            'Pool A'
-	          ),
-	          React.createElement(
-	            'option',
-	            { value: 'https://172.31.0.32:443/' },
-	            'Pool Z'
-	          )
-	        )
-	      ),
-	      React.createElement('br', null),
-	      React.createElement(
-	        'div',
-	        { className: 'input-group' },
-	        React.createElement(
-	          'span',
-	          { className: 'input-group-addon' },
-	          React.createElement('i', { className: 'icon-ubuntu' })
-	        ),
-	        React.createElement(
-	          'select',
-	          { className: 'form-control', id: 'template-select', name: 'template-select', enabled: true },
-	          React.createElement(
-	            'option',
-	            { value: '--' },
-	            'Select OS template for your virtual machine'
-	          )
-	        )
-	      ),
-	      React.createElement('hr', null),
-	      React.createElement(
-	        'div',
-	        { className: 'input-group' },
-	        React.createElement(
-	          'span',
-	          { className: 'input-group-addon' },
-	          React.createElement('i', { className: 'icon-address' })
-	        ),
-	        React.createElement('input', { type: 'text',
-	          className: 'form-control',
-	          placeholder: 'Your full name (e.g. John Smith)',
-	          id: 'user-fullname',
-	          name: 'user-fullname',
-	          enabled: true })
-	      ),
-	      React.createElement('br', null),
-	      React.createElement(
-	        'div',
-	        { className: 'row' },
-	        React.createElement(
-	          'div',
-	          { className: 'col-sm-12 col-lg-12' },
-	          React.createElement(
-	            'div',
-	            { className: 'input-group' },
-	            React.createElement(
-	              'span',
-	              { className: 'input-group-addon' },
-	              React.createElement('i', { className: 'icon-user' })
-	            ),
-	            React.createElement('input', { type: 'text',
-	              className: 'form-control',
-	              placeholder: 'Your login for new VM',
-	              id: 'username',
-	              name: 'username',
-	              enabled: true }),
-	            React.createElement(
-	              'span',
-	              { className: 'input-group-addon' },
-	              React.createElement('i', { className: 'icon-at' })
-	            ),
-	            React.createElement('input', { type: 'text',
-	              className: 'form-control',
-	              placeholder: 'Choose hostname for your VM',
-	              id: 'hostname',
-	              name: 'hostname',
-	              enabled: true }),
-	            React.createElement(
-	              'span',
-	              { className: 'input-group-addon' },
-	              '.at.ispras.ru'
-	            )
-	          )
-	        )
-	      ),
-	      React.createElement('br', null),
-	      React.createElement(
-	        'div',
-	        { className: 'input-group' },
-	        React.createElement(
-	          'span',
-	          { className: 'input-group-addon' },
-	          React.createElement('i', { className: 'icon-password' })
-	        ),
-	        React.createElement('input', { type: 'password',
-	          className: 'form-control input',
-	          placeholder: 'Choose password for your VM',
-	          id: 'password',
-	          name: 'password',
-	          enabled: true }),
-	        React.createElement(
-	          'span',
-	          { className: 'input-group-addon' },
-	          React.createElement('i', { className: 'icon-password' })
-	        ),
-	        React.createElement('input', { type: 'password',
-	          className: 'form-control input',
-	          placeholder: 'Confirm password',
-	          id: 'password2',
-	          name: 'password2',
-	          enabled: true })
-	      ),
-	      React.createElement('br', null),
-	      React.createElement(
-	        'div',
-	        { className: 'input-group' },
-	        React.createElement(
-	          'span',
-	          { className: 'input-group-addon' },
-	          React.createElement('i', { className: 'icon-noteslist', style: { fontSize: '28px' } })
-	        ),
-	        React.createElement('textarea', {
-	          type: 'text',
-	          className: 'form-control input',
-	          placeholder: 'What do you want to do with this virtual machine?',
-	          id: 'vm-description',
-	          name: 'vm-description',
-	          style: { resize: 'vertical' },
-	          enabled: true })
-	      ),
-	      React.createElement('br', null),
-	      React.createElement(
-	        'h4',
-	        null,
-	        'Resources settings'
-	      ),
-	      React.createElement(
-	        'div',
-	        { className: 'row' },
-	        React.createElement(
-	          'div',
-	          { className: 'col-sm-4 col-lg-4' },
-	          React.createElement(
-	            'div',
-	            { className: 'input-group' },
-	            React.createElement(
-	              'span',
-	              { className: 'input-group-addon' },
-	              React.createElement('i', { className: 'icon-processorthree' })
-	            ),
-	            React.createElement('input', { type: 'number', pattern: '\\d*',
-	              className: 'form-control', id: 'vcpus', name: 'vcpus', defaultValue: '1', enabled: true }),
-	            React.createElement(
-	              'span',
-	              { className: 'input-group-addon' },
-	              'cores'
-	            )
-	          )
-	        ),
-	        React.createElement(
-	          'div',
-	          { className: 'col-sm-4 col-lg-4' },
-	          React.createElement(
-	            'div',
-	            { className: 'input-group' },
-	            React.createElement(
-	              'span',
-	              { className: 'input-group-addon' },
-	              React.createElement('i', { className: 'icon-ram' })
-	            ),
-	            React.createElement('input', { type: 'number', pattern: '\\d*',
-	              className: 'form-control', id: 'ram', name: 'ram', defaultValue: '256', enabled: true }),
-	            React.createElement(
-	              'span',
-	              { className: 'input-group-addon' },
-	              'MB'
-	            )
-	          )
-	        ),
-	        React.createElement(
-	          'div',
-	          { className: 'col-sm-4 col-lg-4' },
-	          React.createElement(
-	            'div',
-	            { className: 'input-group' },
-	            React.createElement(
-	              'span',
-	              { className: 'input-group-addon' },
-	              React.createElement('i', { className: 'icon-hdd' })
-	            ),
-	            React.createElement('input', { type: 'number', pattern: '\\d*',
-	              className: 'form-control', id: 'hdd', name: 'hdd', defaultValue: '9', enabled: true }),
-	            React.createElement(
-	              'span',
-	              { className: 'input-group-addon' },
-	              'GB'
-	            )
-	          )
-	        )
-	      ),
-	      React.createElement('br', null),
-	      React.createElement(
-	        'h4',
-	        null,
-	        'HTTP/HTTPS reverse-proxy settings'
-	      ),
-	      React.createElement(
-	        'div',
-	        { className: 'row' },
-	        React.createElement(
-	          'div',
-	          { className: 'col-sm-4 col-lg-4' },
-	          React.createElement(
-	            'div',
-	            { className: 'input-group' },
-	            React.createElement(
-	              'span',
-	              { className: 'input-group-addon' },
-	              React.createElement(
-	                'i',
-	                { className: 'icon-network' },
-	                ':80'
-	              )
-	            ),
-	            React.createElement('input', { type: 'number', pattern: '\\d*',
-	              className: 'form-control input',
-	              id: 'redirection-http',
-	              name: 'redirection-http',
-	              defaultValue: '80',
-	              enabled: true })
-	          )
-	        ),
-	        React.createElement(
-	          'div',
-	          { className: 'col-sm-4 col-lg-4' },
-	          React.createElement(
-	            'div',
-	            { className: 'input-group' },
-	            React.createElement(
-	              'span',
-	              { className: 'input-group-addon' },
-	              React.createElement(
-	                'i',
-	                { className: 'icon-network' },
-	                ':8080'
-	              )
-	            ),
-	            React.createElement('input', { type: 'textnumber', pattern: '\\d*',
-	              className: 'form-control input',
-	              id: 'redirection-http-alt',
-	              name: 'redirection-http-alt',
-	              defaultValue: '8080',
-	              enabled: true })
-	          )
-	        ),
-	        React.createElement(
-	          'div',
-	          { className: 'col-sm-4 col-lg-4' },
-	          React.createElement(
-	            'div',
-	            { className: 'input-group' },
-	            React.createElement(
-	              'span',
-	              { className: 'input-group-addon' },
-	              React.createElement(
-	                'i',
-	                { className: 'icon-network' },
-	                ':443'
-	              )
-	            ),
-	            React.createElement('input', { type: 'number', pattern: '\\d*',
-	              className: 'form-control input',
-	              id: 'redirection-ssl',
-	              name: 'redirection-ssl',
-	              defaultValue: '443',
-	              enabled: true })
-	          )
-	        )
-	      ),
-	      React.createElement('br', null),
-	      React.createElement(
-	        'button',
-	        { className: 'btn btn-lg btn-primary btn-block', id: 'create-button', enabled: true },
-	        'Create VM'
-	      )
-	    );
-	  }
+	var _classCallCheck = function (instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } };
+
+	var _createClass = (function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ('value' in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
+
+	var _inherits = function (subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) subClass.__proto__ = superClass; };
+
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
 	});
 
-	var CreateVM = React.createClass({
-	  displayName: 'CreateVM',
+	var _React = __webpack_require__(4);
 
-	  getInitialState: function getInitialState() {
-	    return {
-	      modalShow: false
-	    };
-	  },
+	var _React2 = _interopRequireWildcard(_React);
 
-	  showModal: function showModal() {
-	    this.setState({
-	      modalShow: true
-	    });
-	  },
+	var _Modal = __webpack_require__(8);
 
-	  hideModal: function hideModal() {
-	    this.setState({
-	      modalShow: false
-	    });
-	  },
+	var _Modal2 = _interopRequireWildcard(_Modal);
 
-	  renderModal: function renderModal() {
-	    return this.state.modalShow ? React.createElement(
-	      Modal,
-	      { title: 'Virtual machine options', show: true, lg: true, close: this.hideModal },
-	      React.createElement(VMForm, null)
-	    ) : null;
-	  },
+	var VMForm = (function (_React$Component) {
+	  function VMForm() {
+	    _classCallCheck(this, VMForm);
 
-	  render: function render() {
-
-	    return React.createElement(
-	      'div',
-	      null,
-	      React.createElement(
-	        'a',
-	        { onClick: this.showModal },
-	        'CreateVM'
-	      ),
-	      this.renderModal()
-	    );
+	    if (_React$Component != null) {
+	      _React$Component.apply(this, arguments);
+	    }
 	  }
 
-	});
+	  _inherits(VMForm, _React$Component);
 
-	module.exports = CreateVM;
+	  _createClass(VMForm, [{
+	    key: 'render',
+	    value: function render() {
+	      return _React2['default'].createElement(
+	        'form',
+	        { role: 'form', id: 'create-vm-form' },
+	        _React2['default'].createElement(
+	          'div',
+	          { className: 'input-group' },
+	          _React2['default'].createElement(
+	            'span',
+	            { className: 'input-group-addon' },
+	            _React2['default'].createElement('i', { className: 'icon-servers' })
+	          ),
+	          _React2['default'].createElement(
+	            'select',
+	            { className: 'form-control input', id: 'pool-select', name: 'pool-select' },
+	            _React2['default'].createElement(
+	              'option',
+	              { value: '--' },
+	              'Select where to deploy instance'
+	            ),
+	            _React2['default'].createElement(
+	              'option',
+	              { value: 'https://172.31.0.14:443/' },
+	              'Pool A'
+	            ),
+	            _React2['default'].createElement(
+	              'option',
+	              { value: 'https://172.31.0.32:443/' },
+	              'Pool Z'
+	            )
+	          )
+	        ),
+	        _React2['default'].createElement('br', null),
+	        _React2['default'].createElement(
+	          'div',
+	          { className: 'input-group' },
+	          _React2['default'].createElement(
+	            'span',
+	            { className: 'input-group-addon' },
+	            _React2['default'].createElement('i', { className: 'icon-ubuntu' })
+	          ),
+	          _React2['default'].createElement(
+	            'select',
+	            { className: 'form-control', id: 'template-select', name: 'template-select', enabled: true },
+	            _React2['default'].createElement(
+	              'option',
+	              { value: '--' },
+	              'Select OS template for your virtual machine'
+	            )
+	          )
+	        ),
+	        _React2['default'].createElement('hr', null),
+	        _React2['default'].createElement(
+	          'div',
+	          { className: 'input-group' },
+	          _React2['default'].createElement(
+	            'span',
+	            { className: 'input-group-addon' },
+	            _React2['default'].createElement('i', { className: 'icon-address' })
+	          ),
+	          _React2['default'].createElement('input', { type: 'text',
+	            className: 'form-control',
+	            placeholder: 'Your full name (e.g. John Smith)',
+	            id: 'user-fullname',
+	            name: 'user-fullname',
+	            enabled: true })
+	        ),
+	        _React2['default'].createElement('br', null),
+	        _React2['default'].createElement(
+	          'div',
+	          { className: 'row' },
+	          _React2['default'].createElement(
+	            'div',
+	            { className: 'col-sm-12 col-lg-12' },
+	            _React2['default'].createElement(
+	              'div',
+	              { className: 'input-group' },
+	              _React2['default'].createElement(
+	                'span',
+	                { className: 'input-group-addon' },
+	                _React2['default'].createElement('i', { className: 'icon-user' })
+	              ),
+	              _React2['default'].createElement('input', { type: 'text',
+	                className: 'form-control',
+	                placeholder: 'Your login for new VM',
+	                id: 'username',
+	                name: 'username',
+	                enabled: true }),
+	              _React2['default'].createElement(
+	                'span',
+	                { className: 'input-group-addon' },
+	                _React2['default'].createElement('i', { className: 'icon-at' })
+	              ),
+	              _React2['default'].createElement('input', { type: 'text',
+	                className: 'form-control',
+	                placeholder: 'Choose hostname for your VM',
+	                id: 'hostname',
+	                name: 'hostname',
+	                enabled: true }),
+	              _React2['default'].createElement(
+	                'span',
+	                { className: 'input-group-addon' },
+	                '.at.ispras.ru'
+	              )
+	            )
+	          )
+	        ),
+	        _React2['default'].createElement('br', null),
+	        _React2['default'].createElement(
+	          'div',
+	          { className: 'input-group' },
+	          _React2['default'].createElement(
+	            'span',
+	            { className: 'input-group-addon' },
+	            _React2['default'].createElement('i', { className: 'icon-password' })
+	          ),
+	          _React2['default'].createElement('input', { type: 'password',
+	            className: 'form-control input',
+	            placeholder: 'Choose password for your VM',
+	            id: 'password',
+	            name: 'password',
+	            enabled: true }),
+	          _React2['default'].createElement(
+	            'span',
+	            { className: 'input-group-addon' },
+	            _React2['default'].createElement('i', { className: 'icon-password' })
+	          ),
+	          _React2['default'].createElement('input', { type: 'password',
+	            className: 'form-control input',
+	            placeholder: 'Confirm password',
+	            id: 'password2',
+	            name: 'password2',
+	            enabled: true })
+	        ),
+	        _React2['default'].createElement('br', null),
+	        _React2['default'].createElement(
+	          'div',
+	          { className: 'input-group' },
+	          _React2['default'].createElement(
+	            'span',
+	            { className: 'input-group-addon' },
+	            _React2['default'].createElement('i', { className: 'icon-noteslist', style: { fontSize: '28px' } })
+	          ),
+	          _React2['default'].createElement('textarea', {
+	            type: 'text',
+	            className: 'form-control input',
+	            placeholder: 'What do you want to do with this virtual machine?',
+	            id: 'vm-description',
+	            name: 'vm-description',
+	            style: { resize: 'vertical' },
+	            enabled: true })
+	        ),
+	        _React2['default'].createElement('br', null),
+	        _React2['default'].createElement(
+	          'h4',
+	          null,
+	          'Resources settings'
+	        ),
+	        _React2['default'].createElement(
+	          'div',
+	          { className: 'row' },
+	          _React2['default'].createElement(
+	            'div',
+	            { className: 'col-sm-4 col-lg-4' },
+	            _React2['default'].createElement(
+	              'div',
+	              { className: 'input-group' },
+	              _React2['default'].createElement(
+	                'span',
+	                { className: 'input-group-addon' },
+	                _React2['default'].createElement('i', { className: 'icon-processorthree' })
+	              ),
+	              _React2['default'].createElement('input', { type: 'number', pattern: '\\d*',
+	                className: 'form-control', id: 'vcpus', name: 'vcpus', defaultValue: '1', enabled: true }),
+	              _React2['default'].createElement(
+	                'span',
+	                { className: 'input-group-addon' },
+	                'cores'
+	              )
+	            )
+	          ),
+	          _React2['default'].createElement(
+	            'div',
+	            { className: 'col-sm-4 col-lg-4' },
+	            _React2['default'].createElement(
+	              'div',
+	              { className: 'input-group' },
+	              _React2['default'].createElement(
+	                'span',
+	                { className: 'input-group-addon' },
+	                _React2['default'].createElement('i', { className: 'icon-ram' })
+	              ),
+	              _React2['default'].createElement('input', { type: 'number', pattern: '\\d*',
+	                className: 'form-control', id: 'ram', name: 'ram', defaultValue: '256', enabled: true }),
+	              _React2['default'].createElement(
+	                'span',
+	                { className: 'input-group-addon' },
+	                'MB'
+	              )
+	            )
+	          ),
+	          _React2['default'].createElement(
+	            'div',
+	            { className: 'col-sm-4 col-lg-4' },
+	            _React2['default'].createElement(
+	              'div',
+	              { className: 'input-group' },
+	              _React2['default'].createElement(
+	                'span',
+	                { className: 'input-group-addon' },
+	                _React2['default'].createElement('i', { className: 'icon-hdd' })
+	              ),
+	              _React2['default'].createElement('input', { type: 'number', pattern: '\\d*',
+	                className: 'form-control', id: 'hdd', name: 'hdd', defaultValue: '9', enabled: true }),
+	              _React2['default'].createElement(
+	                'span',
+	                { className: 'input-group-addon' },
+	                'GB'
+	              )
+	            )
+	          )
+	        ),
+	        _React2['default'].createElement('br', null),
+	        _React2['default'].createElement(
+	          'h4',
+	          null,
+	          'HTTP/HTTPS reverse-proxy settings'
+	        ),
+	        _React2['default'].createElement(
+	          'div',
+	          { className: 'row' },
+	          _React2['default'].createElement(
+	            'div',
+	            { className: 'col-sm-4 col-lg-4' },
+	            _React2['default'].createElement(
+	              'div',
+	              { className: 'input-group' },
+	              _React2['default'].createElement(
+	                'span',
+	                { className: 'input-group-addon' },
+	                _React2['default'].createElement(
+	                  'i',
+	                  { className: 'icon-network' },
+	                  ':80'
+	                )
+	              ),
+	              _React2['default'].createElement('input', { type: 'number', pattern: '\\d*',
+	                className: 'form-control input',
+	                id: 'redirection-http',
+	                name: 'redirection-http',
+	                defaultValue: '80',
+	                enabled: true })
+	            )
+	          ),
+	          _React2['default'].createElement(
+	            'div',
+	            { className: 'col-sm-4 col-lg-4' },
+	            _React2['default'].createElement(
+	              'div',
+	              { className: 'input-group' },
+	              _React2['default'].createElement(
+	                'span',
+	                { className: 'input-group-addon' },
+	                _React2['default'].createElement(
+	                  'i',
+	                  { className: 'icon-network' },
+	                  ':8080'
+	                )
+	              ),
+	              _React2['default'].createElement('input', { type: 'textnumber', pattern: '\\d*',
+	                className: 'form-control input',
+	                id: 'redirection-http-alt',
+	                name: 'redirection-http-alt',
+	                defaultValue: '8080',
+	                enabled: true })
+	            )
+	          ),
+	          _React2['default'].createElement(
+	            'div',
+	            { className: 'col-sm-4 col-lg-4' },
+	            _React2['default'].createElement(
+	              'div',
+	              { className: 'input-group' },
+	              _React2['default'].createElement(
+	                'span',
+	                { className: 'input-group-addon' },
+	                _React2['default'].createElement(
+	                  'i',
+	                  { className: 'icon-network' },
+	                  ':443'
+	                )
+	              ),
+	              _React2['default'].createElement('input', { type: 'number', pattern: '\\d*',
+	                className: 'form-control input',
+	                id: 'redirection-ssl',
+	                name: 'redirection-ssl',
+	                defaultValue: '443',
+	                enabled: true })
+	            )
+	          )
+	        ),
+	        _React2['default'].createElement('br', null),
+	        _React2['default'].createElement(
+	          'button',
+	          { className: 'btn btn-lg btn-primary btn-block', id: 'create-button', enabled: true },
+	          'Create VM'
+	        )
+	      );
+	    }
+	  }]);
+
+	  return VMForm;
+	})(_React2['default'].Component);
+
+	var CreateVM = (function (_React$Component2) {
+	  function CreateVM() {
+	    _classCallCheck(this, CreateVM);
+
+	    _get(Object.getPrototypeOf(CreateVM.prototype), 'constructor', this).call(this);
+	    this.showModal = this.showModal.bind(this);
+	    this.hideModal = this.hideModal.bind(this);
+	    this.renderModal = this.renderModal.bind(this);
+
+	    this.state = { modalShow: false };
+	  }
+
+	  _inherits(CreateVM, _React$Component2);
+
+	  _createClass(CreateVM, [{
+	    key: 'showModal',
+	    value: function showModal() {
+	      this.setState({ modalShow: true });
+	    }
+	  }, {
+	    key: 'hideModal',
+	    value: function hideModal() {
+	      this.setState({ modalShow: false });
+	    }
+	  }, {
+	    key: 'renderModal',
+	    value: function renderModal() {
+	      return this.state.modalShow ? _React2['default'].createElement(
+	        _Modal2['default'],
+	        { title: 'Virtual machine options', show: true, lg: true, close: this.hideModal },
+	        _React2['default'].createElement(VMForm, null)
+	      ) : null;
+	    }
+	  }, {
+	    key: 'render',
+	    value: function render() {
+	      return _React2['default'].createElement(
+	        'div',
+	        null,
+	        _React2['default'].createElement(
+	          'a',
+	          { onClick: this.showModal },
+	          'CreateVM'
+	        ),
+	        this.renderModal()
+	      );
+	    }
+	  }]);
+
+	  return CreateVM;
+	})(_React2['default'].Component);
+
+	;
+
+	exports['default'] = CreateVM;
+	module.exports = exports['default'];
 
 /***/ },
 /* 13 */
@@ -1499,11 +1789,20 @@
 
 	'use strict';
 
-	var Reflux = __webpack_require__(15);
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
 
-	var AlertActions = Reflux.createActions(['suc', 'log', 'warn', 'err']);
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
 
-	module.exports = AlertActions;
+	var _Reflux = __webpack_require__(15);
+
+	var _Reflux2 = _interopRequireWildcard(_Reflux);
+
+	var AlertActions = _Reflux2['default'].createActions(['suc', 'log', 'warn', 'err']);
+
+	exports['default'] = AlertActions;
+	module.exports = exports['default'];
 
 /***/ },
 /* 14 */
@@ -1511,7 +1810,11 @@
 
 	'use strict';
 
-	var HTTP = __webpack_require__(43);
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+
+	var _GET$POST = __webpack_require__(43);
 
 	var _session = null;
 
@@ -1519,8 +1822,8 @@
 	  var cookies = document.cookie ? document.cookie.split('; ') : [];
 	  for (var i = cookies.length - 1; i >= 0; i--) {
 	    var parts = cookies[i].split('=');
-	    var name = parts.shift();
-	    if (name === 'session') {
+	    var _name = parts.shift();
+	    if (_name === 'session') {
 	      _session = parts.join('=');
 	      break;
 	    }
@@ -1534,11 +1837,11 @@
 	  },
 
 	  auth: function auth(data) {
-	    return HTTP.post('/auth', data);
+	    return _GET$POST.POST('/auth', data);
 	  },
 
 	  logout: function logout() {
-	    return HTTP.get('/logout').then(function (response) {
+	    return _GET$POST.GET('/logout').then(function (response) {
 	      _session = null;
 	    });
 	  }
@@ -1546,11 +1849,11 @@
 
 	var vm = {
 	  list: function list() {
-	    return HTTP.get('/list-vms');
+	    return _GET$POST.GET('/list-vms');
 	  },
 
 	  start: function start(vm) {
-	    return HTTP.post('/start-vm', {
+	    return _GET$POST.POST('/start-vm', {
 	      vm_uuid: vm.id,
 	      endpoint_url: vm.endpoint_url,
 	      endpoint_description: vm.endpoint_description
@@ -1558,7 +1861,7 @@
 	  },
 
 	  shutdown: function shutdown(vm) {
-	    return HTTP.post('/shutdown-vm', {
+	    return _GET$POST.POST('/shutdown-vm', {
 	      vm_uuid: vm.id,
 	      endpoint_url: vm.endpoint_url,
 	      endpoint_description: vm.endpoint_description
@@ -1568,22 +1871,18 @@
 
 	var template = {
 	  list: function list() {
-	    return HTTP.get('/list-templates');
+	    return _GET$POST.GET('/list-templates');
 	  }
 	};
 
 	var pool = {
 	  list: function list() {
-	    return HTTP.get('/list-pools');
+	    return _GET$POST.GET('/list-pools');
 	  }
 	};
 
-	module.exports = {
-	  user: user,
-	  vm: vm,
-	  template: template,
-	  pool: pool
-	};
+	exports['default'] = { user: user, vm: vm, template: template, pool: pool };
+	module.exports = exports['default'];
 
 /***/ },
 /* 15 */
@@ -3783,16 +4082,28 @@
 
 	'use strict';
 
-	var Reflux = __webpack_require__(15),
-	    VMAPI = __webpack_require__(14);
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
 
-	var PoolActions = Reflux.createActions({
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+
+	var _Reflux = __webpack_require__(15);
+
+	var _Reflux2 = _interopRequireWildcard(_Reflux);
+
+	var _VMAPI = __webpack_require__(14);
+
+	var _VMAPI2 = _interopRequireWildcard(_VMAPI);
+
+	var PoolActions = _Reflux2['default'].createActions({
 	  list: { asyncResult: true }
 	});
 
-	PoolActions.list.listenAndPromise(VMAPI.pool.list);
+	PoolActions.list.listenAndPromise(_VMAPI2['default'].pool.list);
 
-	module.exports = PoolActions;
+	exports['default'] = PoolActions;
+	module.exports = exports['default'];
 
 /***/ },
 /* 38 */
@@ -3800,17 +4111,32 @@
 
 	'use strict';
 
-	var Reflux = __webpack_require__(15),
-	    VMActions = __webpack_require__(41),
-	    AlertActions = __webpack_require__(13),
-	    VM = __webpack_require__(80);
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
 
-	var VMStore = Reflux.createStore({
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+
+	var _Reflux = __webpack_require__(15);
+
+	var _Reflux2 = _interopRequireWildcard(_Reflux);
+
+	var _VMActions = __webpack_require__(41);
+
+	var _VMActions2 = _interopRequireWildcard(_VMActions);
+
+	var _AlertActions = __webpack_require__(13);
+
+	var _AlertActions2 = _interopRequireWildcard(_AlertActions);
+
+	var _VM = __webpack_require__(80);
+
+	var _VM2 = _interopRequireWildcard(_VM);
+
+	var VMStore = _Reflux2['default'].createStore({
 
 	  init: function init() {
-	    // this.listenTo(VMActions.list, this.onList);
-	    // this.listenTo(VMActions.start, this.onStart);
-	    this.listenToMany(VMActions);
+	    this.listenToMany(_VMActions2['default']);
 
 	    this.status = '';
 	    this.vms = [];
@@ -3823,58 +4149,59 @@
 	  // Listing VMs
 	  onList: function onList() {
 	    this.status = 'PULL';
-	    AlertActions.log('Getting VM list...');
+	    _AlertActions2['default'].log('Getting VM list...');
 	    this.trigger();
 	  },
 
 	  onListCompleted: function onListCompleted(response) {
 	    this.vms = response.map(function (single) {
-	      return new VM(single);
+	      return new _VM2['default'](single);
 	    });
 	    this.status = 'READY';
-	    AlertActions.suc('Got VM list');
+	    _AlertActions2['default'].suc('Got VM list');
 	    this.trigger();
 	  },
 
 	  onListFailed: function onListFailed(response) {
-	    AlertActions.err('Error while getting VM list!');
+	    _AlertActions2['default'].err('Error while getting VM list!');
 	  },
 
 	  // Starting VM
 	  onStart: function onStart(vm) {
 	    this.status = 'PUSH';
-	    AlertActions.log('Starting VM:' + vm.name);
+	    _AlertActions2['default'].log('Starting VM:' + vm.name);
 	    this.trigger();
 	  },
 
 	  onStartCompleted: function onStartCompleted(response) {
-	    AlertActions.suc('VM started');
-	    VMActions.list();
+	    _AlertActions2['default'].suc('VM started');
+	    _VMActions2['default'].list();
 	  },
 
 	  onStartFailed: function onStartFailed(response) {
-	    AlertActions.err('Error while starting VM');
+	    _AlertActions2['default'].err('Error while starting VM');
 	  },
 
 	  // Shutting down VM
 	  onShutdown: function onShutdown(vm) {
 	    this.status = 'PUSH';
-	    AlertActions.log('Shutting down VM:' + vm.name);
+	    _AlertActions2['default'].log('Shutting down VM:' + vm.name);
 	    this.trigger();
 	  },
 
 	  onShutdownCompleted: function onShutdownCompleted(response) {
-	    AlertActions.suc('VM shutdown');
-	    VMActions.list();
+	    _AlertActions2['default'].suc('VM shutdown');
+	    _VMActions2['default'].list();
 	  },
 
 	  onShutdownFailed: function onShutdownFailed(response) {
-	    AlertActions.err('Error while shutting down VM:' + vm.name);
+	    _AlertActions2['default'].err('Error while shutting down VM:' + vm.name);
 	  }
 
 	});
 
-	module.exports = VMStore;
+	exports['default'] = VMStore;
+	module.exports = exports['default'];
 
 /***/ },
 /* 39 */
@@ -3882,16 +4209,36 @@
 
 	'use strict';
 
-	var Reflux = __webpack_require__(15),
-	    TemplateActions = __webpack_require__(42),
-	    AlertActions = __webpack_require__(13),
-	    VMApi = __webpack_require__(14),
-	    Template = __webpack_require__(81);
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
 
-	var TemplateStore = Reflux.createStore({
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+
+	var _Reflux = __webpack_require__(15);
+
+	var _Reflux2 = _interopRequireWildcard(_Reflux);
+
+	var _TemplateActions = __webpack_require__(42);
+
+	var _TemplateActions2 = _interopRequireWildcard(_TemplateActions);
+
+	var _AlertActions = __webpack_require__(13);
+
+	var _AlertActions2 = _interopRequireWildcard(_AlertActions);
+
+	var _VMApi = __webpack_require__(14);
+
+	var _VMApi2 = _interopRequireWildcard(_VMApi);
+
+	var _Template = __webpack_require__(82);
+
+	var _Template2 = _interopRequireWildcard(_Template);
+
+	var TemplateStore = _Reflux2['default'].createStore({
 
 	  init: function init() {
-	    this.listenToMany(TemplateActions);
+	    this.listenToMany(_TemplateActions2['default']);
 
 	    this.status = '';
 	    this.templates = [];
@@ -3903,24 +4250,25 @@
 
 	  onList: function onList() {
 	    this.status = 'PULL';
-	    AlertActions.log('Getting Template list...');
+	    _AlertActions2['default'].log('Getting Template list...');
 	    this.trigger();
 	  },
 
 	  onListCompleted: function onListCompleted(response) {
 	    this.templates = response;
 	    this.status = 'READY';
-	    AlertActions.suc('Got Template list');
+	    _AlertActions2['default'].suc('Got Template list');
 	    this.trigger();
 	  },
 
 	  onListFailed: function onListFailed(response) {
-	    AlertActions.err('Error while getting Template list!');
+	    _AlertActions2['default'].err('Error while getting Template list!');
 	  }
 
 	});
 
-	module.exports = TemplateStore;
+	exports['default'] = TemplateStore;
+	module.exports = exports['default'];
 
 /***/ },
 /* 40 */
@@ -3928,74 +4276,99 @@
 
 	'use strict';
 
-	var React = __webpack_require__(4),
-	    Reflux = __webpack_require__(15),
-	    AlertsStore = __webpack_require__(82);
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
 
-	var Snackbar = React.createClass({
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+
+	var _React = __webpack_require__(4);
+
+	var _React2 = _interopRequireWildcard(_React);
+
+	var _Reflux = __webpack_require__(15);
+
+	var _Reflux2 = _interopRequireWildcard(_Reflux);
+
+	var _AlertsStore = __webpack_require__(81);
+
+	var _AlertsStore2 = _interopRequireWildcard(_AlertsStore);
+
+	var Snackbar = _React2['default'].createClass({
 	  displayName: 'Snackbar',
 
-	  mixins: [Reflux.ListenerMixin],
+	  mixins: [_Reflux2['default'].ListenerMixin],
 
 	  onAlertsChange: function onAlertsChange() {
 	    this.setState({
-	      alerts: AlertsStore.getData()
+	      alerts: _AlertsStore2['default'].getData()
 	    });
 	  },
 
 	  componentDidMount: function componentDidMount() {
-	    this.listenTo(AlertsStore, this.onAlertsChange);
+	    this.listenTo(_AlertsStore2['default'], this.onAlertsChange);
 	  },
 
 	  getInitialState: function getInitialState() {
 	    return {
-	      alerts: AlertsStore.getData()
+	      alerts: _AlertsStore2['default'].getData()
 	    };
 	  },
 
 	  render: function render() {
+	    var _this = this;
+
 	    if (this.state.alerts.length === 0) {
 	      return null;
 	    } else {
-	      var computeClass = function computeClass(type) {
-	        switch (type) {
-	          case 'suc':
-	            return 'alert alert-success';
-	          case 'warn':
-	            return 'alert alert-warning';
-	          case 'err':
-	            return 'alert alert-danger';
-	        }
-	        return 'alert alert-info';
-	      };
+	      var _ret = (function () {
+	        var computeClass = function computeClass(type) {
+	          switch (type) {
+	            case 'suc':
+	              return 'alert alert-success';
+	            case 'warn':
+	              return 'alert alert-warning';
+	            case 'err':
+	              return 'alert alert-danger';
+	          }
+	          return 'alert alert-info';
+	        };
 
-	      var inner = this.state.alerts.map(function (alert, id) {
-	        return React.createElement(
-	          'div',
-	          { key: id, className: computeClass(alert.type), role: 'alert' },
-	          alert.message
-	        );
-	      });
+	        var inner = _this.state.alerts.map(function (alert, id) {
+	          return _React2['default'].createElement(
+	            'div',
+	            { key: id, className: computeClass(alert.type), role: 'alert' },
+	            alert.message
+	          );
+	        });
 
-	      return React.createElement(
-	        'div',
-	        { id: 'snackbar-container' },
-	        React.createElement(
-	          'div',
-	          { className: 'snackbar snackbar-opened' },
-	          React.createElement(
-	            'span',
-	            { className: 'snackbar-content' },
-	            inner
+	        return {
+	          v: _React2['default'].createElement(
+	            'div',
+	            { id: 'snackbar-container' },
+	            _React2['default'].createElement(
+	              'div',
+	              { className: 'snackbar snackbar-opened' },
+	              _React2['default'].createElement(
+	                'span',
+	                { className: 'snackbar-content' },
+	                inner
+	              )
+	            )
 	          )
-	        )
-	      );
+	        };
+	      })();
+
+	      if (typeof _ret === 'object') {
+	        return _ret.v;
+	      }
 	    }
 	  }
 
 	});
 
-	module.exports = Snackbar;
+	exports['default'] = Snackbar;
+	module.exports = exports['default'];
 
 /***/ },
 /* 41 */
@@ -4003,20 +4376,32 @@
 
 	'use strict';
 
-	var Reflux = __webpack_require__(15),
-	    VMAPI = __webpack_require__(14);
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
 
-	var VMActions = Reflux.createActions({
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+
+	var _Reflux = __webpack_require__(15);
+
+	var _Reflux2 = _interopRequireWildcard(_Reflux);
+
+	var _VMAPI = __webpack_require__(14);
+
+	var _VMAPI2 = _interopRequireWildcard(_VMAPI);
+
+	var VMActions = _Reflux2['default'].createActions({
 	  list: { asyncResult: true },
 	  start: { asyncResult: true },
 	  shutdown: { asyncResult: true }
 	});
 
-	VMActions.list.listenAndPromise(VMAPI.vm.list);
-	VMActions.start.listenAndPromise(VMAPI.vm.start);
-	VMActions.shutdown.listenAndPromise(VMAPI.vm.shutdown);
+	VMActions.list.listenAndPromise(_VMAPI2['default'].vm.list);
+	VMActions.start.listenAndPromise(_VMAPI2['default'].vm.start);
+	VMActions.shutdown.listenAndPromise(_VMAPI2['default'].vm.shutdown);
 
-	module.exports = VMActions;
+	exports['default'] = VMActions;
+	module.exports = exports['default'];
 
 /***/ },
 /* 42 */
@@ -4024,16 +4409,28 @@
 
 	'use strict';
 
-	var Reflux = __webpack_require__(15),
-	    VMAPI = __webpack_require__(14);
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
 
-	var TemplateActions = Reflux.createActions({
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+
+	var _Reflux = __webpack_require__(15);
+
+	var _Reflux2 = _interopRequireWildcard(_Reflux);
+
+	var _VMAPI = __webpack_require__(14);
+
+	var _VMAPI2 = _interopRequireWildcard(_VMAPI);
+
+	var TemplateActions = _Reflux2['default'].createActions({
 	  list: { asyncResult: true }
 	});
 
-	TemplateActions.list.listenAndPromise(VMAPI.template.list);
+	TemplateActions.list.listenAndPromise(_VMAPI2['default'].template.list);
 
-	module.exports = TemplateActions;
+	exports['default'] = TemplateActions;
+	module.exports = exports['default'];
 
 /***/ },
 /* 43 */
@@ -4041,32 +4438,35 @@
 
 	'use strict';
 
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+	exports.GET = GET;
+	exports.POST = POST;
 	var status = function status(response) {
 	  if (response.status >= 200 && response.status < 300) {
-	    return Promise.resolve(response);
-	  } else {
-	    return Promise.reject(new Error(response.statusText));
+	    return response;
 	  }
-	},
-	    json = function json(response) {
+	  throw new Error(response.statusText);
+	};
+
+	var json = function json(response) {
 	  return response.json();
 	};
 
-	var HTTP = {
+	function GET(url) {
+	  return fetch(url, {
+	    credentials: 'same-origin'
+	  }).then(status).then(json);
+	}
 
-	  get: function get(url) {
-	    return fetch(url).then(status).then(json);
-	  },
-
-	  post: function post(url, form) {
-	    return fetch(url, {
-	      method: 'post',
-	      body: JSON.stringify(form)
-	    }).then(status).then(json);
-	  }
-	};
-
-	module.exports = HTTP;
+	function POST(url, form) {
+	  return fetch(url, {
+	    method: 'post',
+	    credentials: 'same-origin',
+	    body: JSON.stringify(form)
+	  }).then(status).then(json);
+	}
 
 /***/ },
 /* 44 */
@@ -22021,10 +22421,15 @@
 /* 80 */
 /***/ function(module, exports, __webpack_require__) {
 
-	// POJO from 
-	// { 
+	'use strict';
+
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+	// POJO from
+	// {
 	//    "VCPUs_at_startup":"1",
-	//    "allowed_operations":[ 
+	//    "allowed_operations":[
 	//       "changing_dynamic_range",
 	//       "migrate_send",
 	//       "pool_migrate",
@@ -22038,7 +22443,7 @@
 	//       "checkpoint",
 	//       "snapshot"
 	//    ],
-	//    "endpoint":{ 
+	//    "endpoint":{
 	//       "url":"https://172.31.0.14:443/",
 	//       "description":"Pool A"
 	//    },
@@ -22051,7 +22456,7 @@
 	//    "memory_target":"1610612736",
 	//    "name_description":"Installed via xe CLI",
 	//    "name_label":"sentanal",
-	//    "networks":{ 
+	//    "networks":{
 	//       "0/ip":"172.31.167.66",
 	//       "0/ipv6/0":"fe80::b0c9:5bff:fe1f:5896"
 	//    },
@@ -22059,9 +22464,9 @@
 	//    "uuid":"6a302da8-80a1-f795-950c-e2025a2cf530"
 	// }
 
-	'use strict';
+	exports['default'] = VM;
 
-	var VM = function VM(object) {
+	function VM(object) {
 	  this.id = object.uuid;
 	  this.name = object.name_label;
 	  this.endpoint_url = object.endpoint.url;
@@ -22076,69 +22481,38 @@
 	  this.vcpus = parseInt(object.VCPUs_at_startup) || 0;
 	  this.RAM = 'hard =(';
 	  this.state = object.power_state || '';
-	};
+	}
 
-	module.exports = VM;
+	module.exports = exports['default'];
 
 /***/ },
 /* 81 */
 /***/ function(module, exports, __webpack_require__) {
 
-	// { 
-	//   "endpoint":{ 
-	//     "url":"https://172.31.0.14:443/",
-	//     "description":"Pool A"
-	//   },
-	//   "uuid":"605ee855-77d5-2bcc-c46f-038b416e77de",
-	//   "tags":[ 
-	//
-	//   ],
-	//   "other_config":{ 
-	//     "mac_seed":"7673108a-1f7e-4518-6fde-5c29e95f5f7e",
-	//     "suppress-spurious-page-faults":"true",
-	//     "install-methods":"cdrom,nfs,http,ftp",
-	//     "disks":"<provision><disk device=\"0\" size=\"8589934592\" sr=\"\" bootable=\"true\" type=\"system\"/></provision>",
-	//     "default_template":"true",
-	//     "linux_template":"true",
-	//     "install-distro":"rhlike"
-	//   },
-	//   "name_label":"CentOS 4.5 (32-bit)",
-	//   "default_mirror":"",
-	//   "allowed_operations":[ 
-	//     "changing_dynamic_range",
-	//     "changing_shadow_memory",
-	//     "changing_static_range",
-	//     "provision",
-	//     "export",
-	//     "clone",
-	//     "copy"
-	//   ],
-	//   "is_a_template":true,
-	//   "name_description":"Template that allows VM installation from Xen-aware EL-based distros. To use this template from the CLI, install your VM using vm-install, then set other-config-install-repository to the path to your network repository, e.g. http://<server>/<path> or nfs:server:/<path>",
-	//   "is_control_domain":false,
-	//   "is_a_snapshot":false
-	// }
-
-	"use strict";
-
-	var Template = function Template(object) {};
-
-	module.exports = Template;
-
-/***/ },
-/* 82 */
-/***/ function(module, exports, __webpack_require__) {
-
 	'use strict';
 
-	var Reflux = __webpack_require__(15),
-	    AlertActions = __webpack_require__(13),
-	    _ = __webpack_require__(44);
+	var _interopRequireWildcard = function (obj) { return obj && obj.__esModule ? obj : { 'default': obj }; };
 
-	var AlertStore = Reflux.createStore({
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+
+	var _import = __webpack_require__(44);
+
+	var _import2 = _interopRequireWildcard(_import);
+
+	var _Reflux = __webpack_require__(15);
+
+	var _Reflux2 = _interopRequireWildcard(_Reflux);
+
+	var _AlertActions = __webpack_require__(13);
+
+	var _AlertActions2 = _interopRequireWildcard(_AlertActions);
+
+	var AlertStore = _Reflux2['default'].createStore({
 
 	  init: function init() {
-	    this.listenToMany(AlertActions);
+	    this.listenToMany(_AlertActions2['default']);
 
 	    this.alerts = [];
 
@@ -22147,7 +22521,7 @@
 
 	  checkAlerts: function checkAlerts() {
 	    var now = new Date();
-	    this.alerts = _.filter(this.alerts, function (alert) {
+	    this.alerts = _import2['default'].filter(this.alerts, function (alert) {
 	      return now - alert.added < 5000;
 	    });
 	    if (this.alerts.length > 5) {
@@ -22197,7 +22571,59 @@
 	  }
 	});
 
-	module.exports = AlertStore;
+	exports['default'] = AlertStore;
+	module.exports = exports['default'];
+
+/***/ },
+/* 82 */
+/***/ function(module, exports, __webpack_require__) {
+
+	"use strict";
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	// {
+	//   "endpoint":{
+	//     "url":"https://172.31.0.14:443/",
+	//     "description":"Pool A"
+	//   },
+	//   "uuid":"605ee855-77d5-2bcc-c46f-038b416e77de",
+	//   "tags":[
+	//
+	//   ],
+	//   "other_config":{
+	//     "mac_seed":"7673108a-1f7e-4518-6fde-5c29e95f5f7e",
+	//     "suppress-spurious-page-faults":"true",
+	//     "install-methods":"cdrom,nfs,http,ftp",
+	//     "disks":"<provision><disk device=\"0\" size=\"8589934592\" sr=\"\" bootable=\"true\" type=\"system\"/></provision>",
+	//     "default_template":"true",
+	//     "linux_template":"true",
+	//     "install-distro":"rhlike"
+	//   },
+	//   "name_label":"CentOS 4.5 (32-bit)",
+	//   "default_mirror":"",
+	//   "allowed_operations":[
+	//     "changing_dynamic_range",
+	//     "changing_shadow_memory",
+	//     "changing_static_range",
+	//     "provision",
+	//     "export",
+	//     "clone",
+	//     "copy"
+	//   ],
+	//   "is_a_template":true,
+	//   "name_description":"Template that allows VM installation from Xen-aware EL-based distros. To use this template from the CLI, install your VM using vm-install, then set other-config-install-repository to the path to your network repository, e.g. http://<server>/<path> or nfs:server:/<path>",
+	//   "is_control_domain":false,
+	//   "is_a_snapshot":false
+	// }
+
+	exports["default"] = Template;
+
+	function Template(object) {}
+
+	;
+	module.exports = exports["default"];
 
 /***/ },
 /* 83 */

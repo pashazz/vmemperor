@@ -1,8 +1,8 @@
-var React = require('react'),
-    Modal = require('./modal.jsx');
+import React from 'react';
+import Modal from './modal.jsx';
 
-var VMForm = React.createClass({
-  render: function() {
+class VMForm extends React.Component {
+  render() {
     return (
       <form role="form" id="create-vm-form">
         <div className="input-group">
@@ -84,7 +84,7 @@ var VMForm = React.createClass({
         <br />
         <h4>Resources settings</h4>
         <div className="row">
-          
+
           <div className="col-sm-4 col-lg-4">
             <div className="input-group">
               <span className="input-group-addon"><i className="icon-processorthree"></i></span>
@@ -115,7 +115,7 @@ var VMForm = React.createClass({
         <br />
         <h4>HTTP/HTTPS reverse-proxy settings</h4>
         <div className="row">
-          
+
           <div className="col-sm-4 col-lg-4">
             <div className="input-group">
               <span className="input-group-addon"><i className="icon-network">:80</i></span>
@@ -155,46 +155,42 @@ var VMForm = React.createClass({
       </form>
     );
   }
-});
+}
 
-var CreateVM = React.createClass({
+class CreateVM extends React.Component {
+  constructor() {
+    super();
+    this.showModal = this.showModal.bind(this);
+    this.hideModal = this.hideModal.bind(this);
+    this.renderModal = this.renderModal.bind(this);
 
-  getInitialState: function() {
-    return({
-      modalShow: false
-    })
-  },
+    this.state = { modalShow: false };
+  }
 
-  showModal: function() {
-    this.setState({
-      modalShow: true
-    });
-  },
+  showModal() {
+    this.setState({ modalShow: true });
+  }
 
-  hideModal: function() {
-    this.setState({
-      modalShow: false
-    });
-  },
+  hideModal() {
+    this.setState({ modalShow: false });
+  }
 
-  renderModal: function() {
+  renderModal() {
     return this.state.modalShow ?
       <Modal title="Virtual machine options" show lg close={this.hideModal}>
         <VMForm />
       </Modal> :
       null;
-  },
+  }
 
-  render: function () {
-
+  render () {
     return (
       <div>
         <a onClick={this.showModal}>CreateVM</a>
         {this.renderModal()}
-      </div>      
+      </div>
     );
   }
-  
-});
+};
 
-module.exports = CreateVM;
+export default CreateVM;

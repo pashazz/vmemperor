@@ -1,10 +1,10 @@
-var Reflux = require('reflux'),
-    AlertActions = require('./alert-actions'),
-    _ = require('lodash');
+import _ from 'lodash';
+import Reflux from 'reflux';
+import AlertActions from './alert-actions';
 
-var AlertStore = Reflux.createStore({
+const AlertStore = Reflux.createStore({
 
-    init: function() {
+    init() {
       this.listenToMany(AlertActions);
 
       this.alerts = []
@@ -12,8 +12,8 @@ var AlertStore = Reflux.createStore({
       setInterval(this.checkAlerts, 1000);
     },
 
-    checkAlerts: function() {
-      var now = new Date();
+    checkAlerts() {
+      let now = new Date();
       this.alerts = _.filter(this.alerts, function(alert) {
         return now - alert.added < 5000;
       });
@@ -23,7 +23,7 @@ var AlertStore = Reflux.createStore({
       this.trigger();
     },
 
-    onSuc: function(message) {
+    onSuc(message) {
       this.alerts.push({
         message: message,
         type: 'suc',
@@ -32,7 +32,7 @@ var AlertStore = Reflux.createStore({
       this.trigger();
     },
 
-    onLog: function(message) {
+    onLog(message) {
       this.alerts.push({
         message: message,
         type: 'log',
@@ -41,7 +41,7 @@ var AlertStore = Reflux.createStore({
       this.trigger();
     },
 
-    onWarn: function(message) {
+    onWarn(message) {
       this.alerts.push({
         message: message,
         type: 'warn',
@@ -50,7 +50,7 @@ var AlertStore = Reflux.createStore({
       this.trigger();
     },
 
-    onErr: function(message) {
+    onErr(message) {
       this.alerts.push({
         message: message,
         type: 'err',
@@ -59,9 +59,9 @@ var AlertStore = Reflux.createStore({
       this.trigger();
     },
 
-    getData: function() { 
-      return this.alerts; 
+    getData() {
+      return this.alerts;
     }
 });
 
-module.exports = AlertStore;
+export default AlertStore;

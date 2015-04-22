@@ -1,30 +1,28 @@
-var status = function(response) {
-    if (response.status >= 200 && response.status < 300) {
-      return Promise.resolve(response);
-    } else {
-      return Promise.reject(new Error(response.statusText));
-    }
-  },
-  json = function(response) {
-    return response.json()
-  };
-
-var HTTP = {
-
-  get: function(url) {
-    return fetch(url)
-      .then(status)
-      .then(json);
-  },
-
-  post: function(url, form) {
-    return fetch(url, {
-        method: 'post',
-        body: JSON.stringify(form)
-      })
-      .then(status)
-      .then(json);
+const status = function(response) {
+  if (response.status >= 200 && response.status < 300) {
+      return response
   }
-};
+  throw new Error(response.statusText)
+}
 
-module.exports = HTTP;
+const json = function(response) {
+  return response.json()
+}
+
+export function GET(url) {
+  return fetch(url, {
+      credentials: 'same-origin'
+    })
+    .then(status)
+    .then(json);
+}
+
+export function POST(url, form) {
+  return fetch(url, {
+      method: 'post',
+      credentials: 'same-origin',
+      body: JSON.stringify(form)
+    })
+    .then(status)
+    .then(json);
+}
