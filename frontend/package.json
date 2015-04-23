@@ -4,9 +4,9 @@
   "private": true,
   "main": "src/app.jsx",
   "scripts": {
-    "postinstall": "webpack --config webpack.js",
-    "webpack": "webpack --config webpack.js",
-    "start": "webpack --config webpack.js --watch --colors"
+    "postinstall": "webpack --config webpack.minify.js",
+    "webpack": "webpack --config webpack.minify.js",
+    "start": "webpack --config webpack.watch.js --watch --colors"
   },
   "dependencies": {
     "lodash": "^3.7.0",

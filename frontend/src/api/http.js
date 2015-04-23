@@ -19,8 +19,8 @@ export function GET(url) {
 
 export function POST(url, form) {
   return fetch(url, {
-      method: 'post',
       credentials: 'same-origin',
+      method: 'post',
       body: JSON.stringify(form)
     })
     .then(status)
