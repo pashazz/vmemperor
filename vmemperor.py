@@ -16,13 +16,40 @@ app = Flask(__name__, static_url_path='/static')
 #def static(path):
 #    return app.send_static_file(os.path.join('js', path))
 
+def generate_response(code, status, details, reason):
+    response = jsonify({'status': status, 'details': details, 'reason': reason})
+    response.status_code = code
+    return response
 
-def get_xen_session(endpoint):
+
+def get_xen_session(endpoint, login=None, password=None):
     url = endpoint['url']
-    print url
     session = XenAPI.Session(url)
-    session.login_with_password((flask_session[url])['login'], (flask_session[url])['password'])
+    if login and password:
+        session.login_with_password(login, password)
+    else:
+        session.login_with_password((flask_session[url])['login'], (flask_session[url])['password'])
+    print session
     return session
+
+
+def check_auth(login, password, endpoint):
+    # First acquire a valid session by logging in:
+    try:
+        session = get_xen_session(endpoint, login, password)
+        if session.get('Status') != 'Success':
+            return False
+        else:
+            return True
+    except:
+        return False
+
+
+def check_if_superuser(session):
+    try:
+        return session.xenapi.session.get_is_local_superuser(session._session)
+    except:
+        return False
 
 
 def retrieve_pool_info(endpoint):
@@ -96,27 +123,6 @@ def retrieve_template_list(endpoint):
 # VM_metrics.get_VCPU/utilisation() #map int->float
 # VM_metrics.get_state()
 
-def check_auth(username, password, session):
-    # First acquire a valid session by logging in:
-    try:
-        session.xenapi.login_with_password(username, password)
-        if 'Status' in session:
-            print session
-            if session['Status'] == 'Failure':
-                return False
-        return True
-    except:
-        return False
-
-
-def check_if_superuser(session):
-    try:
-        is_a_superuser = session.xenapi.session.get_is_local_superuser(session._session)
-        print ("Is a superuser?", is_a_superuser)
-        return is_a_superuser
-    except:
-        return False
-
 
 @app.route("/auth", methods=['GET', 'POST'])
 def authenticate():
@@ -126,12 +132,12 @@ def authenticate():
     if request.method == 'POST':
         counter = 0
         is_su = True
-        form = request.form if request.form else json.loads(request.data)
+        form = json.loads(request.data)
         for endpoint in app.config['xen_endpoints']:
             login = form['login' + str(counter)]
             password = form['password' + str(counter)]
-            session = XenAPI.Session(endpoint['url'])
-            if check_auth(login, password, session):
+            if check_auth(login, password, endpoint):
+                session = get_xen_session(endpoint, login, password)
                 flask_session[endpoint['url']] = {'url': endpoint['url'], 'login': login, 'password': password}
                 print "Auth successful"
                 is_su = check_if_superuser(session) and is_su
@@ -358,13 +364,53 @@ def get_pool_info():
     return render_template("pool_info.html", pool_info=pool_info)
 
 
+@app.route('/pools', methods=['GET'])
+@requires_auth
+def list_pools():
+    pool_list = []
+    for pool in app.config['xen_endpoints']:
+        pool_info = retrieve_pool_info(pool)
+        pool_info.update(pool)
+        pool_list.append(pool_info)
+    return json.dumps(pool_list)
+
+
+@app.route('/pools/<pool_id>/auth', methods=['POST'])
+def check_auth_for_pool(pool_id):
+    try:
+        request_data = json.loads(request.data)
+        if not request_data.get('login') or not request_data.get('password'):
+            return generate_response(406, 'error', 'Missing params', 'You must provide credentials for auth')
+
+        endpoint = None
+        for pool in app.config['xen_endpoints']:
+            if pool['id'] == pool_id:
+                endpoint = pool
+        if not endpoint:
+            return generate_response(404, 'error', 'Invalid pool id', 'No Xen endpoint with such id exists')
+
+        session = XenAPI.Session(endpoint['url'])
+
+
+    except TypeError as e:
+        return generate_response(406, 'error', 'Wrong params', 'Provided JSON is invalid or missing: ' + e)
+    except:
+        return generate_response(500, 'error', 'Unknown error', 'Internal server error')
+
+
+
+
+
+
+
+
 #app.secret_key = ''.join([random.choice(string.ascii_letters + string.digits) for n in xrange(32)])
 app.secret_key = 'SADFccadaeqw221fdssdvxccvsdf'
 if __name__ == '__main__':
     #app.config.update(SESSION_COOKIE_SECURE=True)
     app.config['SESSION_COOKIE_HTTPONLY'] = False
-    app.config['xen_endpoints'] = [{'url': 'https://172.31.0.14:443/', 'description': 'Pool A'},
-                                   {'url': 'https://172.31.0.32:443/', 'description': 'Pool Z'}]
+    app.config['xen_endpoints'] = [{'id': 'sadasdasdasdas', 'url': 'https://172.31.0.14:443/', 'description': 'Pool A'},
+                                   {'id': 'cxbvccvbbxcxcx', 'url': 'https://172.31.0.32:443/', 'description': 'Pool Z'}]
     app.config['supported-distros'] = {'debianlike': 'all'}
     app.config['enabled-distros'] = app.config['supported-distros']
     app.config['supported-reverse-proxies'] = {'vmemperor-nginx': 'Nginx configuration files'}
