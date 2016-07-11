@@ -1,9 +1,10 @@
-var Reflux = require('reflux');
+import Reflux from 'reflux';
+import VMAPI from '../api/vmemp-api';
 
-TemplateActions = Reflux.createActions([
-  'list',
-  'listSuccess',
-  'listFail'
-]);
+const TemplateActions = Reflux.createActions({
+  'list': { asyncResult: true }
+});
 
-module.exports = TemplateActions;
+TemplateActions.list.listenAndPromise( VMAPI.template.list );
+
+export default TemplateActions;

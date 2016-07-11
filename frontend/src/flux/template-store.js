@@ -1,40 +1,39 @@
-var Reflux = require('reflux'),
-    TemplateActions = require('./template-actions'),
-    AlertActions = require('./alert-actions'),
-    VMApi = require('../api/vmemp-api');
+import Reflux from 'reflux';
+import TemplateActions from './template-actions';
+import AlertActions from './alert-actions';
+import VMApi from '../api/vmemp-api';
+import Template from './template-model';
 
-var TemplateStore = Reflux.createStore({
-  
-  init: function() {
-    this.listenTo(TemplateActions.list, this.listTemplates);
-    
+const TemplateStore = Reflux.createStore({
+
+  init() {
+    this.listenToMany(TemplateActions);
+
     this.status = '';
     this.templates = [];
   },
 
-  length: function() {
+  length() {
     return this.templates.length;
   },
 
-  listTemplates: function() {
+  onList() {
     this.status = 'PULL';
     AlertActions.log('Getting Template list...');
     this.trigger();
-    VMApi.listTemplates()
-      .then(this.onListCompleted)
-      .catch(function(response) {
-        TemplateActions.listFail(response);
-        AlertActions.err("Error while getting Template list!");
-      });
   },
 
-  onListCompleted: function(response) {
-    this.templates = response.data;
+  onListCompleted(response) {
+    this.templates = response;
     this.status = 'READY';
     AlertActions.suc('Got Template list');
     this.trigger();
+  },
+
+  onListFailed(response) {
+    AlertActions.err("Error while getting Template list!");
   }
 
 });
 
-module.exports = TemplateStore;
+export default TemplateStore;

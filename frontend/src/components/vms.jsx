@@ -41,8 +41,8 @@ var VMItem = React.createClass({
       case 'Running': actions = <a className="btn btn-danger btn-xs" onClick={this._shutdown}>shutdown</a>; break;
     };
 
-    var stateLabel = (this.props.vm.state == 'Halted' ? 
-      <span className="label label-warning">Halted</span> : 
+    var stateLabel = (this.props.vm.state == 'Halted' ?
+      <span className="label label-warning">Halted</span> :
       <span className="label label-success">Running</span>);
 
     var info = <div>{this.props.vm.description}</div>;
@@ -88,7 +88,7 @@ var VMTable = React.createClass({
   },
 
   columnNames: function() {
-     return Object.keys(this.state.columns); 
+     return Object.keys(this.state.columns);
   },
 
   sortColumn: function(column) {
@@ -120,11 +120,11 @@ var VMTable = React.createClass({
       var filterText = this.state.columns[column].filterText;
       filters[column] = null;
 
-      if (filterText.length > 0) { 
+      if (filterText.length > 0) {
         operandMatch = operandRegex.exec(filterText);
         if (operandMatch && operandMatch.length == 3) {
           //filters[column] = Function.apply(null, ["x", "return x " + operandMatch[1] + " " + operandMatch[2]]);
-          filters[column] = function(match) { return function(x) { return operators[match[1]](x, match[2]); }; }(operandMatch); 
+          filters[column] = function(match) { return function(x) { return operators[match[1]](x, match[2]); }; }(operandMatch);
         } else {
           filters[column] = function(x) {
             return (x.toString().toLowerCase().indexOf(filterText.toLowerCase()) > -1);
@@ -132,7 +132,7 @@ var VMTable = React.createClass({
         }
       }
     }, this);
-    
+
     var filteredItems = _.filter(this.state.items, function(item) {
       return _.every(columnNames, function(c) {
         return (!filters[c] || filters[c](item[c]));
@@ -204,15 +204,6 @@ var VMList = React.createClass({
     };
   },
 
-  renderStatus: function() {
-    switch(this.state.status) {
-      case 'PULL': return (<div className="col-md-12">Pulling…</div>);
-      case 'PUSH': return (<div className="col-md-12">Pushing…</div>);
-      case 'READY': return (<div className="col-md-12">Up to date</div>);
-    }
-    return '';
-  },
-
   render: function () {
     return (
       <div>
@@ -220,7 +211,7 @@ var VMList = React.createClass({
       </div>
     );
   }
-  
+
 });
 
 module.exports = VMList;

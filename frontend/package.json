@@ -4,28 +4,22 @@
   "private": true,
   "main": "src/app.jsx",
   "scripts": {
-    "start": "watchify src/app.jsx -o ../static/js/bundle.js -v",
-    "build": "NODE_ENV=production browserify src/app.jsx -d | uglifyjs -cm > ../static/js/bundle.min.js"
+    "postinstall": "webpack --config webpack.js",
+    "webpack": "webpack --config webpack.js",
+    "start": "webpack --config webpack.js --watch --colors"
   },
   "dependencies": {
-    "react": "^0.12.0",
-    "react-router": "^0.12.0",
-    "react-tap-event-plugin": "^0.1.0",
-    "reflux": "^0.2.5",
-    "axios": "^0.5.0",
-    "lodash": "^3.3.0"
+    "lodash": "^3.7.0",
+    "react": "^0.13.2",
+    "react-router": "^0.13.2",
+    "reflux": "^0.2.7"
   },
   "devDependencies": {
-    "browserify": "^6.2.0",
-    "envify": "^3.0.0",
-    "reactify": "^0.15.2",
+    "babel": "^5.1.11",
+    "babel-core": "^5.1.11",
+    "babel-loader": "^5.0.0",
     "uglify-js": "~2.4.15",
-    "watchify": "^2.1.1"
-  },
-  "browserify": {
-    "transform": [
-      "reactify",
-      "envify"
-    ]
+    "watchify": "^2.1.1",
+    "webpack": "^1.8.9"
   }
 }

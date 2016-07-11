@@ -1,24 +1,28 @@
-var React = require('react'),
-    SessionActions = require('./flux/session-actions');
+import React from 'react';
+import SessionActions from './flux/session-actions';
+import PoolStore from './flux/pool-store';
+import Modal from './components/modal.jsx';
 
-var LoginForm = React.createClass({
+class LoginForm extends React.Component {
+  constructor() {
+    super();
+    this.handleSubmit = this.handleSubmit.bind(this);
+    this.handleChange = this.handleChange.bind(this);
+    this.state = {};
+  }
 
-  getInitialState: function() {
-    return {};
-  },
-
-  handleSubmit: function(e) {
+  handleSubmit(e) {
     e.preventDefault();
     SessionActions.auth(this.state);
-  },
+  }
 
-  handleChange: function(e) {
+  handleChange(e) {
     var newState = {};
     newState[e.target.name] = e.target.value;
     this.setState(newState);
-  },
-  
-  render: function (argument) {
+  }
+
+  render() {
     return(
       <form role="form" onChange={this.handleChange} onSubmit={this.handleSubmit}>
         <div className="modal-body">
@@ -38,35 +42,21 @@ var LoginForm = React.createClass({
             </div>
           </div>
         </div>
-        <div className="modal-footer">
-          <button type="submit" className="btn btn-primary">Login</button>
-        </div>
+        <br />
+        <button type="submit" className="btn btn-lg btn-primary btn-block">Login</button>
       </form>
     );
   }
+}
 
-});
+class LoginModal extends React.Component {
+  render() {
+    return (
+      <Modal title="VM Emperor Login" show>
+        <LoginForm />
+      </Modal>
+    );
+  }
+}
 
-var LoginModal = React.createClass({
-    
-    render: function () {
-      return (
-        <div className="modal fade in" role="dialog" aria-hidden="false" style={{ display: 'block' }}>
-          <div className="modal-backdrop fade in" style={{ height: '100%' }}></div>
-          
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h4 className="modal-title">VM Emperor Login</h4>
-              </div>
-
-              <LoginForm />
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-});
-
-module.exports = LoginModal;
+export default LoginModal;

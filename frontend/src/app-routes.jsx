@@ -1,15 +1,12 @@
-var React = require('react'),
-    Router = require('react-router'),
-    Route = Router.Route,
-    Redirect = Router.Redirect,
-    DefaultRoute = Router.DefaultRoute;
+import React from 'react';
+import { Route, Redirect } from 'react-router';
 
-var Master = require('./components/master.jsx'),
-    VMs = require('./components/vms.jsx'),
-    Templates = require('./components/templates.jsx'),
-    CreateVM = require('./components/create-vm.jsx');
+import Master    from './components/master.jsx';
+import VMs       from './components/vms.jsx';
+import Templates from './components/templates.jsx';
+import CreateVM  from './components/create-vm.jsx';
 
-var AppRoutes = (
+const AppRoutes = (
   <Route name="root" path="/" handler={Master}>
     <Route name="vms" handler={VMs} />
     <Route name="templates" handler={Templates} />
@@ -19,4 +16,4 @@ var AppRoutes = (
   </Route>
 );
 
-module.exports = AppRoutes;
+export default AppRoutes;

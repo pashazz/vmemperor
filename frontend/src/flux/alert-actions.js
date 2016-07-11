@@ -1,10 +1,10 @@
-var Reflux = require('reflux');
+import Reflux from 'reflux';
 
-AlertActions = Reflux.createActions([
+const AlertActions = Reflux.createActions([
   'suc',
   'log',
   'warn',
   'err'
 ]);
 
-module.exports = AlertActions;
+export default AlertActions;

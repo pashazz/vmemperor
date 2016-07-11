@@ -16,10 +16,6 @@ app = Flask(__name__, static_url_path='/static')
 #def static(path):
 #    return app.send_static_file(os.path.join('js', path))
 
-def generate_response(code, status, details, reason):
-    response = jsonify({'status': status, 'details': details, 'reason': reason})
-    response.status_code = code
-    return response
 
 
 def get_xen_session(endpoint, login=None, password=None):
@@ -31,25 +27,6 @@ def get_xen_session(endpoint, login=None, password=None):
         session.login_with_password((flask_session[url])['login'], (flask_session[url])['password'])
     print session
     return session
-
-
-def check_auth(login, password, endpoint):
-    # First acquire a valid session by logging in:
-    try:
-        session = get_xen_session(endpoint, login, password)
-        if session.get('Status') != 'Success':
-            return False
-        else:
-            return True
-    except:
-        return False
-
-
-def check_if_superuser(session):
-    try:
-        return session.xenapi.session.get_is_local_superuser(session._session)
-    except:
-        return False
 
 
 def retrieve_pool_info(endpoint):
@@ -123,6 +100,27 @@ def retrieve_template_list(endpoint):
 # VM_metrics.get_VCPU/utilisation() #map int->float
 # VM_metrics.get_state()
 
+def check_auth(username, password, session):
+    # First acquire a valid session by logging in:
+    try:
+        session.xenapi.login_with_password(username, password)
+        if 'Status' in session:
+            print session
+            if session['Status'] == 'Failure':
+                return False
+        return True
+    except:
+        return False
+
+
+def check_if_superuser(session):
+    try:
+        is_a_superuser = session.xenapi.session.get_is_local_superuser(session._session)
+        print ("Is a superuser?", is_a_superuser)
+        return is_a_superuser
+    except:
+        return False
+
 
 @app.route("/auth", methods=['GET', 'POST'])
 def authenticate():
@@ -132,12 +130,12 @@ def authenticate():
     if request.method == 'POST':
         counter = 0
         is_su = True
-        form = json.loads(request.data)
+        form = request.form if request.form else json.loads(request.data)
         for endpoint in app.config['xen_endpoints']:
             login = form['login' + str(counter)]
             password = form['password' + str(counter)]
-            if check_auth(login, password, endpoint):
-                session = get_xen_session(endpoint, login, password)
+            session = XenAPI.Session(endpoint['url'])
+            if check_auth(login, password, session):
                 flask_session[endpoint['url']] = {'url': endpoint['url'], 'login': login, 'password': password}
                 print "Auth successful"
                 is_su = check_if_superuser(session) and is_su
@@ -147,7 +145,7 @@ def authenticate():
                 print "FAILED TO AUTH ON " + endpoint['description']
         flask_session['is_su'] = is_su
 
-        return redirect("/")
+        return '[]'
 
 
 def requires_auth(f):
@@ -408,6 +406,9 @@ def check_auth_for_pool(pool_id):
 app.secret_key = 'SADFccadaeqw221fdssdvxccvsdf'
 if __name__ == '__main__':
     #app.config.update(SESSION_COOKIE_SECURE=True)
+    app.config['SESSION_COOKIE_HTTPONLY'] = False
+    app.config['xen_endpoints'] = [{'url': 'https://172.31.0.14:443/', 'description': 'Pool A'},
+                                   {'url': 'https://172.31.0.32:443/', 'description': 'Pool Z'}]
     app.config['SESSION_COOKIE_HTTPONLY'] = False
     app.config['xen_endpoints'] = [{'id': 'sadasdasdasdas', 'url': 'https://172.31.0.14:443/', 'description': 'Pool A'},
                                    {'id': 'cxbvccvbbxcxcx', 'url': 'https://172.31.0.32:443/', 'description': 'Pool Z'}]

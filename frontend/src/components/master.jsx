@@ -1,56 +1,55 @@
-var React = require('react'),
-    Reflux = require('reflux'),
-    Router = require('react-router'),
-    RouteHandler = Router.RouteHandler,
-    Link = Router.Link;
+import React from 'react';
+import Reflux from 'reflux';
+import { RouteHandler, Link } from 'react-router';
 
-var VMStore = require('../flux/vm-store')
-    TemplateStore = require('../flux/template-store'),
-    SessionStore = require('../flux/session-store'),
-    SessionActions = require('../flux/session-actions')
-    AlertActions = require('../flux/alert-actions'),
-    Snackbar = require('./snackbar.jsx');
+import VMStore from '../flux/vm-store';
+import TemplateStore from '../flux/template-store';
+import SessionStore from '../flux/session-store';
+import SessionActions from '../flux/session-actions';
+import AlertActions from '../flux/alert-actions';
+import Snackbar from './snackbar.jsx';
 
+const NavElem = React.createClass({
+  contextTypes: {
+    router: React.PropTypes.func
+  },
 
-var NavElem = React.createClass({
-  mixins: [Router.State],
-
-  render: function() {
+  render() {
     return (
-      <li className={this.isActive(this.props.to) ? 'active': ''}>
+      <li className={this.context.router.isActive(this.props.to) ? 'active': ''}>
         <Link to={this.props.to}>{this.props.children}</Link>
       </li>
     );
   }
 });
 
-var Master = React.createClass({
+const Master = React.createClass({
 
   mixins: [Reflux.ListenerMixin],
 
-  getInitialState: function() {
-    return { 
-      vmcol: VMStore.length(), 
+  getInitialState() {
+    return {
+      vmcol: VMStore.length(),
       templatecol: TemplateStore.length()
     };
   },
 
-  onChange: function() {
-    this.setState({ 
-      vmcol: VMStore.length(), 
+  onChange() {
+    this.setState({
+      vmcol: VMStore.length(),
       templatecol: TemplateStore.length()
     });
   },
 
-  componentDidMount: function() {
+  componentDidMount() {
     this.listenTo(VMStore, this.onChange);
     this.listenTo(TemplateStore, this.onChange);
   },
 
-  render: function () {
-    var brand = <Link to="/" className="navbar-brand">VM Emperor</Link>;
-    var vmCounter = this.state.vmcol > 0 ? <span className="badge">{this.state.vmcol}</span> : '';
-    var templateCounter = this.state.templatecol > 0 ? <span className="badge">{this.state.templatecol}</span> : '';
+  render () {
+    const brand = <Link to="/" className="navbar-brand">VM Emperor</Link>;
+    const vmCounter = this.state.vmcol > 0 ? <span className="badge">{this.state.vmcol}</span> : '';
+    const templateCounter = this.state.templatecol > 0 ? <span className="badge">{this.state.templatecol}</span> : '';
 
     return (
       <div>
@@ -79,7 +78,7 @@ var Master = React.createClass({
     );
   },
 
-  _logout: function(e) {
+  _logout(e) {
     e.preventDefault();
     if (confirm("Are you sure you want to log out?")) {
       SessionActions.logout();
@@ -89,4 +88,4 @@ var Master = React.createClass({
   }
 });
 
-module.exports = Master;
+export default Master;

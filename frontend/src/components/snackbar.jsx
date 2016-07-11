@@ -1,32 +1,31 @@
-var React = require('react'),
-    Reflux = require('reflux')
-    AlertsStore = require('../flux/alert-store');
+import React from 'react';
+import Reflux from 'reflux';
+import AlertsStore from '../flux/alert-store';
 
-var Snackbar = React.createClass({
-
+const Snackbar = React.createClass({
   mixins: [Reflux.ListenerMixin],
 
-  onAlertsChange: function() {
+  onAlertsChange() {
     this.setState({
       alerts: AlertsStore.getData()
     });
   },
 
-  componentDidMount: function() {
+  componentDidMount() {
     this.listenTo(AlertsStore, this.onAlertsChange);
   },
 
-  getInitialState: function() {
+  getInitialState() {
     return {
       alerts: AlertsStore.getData()
     };
   },
-    
-  render: function () {
+
+  render () {
     if(this.state.alerts.length === 0) {
       return null
     } else {
-      var computeClass = function(type) {
+      const computeClass = function(type) {
         switch(type){
           case 'suc': return 'alert alert-success';
           case 'warn': return 'alert alert-warning';
@@ -35,7 +34,7 @@ var Snackbar = React.createClass({
         return 'alert alert-info';
       }
 
-      var inner = this.state.alerts.map(function(alert, id){
+      const inner = this.state.alerts.map((alert, id) => {
         return (<div key={id} className={computeClass(alert.type)} role="alert">{alert.message}</div>);
       });
 
@@ -47,10 +46,10 @@ var Snackbar = React.createClass({
             </span>
           </div>
         </div>
-      );  
+      );
     }
   }
 
 });
 
-module.exports = Snackbar;
+export default Snackbar;

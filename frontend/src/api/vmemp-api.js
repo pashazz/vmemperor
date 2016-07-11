@@ -1,13 +1,12 @@
-var VMActions = require('../flux/vm-actions'),
-    HTTP = require('axios');
+import { GET, POST } from './http';
 
-var _session = null;
+let _session = null;
 
-var loadFromCookie = function() {
-  var cookies = document.cookie ? document.cookie.split('; ') : [];
-  for (var i = cookies.length - 1; i >= 0; i--) {
-    var parts = cookies[i].split('=');
-    var name = parts.shift();
+const loadFromCookie = function() {
+  let cookies = document.cookie ? document.cookie.split('; ') : [];
+  for (let i = cookies.length - 1; i >= 0; i--) {
+    let parts = cookies[i].split('=');
+    let name = parts.shift();
     if(name === 'session') {
       _session = parts.join('=');
       break;
@@ -16,50 +15,55 @@ var loadFromCookie = function() {
   return _session;
 };
 
-VMAPI = {  
+const user = {
+  session() {
+    return (_session !== null) ? _session : loadFromCookie();
+  },
 
-    session: function() {
-      if (_session) {
-        return _session;
-      } else {
-        return loadFromCookie();
-      }
-    },
+  auth(data) {
+    return POST('/auth', data);
+  },
 
-    auth: function(data) {
-      return HTTP.post('/auth', data)
-    },
-
-    logout: function() {
-      return HTTP.get('/logout')
-        .then(function(response) {
-          _session = null;
-        });
-    },
-
-    listVMs: function() {
-      return HTTP.get('/list-vms');
-    },
-
-    startVM: function(vm) {
-      return HTTP.post('/start-vm', {
-        vm_uuid: vm.id,
-        endpoint_url: vm.endpoint_url,
-        endpoint_description: vm.endpoint_description
+  logout() {
+    return GET('/logout')
+      .then(function(response) {
+        _session = null;
       });
-    },
-
-    shutdownVM: function(vm) {
-      return HTTP.post('/shutdown-vm', {
-        vm_uuid: vm.id,
-        endpoint_url: vm.endpoint_url,
-        endpoint_description: vm.endpoint_description
-      });
-    },
-
-    listTemplates: function() {
-      return HTTP.get('/list-templates');
-    }
+  }
 };
 
-module.exports = VMAPI;
+const vm = {
+  list() {
+    return GET('/list-vms');
+  },
+
+  start(vm) {
+    return POST('/start-vm', {
+      vm_uuid: vm.id,
+      endpoint_url: vm.endpoint_url,
+      endpoint_description: vm.endpoint_description
+    });
+  },
+
+  shutdown(vm) {
+    return POST('/shutdown-vm', {
+      vm_uuid: vm.id,
+      endpoint_url: vm.endpoint_url,
+      endpoint_description: vm.endpoint_description
+    });
+  }
+};
+
+const template = {
+  list() {
+    return GET('/list-templates');
+  }
+};
+
+const pool = {
+  list() {
+    return GET('/list-pools');
+  }
+};
+
+export default { user, vm, template, pool }
