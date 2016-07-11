@@ -8,8 +8,8 @@ import TemplateActions from '../flux/template-actions';
 class TemplateInfo extends React.Component {
   constructor() {
     super();
-    this.handleSubmit = this.handleSubmit.bind(handleSubmit);
-    this.renderActions = this.renderActions.bind(renderActions);
+    this.handleSubmit = this.handleSubmit.bind(this.handleSubmit);
+    this.renderActions = this.renderActions.bind(this.renderActions);
   }
 
   handleSubmit(e) {

@@ -121,7 +121,7 @@ var VMTable = React.createClass({
       filters[column] = null;
 
       if (filterText.length > 0) {
-        operandMatch = operandRegex.exec(filterText);
+        var operandMatch = operandRegex.exec(filterText);
         if (operandMatch && operandMatch.length == 3) {
           //filters[column] = Function.apply(null, ["x", "return x " + operandMatch[1] + " " + operandMatch[2]]);
           filters[column] = function(match) { return function(x) { return operators[match[1]](x, match[2]); }; }(operandMatch);
