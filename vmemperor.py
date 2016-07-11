@@ -109,7 +109,8 @@ def check_auth(username, password, session):
             if session['Status'] == 'Failure':
                 return False
         return True
-    except:
+    except Exception as e:
+        print (e)
         return False
 
 
@@ -407,11 +408,8 @@ app.secret_key = 'SADFccadaeqw221fdssdvxccvsdf'
 if __name__ == '__main__':
     #app.config.update(SESSION_COOKIE_SECURE=True)
     app.config['SESSION_COOKIE_HTTPONLY'] = False
-    app.config['xen_endpoints'] = [{'url': 'https://172.31.0.14:443/', 'description': 'Pool A'},
-                                   {'url': 'https://172.31.0.32:443/', 'description': 'Pool Z'}]
-    app.config['SESSION_COOKIE_HTTPONLY'] = False
-    app.config['xen_endpoints'] = [{'id': 'sadasdasdasdas', 'url': 'https://172.31.0.14:443/', 'description': 'Pool A'},
-                                   {'id': 'cxbvccvbbxcxcx', 'url': 'https://172.31.0.32:443/', 'description': 'Pool Z'}]
+    app.config['xen_endpoints'] = [{'id': 'sadasdasdasdas', 'url': 'http://172.31.0.14:80/', 'description': 'Pool A'},
+                                   {'id': 'cxbvccvbbxcxcx', 'url': 'http://172.31.0.32:80/', 'description': 'Pool Z'}]
     app.config['supported-distros'] = {'debianlike': 'all'}
     app.config['enabled-distros'] = app.config['supported-distros']
     app.config['supported-reverse-proxies'] = {'vmemperor-nginx': 'Nginx configuration files'}
