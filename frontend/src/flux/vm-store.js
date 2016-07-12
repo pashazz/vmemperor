@@ -24,7 +24,7 @@ const VMStore = Reflux.createStore({
   },
 
   onListCompleted(response) {
-    this.vms = response.map(function(single) { return new VM(single); });
+    this.vms = response.map(data => new VM(data));
     this.status = 'READY';
     AlertActions.suc('Got VM list');
     this.trigger();

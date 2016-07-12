@@ -9,10 +9,12 @@
     "start": "webpack --config webpack.watch.js --watch --colors"
   },
   "dependencies": {
+    "babel-polyfill": "^6.9.1",
     "lodash": "^3.7.0",
     "react": "^0.13.2",
     "react-router": "^0.13.2",
-    "reflux": "^0.2.7"
+    "reflux": "^0.2.7",
+    "whatwg-fetch": "^1.0.0"
   },
   "devDependencies": {
     "babel": "^5.1.11",

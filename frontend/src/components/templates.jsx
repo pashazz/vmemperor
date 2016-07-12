@@ -8,13 +8,13 @@ import TemplateActions from '../flux/template-actions';
 class TemplateInfo extends React.Component {
   constructor() {
     super();
-    this.handleSubmit = this.handleSubmit.bind(this.handleSubmit);
-    this.renderActions = this.renderActions.bind(this.renderActions);
+    this.handleSubmit = this.handleSubmit.bind(this);
+    this.renderActions = this.renderActions.bind(this);
   }
 
   handleSubmit(e) {
-    e.preventDefault();
     console.log(e.target.value);
+    e.preventDefault();
   }
 
   renderActions(template) {

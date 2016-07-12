@@ -16,54 +16,43 @@ const loadFromCookie = function() {
 };
 
 const user = {
-  session() {
-    return (_session !== null) ? _session : loadFromCookie();
-  },
+  session: () =>
+    (_session !== null) ? _session : loadFromCookie(),
 
-  auth(data) {
-    return POST('/auth', data);
-  },
+  auth: (data) =>
+    POST('/auth', data),
 
-  logout() {
-    return GET('/logout')
-      .then(function(response) {
-        _session = null;
-      });
-  }
+  logout: () =>
+    GET('/logout').then(response => _session = null)
 };
 
 const vm = {
-  list() {
-    return GET('/list-vms');
-  },
+  list: () =>
+    GET('/list-vms'),
 
-  start(vm) {
-    return POST('/start-vm', {
+  start: (vm) =>
+    POST('/start-vm', {
       vm_uuid: vm.id,
       endpoint_url: vm.endpoint_url,
       endpoint_description: vm.endpoint_description
-    });
-  },
+    }),
 
-  shutdown(vm) {
-    return POST('/shutdown-vm', {
+  shutdown: (vm) =>
+    POST('/shutdown-vm', {
       vm_uuid: vm.id,
       endpoint_url: vm.endpoint_url,
       endpoint_description: vm.endpoint_description
-    });
-  }
+    })
 };
 
 const template = {
-  list() {
-    return GET('/list-templates');
-  }
+  list: () =>
+    GET('/list-templates')
 };
 
 const pool = {
-  list() {
-    return GET('/list-pools');
-  }
+  list: () =>
+    GET('/list-pools')
 };
 
 export default { user, vm, template, pool }

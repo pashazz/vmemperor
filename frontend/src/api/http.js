@@ -1,6 +1,8 @@
+import 'whatwg-fetch';
+
 const status = function(response) {
   if (response.status >= 200 && response.status < 300) {
-      return response
+    return response
   }
   throw new Error(response.statusText)
 }
