@@ -363,7 +363,7 @@ def get_pool_info():
     return render_template("pool_info.html", pool_info=pool_info)
 
 
-@app.route('/pools', methods=['GET'])
+@app.route('/list-pools', methods=['GET'])
 @requires_auth
 def list_pools():
     pool_list = []

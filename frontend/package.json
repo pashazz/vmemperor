@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "babel-polyfill": "^6.9.1",
+    "form-serialize": "^0.7.1",
     "lodash": "^3.7.0",
     "react": "^0.13.2",
     "react-router": "^0.13.2",

@@ -63,7 +63,23 @@ const VMStore = Reflux.createStore({
   },
 
   onShutdownFailed(response) {
-    AlertActions.err("Error while shutting down VM:" + vm.name);
+    AlertActions.err("Error while shutting down VM");
+  },
+
+  // Creating VM
+  onCreate(params) {
+    this.status = 'PUSH';
+    AlertActions.log('Creating new VM');
+    this.trigger();
+  },
+
+  onCreateCompleted(response) {
+    AlertActions.suc('VM created');
+    VMActions.list();
+  },
+
+  onCreateFailed(response) {
+    AlertActions.err("Error while creating VM");
   }
 
 });

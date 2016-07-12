@@ -17,6 +17,7 @@ const TemplateStore = Reflux.createStore({
     return this.templates.length;
   },
 
+  // List Templates
   onList() {
     this.status = 'PULL';
     AlertActions.log('Getting Template list...');
@@ -24,7 +25,7 @@ const TemplateStore = Reflux.createStore({
   },
 
   onListCompleted(response) {
-    this.templates = response;
+    this.templates = response.map(data => new Template(data));
     this.status = 'READY';
     AlertActions.suc('Got Template list');
     this.trigger();
@@ -32,8 +33,41 @@ const TemplateStore = Reflux.createStore({
 
   onListFailed(response) {
     AlertActions.err("Error while getting Template list!");
-  }
+  },
 
+  // Enable template
+  onEnable() {
+    this.status = 'PUSH';
+    AlertActions.log('Enabling Template ...');
+    this.trigger();
+  },
+
+  onEnableCompleted(response) {
+    this.status = 'READY';
+    AlertActions.suc('Template enabled');
+    this.trigger();
+  },
+
+  onEnableFailed(response) {
+    AlertActions.err("Error while enabling Template!");
+  },
+
+  // Disable template
+  onDisable() {
+    this.status = 'PUSH';
+    AlertActions.log('Disabling Template ...');
+    this.trigger();
+  },
+
+  onDisableCompleted(response) {
+    this.status = 'READY';
+    AlertActions.suc('Template disabled');
+    this.trigger();
+  },
+
+  onDisableFailed(response) {
+    AlertActions.err("Error while disabling Template!");
+  }
 });
 
 export default TemplateStore;

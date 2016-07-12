@@ -5,6 +5,20 @@ import Reflux from 'reflux';
 import TemplateStore from '../flux/template-store';
 import TemplateActions from '../flux/template-actions';
 
+const handleEnable = (template) =>
+  (e) => {
+    console.log(template);
+    TemplateActions.enable(template)
+    e.preventDefault();
+  };
+
+const handleDisable = (template) =>
+  (e) => {
+    console.log(template);
+    TemplateActions.disable(template)
+    e.preventDefault();
+  };
+
 class TemplateInfo extends React.Component {
   constructor() {
     super();
@@ -35,8 +49,8 @@ class TemplateInfo extends React.Component {
           </select>
         </div>
         <div className="btn btn-group">
-          <button onClick={this.handleSubmit} value="enable" className="btn btn-sm btn-primary">Enable</button>
-          <button onClick={this.handleSubmit} value="disable" className="btn btn-sm btn-danger">Disable</button>
+          <button onClick={handleEnable(template)} value="enable" className="btn btn-sm btn-primary">Enable</button>
+          <button onClick={handleDisable(template)} value="disable" className="btn btn-sm btn-danger">Disable</button>
           <button onClick={this.handleSubmit} value="update" className="btn btn-sm btn-info">Update</button>
         </div>
       </form>
@@ -49,8 +63,8 @@ class TemplateInfo extends React.Component {
       <tr>
         <td>
           <blockquote>
-              <p>{template['endpoint']['description']}</p>
-              <footer>{template['endpoint']['url']}</footer>
+              <p>{template.endpoint_description}</p>
+              <footer>{template.endpoint_url}</footer>
           </blockquote>
           <td>
             <blockquote>
