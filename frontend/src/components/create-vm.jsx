@@ -24,12 +24,12 @@ class VMForm extends React.Component {
   handleSubmit(e) {
     e.preventDefault();
     VMActions.create(serialize(e.target, { hash: true }))
-      .then(this.props.close);
+      .then(this.props.close)
+      .then(_ => this.context.router.transitionTo('history'));
   }
 
   onPoolChange(e) {
     const selectedPool = this.props.pools.find(pool => pool.id === e.target.value);
-    console.log(selectedPool);
     this.setState({
       templates: selectedPool ? _.map(selectedPool.templates_enabled, (description, id) => ({id, description}) ) : []
     });
@@ -192,6 +192,10 @@ class VMForm extends React.Component {
   }
 }
 
+VMForm.contextTypes = {
+  router: React.PropTypes.func
+};
+
 class HostInfo extends React.Component {
   render() {
     const entry = this.props;
@@ -306,10 +310,12 @@ const CreateVM = React.createClass({
   render() {
     return (
       <div>
+        <p>
+          <button className="btn btn-lg btn-primary" onClick={this.showModal}>CreateVM</button>
+        </p>
         <div className="row">
           { this.state.pools.map((pool, idx) => <PoolInfo key={idx} {...pool} />) }
         </div>
-        <button className="btn btn-primary" onClick={this.showModal}>CreateVM</button>
         {this.renderModal()}
       </div>
     );

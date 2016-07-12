@@ -1,4 +1,6 @@
 import Reflux from 'reflux';
+import store from 'store';
+
 import VMActions from './vm-actions';
 import AlertActions from './alert-actions';
 import VM from './vm-model';
@@ -75,11 +77,11 @@ const VMStore = Reflux.createStore({
 
   onCreateCompleted(response) {
     AlertActions.suc('VM created');
-    VMActions.list();
+    store.set('vm-history', [...store.get('vm-history'), { [response.uuid]: {} }]);
   },
 
   onCreateFailed(response) {
-    AlertActions.err("Error while creating VM");
+    AlertActions.err("Error while creating VM: " + response.reason);
   }
 
 });
