@@ -286,9 +286,10 @@ def shutdown_vm():
 @app.route('/enable-template', methods=['POST'])
 @requires_auth
 def enable_template():
-    vm_uuid = request.form.get('vm_uuid')
-    endpoint_url = request.form.get('endpoint_url')
-    endpoint_description = request.form.get('endpoint_description')
+    form = request.form if request.form else json.loads(request.data)
+    vm_uuid = form.get('vm_uuid')
+    endpoint_url = form.get('endpoint_url')
+    endpoint_description = form.get('endpoint_description')
     if not vm_uuid or not endpoint_url or not endpoint_description:
         response = {'status': 'error', 'details': 'Syntax error in your query', 'reason': 'missing argument'}
         return jsonify(response), 406
@@ -312,9 +313,10 @@ def enable_template():
 @app.route('/disable-template', methods=['POST'])
 @requires_auth
 def disable_template():
-    vm_uuid = request.form.get('vm_uuid')
-    endpoint_url = request.form.get('endpoint_url')
-    endpoint_description = request.form.get('endpoint_description')
+    form = request.form if request.form else json.loads(request.data)
+    vm_uuid = form.get('vm_uuid')
+    endpoint_url = form.get('endpoint_url')
+    endpoint_description = form.get('endpoint_description')
     if not vm_uuid or not endpoint_url or not endpoint_description:
         response = jsonify({'status': 'error', 'details': 'Syntax error in your query', 'reason': 'missing argument'})
         response.status_code = 406
@@ -363,7 +365,7 @@ def get_pool_info():
     return render_template("pool_info.html", pool_info=pool_info)
 
 
-@app.route('/pools', methods=['GET'])
+@app.route('/list-pools', methods=['GET'])
 @requires_auth
 def list_pools():
     pool_list = []

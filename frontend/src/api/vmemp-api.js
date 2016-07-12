@@ -30,6 +30,9 @@ const vm = {
   list: () =>
     GET('/list-vms'),
 
+  status: (ids) =>
+    POST('/status-vm', {ids}),
+
   start: (vm) =>
     POST('/start-vm', {
       vm_uuid: vm.id,
@@ -42,12 +45,29 @@ const vm = {
       vm_uuid: vm.id,
       endpoint_url: vm.endpoint_url,
       endpoint_description: vm.endpoint_description
-    })
+    }),
+
+  create: (params) =>
+    POST('/create-vm', params)
 };
 
 const template = {
   list: () =>
-    GET('/list-templates')
+    GET('/list-templates'),
+
+  enable: (template) =>
+    POST('/enable-template', {
+      vm_uuid: template.id,
+      endpoint_url: template.endpoint_url,
+      endpoint_description: template.endpoint_description
+    }),
+
+  disable: (template) =>
+    POST('/disable-template', {
+      vm_uuid: template.id,
+      endpoint_url: template.endpoint_url,
+      endpoint_description: template.endpoint_description
+    })
 };
 
 const pool = {

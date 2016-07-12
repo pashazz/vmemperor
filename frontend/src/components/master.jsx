@@ -62,6 +62,7 @@ const Master = React.createClass({
               <NavElem to="vms">VMs {vmCounter}</NavElem>
               <NavElem to="templates">Templates {templateCounter}</NavElem>
               <NavElem to="create-vm">Create VM</NavElem>
+              <NavElem to="history">History</NavElem>
             </ul>
             <ul className="nav navbar-nav navbar-right">
               <li><a onClick={this._logout} href="#">Logout</a></li>

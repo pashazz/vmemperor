@@ -1,6 +1,7 @@
 import Reflux from 'reflux';
 import PoolActions from './pool-actions';
 import AlertActions from './alert-actions';
+import Pool from './pool-model';
 
 const tryParsing = function(text) {
   try {
@@ -17,8 +18,13 @@ const PoolStore = Reflux.createStore({
     this.pools = document && document.getElementById("pools-data") ? tryParsing(document.getElementById("pools-data").text) : [];
   },
 
+  onList() {
+    AlertActions.log('Getting Pool list...');
+  },
+
   onListCompleted(response) {
-    this.pools = response;
+    this.pools = response.map(pool => new Pool(pool));
+    AlertActions.suc('Got Pool list');
     this.trigger();
   },
 

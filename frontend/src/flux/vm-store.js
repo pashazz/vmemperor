@@ -1,4 +1,6 @@
 import Reflux from 'reflux';
+import store from 'store';
+
 import VMActions from './vm-actions';
 import AlertActions from './alert-actions';
 import VM from './vm-model';
@@ -63,7 +65,23 @@ const VMStore = Reflux.createStore({
   },
 
   onShutdownFailed(response) {
-    AlertActions.err("Error while shutting down VM:" + vm.name);
+    AlertActions.err("Error while shutting down VM");
+  },
+
+  // Creating VM
+  onCreate(params) {
+    this.status = 'PUSH';
+    AlertActions.log('Creating new VM');
+    this.trigger();
+  },
+
+  onCreateCompleted(response) {
+    AlertActions.suc('VM created');
+    store.set('vm-history', [...store.get('vm-history'), { [response.uuid]: {} }]);
+  },
+
+  onCreateFailed(response) {
+    AlertActions.err("Error while creating VM: " + response.reason);
   }
 
 });

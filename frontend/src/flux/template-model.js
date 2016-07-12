@@ -34,5 +34,8 @@
 // }
 
 export default function Template(object) {
-
+  Object.assign(this, object);
+  this.id = object['uuid'];
+  this.endpoint_url = object['endpoint']['url'];
+  this.endpoint_description = object['endpoint']['description'];
 };
