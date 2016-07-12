@@ -30,6 +30,9 @@ const vm = {
   list: () =>
     GET('/list-vms'),
 
+  status: (ids) =>
+    POST('/status-vm', {ids}),
+
   start: (vm) =>
     POST('/start-vm', {
       vm_uuid: vm.id,

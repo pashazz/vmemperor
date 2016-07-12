@@ -61,11 +61,5 @@
 // }
 
 export default function Pool(object) {
-  this.id = object['id'];
-  this.url = object['url'];
-  this.description = object['description'];
-
-  this.host_list = object['host_list'];
-
-  this.hdd_available = object['hdd_available']
+  Object.assign(this, object);
 }

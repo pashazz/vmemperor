@@ -1,3 +1,4 @@
+import _ from 'lodash';
 import React from 'react';
 import Reflux from 'reflux';
 import serialize from 'form-serialize';
@@ -13,6 +14,11 @@ class VMForm extends React.Component {
     super(props);
 
     this.handleSubmit = this.handleSubmit.bind(this);
+    this.onPoolChange = this.onPoolChange.bind(this);
+
+    this.state = {
+      templates: []
+    };
   }
 
   handleSubmit(e) {
@@ -21,12 +27,20 @@ class VMForm extends React.Component {
       .then(this.props.close);
   }
 
+  onPoolChange(e) {
+    const selectedPool = this.props.pools.find(pool => pool.id === e.target.value);
+    console.log(selectedPool);
+    this.setState({
+      templates: selectedPool ? _.map(selectedPool.templates_enabled, (description, id) => ({id, description}) ) : []
+    });
+  }
+
   render() {
     return (
       <form role="form" id="create-vm-form" ref="form" onSubmit={this.handleSubmit}>
         <div className="input-group">
           <span className="input-group-addon"><i className="icon-servers"></i></span>
-          <select className="form-control input" id="pool-select" name="pool-select">
+          <select className="form-control input" id="pool-select" name="pool-select" onChange={this.onPoolChange}>
               <option value="--">Select where to deploy instance</option>
               {this.props.pools.map((pool, idx) =>
                 <option key={idx} value={pool.id}>{pool.description}</option>)}
@@ -37,6 +51,8 @@ class VMForm extends React.Component {
           <span className="input-group-addon"><i className="icon-ubuntu"></i></span>
           <select className="form-control" id="template-select" name="template-select" enabled>
               <option value="--">Select OS template for your virtual machine</option>
+              {this.state.templates.map((template, idx) =>
+                <option key={idx} value={template.id}>{template.description}</option>)}
           </select>
         </div>
         <hr />
@@ -280,7 +296,9 @@ const CreateVM = React.createClass({
   renderModal() {
     return this.state.modalShow ?
       <Modal title="Virtual machine options" show lg close={this.hideModal}>
-        <VMForm pools={this.state.pools} close={this.hideModal} />
+        <VMForm
+          pools={this.state.pools}
+          close={this.hideModal} />
       </Modal> :
       null;
   },
