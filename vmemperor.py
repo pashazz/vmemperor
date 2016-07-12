@@ -371,6 +371,12 @@ def list_pools():
         pool_info = retrieve_pool_info(pool)
         pool_info.update(pool)
         pool_list.append(pool_info)
+        template_list = []
+        template_list.extend(item for item in retrieve_template_list(pool) if 'tags' in item and 'vmemperor' in item['tags'])
+        template_dict = {}
+        for item in template_list:
+            template_dict[item['uuid']] = item['name_label']
+        pool_info['templates_enabled'] = template_dict
     return json.dumps(pool_list)
 
 
