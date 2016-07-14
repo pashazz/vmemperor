@@ -4,6 +4,7 @@ import AlertActions from './alert-actions';
 import VMApi from '../api/vmemp-api';
 import Template from './template-model';
 
+
 const TemplateStore = Reflux.createStore({
 
   init() {
@@ -45,6 +46,7 @@ const TemplateStore = Reflux.createStore({
   onEnableCompleted(response) {
     this.status = 'READY';
     AlertActions.suc('Template enabled');
+    TemplateActions.list();
     this.trigger();
   },
 
@@ -56,6 +58,7 @@ const TemplateStore = Reflux.createStore({
   onDisable() {
     this.status = 'PUSH';
     AlertActions.log('Disabling Template ...');
+    TemplateActions.list();
     this.trigger();
   },
 

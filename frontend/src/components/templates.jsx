@@ -8,14 +8,14 @@ import TemplateActions from '../flux/template-actions';
 const handleEnable = (template) =>
   (e) => {
     console.log(template);
-    TemplateActions.enable(template)
+    TemplateActions.enable(template);
     e.preventDefault();
   };
 
 const handleDisable = (template) =>
   (e) => {
     console.log(template);
-    TemplateActions.disable(template)
+    TemplateActions.disable(template);
     e.preventDefault();
   };
 
@@ -32,8 +32,15 @@ class TemplateInfo extends React.Component {
   }
 
   renderActions(template) {
-    const urlValue = (template['tags']['install_repository'] === undefined) ? template['install_repository'] : template['default_mirror'];
+    const urlValue = (template['tags']['install_repository'] === undefined) ? template['default_mirror'] : template['tags']['install_repository'];
     const proxies = null;
+    const enabled = template['tags'].indexOf('vmemperor') >= 0;
+    var enableButton;
+    if (enabled) {
+        enableButton = <button onClick={handleDisable(template)} value="disable" className="btn btn-sm btn-danger">Disable</button>;
+    } else {
+        enableButton = <button onClick={handleEnable(template)} value="enable" className="btn btn-sm btn-primary">Enable</button>;
+    }
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -49,8 +56,7 @@ class TemplateInfo extends React.Component {
           </select>
         </div>
         <div className="btn btn-group">
-          <button onClick={handleEnable(template)} value="enable" className="btn btn-sm btn-primary">Enable</button>
-          <button onClick={handleDisable(template)} value="disable" className="btn btn-sm btn-danger">Disable</button>
+          {enableButton}
           <button onClick={this.handleSubmit} value="update" className="btn btn-sm btn-info">Update</button>
         </div>
       </form>
