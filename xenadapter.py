@@ -122,4 +122,3 @@ class XenAdapter:
             return {'status': 'error', 'details': 'Can not change VM power state', 'reason': e.details}, 409
         except Exception as e:
             return {'status': 'error', 'details': 'Can not change VM power state', 'reason': str(e)}, 500
-

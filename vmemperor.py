@@ -1,6 +1,6 @@
 from flask import Flask
 from flask import session as flask_session
-from flask import render_template, jsonify
+from flask import render_template, json, jsonify
 from flask import request
 
 from xenadapter import XenAdapter
