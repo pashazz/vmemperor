@@ -1,4 +1,6 @@
 import XenAPI
+import json
+import hooks
 
 
 class XenAdapter:
@@ -38,6 +40,7 @@ class XenAdapter:
             if not entry['is_control_domain'] and entry['is_a_template'] and not entry['is_a_snapshot']:
                 for field in ['uuid', 'name_label', 'name_description', 'allowed_operations', 'tags', 'other_config']:
                     entry[field] = record[field] if field in record and record[field] != 'OpaqueRef:NULL' else None
+                entry['other_config']['vmemperor_hooks'] = hooks.merge_with_dict(entry['other_config'].get('vmemperor_hooks'))
 
                 entry['endpoint'] = self.endpoint
                 if 'ubuntu' in record['name_label'].lower():
@@ -122,3 +125,15 @@ class XenAdapter:
             return {'status': 'error', 'details': 'Can not change VM power state', 'reason': e.details}, 409
         except Exception as e:
             return {'status': 'error', 'details': 'Can not change VM power state', 'reason': str(e)}, 500
+
+    def set_install_options(self, vm_uuid, hooks_dict, mirror):
+        vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+        internal_hooks = hooks.generate_other_config_entry(hooks_dict)
+        try:
+            self.api.VM.set_other_config(vm_ref, 'vmemperor_hooks', internal_hooks)
+            self.api.VM.set_other_config(vm_ref, 'default_mirror', mirror)
+            return {'status': 'success', 'details': 'Install options updated', 'reason': ''}, 200
+        except XenAPI.Failure as e:
+            return {'status': 'error', 'details': 'Can not set install options', 'reason': e.details}, 409
+        except Exception as e:
+            return {'status': 'error', 'details': 'Can not set install options', 'reason': str(e)}, 500

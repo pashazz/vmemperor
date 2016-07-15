@@ -122,6 +122,22 @@ def disable_template():
     return on_off_dispatcher(request, "disable-template")
 
 
+@app.route('/update-template', methods=['POST'])
+def update_template():
+    form = request.form if request.form else json.loads(request.data)
+    vm_uuid = form.get('vm_uuid')
+    endpoint_url = form.get('endpoint_url')
+    mirror = form.get('default_mirror')
+    hooks_dict = form.get('vmemperor_hooks')
+    endpoint = {'url': endpoint_url}
+    adapter = XenAdapter(endpoint, flask_session)
+    response_dict, response_status = adapter.set_install_options(vm_uuid, hooks_dict, mirror)
+    response = jsonify(response_dict)
+    response.status_code = response_status
+    return response
+
+
+
 @app.route('/logout', methods=['POST', 'GET'])
 def logout():
     flask_session.clear()
