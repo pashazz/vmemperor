@@ -130,8 +130,8 @@ class XenAdapter:
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
         internal_hooks = hooks.generate_other_config_entry(hooks_dict)
         try:
-            self.api.VM.set_other_config(vm_ref, 'vmemperor_hooks', internal_hooks)
-            self.api.VM.set_other_config(vm_ref, 'default_mirror', mirror)
+            self.api.VM.add_to_other_config(vm_ref, 'vmemperor_hooks', internal_hooks)
+            self.api.VM.add_to_other_config(vm_ref, 'default_mirror', mirror)
             return {'status': 'success', 'details': 'Install options updated', 'reason': ''}, 200
         except XenAPI.Failure as e:
             return {'status': 'error', 'details': 'Can not set install options', 'reason': e.details}, 409
