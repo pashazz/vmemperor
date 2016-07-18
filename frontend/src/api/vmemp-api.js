@@ -67,6 +67,15 @@ const template = {
       vm_uuid: template.id,
       endpoint_url: template.endpoint_url,
       endpoint_description: template.endpoint_description
+    }),
+
+  update: (template) =>
+    POST('/update-template', {
+      vm_uuid: template.id,
+      endpoint_url: template.endpoint_url,
+      endpoint_description: template.endpoint_description,
+      default_mirror: template.default_mirror,
+      vmemperor_hooks: template.other_config.vmemperor_hooks
     })
 };
 

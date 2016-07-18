@@ -2,38 +2,88 @@ import _ from 'lodash';
 import React from 'react';
 import Reflux from 'reflux';
 
+import Multiselect  from 'react-bootstrap-multiselect';
+
 import TemplateStore from '../flux/template-store';
 import TemplateActions from '../flux/template-actions';
 
+
+
 const handleEnable = (template) =>
   (e) => {
-    console.log(template);
     TemplateActions.enable(template);
     e.preventDefault();
   };
 
 const handleDisable = (template) =>
   (e) => {
-    console.log(template);
     TemplateActions.disable(template);
     e.preventDefault();
   };
+
+const Hooks = React.createClass({
+  handleChange: function(e, newValue) {
+
+    this.props.onChange(e[0].label, newValue);
+  },
+  render: function () {
+    return (
+      <Multiselect data={this.props.hooks} onChange={this.handleChange} multiple />
+    );
+  }
+});
+
+
+var MirrorUrl = React.createClass({
+  getInitialState: function() {
+    return { value: this.props.defaultValue };
+  },
+  handleChange: function(event) {
+    this.setState({value: event.target.value});
+    this.props.onChange(event.target.value);
+  },
+  render: function() {
+    return (
+      <input
+        type="text"
+        className="form-control"
+        value={this.state.value}
+        onChange={this.handleChange}
+      />
+    );
+  }
+});
+
+
 
 class TemplateInfo extends React.Component {
   constructor() {
     super();
     this.handleSubmit = this.handleSubmit.bind(this);
     this.renderActions = this.renderActions.bind(this);
+    this.handleUpdateHooks = this.handleUpdateHooks.bind(this);
+    this.onMirrorUrlChange = this.onMirrorUrlChange.bind(this);
   }
 
-  handleSubmit(e) {
-    console.log(e.target.value);
+  handleSubmit(e, template) {
+    if (this.state.mirrorUrl) {
+      template['default_mirror'] = this.state.mirrorUrl;
+    }
+    TemplateActions.update(template);
     e.preventDefault();
   }
 
+  handleUpdateHooks(key, value, template) {
+    template.other_config.vmemperor_hooks[key] = value;
+  }
+
+  onMirrorUrlChange(url) {
+    this.setState({mirrorUrl: url});
+  }
+
   renderActions(template) {
-    const urlValue = (template['tags']['install_repository'] === undefined) ? template['default_mirror'] : template['tags']['install_repository'];
-    const proxies = null;
+    const urlValue = (template['other_config']['install_repository'] === undefined) ? template['other_config']['default_mirror'] : template['other_config']['install_repository'];
+    const hooks = Object.keys(template.other_config.vmemperor_hooks).map((key, value) => ({value: key, selected: value }));
     const enabled = template['tags'].indexOf('vmemperor') >= 0;
     var enableButton;
     if (enabled) {
@@ -46,18 +96,15 @@ class TemplateInfo extends React.Component {
       <form onSubmit={this.handleSubmit}>
         <div className="form-group">
           <label>Select installation mirror.</label>
-          <input type="url" className="form-control" value={ urlValue } />
+          <MirrorUrl defaultValue={ urlValue } onChange={(mirrorUrlValue) => this.onMirrorUrlChange(mirrorUrlValue, urlValue) } />
         </div>
         <div className="form-group">
           <label>Select reverse-proxy config style</label>
-          <select className="form-control proxy-select">
-            <option value={ null }>{"I don't need it at all"}</option>
-            {proxies}
-          </select>
+          <Hooks hooks={hooks} onChange={(key, value) => this.handleUpdateHooks(key, value, template) } />
         </div>
         <div className="btn btn-group">
           {enableButton}
-          <button onClick={this.handleSubmit} value="update" className="btn btn-sm btn-info">Update</button>
+          <button onClick={(e) => this.handleSubmit(e, template)} value="update" className="btn btn-sm btn-info">Update</button>
         </div>
       </form>
     );
@@ -148,5 +195,9 @@ const Templates = React.createClass({
     );
   }
 });
+
+
+
+
 
 export default Templates;
