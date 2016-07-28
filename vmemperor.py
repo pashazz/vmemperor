@@ -68,7 +68,7 @@ def list_pools():
         adapter = XenAdapter(endpoint, flask_session)
         pool_info = adapter.retrieve_pool_info()
         pool_info.update(endpoint)
-        pool_info['templates_enabled'] = {item['uuid']: item['name_label'] for item in adapter.get_template_list() if 'tags' in item and 'vmemperor' in item['tags']}
+        pool_info['templates_enabled'] = [item for item in adapter.get_template_list() if 'tags' in item and 'vmemperor' in item['tags']]
         pool_list.append(pool_info)
 
     return jsonify(pool_list)

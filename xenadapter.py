@@ -41,7 +41,7 @@ class XenAdapter:
                 for field in ['uuid', 'name_label', 'name_description', 'allowed_operations', 'tags', 'other_config']:
                     entry[field] = record[field] if field in record and record[field] != 'OpaqueRef:NULL' else None
                 entry['other_config']['vmemperor_hooks'] = hooks.merge_with_dict(entry['other_config'].get('vmemperor_hooks'))
-
+                entry['other_config']['vmemperor_hooks_meta'] = hooks.get_hooks_with_manifest(entry['other_config']['vmemperor_hooks'])
                 entry['endpoint'] = self.endpoint
                 if 'ubuntu' in record['name_label'].lower():
                     entry['default_mirror'] = 'http://mirror.yandex.ru/ubuntu/'
