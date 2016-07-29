@@ -9,6 +9,7 @@ import VMActions from '../flux/vm-actions';
 import PoolActions from '../flux/pool-actions';
 import PoolStore from '../flux/pool-store';
 
+var Switch = require('react-bootstrap-switch');
 
 class VMHookOptions extends React.Component {
   constructor(props) {
@@ -34,14 +35,25 @@ class VMHookOptions extends React.Component {
 class VMHook extends React.Component {
   constructor(props) {
     super(props);
+
+    this.onEnabledChange = this.onEnabledChange.bind(this);
+
+    this.state ={
+      enabled: true
+    }
+  }
+
+  onEnabledChange(e) {
+    this.setState({enabled: e});
   }
 
   render() {
     return (
       <div>
-        <h4><input type="checkbox" name={this.props.hookName} value="true" defaultChecked/>{this.props.hook.header}</h4>
+        <input type="hidden" name={this.props.hookName} value={this.state.enabled} />
+        <h4>{this.props.hook.header}<Switch onChange={this.onEnabledChange}/></h4>
         <h5>{this.props.hook.help}</h5>
-        <VMHookOptions options={this.props.hook.options}/>
+        { this.state.enabled ? <VMHookOptions options={this.props.hook.options}/> : null }
       </div>
     );
   }
