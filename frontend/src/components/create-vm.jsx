@@ -10,6 +10,7 @@ import PoolActions from '../flux/pool-actions';
 import PoolStore from '../flux/pool-store';
 
 var Switch = require('react-bootstrap-switch');
+var Validator = require('validator');
 
 class VMHookOptions extends React.Component {
   constructor(props) {
@@ -120,7 +121,7 @@ class VMForm extends React.Component {
 
   render() {
     return (
-      <form role="form" id="create-vm-form" ref="form" onSubmit={this.handleSubmit}>
+      <form role="form" id="create-vm-form" ref="form" data-toggle="validator" onSubmit={this.handleSubmit}>
         <div className="input-group">
           <span className="input-group-addon"><i className="icon-servers"></i></span>
           <select className="form-control input" id="pool-select" name="pool-select" onChange={this.onPoolChange}>
@@ -179,6 +180,7 @@ class VMForm extends React.Component {
           <input type="password"
                  className="form-control input"
                  placeholder="Choose password for your VM"
+                 data-minlength="6"
                  id="password"
                  name="password"
                  required="true"
@@ -190,7 +192,9 @@ class VMForm extends React.Component {
                  id="password2"
                  name="password2"
                  required="true"
+                 data-match="#password" data-match-error="Whoops, these don't match"
                  enabled/>
+                 <div class="help-block with-errors"></div>
         </div>
         <br />
         <div className="input-group">

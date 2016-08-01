@@ -17,8 +17,10 @@
     "reflux": "^0.2.7",
     "store": "^1.3.20",
     "whatwg-fetch": "^1.0.0",
+    "bootstrap": "3.3.6",
     "react-bootstrap-multiselect": "0.6.0",
-    "react-bootstrap-switch": "3.3.3"
+    "react-bootstrap-switch": "3.3.3",
+    "bootstrap-validator": "0.11.5"
   },
   "devDependencies": {
     "babel": "^5.1.11",
