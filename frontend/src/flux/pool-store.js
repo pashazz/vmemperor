@@ -15,7 +15,7 @@ const PoolStore = Reflux.createStore({
   init() {
     this.listenToMany(PoolActions);
 
-    this.pools = document && document.getElementById("pools-data") ? tryParsing(document.getElementById("pools-data").text) : [];
+    this.pools = document && document.getElementById('pools-data') ? tryParsing(document.getElementById('pools-data').text) : [];
   },
 
   onList() {
@@ -29,7 +29,7 @@ const PoolStore = Reflux.createStore({
   },
 
   onListFailed(response) {
-    AlertActions.err("Coudn't get pools list");
+    AlertActions.err('Coudn\'t get pools list');
   },
 
   getData() {

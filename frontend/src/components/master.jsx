@@ -81,10 +81,10 @@ const Master = React.createClass({
 
   _logout(e) {
     e.preventDefault();
-    if (confirm("Are you sure you want to log out?")) {
+    if (confirm('Are you sure you want to log out?')) {
       SessionActions.logout();
     } else {
-      AlertActions.err("You were NOT logged out");
+      AlertActions.err('You were NOT logged out');
     }
   }
 });

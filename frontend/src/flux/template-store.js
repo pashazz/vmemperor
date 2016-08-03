@@ -1,7 +1,6 @@
 import Reflux from 'reflux';
 import TemplateActions from './template-actions';
 import AlertActions from './alert-actions';
-import VMApi from '../api/vmemp-api';
 import Template from './template-model';
 
 
@@ -33,43 +32,58 @@ const TemplateStore = Reflux.createStore({
   },
 
   onListFailed(response) {
-    AlertActions.err("Error while getting Template list!");
+    AlertActions.err('Error while getting Template list!');
+  },
+
+  // Update template
+  onUpdate() {
+    this.status = 'PUSH';
+    AlertActions.log('Updating Template ...');
+  },
+
+  onUpdateCompleted(response) {
+    this.status = 'READY';
+    AlertActions.suc('Template updated');
+    TemplateActions.list();
+  },
+
+  onUpdateFailed(response) {
+    AlertActions.err('Error while updating Template!');
+    TemplateActions.list();
   },
 
   // Enable template
   onEnable() {
     this.status = 'PUSH';
     AlertActions.log('Enabling Template ...');
-    this.trigger();
   },
 
   onEnableCompleted(response) {
     this.status = 'READY';
     AlertActions.suc('Template enabled');
     TemplateActions.list();
-    this.trigger();
   },
 
   onEnableFailed(response) {
-    AlertActions.err("Error while enabling Template!");
+    AlertActions.err('Error while enabling Template!');
+    TemplateActions.list();
   },
 
   // Disable template
   onDisable() {
     this.status = 'PUSH';
     AlertActions.log('Disabling Template ...');
-    TemplateActions.list();
-    this.trigger();
   },
 
   onDisableCompleted(response) {
     this.status = 'READY';
     AlertActions.suc('Template disabled');
-    this.trigger();
+    TemplateActions.list();
   },
 
   onDisableFailed(response) {
-    AlertActions.err("Error while disabling Template!");
+    AlertActions.err('Error while disabling Template!');
+    TemplateActions.list();
   }
 });
 

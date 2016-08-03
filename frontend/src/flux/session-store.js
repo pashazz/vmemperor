@@ -17,7 +17,7 @@ const SessionStore = Reflux.createStore({
   },
 
   onLogoutFailed(response) {
-    AlertActions.err("Coudn't logout");
+    AlertActions.err('Coudn\'t logout');
   },
 
   onAuthCompleted(response) {
@@ -26,7 +26,7 @@ const SessionStore = Reflux.createStore({
   },
 
   onAuthFailed(response) {
-    AlertActions.err("Coudn't login");
+    AlertActions.err('Coudn\'t login');
   },
 
   getData() {

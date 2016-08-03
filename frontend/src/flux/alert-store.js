@@ -19,10 +19,10 @@ const AlertStore = Reflux.createStore({
     });
     if(this.alerts.length > 5) {
       this.alerts.shift();
-    };
+    }
     if(this.alerts.length !== lengthBefore) {
       this.trigger();
-    };
+    }
   },
 
   onSuc(message) {
