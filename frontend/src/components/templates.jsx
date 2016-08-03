@@ -7,8 +7,6 @@ import Multiselect  from 'react-bootstrap-multiselect';
 import TemplateStore from '../flux/template-store';
 import TemplateActions from '../flux/template-actions';
 
-
-
 const handleEnable = (template) =>
   (e) => {
     TemplateActions.enable(template);
@@ -21,97 +19,88 @@ const handleDisable = (template) =>
     e.preventDefault();
   };
 
-const Hooks = React.createClass({
-  handleChange: function(e, newValue) {
-
-    this.props.onChange(e[0].label, newValue);
-  },
-  render: function () {
-    return (
-      <Multiselect data={this.props.hooks} onChange={this.handleChange} multiple />
-    );
-  }
-});
-
-
-var MirrorUrl = React.createClass({
-  getInitialState: function() {
-    return { value: this.props.defaultValue };
-  },
-  handleChange: function(event) {
-    this.setState({value: event.target.value});
-    this.props.onChange(event.target.value);
-  },
-  render: function() {
-    return (
-      <input
-        type="text"
-        className="form-control"
-        value={this.state.value}
-        onChange={this.handleChange}
-      />
-    );
-  }
-});
-
-
-
 class TemplateInfo extends React.Component {
-  constructor() {
-    super();
+  constructor(props) {
+    super(props);
+
     this.handleSubmit = this.handleSubmit.bind(this);
+    this.renderOptions = this.renderOptions.bind(this);
     this.renderActions = this.renderActions.bind(this);
     this.handleUpdateHooks = this.handleUpdateHooks.bind(this);
     this.onMirrorUrlChange = this.onMirrorUrlChange.bind(this);
+
+    this.state = this.getStateFromProps(props)
   }
 
-  handleSubmit(e, template) {
-    if (this.state.mirrorUrl) {
-      template['default_mirror'] = this.state.mirrorUrl;
-    }
-    TemplateActions.update(template);
+  getStateFromProps(props) {
+    const { install_repository, vmemperor_hooks, default_mirror } = props.template.other_config;
+
+    return {
+      mirrorUrl: install_repository ? install_repository : default_mirror,
+      hooks: vmemperor_hooks
+    };
+  }
+
+  componentWillReceiveProps(newProps) {
+    this.setState(this.getStateFromProps(newProps));
+  }
+
+  handleSubmit(e) {
+    TemplateActions.update({
+      ...this.props.template,
+      default_mirror: this.state.mirrorUrl,
+      vmemperor_hooks: this.state.hooks
+    });
     e.preventDefault();
   }
 
-  handleUpdateHooks(key, value, template) {
-    template.other_config.vmemperor_hooks[key] = value;
+  handleUpdateHooks(option, isSelected) {
+    this.setState({
+      hooks: { [option[0].value]: isSelected }
+    });
   }
 
-  onMirrorUrlChange(url) {
-    this.setState({mirrorUrl: url});
+  onMirrorUrlChange(e) {
+    this.setState({mirrorUrl: e.target.value});
   }
 
-  renderActions(template) {
-    const urlValue = (template['other_config']['install_repository'] === undefined) ? template['other_config']['default_mirror'] : template['other_config']['install_repository'];
-    const hooks = Object.keys(template.other_config.vmemperor_hooks).map((key, value) => ({value: key, selected: value }));
-    const enabled = template['tags'].indexOf('vmemperor') >= 0;
-    var enableButton;
-    if (enabled) {
-        enableButton = <button onClick={handleDisable(template)} value="disable" className="btn btn-sm btn-danger">Disable</button>;
-    } else {
-        enableButton = <button onClick={handleEnable(template)} value="enable" className="btn btn-sm btn-primary">Enable</button>;
-    }
+  renderOptions() {
+    const preparedData = _.map(this.state.hooks, (selected, name) => ({value: name, selected: selected}));
 
     return (
       <form onSubmit={this.handleSubmit}>
         <div className="form-group">
           <label>Select installation mirror.</label>
-          <MirrorUrl defaultValue={ urlValue } onChange={(mirrorUrlValue) => this.onMirrorUrlChange(mirrorUrlValue, urlValue) } />
+          <input
+            type="text"
+            className="form-control"
+            value={this.state.mirrorUrl}
+            onChange={this.onMirrorUrlChange} />
         </div>
         <div className="form-group">
-          <label>Select reverse-proxy config style</label>
-          <Hooks hooks={hooks} onChange={(key, value) => this.handleUpdateHooks(key, value, template) } />
+          <Multiselect
+            className="form-control"
+            buttonText={options => `Hooks (${options.length} Selected)`}
+            data={preparedData}
+            onChange={this.handleUpdateHooks}
+            multiple />
+          <input type="submit" value="update" className="btn btn-info" />
         </div>
-        <div className="btn btn-group">
-          {enableButton}
-          <button onClick={(e) => this.handleSubmit(e, template)} value="update" className="btn btn-sm btn-info">Update</button>
-        </div>
+
       </form>
     );
   }
 
+  renderActions() {
+    const { template } = this.props;
+
+    return template.tags.indexOf('vmemperor') >= 0 ?
+      <button onClick={handleDisable(template)} value="disable" className="btn btn-danger">Disable</button> :
+      <button onClick={handleEnable(template)} value="enable" className="btn btn-primary">Enable</button>;
+  }
+
   render() {
-    const template = this.props.template;
+    const { template } = this.props;
     return (
       <tr>
         <td>
@@ -121,22 +110,25 @@ class TemplateInfo extends React.Component {
           </blockquote>
           <td>
             <blockquote>
-                <p className="lead">{ template['name_label'] }</p>
-                <footer>{ template['name_description'] }</footer>
+                <p className="lead">{ template.name_label }</p>
+                <footer>{ template.name_description }</footer>
             </blockquote>
           </td>
           <td>
-            {this.renderActions(template)}
+            {this.renderOptions()}
+          </td>
+          <td style={{verticalAlign: 'middle'}}>
+            {this.renderActions()}
           </td>
         </td>
       </tr>
     );
   }
-};
+}
 
 class TemplateTable extends React.Component {
   render() {
-    var templates = this.props.templates.map((template, id) => {
+    const templates = this.props.templates.map((template, id) => {
       return <TemplateInfo key={id} template={template} />;
     });
 
@@ -146,8 +138,9 @@ class TemplateTable extends React.Component {
           <thead>
             <tr>
               <th className="col-sm-2">Location</th>
-              <th className="col-sm-6">Template name</th>
+              <th className="col-sm-5">Template name</th>
               <th className="col-sm-4">Tags</th>
+              <th className="col-sm-1">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -157,7 +150,7 @@ class TemplateTable extends React.Component {
       </div>
     );
   }
-};
+}
 
 const Templates = React.createClass({
   mixins: [Reflux.ListenerMixin],
@@ -195,9 +188,6 @@ const Templates = React.createClass({
     );
   }
 });
-
-
-
 
 
 export default Templates;

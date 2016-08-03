@@ -30,7 +30,7 @@ class Modal extends React.Component {
     if(!this.state.show) {
       return null;
     }
-    const modalSizeClass = this.props.lg ? "modal-dialog modal-lg" : "modal-dialog";
+    const modalSizeClass = this.props.lg ? 'modal-dialog modal-lg' : 'modal-dialog';
 
     return (
       <div className='modal fade in' role="dialog" aria-hidden="false" style={{ display: 'block' }}>
@@ -49,6 +49,6 @@ class Modal extends React.Component {
       </div>
     );
   }
-};
+}
 
 export default Modal;

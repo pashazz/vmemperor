@@ -9,20 +9,17 @@ import VMActions from '../flux/vm-actions';
 import PoolActions from '../flux/pool-actions';
 import PoolStore from '../flux/pool-store';
 
-var Switch = require('react-bootstrap-switch');
+import Switch from 'react-bootstrap-switch';
 
 class VMHookOptions extends React.Component {
-  constructor(props) {
-    super(props);
-  }
-
   render() {
-    return (<div>
+    return (
+      <div>
         {this.props.options.map((option, idx) => <div key={idx}>
-            <label class="control-label" for={option.field}>{option.legend}</label>
+            <label className="control-label" htmlFor={option.field}>{option.legend}</label>
             <div className="input-group">
               <span className="input-group-addon"><i className="icon-network"></i></span>
-              <input type="number" pattern="\d*" className="form-control" id={option.field} name={option.field} min="9"
+              <input type="number" pattern="\d*" className="form-control" id={option.field} name={`${this.props.name}[${option.field}]`} min="9"
                      defaultValue={option.default_value} enabled/>
             </div>
           </div>
@@ -50,10 +47,10 @@ class VMHook extends React.Component {
   render() {
     return (
       <div>
-        <input type="hidden" name={this.props.hookName} value={this.state.enabled} />
+        <input type="hidden" name={`${this.props.hookName}[enabled]`} value={this.state.enabled} />
         <h4>{this.props.hook.header}<Switch onChange={this.onEnabledChange}/></h4>
         <h5>{this.props.hook.help}</h5>
-        { this.state.enabled ? <VMHookOptions options={this.props.hook.options}/> : null }
+        { this.state.enabled ? <VMHookOptions {...this.props.hook} name={this.props.hookName} /> : null }
       </div>
     );
   }
@@ -69,8 +66,8 @@ class VMForm extends React.Component {
     this.onTemplateChange = this.onTemplateChange.bind(this);
 
     this.state = {
-      templates: [],
-      hooks: []
+      selectedPool: null,
+      selectedTemplate: null
     };
   }
 
@@ -78,43 +75,41 @@ class VMForm extends React.Component {
     e.preventDefault();
     VMActions.create(serialize(e.target, {hash: true}))
       .then(this.props.close)
-      .then(_ => this.context.router.transitionTo('history'));
+      .then(() => this.context.router.transitionTo('history'));
+  }
+
+  getTemplates({selectedPool = null}) {
+    return selectedPool ?
+      selectedPool.templates_enabled.map(template => ({
+        id: template.uuid,
+        description: template.name_label
+      })) : [];
+  }
+
+  getHooks({selectedTemplate = null}) {
+    return selectedTemplate ?
+      _.map(selectedTemplate.other_config.vmemperor_hooks_meta, (hook, hookName) => ({
+          hookName: hookName,
+          hook: hook,
+          enabled: !!selectedTemplate.other_config.vmemperor_hooks[hookName]
+        }))
+        .filter(hook => hook.enabled)
+      : [];
   }
 
   onPoolChange(e) {
-    const selectedPool = this.props.pools.find(pool => pool.id === e.target.value);
     this.setState({
-      selectedPoolId: selectedPool.id,
-      templates: selectedPool ? _.map(selectedPool.templates_enabled, (template) => ({
-        id: template.uuid,
-        description: template.name_label
-      })) : []
+      selectedPool: this.props.pools.find(pool => pool.id === e.target.value),
+      selectedTemplate: null
     });
   }
 
   onTemplateChange(e) {
-    if (this.state.selectedPoolId) {
-      const selectedPool = this.props.pools.find(pool => pool.id === this.state.selectedPoolId);
-      const selectedTemplate = selectedPool.templates_enabled.find(template => template.uuid === e.target.value);
-
-      const hooks = _.map(selectedTemplate.other_config.vmemperor_hooks_meta, (hook, hookName) => {
-        const hookEnabled = !!selectedTemplate.other_config.vmemperor_hooks[hookName];
-        return {
-          hookName: hookName,
-          hook: hook,
-          enabled: hookEnabled
-        };
+    const selectedPool = this.state.selectedPool;
+    if(selectedPool) {
+      this.setState({
+        selectedTemplate: selectedPool.templates_enabled.find(template => template.uuid === e.target.value)
       });
-
-      if (selectedTemplate) {
-        this.setState({
-          hooks: _.filter(hooks, hook => hook.enabled)
-        });
-      } else {
-        this.setState({
-          hooks: []
-        });
-      }
     }
   }
 
@@ -125,8 +120,8 @@ class VMForm extends React.Component {
           <span className="input-group-addon"><i className="icon-servers"></i></span>
           <select className="form-control input" id="pool-select" name="pool-select" onChange={this.onPoolChange}>
             <option value="--">Select where to deploy instance</option>
-            {this.props.pools.map((pool, idx) =>
-              <option key={idx} value={pool.id}>{pool.description}</option>)}
+            {this.props.pools.map(pool =>
+              <option key={pool.id} value={pool.id}>{pool.description}</option>)}
           </select>
         </div>
         <br />
@@ -135,8 +130,8 @@ class VMForm extends React.Component {
           <select className="form-control" id="template-select" name="template-select" enabled
                   onChange={this.onTemplateChange}>
             <option value="--">Select OS template for your virtual machine</option>
-            {this.state.templates.map((template, idx) =>
-              <option key={idx} value={template.id}>{template.description}</option>)}
+            {this.getTemplates(this.state).map(template =>
+              <option key={template.id} value={template.id}>{template.description}</option>)}
           </select>
         </div>
         <hr />
@@ -193,7 +188,7 @@ class VMForm extends React.Component {
                  required="true"
                  data-match="#password" data-match-error="Whoops, these don't match"
                  enabled/>
-                 <div class="help-block with-errors"></div>
+                 <div className="help-block with-errors"></div>
         </div>
         <br />
         <div className="input-group">
@@ -243,10 +238,8 @@ class VMForm extends React.Component {
         <br />
         <br />
 
-        { this.state.hooks.map((e, idx) => {
-          return <VMHook key={idx} hook={e.hook} hookName={e.hookName}/>
-        })
-        }
+        { this.getHooks(this.state).map((e, idx) =>
+          <VMHook key={idx} hook={e.hook} hookName={e.hookName}/>)}
 
         <br />
 

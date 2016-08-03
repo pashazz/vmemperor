@@ -33,7 +33,7 @@ const VMStore = Reflux.createStore({
   },
 
   onListFailed(response) {
-    AlertActions.err("Error while getting VM list!");
+    AlertActions.err('Error while getting VM list!');
   },
 
   // Starting VM
@@ -49,7 +49,7 @@ const VMStore = Reflux.createStore({
   },
 
   onStartFailed(response) {
-    AlertActions.err("Error while starting VM");
+    AlertActions.err('Error while starting VM');
   },
 
   // Shutting down VM
@@ -65,7 +65,7 @@ const VMStore = Reflux.createStore({
   },
 
   onShutdownFailed(response) {
-    AlertActions.err("Error while shutting down VM");
+    AlertActions.err('Error while shutting down VM');
   },
 
   // Creating VM
@@ -81,7 +81,7 @@ const VMStore = Reflux.createStore({
   },
 
   onCreateFailed(response) {
-    AlertActions.err("Error while creating VM: " + response.reason);
+    AlertActions.err('Error while creating VM: ' + response.reason);
   }
 
 });
