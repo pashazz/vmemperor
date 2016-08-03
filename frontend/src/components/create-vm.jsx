@@ -10,7 +10,6 @@ import PoolActions from '../flux/pool-actions';
 import PoolStore from '../flux/pool-store';
 
 var Switch = require('react-bootstrap-switch');
-var Validator = require('validator');
 
 class VMHookOptions extends React.Component {
   constructor(props) {
