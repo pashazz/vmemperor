@@ -81,7 +81,8 @@ const VMStore = Reflux.createStore({
   },
 
   onCreateFailed(response) {
-    AlertActions.err('Error while creating VM: ' + response.reason);
+    response.json()
+      .then(data => AlertActions.err('Error while creating VM: ' + data.details));
   }
 
 });

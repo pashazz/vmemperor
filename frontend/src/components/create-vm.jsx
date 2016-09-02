@@ -19,7 +19,7 @@ class VMHookOptions extends React.Component {
             <label className="control-label" htmlFor={option.field}>{option.legend}</label>
             <div className="input-group">
               <span className="input-group-addon"><i className="icon-network"></i></span>
-              <input type="number" pattern="\d*" className="form-control" id={option.field} name={`${this.props.name}[${option.field}]`} min="9"
+              <input type="text" className="form-control" id={option.field} name={`hooks[${this.props.name}][${option.field}]`}
                      defaultValue={option.default_value} enabled/>
             </div>
           </div>
@@ -36,7 +36,7 @@ class VMHook extends React.Component {
     this.onEnabledChange = this.onEnabledChange.bind(this);
 
     this.state ={
-      enabled: true
+      enabled: false
     }
   }
 
@@ -47,8 +47,8 @@ class VMHook extends React.Component {
   render() {
     return (
       <div>
-        <input type="hidden" name={`${this.props.hookName}[enabled]`} value={this.state.enabled} />
-        <h4>{this.props.hook.header}<Switch onChange={this.onEnabledChange}/></h4>
+        <input type="hidden" name={`hooks[${this.props.hookName}][enabled]`} value={this.state.enabled} />
+        <h4>{this.props.hook.header}<Switch onChange={this.onEnabledChange} state={this.state.enabled}/></h4>
         <h5>{this.props.hook.help}</h5>
         { this.state.enabled ? <VMHookOptions {...this.props.hook} name={this.props.hookName} /> : null }
       </div>

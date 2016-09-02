@@ -2,9 +2,12 @@ import 'whatwg-fetch';
 
 const status = function(response) {
   if (response.status >= 200 && response.status < 300) {
-    return response
+    return response;
+  } else {
+      var error = new Error(response.statusText);
+      error.response = response;
+      throw response;
   }
-  throw new Error(response.statusText)
 }
 
 const json = function(response) {
