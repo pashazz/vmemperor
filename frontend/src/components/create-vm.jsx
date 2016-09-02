@@ -7,6 +7,7 @@ import Modal from './modal.jsx';
 
 import VMActions from '../flux/vm-actions';
 import PoolActions from '../flux/pool-actions';
+import AlertActions from '../flux/alert-actions';
 import PoolStore from '../flux/pool-store';
 
 import Switch from 'react-bootstrap-switch';
@@ -18,7 +19,7 @@ class VMHookOptions extends React.Component {
         {this.props.options.map((option, idx) => <div key={idx}>
             <label className="control-label" htmlFor={option.field}>{option.legend}</label>
             <div className="input-group">
-              <span className="input-group-addon"><i className="icon-network"></i></span>
+              <span className="input-group-addon"><i className="icon-cog"></i></span>
               <input type="text" className="form-control" id={option.field} name={`hooks[${this.props.name}][${option.field}]`}
                      defaultValue={option.default_value} enabled/>
             </div>
@@ -48,8 +49,8 @@ class VMHook extends React.Component {
     return (
       <div>
         <input type="hidden" name={`hooks[${this.props.hookName}][enabled]`} value={this.state.enabled} />
-        <h4>{this.props.hook.header}<Switch onChange={this.onEnabledChange} state={this.state.enabled}/></h4>
-        <h5>{this.props.hook.help}</h5>
+        <h5>{this.props.hook.header} <Switch onChange={this.onEnabledChange} state={this.state.enabled}/></h5>
+        <h6>{this.props.hook.help}</h6>
         { this.state.enabled ? <VMHookOptions {...this.props.hook} name={this.props.hookName} /> : null }
       </div>
     );
@@ -73,9 +74,15 @@ class VMForm extends React.Component {
 
   handleSubmit(e) {
     e.preventDefault();
-    VMActions.create(serialize(e.target, {hash: true}))
-      .then(this.props.close)
-      .then(() => this.context.router.transitionTo('history'));
+    var req = serialize(e.target, {hash: true});
+    if (req["storage-select"] === "--") {
+      AlertActions.err('123123');
+    } else {
+      VMActions.create(req)
+          .then(this.props.close)
+          .then(() => this.context.router.transitionTo('history'));
+    }
+
   }
 
   getTemplates({selectedPool = null}) {
@@ -84,6 +91,22 @@ class VMForm extends React.Component {
         id: template.uuid,
         description: template.name_label
       })) : [];
+  }
+
+  getStorageResources({selectedPool = null}) {
+    return selectedPool ?
+        selectedPool.storage_resources.map(storage => ({
+          id: storage.uuid,
+          description: storage.name_label
+        })) : [];
+  }
+
+  getNetworks({selectedPool = null}) {
+    return selectedPool ?
+        selectedPool.networks.map(network => ({
+          id: network.uuid,
+          description: network.name_label
+        })) : [];
   }
 
   getHooks({selectedTemplate = null}) {
@@ -116,6 +139,7 @@ class VMForm extends React.Component {
   render() {
     return (
       <form role="form" id="create-vm-form" ref="form" data-toggle="validator" onSubmit={this.handleSubmit}>
+        <h4>Infrastructure settings</h4>
         <div className="input-group">
           <span className="input-group-addon"><i className="icon-servers"></i></span>
           <select className="form-control input" id="pool-select" name="pool-select" onChange={this.onPoolChange}>
@@ -133,8 +157,35 @@ class VMForm extends React.Component {
             {this.getTemplates(this.state).map(template =>
               <option key={template.id} value={template.id}>{template.description}</option>)}
           </select>
+
         </div>
+        <br />
+        {
+            this.state.selectedPool ?
+                <div className="input-group">
+                  <span className="input-group-addon"><i className="icon-database"></i></span>
+                  <select required className="form-control" id="storage-select" name="storage-select" enabled>
+                    <option value="--">Select storage backend for your virtual machine</option>
+                    {this.getStorageResources(this.state).map(storage =>
+                        <option key={storage.id} value={storage.id}>{storage.description}</option>)}
+                  </select>
+                </div> : null
+        }
+        <br />
+        {
+          this.state.selectedPool ?
+              <div className="input-group">
+                <span className="input-group-addon"><i className="icon-network"></i></span>
+                <select required className="form-control" id="network-select" name="network-select" enabled>
+                  <option value="--">Select physical network for your virtual machine</option>
+                  {this.getNetworks(this.state).map(network =>
+                      <option key={network.id} value={network.id}>{network.description}</option>)}
+                </select>
+              </div> : null
+        }
+
         <hr />
+        <h4>Account settings</h4>
         <div className="input-group">
           <span className="input-group-addon"><i className="icon-address"></i></span>
           <input type="text"
@@ -203,6 +254,7 @@ class VMForm extends React.Component {
             style={{resize: 'vertical'}}
             enabled/>
         </div>
+        <hr />
         <br />
         <h4>Resources settings</h4>
         <div className="row">
@@ -235,8 +287,9 @@ class VMForm extends React.Component {
           </div>
         </div>
 
+        <hr />
         <br />
-        <br />
+        <h4>Post-creation hooks settings</h4>
 
         { this.getHooks(this.state).map((e, idx) =>
           <VMHook key={idx} hook={e.hook} hookName={e.hookName}/>)}

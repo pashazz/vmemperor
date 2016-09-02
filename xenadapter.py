@@ -57,6 +57,25 @@ class XenAdapter:
         pool_info = dict()
 
         pools = self.api.pool.get_all_records()
+        networks = self.api.network.get_all_records()
+        # TODO: implement filtering by tags some time
+        pool_info["networks"] = []
+        for net in networks.values():
+            if net["name_label"] == "Host internal management network":
+                continue
+            pool_info["networks"].append({"uuid": net["uuid"], "name_label": net["name_label"]})
+
+        pool_info["storage_resources"] = []
+        storage_resources = self.api.SR.get_all_records()
+        for sr in storage_resources.values():
+            if sr["type"] == "lvmoiscsi" or sr["type"] == "lvm":
+                label = ''.join((sr["name_label"], " (Available %d GB)" % ((int(sr['physical_size']) - int(sr['virtual_allocation']))/(1024*1024*1024))))
+                if sr["shared"]:
+                    label = ''.join(("Shared storage: ", label))
+                    pool_info["storage_resources"].insert(0, {"uuid": sr["uuid"], "name_label": label})
+                else:
+                    pool_info["storage_resources"].append({"uuid": sr["uuid"], "name_label": label})
+
         default_sr = None
         for pool in pools.values():
             default_sr = pool['default_SR']
@@ -137,3 +156,9 @@ class XenAdapter:
             return {'status': 'error', 'details': 'Can not set install options', 'reason': e.details}, 409
         except Exception as e:
             return {'status': 'error', 'details': 'Can not set install options', 'reason': str(e)}, 500
+
+    def create_vm(self, template_uuid, hostname, vcpus, ram, hdd, ):
+        template = api.VM.get_by_uuid(template_uuid)
+        vm = api.VM.clone(template, hostname)
+        vif = {'VM': vm}
+        api.VIF.create(vif)

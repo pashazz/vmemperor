@@ -102,6 +102,30 @@ def on_off_dispatcher(req, action):
     return response
 
 
+@app.route('/create-vm', methods=['POST'])
+def create_vm():
+    form = request.form if request.form else json.loads(request.data)
+    print form
+    if not form.get("template-select") or \
+        not form.get("pool-select") or \
+        form.get("template-select") == "--" or \
+        form.get("pool-select") == "--" or \
+        not form.get("username") or \
+        not form.get("hostname") or \
+        not form.get("password"):
+        response = jsonify({'status': 'error', 'details': 'You have missing obligatory argument', 'reason': 'missing argument'})
+        response.status_code = 400
+        return response
+    if form.get("password") != form.get("password2"):
+        response = jsonify({'status': 'error', 'details': 'Your passwords do not match', 'reason': 'wrong argument'})
+        response.status_code = 400
+        return response
+
+    response = jsonify("{}")
+    response.status_code = 200
+    return response
+
+
 @app.route('/start-vm', methods=['POST'])
 def start_vm():
     return on_off_dispatcher(request, "start-vm")
@@ -163,4 +187,4 @@ if __name__ == '__main__':
     app.config['supported-reverse-proxies'] = {'vmemperor-nginx': 'Nginx configuration files'}
     app.config['enabled-reverse-proxies'] = app.config['supported-reverse-proxies']
     #retrieve_vms_list(session)
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=True, threaded=False)
