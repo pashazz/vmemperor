@@ -80,7 +80,7 @@ class VMForm extends React.Component {
     } else {
       VMActions.create(req)
           .then(this.props.close)
-          .then(() => this.context.router.transitionTo('history'));
+          // .then(() => this.context.router.transitionTo('history'));
     }
 
   }
@@ -191,8 +191,8 @@ class VMForm extends React.Component {
           <input type="text"
                  className="form-control"
                  placeholder="Your full name (e.g. John Smith)"
-                 id="user-fullname"
-                 name="user-fullname"
+                 id="fullname"
+                 name="fullname"
                  required="true"
                  enabled/>
         </div>

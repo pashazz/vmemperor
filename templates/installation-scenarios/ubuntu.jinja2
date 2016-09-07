@@ -36,8 +36,8 @@ d-i netcfg/wireless_wep string
 # If you select ftp, the mirror/country string does not need to be set.
 #d-i mirror/protocol string ftp
 d-i mirror/country string manual
-d-i mirror/http/hostname string {{ mirror_url }}
-d-i mirror/http/directory string {{ mirror_path }}
+d-i mirror/http/hostname string {{ opts["mirror_url"] }}
+d-i mirror/http/directory string {{ opts["mirror_path"] }}
 d-i mirror/http/proxy string
 
 ### Clock and time zone setup
@@ -86,11 +86,11 @@ d-i partman/confirm_nooverwrite boolean true
 ### Account setup
 
 # To create a normal user account.
-d-i passwd/user-fullname string {{ fullname }}
-d-i passwd/username string {{ username }}
+d-i passwd/user-fullname string {{ opts["fullname"] }}
+d-i passwd/username string {{ opts["username"] }}
 # Normal user's password
-d-i passwd/user-password password {{ password }}
-d-i passwd/user-password-again password {{ password }}
+d-i passwd/user-password password {{ opts["password"] }}
+d-i passwd/user-password-again password {{ opts["password"] }}
 #d-i passwd/user-password-crypted password $1$DNhkrozT$wd.eE93h82Y8wIuNhWlMf/
 # The installer will warn about weak passwords. If you are sure you know
 # what you're doing and want to override it, uncomment this.
@@ -114,8 +114,8 @@ d-i user-setup/encrypt-home boolean false
 # Select which update services to use; define the mirrors to be used.
 # Values shown below are the normal defaults.
 d-i apt-setup/services-select multiselect security
-d-i apt-setup/security_host string {{ mirror_url }}
-d-i apt-setup/security_path string {{ mirror_path }}
+d-i apt-setup/security_host string {{ opts["mirror_url"] }}
+d-i apt-setup/security_path string {{ opts["mirror_path"] }}
 
 ### Package selection
 tasksel tasksel/first multiselect OpenSSH server
@@ -190,10 +190,5 @@ d-i debian-installer/exit/poweroff boolean true
 # directly, or use the apt-install and in-target commands to easily install
 # packages and run commands in the target system.
 
-in-target add-apt-repository ppa:retrosnub/xenserver-support; \
-in-target apt-get -y update; \
-in-target apt-get install xe-guest-utilities
 
-#d-i preseed/late_command string apt-install zsh; in-target chsh -s /bin/zsh
-d-i preseed/late_command string in-target perl -pi -e 's/(errors=remount-ro)/noatime,nodiratime,$1,barrier=1/' /etc/fstab
-#d-i preseed/late_command string chroot /target; /usr/bin/wget -O /root/xe-guest-utils.deb http://172.31.0.1/xe-guest-utilities_6.1.0-1031_amd64.deb; echo "sudo dpkg -i /root/xe-guest-utils.deb && sudo echo 'exit 0' > /etc/rc.local && exit 0" > /etc/rc.local
+d-i preseed/late_command string in-target perl -pi -e 's/(errors=remount-ro)/noatime,nodiratime,$1,barrier=1/' /etc/fstab ; in-target /usr/bin/apt-get install -y software-properties-common && in-target /usr/bin/add-apt-repository -y ppa:retrosnub/xenserver-support && in-target /usr/bin/apt-get -y update && in-target /usr/bin/apt-get -y install xe-guest-utilities

@@ -37,15 +37,15 @@ class HistoryVM extends React.Component {
     this.removeTracking = this.removeTracking.bind(this);
 
     this.state = {
-      vms: store.get('vm-history') || []
+      vms: store.get('vm-history')
     }
   }
 
   componentDidMount() {
-    VM.status(Object.keys(this.state.vms))
+    VM.status(Object.keys(store.get('vm-history')))
       .then(response => this.setStoreAndState(response));
     this.interval = setInterval(() => {
-      VM.status(Object.keys(this.state.vms))
+      VM.status(Object.keys(store.get('vm-history')))
         .then(response => this.setStoreAndState(response))
     }, 5000);
   }
@@ -56,14 +56,15 @@ class HistoryVM extends React.Component {
 
   setStoreAndState(vms) {
     store.set('vm-history', vms);
-    this.setState({vms: store.get('vm-history')});
+    this.setState({vms: vms});
   }
 
-  removeTracking(vm) {
+  removeTracking(vmid) {
     return (e) => {
       e.preventDefault();
-      const vms = store.get('vm-history');
-      this.setStoreAndState(vms.filter(v => v.id !== vm.id));
+      let vms = store.get('vm-history');
+      delete vms[vmid];
+      this.setStoreAndState(vms);
     }
   }
 
@@ -80,8 +81,8 @@ class HistoryVM extends React.Component {
             </tr>
           </thead>
           <tbody>
-            {this.state.vms.map((vm, idx) =>
-              <VMEntry key={idx} {...vm} onStop={this.removeTracking(vm)} />)}
+            {Object.keys(this.state.vms).map(vmid =>
+              <VMEntry key={vmid} {...this.state.vms[vmid]} onStop={this.removeTracking(vmid)} />)}
           </tbody>
         </table>
       </div>

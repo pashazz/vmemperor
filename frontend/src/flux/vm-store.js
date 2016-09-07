@@ -77,7 +77,10 @@ const VMStore = Reflux.createStore({
 
   onCreateCompleted(response) {
     AlertActions.suc('VM created');
-    store.set('vm-history', [...store.get('vm-history'), { [response.uuid]: {} }]);
+    let history = store.get('vm-history');
+    history[response.uuid] = {};
+    console.log(history);
+    store.set('vm-history', history);
   },
 
   onCreateFailed(response) {

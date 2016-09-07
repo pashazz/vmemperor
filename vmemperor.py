@@ -7,6 +7,12 @@ from xenadapter import XenAdapter
 
 app = Flask(__name__, static_url_path='/static')
 
+global preseed
+preseed = dict()
+
+global status_dict
+status_dict = dict()
+
 
 @app.route("/auth", methods=['POST'])
 def authenticate():
@@ -121,9 +127,35 @@ def create_vm():
         response.status_code = 400
         return response
 
-    response = jsonify("{}")
+    endpoint = {'url': form["pool-select"]}
+    adapter = XenAdapter(endpoint, flask_session)
+
+    vm, mirror_url, mirror_path = adapter.create_vm(form["template-select"], form["hostname"], form["vcpus"], int(form["ram"])*1024*1024, form["hdd"], form["storage-select"], form["network-select"], "ubuntu", app.config['vmemperor-address'] + "preseed")
+
+    preseed[vm] = form
+    preseed[vm]["mirror_url"] = mirror_url
+    preseed[vm]["mirror_path"] = mirror_path
+
+    response = jsonify({"uuid": vm})
+    status_dict[vm] = ("System installation initiated", 20)
     response.status_code = 200
     return response
+
+
+@app.route('/preseed/<oskind>/<id>')
+def get_preseed(oskind, id):
+    return render_template("installation-scenarios/ubuntu.jinja2", opts=preseed[id])
+
+
+@app.route('/status-vm', methods=['POST'])
+def get_status():
+    form = request.form if request.form else json.loads(request.data)
+    status_d = {}
+    for vm in form['ids']:
+        if status_dict.get(vm):
+            status_d[vm] = {"name": vm, "status": status_dict[vm][0], "details": status_dict[vm][1]}
+
+    return jsonify(status_d)
 
 
 @app.route('/start-vm', methods=['POST'])
@@ -180,11 +212,12 @@ app.secret_key = 'SADFccadaeqw221fdssdvxccvsdf'
 if __name__ == '__main__':
     #app.config.update(SESSION_COOKIE_SECURE=True)
     app.config['SESSION_COOKIE_HTTPONLY'] = False
-    app.config['xen_endpoints'] = [{'id': 'sadasdasdasdas', 'url': 'http://172.31.0.14:80/', 'description': 'Pool A'},
-                                   {'id': 'cxbvccvbbxcxcx', 'url': 'http://172.31.0.32:80/', 'description': 'Pool Z'}]
+    app.config['xen_endpoints'] = [{'id': 'http://172.31.0.14:80/', 'url': 'http://172.31.0.14:80/', 'description': 'Pool A'},
+                                   {'id': 'http://172.31.0.32:80/', 'url': 'http://172.31.0.32:80/', 'description': 'Pool Z'}]
     app.config['supported-distros'] = {'debianlike': 'all'}
     app.config['enabled-distros'] = app.config['supported-distros']
     app.config['supported-reverse-proxies'] = {'vmemperor-nginx': 'Nginx configuration files'}
     app.config['enabled-reverse-proxies'] = app.config['supported-reverse-proxies']
+    app.config['vmemperor-address'] = 'http://172.31.116.11:5000/'
     #retrieve_vms_list(session)
-    app.run(debug=True, use_reloader=True, threaded=False)
+    app.run(debug=True, use_reloader=True, threaded=False, host="0.0.0.0", port=5000)

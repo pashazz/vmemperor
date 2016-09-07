@@ -1,6 +1,7 @@
 import XenAPI
 import json
 import hooks
+import provision
 
 
 class XenAdapter:
@@ -56,7 +57,6 @@ class XenAdapter:
     def retrieve_pool_info(self):
         pool_info = dict()
 
-        pools = self.api.pool.get_all_records()
         networks = self.api.network.get_all_records()
         # TODO: implement filtering by tags some time
         pool_info["networks"] = []
@@ -76,6 +76,7 @@ class XenAdapter:
                 else:
                     pool_info["storage_resources"].append({"uuid": sr["uuid"], "name_label": label})
 
+        pools = self.api.pool.get_all_records()
         default_sr = None
         for pool in pools.values():
             default_sr = pool['default_SR']
@@ -149,16 +150,56 @@ class XenAdapter:
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
         internal_hooks = hooks.generate_other_config_entry(hooks_dict)
         try:
+            self.api.VM.remove_from_other_config(vm_ref, 'vmemperor_hooks')
+            self.api.VM.remove_from_other_config(vm_ref, 'default_mirror')
+            self.api.VM.remove_from_other_config(vm_ref, 'install-repository')
+        except:
+            pass
+        try:
             self.api.VM.add_to_other_config(vm_ref, 'vmemperor_hooks', internal_hooks)
             self.api.VM.add_to_other_config(vm_ref, 'default_mirror', mirror)
+            self.api.VM.add_to_other_config(vm_ref, 'install-repository', mirror)
             return {'status': 'success', 'details': 'Install options updated', 'reason': ''}, 200
         except XenAPI.Failure as e:
             return {'status': 'error', 'details': 'Can not set install options', 'reason': e.details}, 409
         except Exception as e:
             return {'status': 'error', 'details': 'Can not set install options', 'reason': str(e)}, 500
 
-    def create_vm(self, template_uuid, hostname, vcpus, ram, hdd, ):
+    def create_vm(self, template_uuid, hostname, vcpus, ram, hdd, sr, network_uuid, os_kind, preseed_prefix):
+        api = self.api
         template = api.VM.get_by_uuid(template_uuid)
-        vm = api.VM.clone(template, hostname)
-        vif = {'VM': vm}
-        api.VIF.create(vif)
+        tmpl = api.VM.get_record(template)
+        vm_ref = api.VM.clone(template, hostname)
+        vm = api.VM.get_record(vm_ref)
+
+        nets = api.network.get_all_records()
+        net = api.network.get_by_uuid(network_uuid)
+        network = api.network.get_record(net)
+        print(network["bridge"])
+        vif = api.VIF.create({'network': net, 'VM': vm_ref, 'device': "0", "MAC": "", "MTU": network["MTU"], "other_config": {}, "qos_algorithm_type": "",
+                              "qos_algorithm_params": {}})
+        preseed = "".join((preseed_prefix, "/", os_kind, "/", vm["uuid"]))
+        if os_kind == "ubuntu":
+            pv_args = "netcfg/get_hostname=%s console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 netcfg/disable_dhcp=false preseed/url=%s" % (hostname, preseed)
+        else:
+            pv_args = ""
+
+        api.VM.set_PV_args(vm_ref, pv_args)
+        spec = provision.getProvisionSpec(self.session, vm_ref)
+        spec.setSR(sr)
+        provision.setProvisionSpec(self.session, vm_ref, spec)
+        vm_platform = api.VM.get_platform(vm_ref)
+        vm_platform["cores-per-socket"] = vcpus
+        api.VM.set_platform(vm_ref, vm_platform)
+        api.VM.set_VCPUs_max(vm_ref, vcpus)
+        api.VM.set_VCPUs_at_startup(vm_ref, vcpus)
+        api.VM.set_memory_limits(vm_ref, str(ram), str(ram), str(ram), str(ram))
+        api.VM.provision(vm_ref)
+        api.VM.start(vm_ref, False, True)
+
+        repo = vm["other_config"]["install-repository"].replace("http://", "")
+        repo = repo.replace("ftp://", "")
+
+        mirror_url, mirror_path = repo.split("/", 1)
+        mirror_path = "".join(("/", mirror_path))
+        return vm["uuid"], mirror_url, mirror_path
