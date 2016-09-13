@@ -206,6 +206,10 @@ def logout():
 def secret_page():
     return render_template('index.html')
 
+@app.route('/pool-index', methods=["GET"])
+def pool_index():
+    return jsonify(app.config['xen_endpoints'])
+
 
 #app.secret_key = ''.join([random.choice(string.ascii_letters + string.digits) for n in xrange(32)])
 app.secret_key = 'SADFccadaeqw221fdssdvxccvsdf'
