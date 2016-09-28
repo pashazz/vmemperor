@@ -37,7 +37,7 @@ class HistoryVM extends React.Component {
     this.removeTracking = this.removeTracking.bind(this);
 
     this.state = {
-      vms: store.get('vm-history')
+      vms: store.get('vm-history') || {}
     }
   }
 

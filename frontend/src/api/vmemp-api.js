@@ -80,6 +80,8 @@ const template = {
 };
 
 const pool = {
+  index: () =>
+    GET('/pool-index'),
   list: () =>
     GET('/list-pools')
 };

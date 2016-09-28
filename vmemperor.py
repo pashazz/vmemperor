@@ -29,7 +29,7 @@ def authenticate():
             flask_session.clear()
             response = jsonify({'status': 'error', 'details': 'Auth failed',
                                 'reason': str(e)})
-            print (e)
+            print(e)
             response.status_code = 401
             return response
 
@@ -111,7 +111,7 @@ def on_off_dispatcher(req, action):
 @app.route('/create-vm', methods=['POST'])
 def create_vm():
     form = request.form if request.form else json.loads(request.data)
-    print form
+    print(form)
     if not form.get("template-select") or \
         not form.get("pool-select") or \
         form.get("template-select") == "--" or \
