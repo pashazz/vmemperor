@@ -162,7 +162,7 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
 
         <h4><FormattedMessage {...messages.resources} /></h4>
         <div className="row" style={{ paddingBottom: '10px' }}>
-          <VMInput.CPU className="col-sm-4 col-lg-4" cpu={form.vcpus} onChange={this.onInputNumberChange} />
+          <VMInput.CPU className="col-sm-4 col-lg-4" vcpus={form.vcpus} onChange={this.onInputNumberChange} />
           <VMInput.RAM className="col-sm-4 col-lg-4" ram={form.ram} onChange={this.onInputNumberChange} />
           <VMInput.HDD className="col-sm-4 col-lg-4" hdd={form.hdd} onChange={this.onInputNumberChange} />
         </div>

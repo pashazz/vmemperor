@@ -8,8 +8,8 @@ export function validate(cpu) {
   return '';
 }
 
-function CPU({ cpu, onChange, className, touched }) {
-  const validation = validate(cpu);
+function CPU({ vcpus, onChange, className, touched }) {
+  const validation = validate(vcpus);
   const isValid = validation === '';
 
   const mainClassName = classNames(className, 'form-group', {
@@ -27,10 +27,10 @@ function CPU({ cpu, onChange, className, touched }) {
         <input
           type="number"
           className="form-control"
-          id="cpu"
-          name="cpu"
+          id="vcpus"
+          name="vcpus"
           min="1"
-          value={cpu}
+          value={vcpus}
           onChange={onChange}
         />
         <span className="input-group-addon">cores</span>
@@ -41,7 +41,7 @@ function CPU({ cpu, onChange, className, touched }) {
 }
 
 CPU.propTypes = {
-  cpu: T.any.isRequired,
+  vcpus: T.any.isRequired,
   touched: T.bool.isRequired,
   onChange: T.func.isRequired,
   className: T.string,
