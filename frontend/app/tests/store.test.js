@@ -3,7 +3,7 @@
  */
 
 import expect from 'expect';
-import configureStore from '../store'; // eslint-disable-line
+import configureStore from '../configureStore'; // eslint-disable-line
 import { browserHistory } from 'react-router';
 
 describe('configureStore', () => {

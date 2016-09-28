@@ -6,7 +6,6 @@ describe('loginPageReducer', () => {
   it('returns the initial state', () => {
     const initialState = fromJS({
       pools: [],
-      session: null,
     });
     expect(loginPageReducer(undefined, {})).toEqual(initialState);
   });

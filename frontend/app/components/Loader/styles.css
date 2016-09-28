@@ -10,7 +10,6 @@
   width: 1em;
   height: 1em;
   background-color: #333;
-
   border-radius: 100%;
   display: inline-block;
   animation: sk-bouncedelay 1.4s infinite ease-in-out both;
@@ -31,11 +30,14 @@
   animation-delay: 0;
 }
 
-
 @keyframes sk-bouncedelay {
-  0%, 80%, 100% {
+  0%,
+  80%,
+  100% {
     transform: scale(0);
-  } 40% {
-    transform: scale(1.0);
+  }
+
+  40% {
+    transform: scale(1);
   }
 }
