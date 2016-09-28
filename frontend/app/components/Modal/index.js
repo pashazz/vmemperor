@@ -46,6 +46,11 @@ class Modal extends React.Component {
     this.setState({ show: newProps.show });
   }
 
+  componentWillUnmount() {
+    document.body.style.overflow = 'auto';
+    document.body.style.marginRight = 0;
+  }
+
   hide() {
     if (this.props.close) {
       this.props.close();
@@ -62,9 +67,9 @@ class Modal extends React.Component {
   }
 
   render() {
-    document.body.style.overflow = this.state.show ? 'hidden' : 'auto';
+    document.body.style.overflow = this.props.show ? 'hidden' : 'auto';
     if (document.body.clientHeight > window.innerHeight) {
-      document.body.style.marginRight = this.state.show ? scrollbarWidth : 0;
+      document.body.style.marginRight = this.props.show ? scrollbarWidth : 0;
     }
     if (!this.state.show) {
       return null;
