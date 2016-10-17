@@ -31,7 +31,7 @@ class XenAdapter:
         self.api = self.session.xenapi
 
     def get_template_list(self):
-        print "Getting template list using fast method"
+        print("Getting template list using fast method")
         template_list = []
         all_records = self.api.VM.get_all_records()
         for record in all_records.values():
