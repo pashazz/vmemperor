@@ -337,12 +337,14 @@ app.secret_key = 'SADFccadaeqw221fdssdvxccvsdf'
 if __name__ == '__main__':  # everything should be loaded from ini
     #app.config.update(SESSION_COOKIE_SECURE=True)
     app.config['SESSION_COOKIE_HTTPONLY'] = False
-    app.config['xen_endpoints'] = [{'id': 'http://172.31.0.14:80/', 'url': 'http://172.31.0.14:80/', 'description': 'Pool A'},
-                                   {'id': 'http://172.31.0.32:80/', 'url': 'http://172.31.0.32:80/', 'description': 'Pool Z'}]
+    app.config['xen_endpoints'] = [
+        {'id': 'http://10.10.10.18:80/', 'url': 'http://10.10.10.18:80/', 'description': 'Pool A'},
+        #{'id': 'http://172.31.0.32:80/', 'url': 'http://172.31.0.32:80/', 'description': 'Pool Z'}
+        ]
     app.config['supported-distros'] = {'debianlike': 'all'}
     app.config['enabled-distros'] = app.config['supported-distros']
     app.config['supported-reverse-proxies'] = {'vmemperor-nginx': 'Nginx configuration files'}
     app.config['enabled-reverse-proxies'] = app.config['supported-reverse-proxies']
-    app.config['vmemperor-address'] = 'http://172.31.116.11:5000/'
+    app.config['vmemperor-address'] = 'http://localhost:5000/'
     #retrieve_vms_list(session)
     app.run(debug=True, use_reloader=True, threaded=False, host="0.0.0.0", port=5000)
