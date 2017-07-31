@@ -203,3 +203,33 @@ class XenAdapter:
         mirror_url, mirror_path = repo.split("/", 1)
         mirror_path = "".join(("/", mirror_path))
         return vm["uuid"], mirror_url, mirror_path
+
+    """
+    def destroy_vm(self, vm_uuid, enable):
+        should be in halt state prior to destroying
+        return {'status': string 'details': string, 'reason': string}
+    """
+
+    """
+    def list_vdi(self):
+        get_all
+        return {'status': string 'details': string, 'reason': string}
+    """
+
+    """
+    def create_vbd(self, vdi_uuid, vm_uuid):
+
+        return {'status': string 'details': string, 'reason': string}
+    """
+
+
+    """
+    def plug_vbd(self,  vbd_uuid):
+
+        return {'status': string 'details': string, 'reason': string}
+    """
+
+    """
+    def get_vnc_connection():
+        http://xapi-project.github.io/xen-api/consoles.html
+    """

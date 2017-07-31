@@ -14,8 +14,11 @@ global status_dict
 status_dict = dict()
 
 
+
+
+
 @app.route("/auth", methods=['POST'])
-def authenticate():
+def authenticate():  # use outer authentication system tokens
     """Sends a 401 response that enables basic auth"""
     adapters = []
     counter = 0
@@ -40,6 +43,27 @@ def authenticate():
     return response
 
 
+"""
+def admin_authenticate():
+    does what previous authenticate did
+
+
+"""
+
+
+"""
+def list_vms():
+    uses XenAdapter.get_vms_list()
+"""
+
+
+
+"""
+def list_templates():
+    uses XenAdapter.get_template_list()
+    sort by
+"""
+
 @app.route('/list-vms')
 def list_vms():
     vm_list = []
@@ -48,9 +72,11 @@ def list_vms():
         vm_list.extend(adapter.get_vms_list())
     return jsonify(vm_list)
 
+# should there be process, that checks system and updates info in database every n seconds(minutes) ?
+
 
 @app.route('/list-templates')
-def list_templates():
+def list_templates():  # requires to be logged in as an admin  (probably should cache this info into rethinkdb)
     template_list = []
     adapters = []
     for endpoint in app.config['xen_endpoints']:
@@ -67,7 +93,13 @@ def list_templates():
     return jsonify(template_list)
 
 
-@app.route('/list-pools', methods=['GET'])
+"""
+def list_templates():
+    uses XenAdapter.retrieve_pool_info()
+    sort by
+"""
+
+@app.route('/list-pools', methods=['GET'])  # (probably should cache this info into rethinkdb)
 def list_pools():
     pool_list = []
     for endpoint in app.config['xen_endpoints']:
@@ -107,11 +139,23 @@ def on_off_dispatcher(req, action):
     response.status_code = response_status
     return response
 
+"""
+def create_vm():
+    uses xenadapter.create_vm
+"""
+
 
 @app.route('/create-vm', methods=['POST'])
 def create_vm():
     form = request.form if request.form else json.loads(request.data)
     print(form)
+    """
+    template-select -> template_uuid
+    storage-select -> sr
+    network-select  -> network_uuid
+    add os_kind argument
+    """
+
     if not form.get("template-select") or \
         not form.get("pool-select") or \
         form.get("template-select") == "--" or \
@@ -122,7 +166,7 @@ def create_vm():
         response = jsonify({'status': 'error', 'details': 'You have missing obligatory argument', 'reason': 'missing argument'})
         response.status_code = 400
         return response
-    if form.get("password") != form.get("password2"):
+    if form.get("password") != form.get("password2"):  # check by token prior to view
         response = jsonify({'status': 'error', 'details': 'Your passwords do not match', 'reason': 'wrong argument'})
         response.status_code = 400
         return response
@@ -142,13 +186,30 @@ def create_vm():
     return response
 
 
+"""
+def get_preseed():
+    todo
+"""
+
 @app.route('/preseed/<oskind>/<id>')
 def get_preseed(oskind, id):
     return render_template("installation-scenarios/ubuntu.jinja2", opts=preseed[id])
 
+"""
+def get_status():
+    use status in rethinkdb
+    todo
+"""
+
+
+"""
+def statistic loop():
+    periodically asks everything about their status and updates rethinkdb
+"""
+
 
 @app.route('/status-vm', methods=['POST'])
-def get_status():
+def get_status():  # use rethinkdb
     form = request.form if request.form else json.loads(request.data)
     status_d = {}
     for vm in form['ids']:
@@ -157,28 +218,49 @@ def get_status():
 
     return jsonify(status_d)
 
+"""
+def start_vm():
+    adapter.start_stop_vm
+"""
 
-@app.route('/start-vm', methods=['POST'])
+@app.route('/start-vm', methods=['POST'])  # rename to start_vm
 def start_vm():
     return on_off_dispatcher(request, "start-vm")
 
+"""
+def shutdown_vm():
+    adapter.start_stop_vm
+"""
 
-@app.route('/shutdown-vm', methods=['POST'])
+@app.route('/shutdown-vm', methods=['POST'])  # rename to shutdown_vm
 def shutdown_vm():
     return on_off_dispatcher(request, "shutdown-vm")
 
 
-@app.route('/enable-template', methods=['POST'])
+"""
+def enable_template():
+    adapter.capture_template
+"""
+@app.route('/enable-template', methods=['POST'])  # rename to enable_template
 def enable_template():
     return on_off_dispatcher(request, "enable-template")
 
 
-@app.route('/disable-template', methods=['POST'])
+"""
+def disable_template():
+    adapter.capture_template
+"""
+@app.route('/disable-template', methods=['POST'])  # rename to disable_template
 def disable_template():
     return on_off_dispatcher(request, "disable-template")
 
 
-@app.route('/update-template', methods=['POST'])
+"""
+def disable_template():
+    adapter.set_install_options
+"""
+
+@app.route('/update-template', methods=['POST'])  # rename to update_template
 def update_template():
     form = request.form if request.form else json.loads(request.data)
     vm_uuid = form.get('vm_uuid')
@@ -193,18 +275,57 @@ def update_template():
     return response
 
 
-
-@app.route('/logout', methods=['POST', 'GET'])
+@app.route('/logout', methods=['POST', 'GET'])  # removes token from cookies
 def logout():
     flask_session.clear()
     response = jsonify({'status': 'success', 'details': 'Logout successful', 'reason': ''})
     response.status_code = 200
     return response
 
+"""
+def list_vdi()
+    lists vdi
+"""
+
+
+"""
+def create_vbd():
+    gets vm uuid and vbi uuid and creates vbd
+
+"""
+
+"""
+def plug_vbd():
+    gets vbd uuid and plugs it in associated vm
+
+"""
+
+"""
+def add_hook():
+    gets ansible file and variables template from user and stores it
+    think harder
+"""
+
+
+"""
+def use_hook():
+    gets information about which vm to run which ansible playbook onto
+    gets information for variables template and launches ansible playbook
+    think harder
+"""
+
+
+"""
+def get_vnc_connection():
+    http://xapi-project.github.io/xen-api/consoles.html
+    think harder
+"""
+
 
 @app.route('/')
 def secret_page():
     return render_template('index.html')
+
 
 @app.route('/pool-index', methods=["GET"])
 def pool_index():
@@ -213,7 +334,7 @@ def pool_index():
 
 #app.secret_key = ''.join([random.choice(string.ascii_letters + string.digits) for n in xrange(32)])
 app.secret_key = 'SADFccadaeqw221fdssdvxccvsdf'
-if __name__ == '__main__':
+if __name__ == '__main__':  # everything should be loaded from ini
     #app.config.update(SESSION_COOKIE_SECURE=True)
     app.config['SESSION_COOKIE_HTTPONLY'] = False
     app.config['xen_endpoints'] = [{'id': 'http://172.31.0.14:80/', 'url': 'http://172.31.0.14:80/', 'description': 'Pool A'},
