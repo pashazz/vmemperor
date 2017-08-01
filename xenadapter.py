@@ -24,7 +24,7 @@ class XenAdapter:
         else:
             flask_session[url] = {'url': endpoint['url'], 'login': login, 'password': password}
         session.login_with_password(login, password)
-        if session['Status'] == "Failure":
+        if session.status() == "Failure":
             raise Exception
         flask_session[url]['is_su'] = session.xenapi.session.get_is_local_superuser(session._session)
         self.session = session
