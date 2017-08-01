@@ -339,6 +339,7 @@ if __name__ == '__main__':  # everything should be loaded from ini
     app.config['SESSION_COOKIE_HTTPONLY'] = False
     app.config['xen_endpoints'] = [
         {'id': 'http://10.10.10.18:80/', 'url': 'http://10.10.10.18:80/', 'description': 'Pool A'},
+        #{'id': 'http://10.10.10.18:80//', 'url': 'http://10.10.10.18:80/', 'description': 'Pool Z'},
         #{'id': 'http://172.31.0.32:80/', 'url': 'http://172.31.0.32:80/', 'description': 'Pool Z'}
         ]
     app.config['supported-distros'] = {'debianlike': 'all'}
