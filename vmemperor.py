@@ -55,38 +55,126 @@ class DummyAuth(BaseHandler):
 
         else:
             self.clear_cookie("user")
+"""
+dbms - RethinkDB
+db is used as cache
+different users should see different info (can be done by creating table/collection for each user)
+
+
+views should return info in json format
+errors should be returned in next format: {'status': 'error', 'details': string, 'reason': string}
 
 """
-views which get information should only get reverse polling with notifications from db (RethinkDB or CouchDB)
-information should be different for different users
-information in db should be updated in event loop
+
+class AdminAuth(BaseHandler):
+    def post(self):
+        """ """
+        self.write()
 
 
-list vms
-list vdi
-list networks
-create network?
-create vm
-start vm
-stop vm
-get vnc connection  -  http://xapi-project.github.io/xen-api/consoles.html
-attach vbd
-detach vbd
-destroy vm
-connect vm to network
+class VMList(BaseHandler):
+    def get(self):
+        """ """
+        # read from db
+        self.write()
 
-list templates
-enable template
-capture template
 
-"""
+class TemplateList(BaseHandler):
+    def get(self):
+        """ """
+        XenAdapter.list_templates()
+        self.write()
+
+
+class CreateVM(BaseHandler):
+    def post(self):
+        """ """
+        XenAdapter.create_vm()
+        self.write()
+
+
+class VDIList(BaseHandler):
+    def get(self):
+        """ """
+        # read from db
+        self.write()
+
+
+class NetworkList(BaseHandler):
+    def get(self):
+        """ """
+        # read from db
+        self.write()
+
+
+class CreateNetwork(BaseHandler):
+    def get(self):
+        """ """
+        XenAdapter.create_network()
+        # update db
+        XenAdapter.list_networks()
+        self.write()
+
+
+class StartStopVM(BaseHandler):
+    def post(self):
+        """ """
+        XenAdapter.start_stop_vm()
+        # update db
+        self.write()
+
+
+class EnableDisableVM(BaseHandler):
+    def post(self):
+        """ """
+        XenAdapter.enable_disable_template()
+        self.write()
+
+
+class VNC(BaseHandler):
+    def get(self):
+        """http://xapi-project.github.io/xen-api/consoles.html"""
+        XenAdapter.get_vnc()
+        self.write()
+
+
+class AttachDetachDisc(BaseHandler):
+    def post(self):
+        XenAdapter.create_vbd()
+        XenAdapter.attach_vbd()
+        XenAdapter.detach_vbd()
+        XenAdapter.destroy_vbd()
+        # update db
+        self.write()
+
+
+class DestroyVM(BaseHandler):
+    def post(self):
+        XenAdapter.destroy_vm()
+        # update db
+        self.write()
+
+
+class ConnectVM(BaseHandler):
+    def post(self):
+        XenAdapter.connect_vm()
+        self.write()
 
 
 class AnsibleHooks:
+    # todo
     pass
 
 
-def event_loop():
+class EventLoop:
+    """every n seconds asks all vms about their status and updates collections (dbs, tables)
+    of corresponding user, if they are logged in (have open connection to dbms notifications)
+     and admin db if admin is logged in"""
+    XenAdapter.list_vms()
+    pass
+
+
+def start_event_loop():
     pass
 
 
@@ -96,9 +184,17 @@ def make_app(auth_class = DummyAuth):
     ])
 
 
-def main():
-    """ reads config in ini and configures system"""
+def read_settings():
+    """reads settings from ini"""
+    settings = None
+    return settings
 
+
+def main():
+    """ reads settings in ini configures and starts system"""
+    settings = read_settings()
+    make_app()
+    start_event_loop()
     return
 
 if __name__ == '__main__':
