@@ -45,7 +45,7 @@ class DummyAuth(BaseHandler):
         authenticated = self.check_credentials(password, username)
         if authenticated:
             self.set_user(username)
-            self.write(json.dumps({}))
+            self.write(json.dumpscd({}))
         else:
             return self.write(json.dumps({"error": "wrong credentials"}))
 
@@ -58,7 +58,7 @@ class DummyAuth(BaseHandler):
 """
 dbms - RethinkDB
 db is used as cache
-different users should see different info (can be done by creating table/collection for each user)
+different users should see different info (i.e. only vms created by that user)
 
 
 views should return info in json format
@@ -79,6 +79,13 @@ class VMList(BaseHandler):
         self.write()
 
 
+class PoolList(BaseHandler):
+    def get(self):
+        """ """
+        # read from db
+        self.write()
+
+
 class TemplateList(BaseHandler):
     def get(self):
         """ """
@@ -90,13 +97,6 @@ class CreateVM(BaseHandler):
     def post(self):
         """ """
         XenAdapter.create_vm()
-        self.write()
-
-
-class VDIList(BaseHandler):
-    def get(self):
-        """ """
-        # read from db
         self.write()
 
 
@@ -124,7 +124,7 @@ class StartStopVM(BaseHandler):
         self.write()
 
 
-class EnableDisableVM(BaseHandler):
+class EnableDisableTemplate(BaseHandler):
     def post(self):
         """ """
         XenAdapter.enable_disable_template()
@@ -140,24 +140,27 @@ class VNC(BaseHandler):
 
 class AttachDetachDisc(BaseHandler):
     def post(self):
+        XenAdapter.create_vdi()
         XenAdapter.create_vbd()
         XenAdapter.attach_vbd()
         XenAdapter.detach_vbd()
         XenAdapter.destroy_vbd()
-        # update db
+        XenAdapter.destroy_vdi()
+        # update db info
         self.write()
 
 
 class DestroyVM(BaseHandler):
     def post(self):
         XenAdapter.destroy_vm()
-        # update db
+        # update db info
         self.write()
 
 
 class ConnectVM(BaseHandler):
     def post(self):
         XenAdapter.connect_vm()
+        # update db info
         self.write()
 
 

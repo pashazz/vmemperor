@@ -10,11 +10,19 @@ class XenAdapter:
         """creates session connection to XenAPI. Connects using admin login/password from settings"""
         return
 
+    def list_pools(self):
+
+        return
+
     def list_vms(self):
 
         return
 
     def list_vdis(self):
+
+        return
+
+    def create_vdi(self):
 
         return
 
@@ -55,6 +63,10 @@ class XenAdapter:
         return
 
     def destroy_vm(self):
+
+        return
+
+    def destroy_vdi(self):
 
         return
 
