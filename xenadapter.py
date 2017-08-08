@@ -9,11 +9,9 @@ class XenAdapter:
     def __init__(self, settings):
         """creates session connection to XenAPI. Connects using admin login/password from settings"""
 
-        try:
-            url = settings['url']
-            login = settings['login']
-            password = settings['password']
-        except:
+        url = settings['url']
+        login = settings['login']
+        password = settings['password']
 
         self.session = XenAPI.Session(url)
         self.session.xenapi.login_with_password(login, password)
