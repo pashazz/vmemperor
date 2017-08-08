@@ -3,6 +3,7 @@ import tornado.web
 import tornado.escape
 import json
 from abc import ABCMeta, abstractmethod
+import configparser
 
 
 class BaseHandler(tornado.web.RequestHandler):
@@ -189,7 +190,8 @@ def make_app(auth_class = DummyAuth):
 
 def read_settings():
     """reads settings from ini"""
-    settings = None
+    settings = configparser.ConfigParser()
+    settings.read('*.ini')
     return settings
 
 
