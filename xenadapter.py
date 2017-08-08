@@ -3,37 +3,53 @@ import json
 import hooks
 import provision
 
+import sys
 
 class XenAdapter:
 
+
+    def get_all_records(self, subject):
+        """
+        return get_all_records call in a dict format without opaque object references
+        :param subject: XenAPI subject (VM, VDI, etc)
+        :return:
+        """
+        return subject.get_all_records().values()
+
     def __init__(self, settings):
         """creates session connection to XenAPI. Connects using admin login/password from settings"""
-
-        url = settings['url']
-        login = settings['login']
-        password = settings['password']
+        try:
+            url = settings['url']
+            login = settings['login']
+            password = settings['password']
+        except KeyError:
+            raise ValueError('Error login session')
 
         self.session = XenAPI.Session(url)
         self.session.xenapi.login_with_password(login, password)
         self.api = self.session.xenapi
         return
 
+
+
+
     def list_pools(self):
 
         return
 
     def list_vms(self):
-        all_vms = XenAPI.VM.get_all(self.session)['Value']
+        list = []
+        for vm in self.get_all_records(self.api.VM):
+            if vm['is_a_template'] == False and vm['is_control_domain'] == False:
+                list.append(vm)
 
-        return all_vms
+        return list
 
     def list_vdis(self):
-        all_vdis = XenAPI.VDI.get_all(self.session)['Value']
-
-        return all_vdis
+        return self.get_all_records(self.api.VDI)
 
     def create_vdi(self, sr_ref, name_label = None, name_description = None):
-        XenAPI.VDI.create(self.session, sr = sr_ref, name_label = name_label, name_description = name_description)
+        self.api.VDI.create(self.session, sr = sr_ref, name_label = name_label, name_description = name_description)
 
         return
 
@@ -42,17 +58,14 @@ class XenAdapter:
         return
 
     def create_network(self):
-        XenAPI.network.create(self.session)
+        self.api.network.create(self.session)
 
         return
 
-    def create_vm(self, t_ref, name_label, sr):
-        new_vm_ref = XenAPI.VM.clone(self.session, t_ref, name_label)
-
-        # other_config = XenAPI.VM.get_other_config(self.session, self.vm_ref)
-        # other_config['disks'].sr = sr
-        # XenAPI.VM.set_other_config(self.session, self.vm_ref, other_config)
-        # XenAPI.VM.provision(self.session, self.vm_ref)
+    def create_vm(self, tmpl_uuid, name_label, sr_uuid):
+        sr = self.api.SR.get_by_uuid(sr_uuid)
+        tmpl_ref = self.api.VM.get_by_uuid(tmpl_uuid)
+        new_vm_ref = self.api.VM.clone(tmpl_ref, name_label)
 
         specs = provision.getProvisionSpec(self.session, new_vm_ref)
         specs.setSR(sr)
@@ -73,44 +86,62 @@ class XenAdapter:
         return
 
     def create_vbd(self, vdi_ref):
-        XenAPI.VBD.create(self.session, VM = self.vm_ref, VDI = vdi_ref)
+        self.api.VBD.create(self.session, VM = self.vm_ref, VDI = vdi_ref)
 
         return
 
     def attach_vbd(self):
-        XenAPI.VBD.plug()
+        self.api.VBD.plug()
 
         return
 
     def detach_vbd(self):
-        XenAPI.VBD.unplug()
+        self.api.VBD.unplug()
 
         return
 
-    def destroy_vbd(self, vbd_ref):
-        XenAPI.VBD.destroy(vbd_ref)
+    def destroy_vbd(self, vbd_uuid):
+        vbd_ref = self.api.VBD.get_by_uuid(vbd_uuid)
+        self.api.VBD.destroy(vbd_ref)
 
         return
 
-    def destroy_vm(self):
+    def destroy_vm(self, vm_uuid):
+        try:
+            vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+            vm = self.api.VM.get_record(vm_ref)
+
+            # need ???
+            vbds = vm['VBDs']
+            for vbd in vbds:
+                self.destroy_vbd(vbd['uuid'])
+            vifs = vm['VIFs']
+            for vif in vifs:
+                vif_ref = self.api.VIF.get_by_uuid(vif['uuid'])
+                self.api.VIF.destroy(vif_ref)
+            # need ?????
+
+            self.api.VM.destroy(vm_ref)
+        except XenAPI.Failure as f:
+            print ("XenAPI Error failed to destroy vm: {0}".format(f.details()))
+            sys.exit(1)
 
         return
 
     def destroy_vdi(self, vdi_ref):
-        XenAPI.VDI.destroy(vdi_ref)
+        self.api.VDI.destroy(vdi_ref)
 
         return
 
     def connect_vm(self, network):
-        XenAPI.VIF.create(self.session, VM = self.vm_ref, network = network)
-        XenAPI.VIF.plug()
+        self.api.VIF.create(self.session, VM = self.vm_ref, network = network)
+        self.api.VIF.plug()
 
         return
 
     def list_templates(self):
         list = []
-        records = XenAPI.VM.get_all_records(self.session)
-        for record in records:
+        for record in self.get_all_records(self.api.VM):
             if record['is_a_template'] == True:
                 list.append(record)
 
