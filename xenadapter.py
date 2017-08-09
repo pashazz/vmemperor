@@ -35,9 +35,12 @@ class XenAdapter:
         return list
 
     def list_vdis(self):
-        all_vdis = self.api.VDI.get_all()['Value']
+        list = []
+        records = self.api.VDI.get_all_records()
+        for vdi in records.values():
+            list.append(vdi)
 
-        return all_vdis
+        return list
 
     def create_vdi(self, sr_ref, name_label = None, name_description = None):
         self.api.VDI.create(self.session, sr = sr_ref, name_label = name_label, name_description = name_description)
@@ -53,15 +56,26 @@ class XenAdapter:
 
         return
 
-    def create_vm(self, tmpl_uuid, name_label, sr_uuid):
-        sr = self.api.SR.get_by_uuid(sr_uuid)
-        tmpl_ref = self.api.VM.get_by_uuid(tmpl_uuid)
-        new_vm_ref = self.api.VM.clone(tmpl_ref, name_label)
+    def create_vm(self, tmpl_uuid, sr_uuid, name_label = ''):
+        try:
+            tmpl_ref = self.api.VM.get_by_uuid(tmpl_uuid)
+            new_vm_ref = self.api.VM.clone(tmpl_ref, name_label)
+        except XenAPI.Failure as f:
+            print ("XenAPI Error failed to clone template: $s" % f.details)
 
-        specs = provision.getProvisionSpec(self.session, new_vm_ref)
-        specs.setSR(sr)
-        provision.setProvisionSpec(self.session, new_vm_ref, specs)
+        try:
+            specs = provision.getProvisionSpec(self.session, new_vm_ref)
+            specs.setSR(sr_uuid)
+            provision.setProvisionSpec(self.session, new_vm_ref, specs)
+        except:
+            print("Error provision")
 
+        new_vm_uuid = self.api.VM.get_uuid(new_vm_ref)
+        try:
+            self.api.VM.provision(new_vm_ref)
+        except Exception as e:
+            print("XenAPI failed to finish creation: %s" % str(e))
+        self.api.VM.start(new_vm_ref, False, True)
         return
 
     def start_stop_vm(self, vm_ref, enable):
@@ -91,8 +105,11 @@ class XenAdapter:
 
         return
 
-    def destroy_vbd(self, vbd_uuid):
-        vbd_ref = self.api.VBD.get_by_uuid(vbd_uuid)
+    def destroy_vbd(self, vbd_uuid = None, vbd_ref = None):
+        if (vbd_ref == None):
+            if (vbd_uuid == None):
+                raise ValueError("No vbd to destroy")
+            vbd_ref = self.api.VBD.get_by_uuid(vbd_uuid)
         self.api.VBD.destroy(vbd_ref)
 
         return
@@ -104,17 +121,16 @@ class XenAdapter:
 
             # need ???
             vbds = vm['VBDs']
-            for vbd in vbds:
-                self.destroy_vbd(vbd['uuid'])
+            for vbd_ref in vbds:
+                self.destroy_vbd(vbd_ref = vbd_ref)
             vifs = vm['VIFs']
-            for vif in vifs:
-                vif_ref = self.api.VIF.get_by_uuid(vif['uuid'])
+            for vif_ref in vifs:
                 self.api.VIF.destroy(vif_ref)
             # need ?????
 
             self.api.VM.destroy(vm_ref)
         except XenAPI.Failure as f:
-            print "XenAPI Error failed to destroy vm: %s" % f.details()
+            print ("XenAPI Error failed to destroy vm: %s" % f.details())
             sys.exit(1)
 
         return
