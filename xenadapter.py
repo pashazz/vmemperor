@@ -56,7 +56,7 @@ class XenAdapter:
 
         return
 
-    def create_vm(self, tmpl_uuid, sr_uuid, name_label = ''):
+    def create_vm(self, tmpl_uuid, sr_uuid, name_label = '', net, vdi_size):
         try:
             tmpl_ref = self.api.VM.get_by_uuid(tmpl_uuid)
             new_vm_ref = self.api.VM.clone(tmpl_ref, name_label)
