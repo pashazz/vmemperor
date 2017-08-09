@@ -30,9 +30,6 @@ class XenAdapter:
         self.api = self.session.xenapi
         return
 
-
-
-
     def list_pools(self):
 
         return
@@ -48,12 +45,21 @@ class XenAdapter:
     def list_vdis(self):
         return self.get_all_records(self.api.VDI)
 
-    def create_vdi(self, sr_ref, name_label = None, name_description = None):
-        self.api.VDI.create(self.session, sr = sr_ref, name_label = name_label, name_description = name_description)
+    def list_networks(self):
 
         return
 
-    def list_networks(self):
+    def list_templates(self):
+        list = []
+
+        for record in self.get_all_records(self.api.VM):
+            if record['is_a_template'] == True:
+                list.append(record)
+
+        return list
+
+    def create_vdi(self, sr_ref, name_label = None, name_description = None):
+        self.api.VDI.create(self.session, sr = sr_ref, name_label = name_label, name_description = name_description)
 
         return
 
@@ -62,7 +68,7 @@ class XenAdapter:
 
         return
 
-    def create_vm(self, tmpl_uuid, sr_uuid, name_label = '', net, vdi_size):
+    def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, name_label = ''):
         try:
             tmpl_ref = self.api.VM.get_by_uuid(tmpl_uuid)
             new_vm_ref = self.api.VM.clone(tmpl_ref, name_label)
@@ -82,6 +88,12 @@ class XenAdapter:
         except Exception as e:
             print("XenAPI failed to finish creation: %s" % str(e))
         self.api.VM.start(new_vm_ref, False, True)
+
+        return
+
+    def create_vbd(self, vdi_ref):
+        self.api.VBD.create(self.session, VM = self.vm_ref, VDI = vdi_ref)
+
         return
 
     def start_stop_vm(self, vm_ref, enable):
@@ -92,12 +104,17 @@ class XenAdapter:
 
         return
 
-    def get_vnc(self):
+    def connect_vm(self, network):
+        self.api.VIF.create(self.session, VM = self.vm_ref, network = network)
+        self.api.VIF.plug()
 
         return
 
-    def create_vbd(self, vdi_ref):
-        self.api.VBD.create(self.session, VM = self.vm_ref, VDI = vdi_ref)
+    def enable_disable_template(self):
+
+        return
+
+    def get_vnc(self):
 
         return
 
@@ -150,22 +167,3 @@ class XenAdapter:
         self.api.VDI.destroy(vdi_ref)
 
         return
-
-    def connect_vm(self, network):
-        self.api.VIF.create(self.session, VM = self.vm_ref, network = network)
-        self.api.VIF.plug()
-
-        return
-
-    def list_templates(self):
-        list = []
-
-        for record in self.get_all_records(self.api.VM):
-            if record['is_a_template'] == True:
-                list.append(record)
-
-        return list
-
-    def enable_disable_template(self):
-
-        return 
