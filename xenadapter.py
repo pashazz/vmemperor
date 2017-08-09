@@ -7,6 +7,15 @@ import sys
 
 class XenAdapter:
 
+
+    def get_all_records(self, subject):
+        """
+        return get_all_records call in a dict format without opaque object references
+        :param subject: XenAPI subject (VM, VDI, etc)
+        :return:
+        """
+        return subject.get_all_records().values()
+
     def __init__(self, settings):
         """creates session connection to XenAPI. Connects using admin login/password from settings"""
         try:
@@ -21,26 +30,23 @@ class XenAdapter:
         self.api = self.session.xenapi
         return
 
+
+
+
     def list_pools(self):
 
         return
 
     def list_vms(self):
         list = []
-        records = self.api.VM.get_all_records()
-        for vm in records.values():
+        for vm in self.get_all_records(self.api.VM):
             if vm['is_a_template'] == False and vm['is_control_domain'] == False:
                 list.append(vm)
 
         return list
 
     def list_vdis(self):
-        list = []
-        records = self.api.VDI.get_all_records()
-        for vdi in records.values():
-            list.append(vdi)
-
-        return list
+        return self.get_all_records(self.api.VDI)
 
     def create_vdi(self, sr_ref, name_label = None, name_description = None):
         self.api.VDI.create(self.session, sr = sr_ref, name_label = name_label, name_description = name_description)
@@ -105,6 +111,7 @@ class XenAdapter:
 
         return
 
+
     def destroy_vbd(self, vbd_uuid = None, vbd_ref = None):
         if (vbd_ref == None):
             if (vbd_uuid == None):
@@ -121,16 +128,20 @@ class XenAdapter:
 
             # need ???
             vbds = vm['VBDs']
+
             for vbd_ref in vbds:
                 self.destroy_vbd(vbd_ref = vbd_ref)
             vifs = vm['VIFs']
             for vif_ref in vifs:
+
                 self.api.VIF.destroy(vif_ref)
             # need ?????
 
             self.api.VM.destroy(vm_ref)
         except XenAPI.Failure as f:
-            print ("XenAPI Error failed to destroy vm: %s" % f.details())
+
+            print ("XenAPI Error failed to destroy vm: {0}".format(f.details()))
+
             sys.exit(1)
 
         return
@@ -148,8 +159,8 @@ class XenAdapter:
 
     def list_templates(self):
         list = []
-        records = self.api.VM.get_all_records()
-        for record in records.values():
+
+        for record in self.get_all_records(self.api.VM):
             if record['is_a_template'] == True:
                 list.append(record)
 
@@ -157,4 +168,4 @@ class XenAdapter:
 
     def enable_disable_template(self):
 
-        return
+        return 

@@ -1,3 +1,5 @@
+import configparser
+
 """options to parse (name: default value):
 ### Application-wide settings
     secret_string:                              blank       # Here should be a random secret string for encrypting
