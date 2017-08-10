@@ -37,6 +37,9 @@ class XenAdapter:
         return [vm for vm in self.get_all_records(self.api.VM)
                 if not vm['is_a_template'] and not vm['is_control_domain']]
 
+    def list_srs(self):
+        return self.get_all_records(self.api.SR)
+
 
     def list_vdis(self):
         return self.get_all_records(self.api.VDI)
@@ -78,10 +81,9 @@ class XenAdapter:
         except Exception as e:
             print("XenAPI failed to finish creation:", str(e))
 
-        self.start_stop_vm(new_vm_ref, True)
-
         self.connect_vm(new_vm_uuid, net_uuid)
-        
+
+        self.start_stop_vm(new_vm_ref, True)
 
         return
 
@@ -98,7 +100,15 @@ class XenAdapter:
 
         return
 
-    def connect_vm(self, vm_uuid, net_uuid):
+
+    def connect_vm(self, vm_uuid, net_uuid, hotplug=False):
+        '''
+        Connect a VM to a Network
+        :param vm_uuid: VM UUID
+        :param net_uuid: NIF UUID
+        :param hotplug: Should we attempt to hotplug? Enable if VM is started and PV drivers are installed
+        :return:
+        '''
         net_ref = self.api.network.get_by_uuid(net_uuid)
         net = self.api.network.get_record(net_ref)
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
@@ -107,7 +117,8 @@ class XenAdapter:
                 'qos_algorithm_type': '', 'qos_algorithm_params': {}}
         try:
             vif_ref = self.api.VIF.create(args)
-            self.api.VIF.plug(vif_ref)
+            if hotplug:
+                self.api.VIF.plug(vif_ref)
         except Exception as e:
             print("XenAPI failed to create VIF: %s", str(e))
             sys.exit(1)
