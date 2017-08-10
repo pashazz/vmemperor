@@ -72,16 +72,19 @@ class XenAdapter:
         except:
             print("Error provision")
 
+        # sr_ref = self.api.SR.get_by_uuid(sr_uuid)
+        # sr = self.api.SR.get_record(sr_ref)
+        # print(len(sr['VDIs']))
+
         new_vm_uuid = self.api.VM.get_uuid(new_vm_ref)
         try:
             self.api.VM.provision(new_vm_ref)
         except Exception as e:
             print("XenAPI failed to finish creation:", str(e))
 
-        self.start_stop_vm(new_vm_ref, True)
-
         self.connect_vm(new_vm_uuid, net_uuid)
-        
+
+        self.start_stop_vm(new_vm_ref, True)
 
         return
 
@@ -107,7 +110,6 @@ class XenAdapter:
                 'qos_algorithm_type': '', 'qos_algorithm_params': {}}
         try:
             vif_ref = self.api.VIF.create(args)
-            self.api.VIF.plug(vif_ref)
         except Exception as e:
             print("XenAPI failed to create VIF: %s", str(e))
             sys.exit(1)
