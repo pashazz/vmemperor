@@ -13,10 +13,7 @@ def print_attributes (list):
         break
 
 def choose_sr(records):
-    for sr in records.values():
-        name = sr['name_label']
-        if name == 'Local storage':
-            return sr['uuid']
+    return next((sr['uuid'] for sr in records.values() if sr['name_label'] == 'Local Storage'))
 
 def destroy_vms(xen):
     vms = xen.list_vms()
@@ -49,6 +46,8 @@ def main():
         vdi_size = 57767936
         xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, str(vdi_size), 'try_ku')
         vms = xen.list_vms()
+        print (vms[-1])
+
         print(len(vms))
 
         # xen.create_disk(sr_uuid, vdi_size)

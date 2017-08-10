@@ -16,6 +16,20 @@ class XenAdapter:
         """
         return list(subject.get_all_records().values())
 
+
+    def uuid_by_name(self, subject,  name):
+        """
+        Obtain uuid by human readable name
+        :param subject: Xen API subject
+        :param name: name_label
+        :return: uuid (str) or empty string if no object with that name
+        """
+        try:
+            return next((i['uuid'] for i in self.get_all_records(subject)
+                     if i['name_label'] == name))
+        except StopIteration:
+            return ""
+
     def __init__(self, settings):
         """creates session connection to XenAPI. Connects using admin login/password from settings"""
         try:
@@ -37,6 +51,9 @@ class XenAdapter:
         return [vm for vm in self.get_all_records(self.api.VM)
                 if not vm['is_a_template'] and not vm['is_control_domain']]
 
+    def list_srs(self):
+        return self.get_all_records(self.api.SR)
+
 
     def list_vdis(self):
         return self.get_all_records(self.api.VDI)
@@ -49,6 +66,15 @@ class XenAdapter:
                   if record['is_a_template']]
 
     def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, name_label = ''):
+        '''
+        Creates a virtual machine and install an OS
+        :param tmpl_uuid:
+        :param sr_uuid:
+        :param net_uuid:
+        :param vdi_size:
+        :param name_label:
+        :return:
+        '''
         try:
             tmpl_ref = self.api.VM.get_by_uuid(tmpl_uuid)
             new_vm_ref = self.api.VM.clone(tmpl_ref, name_label)
@@ -75,7 +101,7 @@ class XenAdapter:
 
         self.start_stop_vm(new_vm_ref, True)
 
-        return
+        return new_vm_uuid
 
     def create_disk(self, sr_uuid, size, name_label = None):
         sr_ref = self.api.SR.get_by_uuid(sr_uuid)
@@ -184,3 +210,7 @@ class XenAdapter:
         self.api.VDI.destroy(vdi_ref)
 
         return
+
+    def hard_shutdown(self, vm_uuid):
+        vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+        self.api.VM.hard_shutdown(vm_ref)
