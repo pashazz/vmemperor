@@ -43,12 +43,15 @@ def main():
     xen = XenAdapter(settings)
     try:
         # destroy_vms(xen)
+
         sr_uuid = choose_sr(xen.api.SR.get_all_records())
         tmpl_uuid = choose_tmpl(xen.list_templates())
         net_uuid = choose_net(xen.api.network.get_all_records())
         xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, 0, 'try_ku')
         vms = xen.list_vms()
         print(len(vms))
+
+
 
     finally:
         xen.session._logout()
