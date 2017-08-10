@@ -14,10 +14,7 @@ def print_attributes (list):
         break
 
 def choose_sr(records):
-    for sr in records.values():
-        name = sr['name_label']
-        if name == 'Local storage':
-            return sr['uuid']
+    return next((sr['uuid'] for sr in records.values() if sr['name_label'] == 'Local Storage'))
 
 def destroy_vms(xen):
     vms = xen.list_vms()
@@ -48,6 +45,8 @@ def main():
         net_uuid = choose_net(xen.api.network.get_all_records())
         xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, 0, 'try_ku')
         vms = xen.list_vms()
+        print (vms[-1])
+
         print(len(vms))
 
     finally:
