@@ -58,6 +58,8 @@ class ProvisionSpec:
         """Set the requested SR for each disk"""
         for disk in self.disks:
             disk.sr = sr
+    def setDiskSize(self, size):
+        (self.disks)[0].size = size
 
 def parseProvisionSpec(txt):
     """Return an instance of type ProvisionSpec given XML text"""
