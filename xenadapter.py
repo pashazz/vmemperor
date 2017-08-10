@@ -72,10 +72,6 @@ class XenAdapter:
         except:
             print("Error provision")
 
-        # sr_ref = self.api.SR.get_by_uuid(sr_uuid)
-        # sr = self.api.SR.get_record(sr_ref)
-        # print(len(sr['VDIs']))
-
         new_vm_uuid = self.api.VM.get_uuid(new_vm_ref)
         try:
             self.api.VM.provision(new_vm_ref)
@@ -150,7 +146,12 @@ class XenAdapter:
             vm = self.api.VM.get_record(vm_ref)
 
             # no need
-            # vbds = vm['VBDs']
+            vbds = vm['VBDs']
+            vdis = []
+            for vbd_ref in vbds:
+                vbd = self.api.VBD.get_record(vbd_ref)
+                vdi_ref = vbd['VDI']
+                vdis.append(vdi_ref)
             #
             # for vbd_ref in vbds:
             #     self.destroy_vbd(vbd_ref = vbd_ref)
@@ -161,6 +162,8 @@ class XenAdapter:
             # need ?????
 
             self.api.VM.destroy(vm_ref)
+            for vdi_ref in vdis:
+                self.api.VDI.destroy(vdi_ref)
         except Exception as e:
             print ("XenAPI Error failed to destroy vm: %s" % str(e))
 
@@ -168,7 +171,8 @@ class XenAdapter:
 
         return
 
-    def destroy_vdi(self, vdi_ref):
+    def destroy_vdi(self, vdi_uuid):
+        vdi_ref = self.api.VDI.get_by_uuid(vdi_uuid)
         self.api.VDI.destroy(vdi_ref)
 
         return
