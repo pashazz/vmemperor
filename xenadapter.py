@@ -80,7 +80,8 @@ class XenAdapter:
 
         self.start_stop_vm(new_vm_ref, True)
 
-        # self.connect_vm(new_vm_ref, net_uuid)
+        self.connect_vm(new_vm_uuid, net_uuid)
+        
 
         return
 
@@ -97,9 +98,10 @@ class XenAdapter:
 
         return
 
-    def connect_vm(self, vm_ref, net_uuid):
+    def connect_vm(self, vm_uuid, net_uuid):
         net_ref = self.api.network.get_by_uuid(net_uuid)
         net = self.api.network.get_record(net_ref)
+        vm_ref = self.api.VM.get_by_uuid(vm_uuid)
         args = {'VM': vm_ref, 'network': net_ref, 'device': '0',\
                 'MAC': '', 'MTU': net['MTU'], 'other_config': {}, \
                 'qos_algorithm_type': '', 'qos_algorithm_params': {}}
