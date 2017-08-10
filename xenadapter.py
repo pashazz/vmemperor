@@ -14,7 +14,7 @@ class XenAdapter:
         :param subject: XenAPI subject (VM, VDI, etc)
         :return:
         """
-        return subject.get_all_records().values()
+        return list(subject.get_all_records().values())
 
     def __init__(self, settings):
         """creates session connection to XenAPI. Connects using admin login/password from settings"""
@@ -31,32 +31,22 @@ class XenAdapter:
         return
 
     def list_pools(self):
-
-        return
+        return self.get_all_records(self.api.pool)
 
     def list_vms(self):
-        list = []
-        for vm in self.get_all_records(self.api.VM):
-            if vm['is_a_template'] == False and vm['is_control_domain'] == False:
-                list.append(vm)
+        return [vm for vm in self.get_all_records(self.api.VM)
+                if not vm['is_a_template'] and not vm['is_control_domain']]
 
-        return list
 
     def list_vdis(self):
         return self.get_all_records(self.api.VDI)
 
     def list_networks(self):
-
-        return
+        return self.get_all_records(self.api.network)
 
     def list_templates(self):
-        list = []
-
-        for record in self.get_all_records(self.api.VM):
-            if record['is_a_template'] == True:
-                list.append(record)
-
-        return list
+          return [record for record in self.get_all_records(self.api.VM)
+                  if record['is_a_template']]
 
     def create_vdi(self, sr_ref, name_label = None, name_description = None):
         self.api.VDI.create(self.session, sr = sr_ref, name_label = name_label, name_description = name_description)
