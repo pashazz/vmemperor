@@ -73,7 +73,7 @@ class XenAdapter:
             tmpl_ref = self.api.VM.get_by_uuid(tmpl_uuid)
             new_vm_ref = self.api.VM.clone(tmpl_ref, name_label)
         except XenAPI.Failure as f:
-            print ("XenAPI Error failed to clone template: $s" % f.details)
+            print ("XenAPI Error failed to clone template: %s" % f.details)
 
         try:
             specs = provision.getProvisionSpec(self.session, new_vm_ref)
@@ -86,8 +86,11 @@ class XenAdapter:
         try:
             self.api.VM.provision(new_vm_ref)
         except Exception as e:
-            print("XenAPI failed to finish creation: %s" % str(e))
-        self.api.VM.start(new_vm_ref, False, True)
+            print("XenAPI failed to finish creation:", str(e))
+
+        self.start_stop_vm(new_vm_ref, True)
+
+        # self.connect_vm(new_vm_ref, net_uuid)
 
         return
 
@@ -98,15 +101,24 @@ class XenAdapter:
 
     def start_stop_vm(self, vm_ref, enable):
         if enable:
-            self.api.VM.start (vm_ref)
+            self.api.VM.start (vm_ref, False, True)
         else:
             self.api.VM.shutdown(vm_ref)
 
         return
 
-    def connect_vm(self, network):
-        self.api.VIF.create(self.session, VM = self.vm_ref, network = network)
-        self.api.VIF.plug()
+    def connect_vm(self, vm_ref, net_uuid):
+        net_ref = self.api.network.get_by_uuid(net_uuid)
+        net = self.api.network.get_record(net_ref)
+        args = {'VM': vm_ref, 'network': net_ref, 'device': '0',\
+                'MAC': '', 'MTU': net['MTU'], 'other_config': {}, \
+                'qos_algorithm_type': '', 'qos_algorithm_params': {}}
+        try:
+            vif_ref = self.api.VIF.create(args)
+            self.api.VIF.plug(vif_ref)
+        except Exception as e:
+            print("XenAPI failed to create VIF: %s", str(e))
+            sys.exit(1)
 
         return
 
@@ -143,21 +155,20 @@ class XenAdapter:
             vm_ref = self.api.VM.get_by_uuid(vm_uuid)
             vm = self.api.VM.get_record(vm_ref)
 
-            # need ???
-            vbds = vm['VBDs']
-
-            for vbd_ref in vbds:
-                self.destroy_vbd(vbd_ref = vbd_ref)
-            vifs = vm['VIFs']
-            for vif_ref in vifs:
-
-                self.api.VIF.destroy(vif_ref)
+            # no need
+            # vbds = vm['VBDs']
+            #
+            # for vbd_ref in vbds:
+            #     self.destroy_vbd(vbd_ref = vbd_ref)
+            # vifs = vm['VIFs']
+            # for vif_ref in vifs:
+            #
+            #     self.api.VIF.destroy(vif_ref)
             # need ?????
 
             self.api.VM.destroy(vm_ref)
-        except XenAPI.Failure as f:
-
-            print ("XenAPI Error failed to destroy vm: {0}".format(f.details()))
+        except Exception as e:
+            print ("XenAPI Error failed to destroy vm: %s" % str(e))
 
             sys.exit(1)
 

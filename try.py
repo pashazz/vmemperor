@@ -5,7 +5,7 @@ from xenadapter import XenAdapter
 def print_list (list):
     for x in list:
         name = x['name_label']
-        print(name, ref)
+        print(name)
 
 def print_attributes (list):
     for x in list:
@@ -29,6 +29,11 @@ def choose_tmpl (list):
         if x['name_label'] == 'Ubuntu Trusty Tahr 14.04':
             return x['uuid']
 
+def choose_net (records):
+    for x in records.values():
+        if x['name_label'] == 'Pool-wide network associated with eth0':
+            return x['uuid']
+
 def main():
     config = ConfigParser()
     config.read('login.ini')
@@ -37,15 +42,13 @@ def main():
 
     xen = XenAdapter(settings)
     try:
-        destroy_vms(xen)
+        # destroy_vms(xen)
         sr_uuid = choose_sr(xen.api.SR.get_all_records())
         tmpl_uuid = choose_tmpl(xen.list_templates())
-        xen.create_vm(tmpl_uuid, sr_uuid, 'try_ku')
+        net_uuid = choose_net(xen.api.network.get_all_records())
+        xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, 0, 'try_ku')
         vms = xen.list_vms()
         print(len(vms))
-        # records = xen.api.VIF.get_all_records()
-        # print("VIF", len(records))
-        # records = xen.api.net
 
     finally:
         xen.session._logout()
