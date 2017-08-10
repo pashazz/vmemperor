@@ -48,35 +48,28 @@ class XenAdapter:
           return [record for record in self.get_all_records(self.api.VM)
                   if record['is_a_template']]
 
-    def create_vdi(self, sr_ref, name_label = None, name_description = None):
-        self.api.VDI.create(self.session, sr = sr_ref, name_label = name_label, name_description = name_description)
-
-        return
-
-    def create_network(self):
-        self.api.network.create(self.session)
-
-        return
-
     def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, name_label = ''):
         try:
             tmpl_ref = self.api.VM.get_by_uuid(tmpl_uuid)
             new_vm_ref = self.api.VM.clone(tmpl_ref, name_label)
-        except XenAPI.Failure as f:
-            print ("XenAPI Error failed to clone template: %s" % f.details)
+        except Exception as e:
+            print ("XenAPI Error failed to clone template:", str(e))
 
         try:
             specs = provision.getProvisionSpec(self.session, new_vm_ref)
             specs.setSR(sr_uuid)
+            specs.setDiskSize(str(vdi_size))
             provision.setProvisionSpec(self.session, new_vm_ref, specs)
-        except:
-            print("Error provision")
+        except Exception as e:
+            print("Error provision:", str(e))
+            sys.exit(1)
 
         new_vm_uuid = self.api.VM.get_uuid(new_vm_ref)
         try:
             self.api.VM.provision(new_vm_ref)
         except Exception as e:
             print("XenAPI failed to finish creation:", str(e))
+            sys.exit(1)
 
         self.connect_vm(new_vm_uuid, net_uuid)
 
@@ -84,16 +77,45 @@ class XenAdapter:
 
         return
 
-    def create_vbd(self, vdi_ref):
-        self.api.VBD.create(self.session, VM = self.vm_ref, VDI = vdi_ref)
+    def create_disk(self, sr_uuid, size, name_label = None):
+        sr_ref = self.api.SR.get_by_uuid(sr_uuid)
+        if not (name_label):
+            sr = self.api.SR.get_record(sr_ref)
+            name_label = sr['name_label'] + ' disk'
 
-        return
+        args = {'SR': sr_ref, 'virtual_size': str(size), 'type': 'system', \
+                'sharable': False, 'read_only': False, 'other_config': {}, \
+                'name_label': name_label}
+        try:
+            vdi_ref = self.api.VDI.create(args)
+        except Exception as e:
+            print("Failed to create VDI:", str(e))
+            sys.exit(1)
+        vdi_uuid = self.api.VDI.get_uuid(vdi_ref)
+
+        return vdi_uuid
+
+    def create_network(self, name_label = None):
+        """
+
+        :param name_label:
+        :return:
+        """
+        # todo какие тут должны быть аргументы, это работает, но что-то маловато требуется
+        if not(name_label):
+            records = self.api.network.get_all_records()
+            name_label = 'network_' + str(len(records))
+        args = {'other_config': {}, 'name_label': name_label}
+        net_ref = self.api.network.create(args)
+        net_uuid = self.api.network.get_uuid(net_ref)
+
+        return net_uuid
 
     def start_stop_vm(self, vm_ref, enable):
         if enable:
             self.api.VM.start (vm_ref, False, True)
         else:
-            self.api.VM.shutdown(vm_ref)
+            self.api.VM.suspend(vm_ref)
 
         return
 
@@ -107,7 +129,7 @@ class XenAdapter:
         try:
             vif_ref = self.api.VIF.create(args)
         except Exception as e:
-            print("XenAPI failed to create VIF: %s", str(e))
+            print("XenAPI failed to create VIF:", str(e))
             sys.exit(1)
 
         return
@@ -120,22 +142,21 @@ class XenAdapter:
 
         return
 
-    def attach_vbd(self):
-        self.api.VBD.plug()
+    def attach_disk(self, vm_uuid, vdi_uuid):
+        vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+        vm = self.api.VM.get_record(vm_ref)
+        vdi_ref = self.api.VDI.get_by_uuid(vdi_uuid)
+        vdi = self.api.VDI.get_record(vdi_ref)
+        args = {'VM': vm_ref, 'VDI': vdi_ref, 'userdevice': vm['VBDs'], 'bootable': True, \
+                'mode': 'RW', 'type': 'Disk', 'empty': False, 'other_config': {}, \
+                'qos_algorithm_type': '', 'qos_algorithm_params': {}}
+        vbd_ref = self.api.VBD.create(args)
+        vbd_uuid = self.api.VBD.get_uuid(vbd_ref)
 
-        return
+        return vbd_uuid
 
-    def detach_vbd(self):
-        self.api.VBD.unplug()
-
-        return
-
-
-    def destroy_vbd(self, vbd_uuid = None, vbd_ref = None):
-        if (vbd_ref == None):
-            if (vbd_uuid == None):
-                raise ValueError("No vbd to destroy")
-            vbd_ref = self.api.VBD.get_by_uuid(vbd_uuid)
+    def detach_disk(self, vbd_uuid):
+        vbd_ref = self.api.VBD.get_by_uuid(vbd_uuid)
         self.api.VBD.destroy(vbd_ref)
 
         return
@@ -145,33 +166,20 @@ class XenAdapter:
             vm_ref = self.api.VM.get_by_uuid(vm_uuid)
             vm = self.api.VM.get_record(vm_ref)
 
-            # no need
             vbds = vm['VBDs']
-            vdis = []
-            for vbd_ref in vbds:
-                vbd = self.api.VBD.get_record(vbd_ref)
-                vdi_ref = vbd['VDI']
-                vdis.append(vdi_ref)
-            #
-            # for vbd_ref in vbds:
-            #     self.destroy_vbd(vbd_ref = vbd_ref)
-            # vifs = vm['VIFs']
-            # for vif_ref in vifs:
-            #
-            #     self.api.VIF.destroy(vif_ref)
-            # need ?????
+            vdis = [self.api.VBD.get_record(vbd_ref)['VDI'] for vbd_ref in vbds]
 
             self.api.VM.destroy(vm_ref)
             for vdi_ref in vdis:
                 self.api.VDI.destroy(vdi_ref)
         except Exception as e:
-            print ("XenAPI Error failed to destroy vm: %s" % str(e))
+            print ("XenAPI Error failed to destroy vm:", str(e))
 
             sys.exit(1)
 
         return
 
-    def destroy_vdi(self, vdi_uuid):
+    def destroy_disk(self, vdi_uuid):
         vdi_ref = self.api.VDI.get_by_uuid(vdi_uuid)
         self.api.VDI.destroy(vdi_ref)
 
