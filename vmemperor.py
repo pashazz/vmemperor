@@ -141,12 +141,10 @@ class VNC(BaseHandler):
 
 class AttachDetachDisc(BaseHandler):
     def post(self):
-        XenAdapter.create_vdi()
-        XenAdapter.create_vbd()
-        XenAdapter.attach_vbd()
-        XenAdapter.detach_vbd()
-        XenAdapter.destroy_vbd()
-        XenAdapter.destroy_vdi()
+        XenAdapter.create_disk()
+        XenAdapter.attach_disk()
+        XenAdapter.detach_disk()
+        XenAdapter.destroy_disk()
         # update db info
         self.write()
 
