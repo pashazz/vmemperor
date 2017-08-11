@@ -137,7 +137,8 @@ class XenAdapter:
 
         return net_uuid
 
-    def start_stop_vm(self, vm_ref, enable):
+    def start_stop_vm(self, vm_uuid, enable):
+        vm_ref = self.api.VM.get_by_uuid(vm_uuid)
         if enable:
             self.api.VM.start (vm_ref, False, True)
         else:
@@ -164,9 +165,18 @@ class XenAdapter:
 
         return
 
-    def get_vnc(self):
-
-        return
+    def get_vnc(self, vm_uuid):
+        vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+        if (self.api.VM.get_power_state(vm_ref) != 'Running'):
+            self.start_stop_vm(vm_uuid, True)
+        consoles = self.api.VM.get_consoles(vm_ref) #references
+        if (len(consoles) == 0):
+            print('Failed to find console')
+        else:
+            cons_ref = consoles[0]
+            console = self.api.console.get_record(cons_ref)
+            url = self.api.console.get_location(cons_ref)
+        return url
 
     def attach_disk(self, vm_uuid, vdi_uuid):
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
