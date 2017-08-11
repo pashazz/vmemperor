@@ -182,11 +182,21 @@ class XenAdapter:
 
         return
 
-    def enable_disable_template(self):
+    def enable_disable_template(self, vm_uuid, enable):
+        vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+        try:
+            if enable:
+                self.api.VM.add_tags(vm_ref, 'vmemperor_old_ver')
+            else:
+                self.api.VM.remove_tags(vm_ref, 'vmemperor_old_ver')
+            return {'status': 'success', 'details': 'template modified', 'reason': ''}, 200
+        except XenAPI.Failure as e:
+            return {'status': 'error', 'details': 'can not modify template', 'reason': e.details}, 409
+        except Exception as e:
+            return {'status': 'error', 'details': 'can not modify template', 'reason': str(e)}, 500
+
 
         return
-
-
 
     def get_power_state(self, vm_uuid):
         '''
