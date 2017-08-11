@@ -145,13 +145,18 @@ class TestXenAdapterDisk (unittest.TestCase, XenAdapterSetupVmMixin):
     @classmethod
     def tearDownClass(cls):
         XenAdapterSetupVmMixin.tearDownClass()
-        cls.xen.destroy_disk(cls.vdi_uuid)
-
-    def test_attachment_suspend(self):
-        self.vbd_uuid = self.xen.attach_disk(self.vm_uuid, self.vdi_uuid)
+        #cls.xen.destroy_disk(cls.vdi_uuid)
 
     def test_attachment_run(self):
+        if self.xen.get_power_state(self.vm_uuid) != 'Running':
+            self.xen.start_stop_vm(self.vm_uuid, True)
         self.vbd_uuid = self.xen.attach_disk(self.vm_uuid, self.vdi_uuid)
+
+        vm_ref = self.xen.api.VM.get_by_uuid(self.vm_uuid)
+
+        self.assertIn(self.vbd_uuid, (self.xen.api.VBD.get_uuid(vbd_ref)
+                                      for vbd_ref in self.xen.api.VM.get_VBDs(vm_ref)))
+
 
 
 
