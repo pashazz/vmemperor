@@ -46,24 +46,44 @@ class XenAdapter:
         return
 
     def list_pools(self):
+        '''
+        :return: list of pool records
+        '''
         return self.get_all_records(self.api.pool)
 
     def list_vms(self):
+        '''
+        :return: list of vm records except dom0 and templates
+        '''
         return [vm for vm in self.get_all_records(self.api.VM)
                 if not vm['is_a_template'] and not vm['is_control_domain']]
 
     def list_srs(self):
+        '''
+        :return: list of storage repositories' records
+        '''
         return self.get_all_records(self.api.SR)
 
 
     def list_vdis(self):
+        '''
+        :return: list of virtual disk images' records
+        '''
         return self.get_all_records(self.api.VDI)
 
     def list_networks(self):
+        '''
+        list of network interfaces' records
+        :return:
+        '''
         return self.get_all_records(self.api.network)
 
     def list_templates(self):
-          return [record for record in self.get_all_records(self.api.VM)
+        '''
+        list of VM templates' records
+        :return:
+        '''
+        return [record for record in self.get_all_records(self.api.VM)
                   if record['is_a_template']]
 
     def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, name_label = ''):
@@ -99,7 +119,7 @@ class XenAdapter:
 
         self.connect_vm(new_vm_uuid, net_uuid)
 
-        self.api.VM.start(new_vm_ref, False, True)
+        self.api.VM.start(new_vm_ref, False, True) # args: VM reference, start in paused state, force start
 
         return new_vm_uuid
 
@@ -165,6 +185,18 @@ class XenAdapter:
 
         return
 
+
+
+    def get_power_state(self, vm_uuid):
+        '''
+        Returns a power state of the VM
+        :param vm_uuid: VM UUID
+        :return: VM State string
+        '''
+        vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+        return self.api.VM.get_power_state(vm_ref)
+
+
     def get_vnc(self, vm_uuid):
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
         if (self.api.VM.get_power_state(vm_ref) != 'Running'):
@@ -179,22 +211,33 @@ class XenAdapter:
         return url
 
     def attach_disk(self, vm_uuid, vdi_uuid):
+        '''
+        Attach a VDI object to a VM by creating a VBD object and attempting to hotplug it if the machine is running        if VM is running
+        :param vm_uuid: VM UUID
+        :param vdi_uuid: virtual disk image UUID
+        :return: Virtual block device UUID
+        '''
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
         vm = self.api.VM.get_record(vm_ref)
         vdi_ref = self.api.VDI.get_by_uuid(vdi_uuid)
         vdi = self.api.VDI.get_record(vdi_ref)
-        args = {'VM': vm_ref, 'VDI': vdi_ref, 'userdevice': vm['VBDs'], 'bootable': True, \
+        args = {'VM': vm_ref, 'VDI': vdi_ref, 'userdevice': str(len(vm['VBDs'])), 'bootable': True, \
                 'mode': 'RW', 'type': 'Disk', 'empty': False, 'other_config': {}, \
                 'qos_algorithm_type': '', 'qos_algorithm_params': {}}
         vbd_ref = self.api.VBD.create(args)
         vbd_uuid = self.api.VBD.get_uuid(vbd_ref)
-
+        if (self.api.VM.get_power_state(vm_ref) != 'Running'):
+            self.api.VBD.plug(vbd_ref)
         return vbd_uuid
 
     def detach_disk(self, vbd_uuid):
+        '''
+        Detach a VBD object while trying to eject it if the machine is running
+        :param vbd_uuid: virtual block device UUID to detach
+        :return:
+        '''
         vbd_ref = self.api.VBD.get_by_uuid(vbd_uuid)
         self.api.VBD.destroy(vbd_ref)
-
         return
 
     def destroy_vm(self, vm_uuid):
@@ -223,4 +266,5 @@ class XenAdapter:
 
     def hard_shutdown(self, vm_uuid):
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
-        self.api.VM.hard_shutdown(vm_ref)
+        if self.api.VM.get_power_state(vm_ref) != 'Halted':
+            self.api.VM.hard_shutdown(vm_ref)
