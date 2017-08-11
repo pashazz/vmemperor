@@ -15,7 +15,7 @@ class XenAdapterSetupMixin:
     @classmethod
     def tearDownClass(cls):
         cls.xen.session._logout()
-        # self.xen.api.logout()
+        # cls.xen.session.logout()
 
 class TestXenAdapterList(unittest.TestCase, XenAdapterSetupMixin):
     '''
@@ -56,15 +56,17 @@ class TestXenAdapterList(unittest.TestCase, XenAdapterSetupMixin):
         self.assertIs(type(templates), list)
         self.assertTrue(len(templates))
 
-class TestXenAdapterVM(unittest.TestCase, XenAdapterSetupMixin):
-    '''
+
+class XenAdapterSetupVmMixin(XenAdapterSetupMixin):
+    """
     This class creates a test VM in its setUp and removes in tearDown
-    '''
+    """
     VM_NAME = 'Test VM created by unittest'
+
     @classmethod
     def setUpClass(cls):
         XenAdapterSetupMixin.setUpClass()
-        #create vm
+        # create vm
         sr_uuid = cls.choose_sr()
         template_uuid = cls.choose_template()
         net_uuid = cls.choose_net()
@@ -87,31 +89,69 @@ class TestXenAdapterVM(unittest.TestCase, XenAdapterSetupMixin):
         '''
         return XenAdapterSetupMixin.xen.uuid_by_name(XenAdapterSetupMixin.xen.api.SR, 'Local storage')
 
-
     @classmethod
     def choose_template(cls):
         '''
         :return: template to test against
         '''
-        return next((templ['uuid'] for templ in XenAdapterSetupMixin.xen.list_templates() if templ['name_label'] == 'Ubuntu Trusty Tahr 14.04'))
+        return next((templ['uuid'] for templ in XenAdapterSetupMixin.xen.list_templates() if
+                     templ['name_label'] == 'Ubuntu Trusty Tahr 14.04'))
 
     @classmethod
     def choose_net(cls):
         '''
         :return: network IF to test against
         '''
-        return XenAdapterSetupMixin.xen.uuid_by_name(XenAdapterSetupMixin.xen.api.network, 'Pool-wide network associated with eth0')
+        return XenAdapterSetupMixin.xen.uuid_by_name(XenAdapterSetupMixin.xen.api.network,
+                                                     'Pool-wide network associated with eth0')
 
 
+class TestXenAdapterVM(unittest.TestCase, XenAdapterSetupVmMixin):
+    '''
+
+    '''
+    @classmethod
+    def setUpClass(cls):
+        XenAdapterSetupVmMixin.setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        '''
+        halt vm with a hard shutdown
+        Destroy VM and call superclass tearDown
+        '''
+        XenAdapterSetupVmMixin.tearDownClass()
 
     def test_vm_exists(self):
         '''
         Test if setUp works correctly and test vm is created
         '''
 
-        self.assertNotEqual(XenAdapterSetupMixin.xen.uuid_by_name(XenAdapterSetupMixin.xen.api.VM, TestXenAdapterVM.VM_NAME),
+        self.assertNotEqual(self.xen.uuid_by_name(self.xen.api.VM, self.VM_NAME),
                              str())
-        self.assertIn(TestXenAdapterVM.vm_uuid, (vm['uuid'] for vm in XenAdapterSetupMixin.xen.list_vms()))
+        self.assertIn(self.vm_uuid, (vm['uuid'] for vm in self.xen.list_vms()))
+
+class TestXenAdapterDisk (unittest.TestCase, XenAdapterSetupVmMixin):
+    """
+    This class creates a Disk, tests attachment and detachment and destroys it
+    """
+    @classmethod
+    def setUpClass(cls):
+        XenAdapterSetupVmMixin.setUpClass()
+        sr_uuid = XenAdapterSetupVmMixin.choose_sr()
+        cls.vdi_uuid = cls.xen.create_disk(sr_uuid, '2048', 'Test disk')
+        cls.vbd_uuid = None
+
+    @classmethod
+    def tearDownClass(cls):
+        XenAdapterSetupVmMixin.tearDownClass()
+        cls.xen.destroy_disk(cls.vdi_uuid)
+
+    def test_attachment_suspend(self):
+        self.vbd_uuid = self.xen.attach_disk(self.vm_uuid, self.vdi_uuid)
+
+    def test_attachment_run(self):
+        self.vbd_uuid = self.xen.attach_disk(self.vm_uuid, self.vdi_uuid)
 
 
 
