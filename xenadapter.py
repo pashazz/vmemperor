@@ -139,10 +139,11 @@ class XenAdapter:
 
     def start_stop_vm(self, vm_uuid, enable):
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
-        if enable:
+        vm = self.api.get_record()
+        if vm['power_state'] != 'Running' and enable == True:
             self.api.VM.start (vm_ref, False, True)
-        else:
-            self.api.VM.suspend(vm_ref)
+        if vm['power_state'] == 'Running' and enable == False:
+            self.api.VM.shutdown(vm_ref)
 
         return
 
