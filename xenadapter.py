@@ -99,7 +99,7 @@ class XenAdapter:
 
         self.connect_vm(new_vm_uuid, net_uuid)
 
-        self.start_stop_vm(new_vm_ref, True)
+        self.api.VM.start(new_vm_ref, False, True)
 
         return new_vm_uuid
 
