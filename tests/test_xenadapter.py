@@ -63,14 +63,17 @@ class XenAdapterSetupVmMixin(XenAdapterSetupMixin):
     """
     VM_NAME = 'Test VM created by unittest'
 
+
     @classmethod
     def setUpClass(cls):
+        if not hasattr(cls, 'start'):
+            cls.start = True
         XenAdapterSetupMixin.setUpClass()
         # create vm
         sr_uuid = cls.choose_sr()
         template_uuid = cls.choose_template()
         net_uuid = cls.choose_net()
-        cls.vm_uuid = cls.xen.create_vm(template_uuid, sr_uuid, net_uuid, '2048', TestXenAdapterVM.VM_NAME)
+        cls.vm_uuid = cls.xen.create_vm(template_uuid, sr_uuid, net_uuid, '2048', TestXenAdapterVM.VM_NAME, cls.start)
 
     @classmethod
     def tearDownClass(cls):
@@ -137,6 +140,7 @@ class TestXenAdapterDisk (unittest.TestCase, XenAdapterSetupVmMixin):
     """
     @classmethod
     def setUpClass(cls):
+        XenAdapterSetupVmMixin.start = False
         XenAdapterSetupVmMixin.setUpClass()
         sr_uuid = XenAdapterSetupVmMixin.choose_sr()
         cls.vdi_uuid = cls.xen.create_disk(sr_uuid, '2048', 'Test disk')
@@ -147,9 +151,7 @@ class TestXenAdapterDisk (unittest.TestCase, XenAdapterSetupVmMixin):
         XenAdapterSetupVmMixin.tearDownClass()
         #cls.xen.destroy_disk(cls.vdi_uuid)
 
-    def test_attachment_run(self):
-        if self.xen.get_power_state(self.vm_uuid) != 'Running':
-            self.xen.start_stop_vm(self.vm_uuid, True)
+    def test_attachment(self):
         self.vbd_uuid = self.xen.attach_disk(self.vm_uuid, self.vdi_uuid)
 
         vm_ref = self.xen.api.VM.get_by_uuid(self.vm_uuid)

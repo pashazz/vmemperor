@@ -86,7 +86,7 @@ class XenAdapter:
         return [record for record in self.get_all_records(self.api.VM)
                   if record['is_a_template']]
 
-    def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, name_label = ''):
+    def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, name_label = '', start=True):
         '''
         Creates a virtual machine and install an OS
         :param tmpl_uuid:
@@ -119,7 +119,8 @@ class XenAdapter:
 
         self.connect_vm(new_vm_uuid, net_uuid)
 
-        self.api.VM.start(new_vm_ref, False, True) # args: VM reference, start in paused state, force start
+        if start:
+            self.api.VM.start(new_vm_ref, False, True) # args: VM reference, start in paused state, force start
 
         return new_vm_uuid
 
@@ -227,7 +228,7 @@ class XenAdapter:
                 'qos_algorithm_type': '', 'qos_algorithm_params': {}}
         vbd_ref = self.api.VBD.create(args)
         vbd_uuid = self.api.VBD.get_uuid(vbd_ref)
-        if (self.api.VM.get_power_state(vm_ref) != 'Running'):
+        if (self.api.VM.get_power_state(vm_ref) == 'Running'):
             self.api.VBD.plug(vbd_ref)
         return vbd_uuid
 
