@@ -139,7 +139,7 @@ class XenAdapter:
 
     def start_stop_vm(self, vm_uuid, enable):
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
-        vm = self.api.get_record()
+        vm = self.api.VM.get_record(vm_ref)
         if vm['power_state'] != 'Running' and enable == True:
             self.api.VM.start (vm_ref, False, True)
         if vm['power_state'] == 'Running' and enable == False:
@@ -184,7 +184,16 @@ class XenAdapter:
         vm = self.api.VM.get_record(vm_ref)
         vdi_ref = self.api.VDI.get_by_uuid(vdi_uuid)
         vdi = self.api.VDI.get_record(vdi_ref)
-        args = {'VM': vm_ref, 'VDI': vdi_ref, 'userdevice': vm['VBDs'], 'bootable': True, \
+
+        vm_vbds = vm['VBDs']
+        vdi_vbds = vdi['VBDs']
+        for vm_vbd in vm_vbds:
+            for vdi_vbd in vdi_vbds:
+                if vm_vbd == vdi_vbd:
+                    vbd_uuid = self.api.VBD.get_uuid(vm_vbd)
+                    return vbd_uuid
+
+        args = {'VM': vm_ref, 'VDI': vdi_ref, 'userdevice': str(len(vm['VBDs'])), 'bootable': True, \
                 'mode': 'RW', 'type': 'Disk', 'empty': False, 'other_config': {}, \
                 'qos_algorithm_type': '', 'qos_algorithm_params': {}}
         vbd_ref = self.api.VBD.create(args)
