@@ -13,7 +13,8 @@ def print_attributes (list):
         break
 
 def choose_sr(records):
-    return next((sr['uuid'] for sr in records.values() if sr['name_label'] == 'Local Storage'))
+    sr_uuid = [sr['uuid'] for sr in records.values() if sr['name_label'] == 'Local storage']
+    return sr_uuid[0]
 
 def destroy_vms(xen):
     vms = xen.list_vms()
@@ -40,33 +41,36 @@ def main():
     try:
         # destroy_vms(xen)
 
-        sr_uuid = choose_sr(xen.api.SR.get_all_records())
-        tmpl_uuid = choose_tmpl(xen.list_templates())
-        net_uuid = choose_net(xen.api.network.get_all_records())
-        vdi_size = 57767936
-        xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, str(vdi_size), 'try_ku')
-        vms = xen.list_vms()
-        print (vms[-1])
+        # sr_uuid = choose_sr(xen.api.SR.get_all_records())
+        # tmpl_uuid = choose_tmpl(xen.list_templates())
+        # net_uuid = choose_net(xen.api.network.get_all_records())
+        # vdi_size = 57767936
+        # xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, str(vdi_size), 'try_kuku')
+        # vms = xen.list_vms()
+        # print (vms[-1]['uuid'])
+        # print(len(vms))
 
-        print(len(vms))
+        # vms = xen.list_vms()
+        # vm = vms[-1]
+        # vm_uuid = vm['uuid']
+        # if (vm['power_state'] != 'Running'):
+        #     xen.start_stop_vm(vm_uuid, True)
+        # vm_ref = xen.api.VM.get_by_uuid(vm_uuid)
+        # consoles = xen.api.VM.get_consoles(vm_ref) #references
+        # if (len(consoles) == 0):
+        #     print('Failed to find console')
+        # else:
+        #     cons_ref = consoles[0]
+        #     console = xen.api.console.get_record(cons_ref)
+        #     url = xen.api.console.get_location(cons_ref)
+        #     print(url)
 
-        # xen.create_disk(sr_uuid, vdi_size)
 
-        # vdi_uuid = 'd77ae934-7a16-4016-99e7-7f2f11de170d'
-        # vm_uuid = '3baf280c-702f-f40c-77f6-b6e7e5ea8bbb'
-        # vdi_ref = xen.api.VDI.get_by_uuid(vdi_uuid)
-        # vdi = xen.api.VDI.get_record(vdi_ref)
-        # vbds = vdi['VBDs']
-        # vbd_ref = vbds[0]
-        # vbd_uuid = xen.api.VBD.get_uuid(vbd_ref)
-        # xen.detach_disk(vbd_uuid)
+        # todo что за хрень?????
+        templates = xen.list_templates()
+        ku = [x for x in templates if x['name_label'] == 'try_ku']
+        print(len(ku))
 
-        # vbd_uuid = xen.attach_disk(vm_uuid, vdi_uuid)
-        # print(vbd_uuid)
-        # vbd_ref = xen.api.VBD.get_by_uuid(vbd_uuid)
-        # vbd = xen.api.VBD.get_record(vbd_ref)
-        # for key, val in vbd.items():
-        #     print(key, val)
 
     finally:
         xen.session._logout()
