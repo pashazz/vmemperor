@@ -3,6 +3,7 @@ import json
 import hooks
 import provision
 
+
 import sys
 
 class XenAdapter:
@@ -82,9 +83,8 @@ class XenAdapter:
             print ("XenAPI Error failed to clone template:", str(e))
 
         try:
-            specs = provision.getProvisionSpec(self.session, new_vm_ref)
-            specs.setSR(sr_uuid)
-            specs.setDiskSize(str(vdi_size))
+            specs = provision.ProvisionSpec()
+            specs.disks.append(provision.Disk("0", vdi_size, sr_uuid, True))
             provision.setProvisionSpec(self.session, new_vm_ref, specs)
         except Exception as e:
             print("Error provision:", str(e))
@@ -99,7 +99,7 @@ class XenAdapter:
 
         self.connect_vm(new_vm_uuid, net_uuid)
 
-        self.start_stop_vm(new_vm_ref, True)
+        self.start_stop_vm(new_vm_uuid, True)
 
         return new_vm_uuid
 
