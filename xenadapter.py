@@ -160,7 +160,7 @@ class XenAdapter:
 
     def start_stop_vm(self, vm_uuid, enable):
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
-        vm = self.api.get_record()
+        vm = self.api.VM.get_record(vm_ref)
         if vm['power_state'] != 'Running' and enable == True:
             self.api.VM.start (vm_ref, False, True)
         if vm['power_state'] == 'Running' and enable == False:
@@ -183,11 +183,21 @@ class XenAdapter:
 
         return
 
-    def enable_disable_template(self):
+    def enable_disable_template(self, vm_uuid, enable):
+        vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+        try:
+            if enable:
+                self.api.VM.add_tags(vm_ref, 'vmemperor_old_ver')
+            else:
+                self.api.VM.remove_tags(vm_ref, 'vmemperor_old_ver')
+            return {'status': 'success', 'details': 'template modified', 'reason': ''}, 200
+        except XenAPI.Failure as e:
+            return {'status': 'error', 'details': 'can not modify template', 'reason': e.details}, 409
+        except Exception as e:
+            return {'status': 'error', 'details': 'can not modify template', 'reason': str(e)}, 500
+
 
         return
-
-
 
     def get_power_state(self, vm_uuid):
         '''
@@ -223,6 +233,15 @@ class XenAdapter:
         vm = self.api.VM.get_record(vm_ref)
         vdi_ref = self.api.VDI.get_by_uuid(vdi_uuid)
         vdi = self.api.VDI.get_record(vdi_ref)
+
+        vm_vbds = vm['VBDs']
+        vdi_vbds = vdi['VBDs']
+        for vm_vbd in vm_vbds:
+            for vdi_vbd in vdi_vbds:
+                if vm_vbd == vdi_vbd:
+                    vbd_uuid = self.api.VBD.get_uuid(vm_vbd)
+                    return vbd_uuid
+
         args = {'VM': vm_ref, 'VDI': vdi_ref, 'userdevice': str(len(vm['VBDs'])), 'bootable': True, \
                 'mode': 'RW', 'type': 'Disk', 'empty': False, 'other_config': {}, \
                 'qos_algorithm_type': '', 'qos_algorithm_params': {}}
@@ -230,7 +249,9 @@ class XenAdapter:
         vbd_uuid = self.api.VBD.get_uuid(vbd_ref)
         if (self.api.VM.get_power_state(vm_ref) == 'Running'):
             self.api.VBD.plug(vbd_ref)
+
         return vbd_uuid
+
 
     def detach_disk(self, vbd_uuid):
         '''
