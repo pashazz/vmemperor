@@ -125,7 +125,8 @@ class XenAdapter:
         try:
             self.api.VM.provision(new_vm_ref)
         except Exception as e:
-            print("Failed to provision: {0}".format(str(e)))
+            logging.error("Failed to provision: {0}".format(str(e)))
+            self.destroy_vm(new_vm_uuid)
             sys.exit(1)
 
         self.connect_vm(new_vm_uuid, net_uuid)
@@ -164,27 +165,6 @@ class XenAdapter:
 
         return vdi_uuid
 
-    def create_network(self, name_label = None):
-        """
-        Creates network with name = 'name_label'
-        :param name_label: Name of created network
-        :return: Network UUID
-        """
-        # todo какие тут должны быть аргументы, это работает, но что-то маловато требуется
-        if not(name_label):
-            records = self.api.network.get_all_records()
-            name_label = 'network_' + str(len(records))
-        args = {'other_config': {}, 'name_label': name_label}
-        try:
-            net_ref = self.api.network.create(args)
-            net_uuid = self.api.network.get_uuid(net_ref)
-            logging.info ("Network is created: UUID {0}".format(net_uuid))
-        except Exception as e:
-            logging.error("Failed to create network: {0}".format(str(e)))
-            return
-
-        return net_uuid
-
     def start_stop_vm(self, vm_uuid, enable):
         """
         Starts and stops VM if required
@@ -216,7 +196,8 @@ class XenAdapter:
         net_ref = self.api.network.get_by_uuid(net_uuid)
         net = self.api.network.get_record(net_ref)
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
-        args = {'VM': vm_ref, 'network': net_ref, 'device': '0',\
+        vm = self.api.VM.get_record(vm_ref)
+        args = {'VM': vm_ref, 'network': net_ref, 'device': str(len(vm['VIFs'])), \
                 'MAC': '', 'MTU': net['MTU'], 'other_config': {}, \
                 'qos_algorithm_type': '', 'qos_algorithm_params': {}}
         try:
@@ -239,10 +220,10 @@ class XenAdapter:
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
         try:
             if enable:
-                self.api.VM.add_tags(vm_ref, 'vmemperor')
+                self.api.VM.add_tags(vm_ref, 'vmemperor_enabled')
                 logging.info ("Enable template UUID {0}".format(vm_uuid))
             else:
-                self.api.VM.remove_tags(vm_ref, 'vmemperor')
+                self.api.VM.remove_tags(vm_ref, 'vmemperor_enabled')
                 logging.info ("Disable template UUID {0}".format(vm_uuid))
         except Exception as e:
             logging.error ("Failed to enable/disable template: {0}".format(str(e)))
@@ -255,7 +236,6 @@ class XenAdapter:
         '''
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
         return self.api.VM.get_power_state(vm_ref)
-
 
     def get_vnc(self, vm_uuid):
         """
@@ -329,6 +309,15 @@ class XenAdapter:
         :return:
         '''
         vbd_ref = self.api.VBD.get_by_uuid(vbd_uuid)
+        vbd = self.api.VBD.get_record(vbd_ref)
+        vm_ref = vbd['VM']
+        if self.api.VM.get_power_state(vm_ref) == 'Running':
+            try:
+                self.api.VBD.unplug(vbd_ref)
+            except Exception as e:
+                logging.error ("Failed to detach disk from running VM")
+                return
+            
         try:
             self.api.VBD.destroy(vbd_ref)
             logging.info("VBD UUID {0} is destroyed".format(vbd_uuid))
@@ -337,13 +326,14 @@ class XenAdapter:
         return
 
     def destroy_vm(self, vm_uuid):
+        self.start_stop_vm(vm_uuid, False)
+        vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+        vm = self.api.VM.get_record(vm_ref)
+
+        vbds = vm['VBDs']
+        vdis = [self.api.VBD.get_record(vbd_ref)['VDI'] for vbd_ref in vbds]
+
         try:
-            vm_ref = self.api.VM.get_by_uuid(vm_uuid)
-            vm = self.api.VM.get_record(vm_ref)
-
-            vbds = vm['VBDs']
-            vdis = [self.api.VBD.get_record(vbd_ref)['VDI'] for vbd_ref in vbds]
-
             self.api.VM.destroy(vm_ref)
             for vdi_ref in vdis:
                 self.api.VDI.destroy(vdi_ref)
