@@ -9,16 +9,18 @@ import sys
 class XenAdapter:
 
 
-    def get_all_records(self, subject):
+    def get_all_records(self, subject) -> dict :
         """
         return get_all_records call in a dict format without opaque object references
         :param subject: XenAPI subject (VM, VDI, etc)
-        :return:
+        :return: dict in format : { uuid : dict of object fields }
         """
-        return list(subject.get_all_records().values())
 
 
-    def uuid_by_name(self, subject,  name):
+        return {item['uuid'] : item for item in subject.get_all_records().values()}
+
+
+    def uuid_by_name(self, subject,  name) -> str:
         """
         Obtain uuid by human readable name
         :param subject: Xen API subject
@@ -26,8 +28,8 @@ class XenAdapter:
         :return: uuid (str) or empty string if no object with that name
         """
         try:
-            return next((i['uuid'] for i in self.get_all_records(subject)
-                     if i['name_label'] == name))
+            return next((key for key, value in self.get_all_records(subject).items()
+                     if value['name_label'] == name))
         except StopIteration:
             return ""
 
@@ -45,48 +47,48 @@ class XenAdapter:
         self.api = self.session.xenapi
         return
 
-    def list_pools(self):
+    def list_pools(self) -> dict:
         '''
-        :return: list of pool records
+        :return: dict of pool records
         '''
         return self.get_all_records(self.api.pool)
 
-    def list_vms(self):
+    def list_vms(self) -> dict:
         '''
-        :return: list of vm records except dom0 and templates
+        :return: dict of vm records except dom0 and templates
         '''
-        return [vm for vm in self.get_all_records(self.api.VM)
-                if not vm['is_a_template'] and not vm['is_control_domain']]
+        return {key : value for key, value in self.get_all_records(self.api.VM).items()
+                if not value['is_a_template'] and not value['is_control_domain']}
 
-    def list_srs(self):
+    def list_srs(self) -> dict:
         '''
-        :return: list of storage repositories' records
+        :return: dict of storage repositories' records
         '''
         return self.get_all_records(self.api.SR)
 
 
-    def list_vdis(self):
+    def list_vdis(self) -> dict:
         '''
-        :return: list of virtual disk images' records
+        :return: dict of virtual disk images' records
         '''
         return self.get_all_records(self.api.VDI)
 
-    def list_networks(self):
+    def list_networks(self) -> dict:
         '''
-        list of network interfaces' records
+        dict of network interfaces' records
         :return:
         '''
         return self.get_all_records(self.api.network)
 
-    def list_templates(self):
+    def list_templates(self) -> dict:
         '''
-        list of VM templates' records
+        dict of VM templates' records
         :return:
         '''
-        return [record for record in self.get_all_records(self.api.VM)
-                  if record['is_a_template']]
+        return {key : value for key, value in self.get_all_records(self.api.VM).items()
+                  if value['is_a_template']}
 
-    def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, name_label = '', start=True):
+    def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, name_label = '', start=True) -> str:
         '''
         Creates a virtual machine and install an OS
         :param tmpl_uuid:
@@ -124,7 +126,14 @@ class XenAdapter:
 
         return new_vm_uuid
 
-    def create_disk(self, sr_uuid, size, name_label = None):
+    def create_disk(self, sr_uuid, size, name_label = None) -> str:
+        '''
+        Creates a new VDI
+        :param sr_uuid: Storage reporitory UUID
+        :param size: size in bytes
+        :param name_label:
+        :return: VDI UUID
+        '''
         sr_ref = self.api.SR.get_by_uuid(sr_uuid)
         if not (name_label):
             sr = self.api.SR.get_record(sr_ref)
@@ -199,7 +208,7 @@ class XenAdapter:
 
         return
 
-    def get_power_state(self, vm_uuid):
+    def get_power_state(self, vm_uuid) -> str:
         '''
         Returns a power state of the VM
         :param vm_uuid: VM UUID
@@ -209,7 +218,7 @@ class XenAdapter:
         return self.api.VM.get_power_state(vm_ref)
 
 
-    def get_vnc(self, vm_uuid):
+    def get_vnc(self, vm_uuid) -> str:
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
         if (self.api.VM.get_power_state(vm_ref) != 'Running'):
             self.start_stop_vm(vm_uuid, True)
@@ -222,7 +231,7 @@ class XenAdapter:
             url = self.api.console.get_location(cons_ref)
         return url
 
-    def attach_disk(self, vm_uuid, vdi_uuid):
+    def attach_disk(self, vm_uuid, vdi_uuid) -> str:
         '''
         Attach a VDI object to a VM by creating a VBD object and attempting to hotplug it if the machine is running        if VM is running
         :param vm_uuid: VM UUID
