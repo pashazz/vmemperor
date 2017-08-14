@@ -3,12 +3,10 @@ import json
 import hooks
 import provision
 
-
+import logging
 import sys
 
 class XenAdapter:
-
-
     def get_all_records(self, subject):
         """
         return get_all_records call in a dict format without opaque object references
@@ -33,16 +31,27 @@ class XenAdapter:
 
     def __init__(self, settings):
         """creates session connection to XenAPI. Connects using admin login/password from settings"""
+
+        logging.basicConfig(level=logging.DEBUG, \
+                            format=u'%(levelname)-8s [%(asctime)s] %(message)s', \
+                            filename='xensession.log')
         try:
             url = settings['url']
             login = settings['login']
             password = settings['password']
-        except KeyError:
-            raise ValueError('Error login session')
+        except Exception as e:
+            logging.error('Failed to parse settings: {0}'.format(str(e)))
+            sys.exit(1)
 
-        self.session = XenAPI.Session(url)
-        self.session.xenapi.login_with_password(login, password)
-        self.api = self.session.xenapi
+        try:
+            self.session = XenAPI.Session(url)
+            self.session.xenapi.login_with_password(login, password)
+            logging.info ('Authentication is successful')
+            self.api = self.session.xenapi
+        except Exception as e:
+            logging.error('Failed to login: {0}'.format(str(e)))
+            sys.exit(1)
+
         return
 
     def list_pools(self):
@@ -88,43 +97,55 @@ class XenAdapter:
 
     def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, name_label = '', start=True):
         '''
-        Creates a virtual machine and install an OS
-        :param tmpl_uuid:
-        :param sr_uuid:
-        :param net_uuid:
-        :param vdi_size:
-        :param name_label:
-        :return:
+        Creates a virtual machine and installs an OS
+        :param tmpl_uuid: Template UUID
+        :param sr_uuid: Storage Repository UUID
+        :param net_uuid: Network UUID
+        :param vdi_size: Size of disk
+        :param name_label: Name for created VM
+        :return: VM UUID
         '''
         try:
             tmpl_ref = self.api.VM.get_by_uuid(tmpl_uuid)
             new_vm_ref = self.api.VM.clone(tmpl_ref, name_label)
+            new_vm_uuid = self.api.VM.get_uuid(new_vm_ref)
+            logging.info ("New VM is created: UUID {0}".format(new_vm_uuid))
         except Exception as e:
-            print ("XenAPI Error failed to clone template:", str(e))
+            logging.error ("Failed to clone template: {0}".format(str(e)))
+            sys.exit(1)
 
         try:
             specs = provision.ProvisionSpec()
             specs.disks.append(provision.Disk("0", vdi_size, sr_uuid, True))
             provision.setProvisionSpec(self.session, new_vm_ref, specs)
         except Exception as e:
-            print("Error provision:", str(e))
+            logging.error("Failed to setting disk: {0}".format(str(e)))
             sys.exit(1)
 
-        new_vm_uuid = self.api.VM.get_uuid(new_vm_ref)
         try:
             self.api.VM.provision(new_vm_ref)
         except Exception as e:
-            print("XenAPI failed to finish creation:", str(e))
+            print("Failed to provision: {0}".format(str(e)))
             sys.exit(1)
 
         self.connect_vm(new_vm_uuid, net_uuid)
 
         if start:
             self.api.VM.start(new_vm_ref, False, True) # args: VM reference, start in paused state, force start
+            logging.info ("Created VM is started")
+        else:
+            logging.warning('Created VM is off')
 
         return new_vm_uuid
 
     def create_disk(self, sr_uuid, size, name_label = None):
+        """
+        Creates a VDI of a certain size in storage repository
+        :param sr_uuid: Storage Repository UUID
+        :param size: Disk size
+        :param name_label: Name of created disk
+        :return: Virtual Disk Interface UUID
+        """
         sr_ref = self.api.SR.get_by_uuid(sr_uuid)
         if not (name_label):
             sr = self.api.SR.get_record(sr_ref)
@@ -135,40 +156,63 @@ class XenAdapter:
                 'name_label': name_label}
         try:
             vdi_ref = self.api.VDI.create(args)
+            vdi_uuid = self.api.VDI.get_uuid(vdi_ref)
+            logging.info ("VDI is created: UUID {0}".format(vdi_uuid))
         except Exception as e:
-            print("Failed to create VDI:", str(e))
+            logging.error("Failed to create VDI: {0}".format(str(e)))
             sys.exit(1)
-        vdi_uuid = self.api.VDI.get_uuid(vdi_ref)
 
         return vdi_uuid
 
     def create_network(self, name_label = None):
         """
-
-        :param name_label:
-        :return:
+        Creates network with name = 'name_label'
+        :param name_label: Name of created network
+        :return: Network UUID
         """
         # todo какие тут должны быть аргументы, это работает, но что-то маловато требуется
         if not(name_label):
             records = self.api.network.get_all_records()
             name_label = 'network_' + str(len(records))
         args = {'other_config': {}, 'name_label': name_label}
-        net_ref = self.api.network.create(args)
-        net_uuid = self.api.network.get_uuid(net_ref)
+        try:
+            net_ref = self.api.network.create(args)
+            net_uuid = self.api.network.get_uuid(net_ref)
+            logging.info ("Network is created: UUID {0}".format(net_uuid))
+        except Exception as e:
+            logging.error("Failed to create network: {0}".format(str(e)))
+            return
 
         return net_uuid
 
     def start_stop_vm(self, vm_uuid, enable):
+        """
+        Starts and stops VM if required
+        :param vm_uuid:
+        :param enable:
+        :return:
+        """
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
         vm = self.api.VM.get_record(vm_ref)
-        if vm['power_state'] != 'Running' and enable == True:
-            self.api.VM.start (vm_ref, False, True)
-        if vm['power_state'] == 'Running' and enable == False:
-            self.api.VM.shutdown(vm_ref)
+        try:
+            if vm['power_state'] != 'Running' and enable == True:
+                self.api.VM.start (vm_ref, False, True)
+                logging.info ("Started VM UUID {0}".format(vm_uuid))
+            if vm['power_state'] == 'Running' and enable == False:
+                self.api.VM.shutdown(vm_ref)
+                logging.info("Shutted down VM UUID {0}".format(vm_uuid))
+        except Exception as e:
+            logging.error ("Failed to start/stop VM: {0}".format(str(e)))
 
         return
 
     def connect_vm(self, vm_uuid, net_uuid):
+        """
+        Creates VIF to connect VM to network
+        :param vm_uuid:
+        :param net_uuid:
+        :return: vif_uuid
+        """
         net_ref = self.api.network.get_by_uuid(net_uuid)
         net = self.api.network.get_record(net_ref)
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
@@ -177,27 +221,31 @@ class XenAdapter:
                 'qos_algorithm_type': '', 'qos_algorithm_params': {}}
         try:
             vif_ref = self.api.VIF.create(args)
+            vif_uuid = self.api.VIF.get_uuid(vif_ref)
+            logging.info ("VM is connected to network: VIF UUID {0}".format(vif_uuid))
         except Exception as e:
-            print("XenAPI failed to create VIF:", str(e))
-            sys.exit(1)
+            logging.error("Failed to create VIF: {0}".format(str(e)))
+            return
 
-        return
+        return vif_uuid
 
     def enable_disable_template(self, vm_uuid, enable):
+        """
+        Adds/removes tag vmemperor"
+        :param vm_uuid:
+        :param enable:
+        :return: dict, code_status
+        """
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
         try:
             if enable:
-                self.api.VM.add_tags(vm_ref, 'vmemperor_old_ver')
+                self.api.VM.add_tags(vm_ref, 'vmemperor')
+                logging.info ("Enable template UUID {0}".format(vm_uuid))
             else:
-                self.api.VM.remove_tags(vm_ref, 'vmemperor_old_ver')
-            return {'status': 'success', 'details': 'template modified', 'reason': ''}, 200
-        except XenAPI.Failure as e:
-            return {'status': 'error', 'details': 'can not modify template', 'reason': e.details}, 409
+                self.api.VM.remove_tags(vm_ref, 'vmemperor')
+                logging.info ("Disable template UUID {0}".format(vm_uuid))
         except Exception as e:
-            return {'status': 'error', 'details': 'can not modify template', 'reason': str(e)}, 500
-
-
-        return
+            logging.error ("Failed to enable/disable template: {0}".format(str(e)))
 
     def get_power_state(self, vm_uuid):
         '''
@@ -210,16 +258,25 @@ class XenAdapter:
 
 
     def get_vnc(self, vm_uuid):
+        """
+        VM must be running to get console
+        :param vm_uuid: VM UUID
+        :return: URL console location
+        """
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
-        if (self.api.VM.get_power_state(vm_ref) != 'Running'):
-            self.start_stop_vm(vm_uuid, True)
+        self.start_stop_vm(vm_uuid, True)
         consoles = self.api.VM.get_consoles(vm_ref) #references
         if (len(consoles) == 0):
-            print('Failed to find console')
-        else:
+            logging.error('Failed to find console of VM UUID {0}'.format(vm_uuid))
+            return
+        try:
             cons_ref = consoles[0]
             console = self.api.console.get_record(cons_ref)
             url = self.api.console.get_location(cons_ref)
+            logging.info ("Console location {0} of VM UUID {1}".format(url, vm_uuid))
+        except Exception as e:
+            logging.error("Failed to get console location: {0}".format(str(e)))
+            sys.exit(1)
         return url
 
     def attach_disk(self, vm_uuid, vdi_uuid):
@@ -240,15 +297,27 @@ class XenAdapter:
             for vdi_vbd in vdi_vbds:
                 if vm_vbd == vdi_vbd:
                     vbd_uuid = self.api.VBD.get_uuid(vm_vbd)
+                    logging.warning ("Disk is already attached with VBD UUID {0}".format(vbd_uuid))
                     return vbd_uuid
 
         args = {'VM': vm_ref, 'VDI': vdi_ref, 'userdevice': str(len(vm['VBDs'])), 'bootable': True, \
                 'mode': 'RW', 'type': 'Disk', 'empty': False, 'other_config': {}, \
                 'qos_algorithm_type': '', 'qos_algorithm_params': {}}
-        vbd_ref = self.api.VBD.create(args)
+        try:
+            vbd_ref = self.api.VBD.create(args)
+        except Exception as e:
+            logging.error("Failed to create VBD: {0}".format(str(e)))
+            sys.exit(1)
+
         vbd_uuid = self.api.VBD.get_uuid(vbd_ref)
         if (self.api.VM.get_power_state(vm_ref) == 'Running'):
-            self.api.VBD.plug(vbd_ref)
+            try:
+                self.api.VBD.plug(vbd_ref)
+            except Exception as e:
+                logging.warning("Disk will be attached after reboot with VBD UUID {0}".format(vbd_uuid))
+                return vbd_uuid
+
+        logging.info ("Disk is attached with VBD UUID: {0}".format(vbd_uuid))
 
         return vbd_uuid
 
@@ -260,7 +329,11 @@ class XenAdapter:
         :return:
         '''
         vbd_ref = self.api.VBD.get_by_uuid(vbd_uuid)
-        self.api.VBD.destroy(vbd_ref)
+        try:
+            self.api.VBD.destroy(vbd_ref)
+            logging.info("VBD UUID {0} is destroyed".format(vbd_uuid))
+        except Exception as e:
+            logging.error("Failed to detach disk: {0}".format(str(e)))
         return
 
     def destroy_vm(self, vm_uuid):
@@ -275,15 +348,16 @@ class XenAdapter:
             for vdi_ref in vdis:
                 self.api.VDI.destroy(vdi_ref)
         except Exception as e:
-            print ("XenAPI Error failed to destroy vm:", str(e))
-
-            sys.exit(1)
+            logging.error ("Failed to destroy VM: {0}".format(str(e)))
 
         return
 
     def destroy_disk(self, vdi_uuid):
         vdi_ref = self.api.VDI.get_by_uuid(vdi_uuid)
-        self.api.VDI.destroy(vdi_ref)
+        try:
+            self.api.VDI.destroy(vdi_ref)
+        except Exception as e:
+            logging.error("Failed to destroy VDI: {0}".format(str(e)))
 
         return
 
