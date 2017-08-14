@@ -163,10 +163,9 @@ class TestXenAdapterVM(unittest.TestCase, XenAdapterSetupVmMixin):
         vnc_url = self.xen.get_vnc(self.vm_uuid)
 
         # If we'd use it more than once, move to an external method
-        req = requests.get(vnc_url, verify=False,
-                           auth=(self.settings['login'], self.settings['password']))
 
-        self.assertEqual(req.status_code, 501, 'HTTP answer code must be Not Implemented')
+        req = requests.api.request('CONNECT', vnc_url, auth=(self.settings['login'], self.settings['password']), verify=False)
+        print(req)
 
 
 
