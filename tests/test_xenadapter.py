@@ -1,6 +1,8 @@
 import unittest
 from configparser import ConfigParser
 from xenadapter import XenAdapter
+import requests
+
 
 
 class XenAdapterSetupMixin:
@@ -17,9 +19,9 @@ class XenAdapterSetupMixin:
         cls.xen.session._logout()
         # cls.xen.session.logout()
 
-class TestXenAdapterList(unittest.TestCase, XenAdapterSetupMixin):
+class TestXenAdapterDict(unittest.TestCase, XenAdapterSetupMixin):
     '''
-    This class tests list functions
+    This class tests dict functions
     '''
     @classmethod
     def setUpClass(cls):
@@ -30,31 +32,50 @@ class TestXenAdapterList(unittest.TestCase, XenAdapterSetupMixin):
         XenAdapterSetupMixin.tearDownClass()
 
     def test_list_pools(self):
-        pools = XenAdapterSetupMixin.xen.list_pools()
-        self.assertIs(type(pools), list)
+        pools = self.xen.list_pools()
+        self.assertIs(type(pools), dict)
         self.assertTrue(len(pools))
+        for key, value in pools.items():
+            self.xen.api.pool.get_by_uuid(key) #raises an exception if uuid is invalid
+
 
     def test_list_vms(self):
-        self.assertIs(type(XenAdapterSetupMixin.xen.list_vms()), list)
+        vms = self.xen.list_vms()
+        self.assertIs(type(vms), dict)
+        for key, value in vms.items():
+            self.xen.api.VM.get_by_uuid(key)
 
     def test_list_vdis(self):
         vdis = XenAdapterSetupMixin.xen.list_vdis()
-        self.assertIs(type(vdis), list)
+        self.assertIs(type(vdis), dict)
         self.assertTrue(len(vdis))
+        for key, value in vdis.items():
+            self.xen.api.VDI.get_by_uuid(key)
 
     def test_list_srs(self):
         srs = XenAdapterSetupMixin.xen.list_srs()
-        self.assertTrue(next(sr for sr in srs if sr['name_label'] == 'Local storage'))
+        local_storage_key = None
+        for key, value in srs.items():
+            if value['name_label'] == 'Local storage':
+                local_storage_key = key
+            self.xen.api.SR.get_by_uuid(key)
+
+
+
 
     def test_list_networks(self):
         networks = XenAdapterSetupMixin.xen.list_networks()
-        self.assertIs(type(networks), list)
+        self.assertIs(type(networks), dict)
         self.assertTrue(len(networks))
+        for key, value in networks.items():
+            self.xen.api.network.get_by_uuid(key)
         
     def test_list_templates(self):
         templates = XenAdapterSetupMixin.xen.list_templates()
-        self.assertIs(type(templates), list)
+        self.assertIs(type(templates), dict)
         self.assertTrue(len(templates))
+        for key, value in templates.items():
+            self.xen.api.VM.get_by_uuid(key)
 
 
 class XenAdapterSetupVmMixin(XenAdapterSetupMixin):
@@ -69,6 +90,8 @@ class XenAdapterSetupVmMixin(XenAdapterSetupMixin):
         if not hasattr(cls, 'start'):
             cls.start = True
         XenAdapterSetupMixin.setUpClass()
+        #remove all vms that are vm_name
+        vms_to_remove=[vm for vm, value in cls.xen.list_vms().items() if value['name_label'] == cls.VM_NAME]
         # create vm
         sr_uuid = cls.choose_sr()
         template_uuid = cls.choose_template()
@@ -90,23 +113,22 @@ class XenAdapterSetupVmMixin(XenAdapterSetupMixin):
         '''
         :return: storage repository object to test against
         '''
-        return XenAdapterSetupMixin.xen.uuid_by_name(XenAdapterSetupMixin.xen.api.SR, 'Local storage')
+        return cls.xen.uuid_by_name(cls.xen.api.SR, 'Local storage')
 
     @classmethod
     def choose_template(cls):
         '''
         :return: template to test against
         '''
-        return next((templ['uuid'] for templ in XenAdapterSetupMixin.xen.list_templates() if
-                     templ['name_label'] == 'Ubuntu Trusty Tahr 14.04'))
+        return next((key for key, value in cls.xen.list_templates().items() if
+                     value['name_label'] == 'Ubuntu Trusty Tahr 14.04'))
 
     @classmethod
     def choose_net(cls):
         '''
         :return: network IF to test against
         '''
-        return XenAdapterSetupMixin.xen.uuid_by_name(XenAdapterSetupMixin.xen.api.network,
-                                                     'Pool-wide network associated with eth0')
+        return cls.xen.uuid_by_name(cls.xen.api.network, 'Pool-wide network associated with eth0')
 
 
 class TestXenAdapterVM(unittest.TestCase, XenAdapterSetupVmMixin):
@@ -132,7 +154,23 @@ class TestXenAdapterVM(unittest.TestCase, XenAdapterSetupVmMixin):
 
         self.assertNotEqual(self.xen.uuid_by_name(self.xen.api.VM, self.VM_NAME),
                              str())
-        self.assertIn(self.vm_uuid, (vm['uuid'] for vm in self.xen.list_vms()))
+        self.assertIn(self.vm_uuid, self.xen.list_vms().keys())
+
+    def test_vnc_url(self):
+        '''
+        Test if VNC url is valid
+        '''
+        vnc_url = self.xen.get_vnc(self.vm_uuid)
+
+        # If we'd use it more than once, move to an external method
+        req = requests.get(vnc_url, verify=False,
+                           auth=(self.settings['login'], self.settings['password']))
+
+        self.assertEqual(req.status_code, 501, 'HTTP answer code must be Not Implemented')
+
+
+
+
 
 class TestXenAdapterDisk (unittest.TestCase, XenAdapterSetupVmMixin):
     """
