@@ -123,7 +123,8 @@ class XenAdapter:
             specs.disks.append(provision.Disk("0", vdi_size, sr_uuid, True))
             provision.setProvisionSpec(self.session, new_vm_ref, specs)
         except Exception as e:
-            logging.error("Failed to setting disk: {0}".format(str(e)))
+            logging.error("Failed to set up disk: {0}".format(str(e)))
+            self.destroy_vm(new_vm_uuid)
             sys.exit(1)
 
         try:
@@ -322,7 +323,7 @@ class XenAdapter:
             try:
                 self.api.VBD.unplug(vbd_ref)
             except Exception as e:
-                logging.error ("Failed to detach disk from running VM")
+                logging.error ("Failed to detach disk from running VM: {0}".format(str(e)))
                 return
             
         try:
