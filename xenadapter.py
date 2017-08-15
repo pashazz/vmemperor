@@ -324,7 +324,7 @@ class XenAdapter:
                 self.api.VBD.unplug(vbd_ref)
             except Exception as e:
                 logging.error ("Failed to detach disk from running VM: {0}".format(str(e)))
-                return
+                return 1
             
         try:
             self.api.VBD.destroy(vbd_ref)
