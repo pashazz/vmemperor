@@ -198,7 +198,9 @@ class TestXenAdapterDisk (unittest.TestCase, XenAdapterSetupVmMixin):
 
     def test_detachment(self):
         self.xen.start_stop_vm(self.vm_uuid, True)
-        self.xen.detach_disk(self.vbd_uuid)
+        if (self.xen.detach_disk(self.vbd_uuid) == 1):
+            self.xen.start_stop_vm(self.vm_uuid, False)
+            self.xen.detach_disk(self.vbd_uuid)
 
         vm_ref = self.xen.api.VM.get_by_uuid(self.vm_uuid)
 
