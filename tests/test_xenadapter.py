@@ -11,7 +11,7 @@ class XenAdapterSetupMixin:
         cls.config = ConfigParser()
         cls.config.read('../login.ini')
         cls.settings = cls.config._sections['settings']  # dictionary
-
+        cls.settings['debug'] = True
         cls.xen = XenAdapter(cls.settings)
 
     @classmethod
