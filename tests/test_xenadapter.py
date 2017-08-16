@@ -58,7 +58,7 @@ class TestXenAdapterDict(unittest.TestCase, XenAdapterSetupMixin):
         for key, value in srs.items():
             if value['name_label'] == 'Local storage':
                 local_storage_key = key
-            self.xen.api.SR.get_by_uuid(key)
+        self.xen.api.SR.get_by_uuid(local_storage_key)
 
 
 
@@ -143,7 +143,7 @@ class TestXenAdapterVM(unittest.TestCase, XenAdapterSetupVmMixin):
     def tearDownClass(cls):
         '''
         halt vm with a hard shutdown
-        Destroy VM and call superclass tearDown
+        Destroy VM and call superclass tgearDown
         '''
         XenAdapterSetupVmMixin.tearDownClass()
 
@@ -164,8 +164,9 @@ class TestXenAdapterVM(unittest.TestCase, XenAdapterSetupVmMixin):
 
         # If we'd use it more than once, move to an external method
 
-        req = requests.api.request('CONNECT', vnc_url, auth=(self.settings['login'], self.settings['password']), verify=False)
-        print(req)
+        req = requests.api.request('GET', vnc_url, auth=(self.settings['login'], self.settings['password']),
+                                   verify=False, headers={"Connection": "close"})
+        self.assertEqual(req.status_code, 501) #not implemented
 
 
 
@@ -190,6 +191,7 @@ class TestXenAdapterDisk (unittest.TestCase, XenAdapterSetupVmMixin):
 
     def test_attachment(self):
         self.vbd_uuid = self.xen.attach_disk(self.vm_uuid, self.vdi_uuid)
+        self.assertIsNotNone(self.vbd_uuid)
 
         vm_ref = self.xen.api.VM.get_by_uuid(self.vm_uuid)
 
