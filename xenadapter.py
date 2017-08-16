@@ -1,27 +1,20 @@
 import XenAPI
-import json
 import hooks
 import provision
+from exc import XenAdapterAPIError, XenAdapterArgumentError, XenAdapterConnectionError
 
 import logging
 import sys
 
-#do the same for all the modules
-
-
 class XenAdapter:
 
     def get_all_records(self, subject) -> dict :
-
         """
         return get_all_records call in a dict format without opaque object references
         :param subject: XenAPI subject (VM, VDI, etc)
         :return: dict in format : { uuid : dict of object fields }
         """
-
-
         return {item['uuid'] : item for item in subject.get_all_records().values()}
-
 
     def uuid_by_name(self, subject,  name) -> str:
         """
@@ -60,18 +53,18 @@ class XenAdapter:
             url = settings['url']
             login = settings['login']
             password = settings['password']
-        except Exception as e:
-            self.log.error('Failed to parse settings: {0}'.format(str(e)))
-            sys.exit(1)
+        except KeyError as e:
+            raise XenAdapterArgumentError(self, 'Failed to parse settings: {0}'.format(str(e)))
 
         try:
             self.session = XenAPI.Session(url)
             self.session.xenapi.login_with_password(login, password)
             self.log.info ('Authentication is successful')
             self.api = self.session.xenapi
-        except Exception as e:
-            self.log.error('Failed to login: url: "{1}"; login: "{2}"; password: "{3}"; error: {0}'.format(str(e), url, login, password))
-            sys.exit(1)
+        except OSError as e:
+            raise XenAdapterConnectionError(self, "Unable to reach XenServer at {0}: {1}".format(url, str(e)))
+        except XenAPI.Failure as e:
+            raise XenAdapterConnectionError(self, 'Failed to login: url: "{1}"; login: "{2}"; password: "{3}"; error: {0}'.format(str(e), url, login, password))
 
         return
 
@@ -131,25 +124,28 @@ class XenAdapter:
             new_vm_ref = self.api.VM.clone(tmpl_ref, name_label)
             new_vm_uuid = self.api.VM.get_uuid(new_vm_ref)
             self.log.info ("New VM is created: UUID {0}".format(new_vm_uuid))
-        except Exception as e:
-            self.log.error ("Failed to clone template: {0}".format(str(e)))
-            sys.exit(1)
+        except XenAPI.Failure as f:
+            raise XenAdapterAPIError(self, "Failed to clone template: {0}".format(f.details))
 
         try:
             specs = provision.ProvisionSpec()
             specs.disks.append(provision.Disk("0", vdi_size, sr_uuid, True))
             provision.setProvisionSpec(self.session, new_vm_ref, specs)
         except Exception as e:
-            self.log.error("Failed to setting disk: {0}".format(str(e)))
             self.destroy_vm(new_vm_uuid)
-            sys.exit(1)
+            try:
+                raise e
+            except XenAPI.Failure as f:
+                raise XenAdapterAPIError(self, "Failed to setting disk: {0}".format(f.details))
 
         try:
             self.api.VM.provision(new_vm_ref)
         except Exception as e:
-            self.log.error("Failed to provision: {0}".format(str(e)))
             self.destroy_vm(new_vm_uuid)
-            sys.exit(1)
+            try:
+                raise e
+            except XenAPI.Failure as f:
+                raise XenAdapterAPIError(self, "Failed to provision: {0}".format(f.details))
 
         self.connect_vm(new_vm_uuid, net_uuid)
 
@@ -160,7 +156,6 @@ class XenAdapter:
             self.log.warning('Created VM is off')
 
         return new_vm_uuid
-
 
     def create_disk(self, sr_uuid, size, name_label = None) -> str:
         """
@@ -183,9 +178,8 @@ class XenAdapter:
             vdi_ref = self.api.VDI.create(args)
             vdi_uuid = self.api.VDI.get_uuid(vdi_ref)
             self.log.info ("VDI is created: UUID {0}".format(vdi_uuid))
-        except Exception as e:
-            self.log.error("Failed to create VDI: {0}".format(str(e)))
-            sys.exit(1)
+        except XenAPI.Failure as f:
+            raise XenAdapterAPIError(self, "Failed to create VDI: {0}".format(f.details))
 
         return vdi_uuid
 
@@ -205,8 +199,8 @@ class XenAdapter:
             if vm['power_state'] == 'Running' and enable == False:
                 self.api.VM.shutdown(vm_ref)
                 self.log.info("Shutted down VM UUID {0}".format(vm_uuid))
-        except Exception as e:
-            self.log.error ("Failed to start/stop VM: {0}".format(str(e)))
+        except XenAPI.Failure as f:
+            raise XenAdapterAPIError (self, "Failed to start/stop VM: {0}".format(f.details))
 
         return
 
@@ -228,9 +222,8 @@ class XenAdapter:
             vif_ref = self.api.VIF.create(args)
             vif_uuid = self.api.VIF.get_uuid(vif_ref)
             self.log.info ("VM is connected to network: VIF UUID {0}".format(vif_uuid))
-        except Exception as e:
-            self.log.error("Failed to create VIF: {0}".format(str(e)))
-            return
+        except XenAdapterAPIError as f:
+            raise XenAdapterAPIError(self, "Failed to create VIF: {0}".format(f.details))
 
         return vif_uuid
 
@@ -249,8 +242,8 @@ class XenAdapter:
             else:
                 self.api.VM.remove_tags(vm_ref, 'vmemperor_enabled')
                 self.log.info ("Disable template UUID {0}".format(vm_uuid))
-        except Exception as e:
-            self.log.error ("Failed to enable/disable template: {0}".format(str(e)))
+        except XenAPI.Failure as f:
+            raise XenAdapterAPIError (self, "Failed to enable/disable template: {0}".format(f.details))
 
     def get_power_state(self, vm_uuid) -> str:
         '''
@@ -279,9 +272,9 @@ class XenAdapter:
             console = self.api.console.get_record(cons_ref)
             url = self.api.console.get_location(cons_ref)
             self.log.info ("Console location {0} of VM UUID {1}".format(url, vm_uuid))
-        except Exception as e:
-            self.log.error("Failed to get console location: {0}".format(str(e)))
-            sys.exit(1)
+        except XenAPI.Failure as f:
+            raise XenAdapterAPIError(self, "Failed to get console location: {0}".format(f.details))
+
         return url
 
     def attach_disk(self, vm_uuid, vdi_uuid) -> str:
@@ -310,9 +303,8 @@ class XenAdapter:
                 'qos_algorithm_type': '', 'qos_algorithm_params': {}}
         try:
             vbd_ref = self.api.VBD.create(args)
-        except Exception as e:
-            self.log.error("Failed to create VBD: {0}".format(str(e)))
-            sys.exit(1)
+        except XenAPI.Failure as f:
+            raise XenAdapterAPIError(self, "Failed to create VBD: {0}".format(f.details))
 
         vbd_uuid = self.api.VBD.get_uuid(vbd_ref)
         if (self.api.VM.get_power_state(vm_ref) == 'Running'):
@@ -346,8 +338,9 @@ class XenAdapter:
         try:
             self.api.VBD.destroy(vbd_ref)
             self.log.info("VBD UUID {0} is destroyed".format(vbd_uuid))
-        except Exception as e:
-            self.log.error("Failed to detach disk: {0}".format(str(e)))
+        except XenAPI.Failure as f:
+            raise XenAdapterAPIError(self, "Failed to detach disk: {0}".format(f.details))
+
         return
 
     def destroy_vm(self, vm_uuid):
@@ -362,8 +355,8 @@ class XenAdapter:
             self.api.VM.destroy(vm_ref)
             for vdi_ref in vdis:
                 self.api.VDI.destroy(vdi_ref)
-        except Exception as e:
-            self.log.error ("Failed to destroy VM: {0}".format(str(e)))
+        except XenAPI.Failure as f:
+            raise XenAdapterAPIError (self, "Failed to destroy VM: {0}".format(f.details))
 
         return
 
@@ -371,8 +364,8 @@ class XenAdapter:
         vdi_ref = self.api.VDI.get_by_uuid(vdi_uuid)
         try:
             self.api.VDI.destroy(vdi_ref)
-        except Exception as e:
-            self.log.error("Failed to destroy VDI: {0}".format(str(e)))
+        except XenAPI.Failure as f:
+            raise XenAdapterAPIError(self, "Failed to destroy VDI: {0}".format(str(e)))
 
         return
 

@@ -197,8 +197,6 @@ class TestXenAdapterDisk (unittest.TestCase, XenAdapterSetupVmMixin):
 
         self.assertIn(self.vbd_uuid, (self.xen.api.VBD.get_uuid(vbd_ref)
                                       for vbd_ref in self.xen.api.VM.get_VBDs(vm_ref)))
-
-    def test_detachment(self):
         self.xen.start_stop_vm(self.vm_uuid, True)
         if (self.xen.detach_disk(self.vbd_uuid) == 1):
             self.xen.start_stop_vm(self.vm_uuid, False)
@@ -208,6 +206,7 @@ class TestXenAdapterDisk (unittest.TestCase, XenAdapterSetupVmMixin):
 
         self.assertNotIn(self.vbd_uuid, (self.xen.api.VBD.get_uuid(vbd_ref)
                                       for vbd_ref in self.xen.api.VM.get_VBDs(vm_ref)))
+
 
 
 
