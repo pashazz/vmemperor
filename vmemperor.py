@@ -251,8 +251,9 @@ def make_app(auth_class=DummyAuth):
 
 def read_settings():
     """reads settings from ini"""
-    settings = configparser.ConfigParser()
-    settings.read('*.ini')
+    config = configparser.ConfigParser()
+    config.read('*.ini')
+    settings = config._sections['settings'] #dictionary
     return settings
 
 
