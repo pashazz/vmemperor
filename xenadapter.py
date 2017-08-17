@@ -277,6 +277,9 @@ class XenAdapter:
 
         return url
 
+
+
+
     def attach_disk(self, vm_uuid, vdi_uuid) -> str:
         '''
         Attach a VDI object to a VM by creating a VBD object and attempting to hotplug it if the machine is running        if VM is running

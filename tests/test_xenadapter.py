@@ -171,7 +171,6 @@ class TestXenAdapterVM(unittest.TestCase, XenAdapterSetupVmMixin):
 
 
 
-
 class TestXenAdapterDisk (unittest.TestCase, XenAdapterSetupVmMixin):
     """
     This class creates a Disk, tests attachment and detachment and destroys it
