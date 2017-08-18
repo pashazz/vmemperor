@@ -1,9 +1,18 @@
 from xenadapter import XenAdapter
 import tornado.web
 import tornado.escape
+import tornado.httpserver
 import json
 from abc import ABCMeta, abstractmethod
+
 import configparser
+
+from tornado import gen, ioloop
+from tornado.concurrent import run_on_executor
+from concurrent.futures import ThreadPoolExecutor
+
+executor = ThreadPoolExecutor(max_workers=16)  # read from settings
+
 
 
 class BaseHandler(tornado.web.RequestHandler):
@@ -12,7 +21,6 @@ class BaseHandler(tornado.web.RequestHandler):
 
 
 class Authentication(metaclass=ABCMeta):
-
     @abstractmethod
     def check_credentials(self, password, username):
         """asserts credentials using inner db, or some outer authentication system"""
@@ -36,7 +44,6 @@ class Authentication(metaclass=ABCMeta):
 
 @Authentication.register
 class DummyAuth(BaseHandler):
-
     def check_credentials(self, password, username):
         return True
 
@@ -46,7 +53,7 @@ class DummyAuth(BaseHandler):
         authenticated = self.check_credentials(password, username)
         if authenticated:
             self.set_user(username)
-            self.write(json.dumpscd({}))
+            self.write(json.dumps({}))
         else:
             return self.write(json.dumps({"error": "wrong credentials"}))
 
@@ -56,6 +63,8 @@ class DummyAuth(BaseHandler):
 
         else:
             self.clear_cookie("user")
+
+
 """
 dbms - RethinkDB
 db is used as cache
@@ -67,13 +76,31 @@ errors should be returned in next format: {'status': 'error', 'details': string,
 
 """
 
+
+class Test(BaseHandler):
+    executor = executor
+
+    @run_on_executor
+    def heavy_task(self):
+        return {'status': 'ok'}
+
+    @gen.coroutine
+    def get(self):
+        res = yield self.heavy_task()
+        self.write(json.dumps(res))
+
+
 class AdminAuth(BaseHandler):
+    executor = executor
+
     def post(self):
         """ """
         self.write()
 
 
 class VMList(BaseHandler):
+    executor = executor
+
     def get(self):
         """ """
         # read from db
@@ -81,6 +108,8 @@ class VMList(BaseHandler):
 
 
 class PoolList(BaseHandler):
+    executor = executor
+
     def get(self):
         """ """
         # read from db
@@ -88,6 +117,8 @@ class PoolList(BaseHandler):
 
 
 class TemplateList(BaseHandler):
+    executor = executor
+
     def get(self):
         """ """
         XenAdapter.list_templates()
@@ -95,6 +126,8 @@ class TemplateList(BaseHandler):
 
 
 class CreateVM(BaseHandler):
+    executor = executor
+
     def post(self):
         """ """
         XenAdapter.create_vm()
@@ -102,6 +135,8 @@ class CreateVM(BaseHandler):
 
 
 class NetworkList(BaseHandler):
+    executor = executor
+
     def get(self):
         """ """
         # read from db
@@ -109,6 +144,8 @@ class NetworkList(BaseHandler):
 
 
 class CreateNetwork(BaseHandler):
+    executor = executor
+
     def get(self):
         """ """
         XenAdapter.create_network()
@@ -118,6 +155,8 @@ class CreateNetwork(BaseHandler):
 
 
 class StartStopVM(BaseHandler):
+    executor = executor
+
     def post(self):
         """ """
         XenAdapter.start_stop_vm()
@@ -126,6 +165,8 @@ class StartStopVM(BaseHandler):
 
 
 class EnableDisableTemplate(BaseHandler):
+    executor = executor
+
     def post(self):
         """ """
         XenAdapter.enable_disable_template()
@@ -133,6 +174,8 @@ class EnableDisableTemplate(BaseHandler):
 
 
 class VNC(BaseHandler):
+    executor = executor
+
     def get(self):
         """http://xapi-project.github.io/xen-api/consoles.html"""
         XenAdapter.get_vnc()
@@ -140,6 +183,8 @@ class VNC(BaseHandler):
 
 
 class AttachDetachDisc(BaseHandler):
+    executor = executor
+
     def post(self):
         XenAdapter.create_vdi()
         XenAdapter.create_vbd()
@@ -152,6 +197,8 @@ class AttachDetachDisc(BaseHandler):
 
 
 class DestroyVM(BaseHandler):
+    executor = executor
+
     def post(self):
         XenAdapter.destroy_vm()
         # update db info
@@ -159,6 +206,8 @@ class DestroyVM(BaseHandler):
 
 
 class ConnectVM(BaseHandler):
+    executor = executor
+
     def post(self):
         XenAdapter.connect_vm()
         # update db info
@@ -170,21 +219,37 @@ class AnsibleHooks:
     pass
 
 
+
 class EventLoop:
     """every n seconds asks all vms about their status and updates collections (dbs, tables)
     of corresponding user, if they are logged in (have open connection to dbms notifications)
      and admin db if admin is logged in"""
-    XenAdapter.list_vms()
-    pass
+    executor = executor
+
+    def __init__(self):
+        pass
+
+    @run_on_executor
+    def heavy_task(self):
+        return
+
+    @gen.coroutine
+    def vm_list_update(self):
+        yield self.heavy_task()
 
 
 def start_event_loop():
-    pass
+    ioloop = tornado.ioloop.IOLoop.instance()
+    loop_object = EventLoop()
+    tornado.ioloop.PeriodicCallback(loop_object.vm_list_update, 1000).start()  # read delay from ini
+    ioloop.start()
+    return ioloop
 
 
-def make_app(auth_class = DummyAuth):
+def make_app(auth_class=DummyAuth):
     return tornado.web.Application([
         (r"/login", auth_class),
+        (r'/test', Test),
     ])
 
 
@@ -198,37 +263,14 @@ def read_settings():
 def main():
     """ reads settings in ini configures and starts system"""
     settings = read_settings()
-    make_app()
-    start_event_loop()
+    app = make_app()
+    server = tornado.httpserver.HTTPServer(app)
+    server.listen(8888)
+    ioloop = start_event_loop()
+
     return
+
 
 if __name__ == '__main__':
     main()
 
-# @app.route('/')
-# def secret_page():
-#     return render_template('index.html')
-#
-#
-# @app.route('/pool-index', methods=["GET"])
-# def pool_index():
-#     return jsonify(app.config['xen_endpoints'])
-
-
-# #app.secret_key = ''.join([random.choice(string.ascii_letters + string.digits) for n in xrange(32)])
-# app.secret_key = 'SADFccadaeqw221fdssdvxccvsdf'
-# if __name__ == '__main__':  # everything should be loaded from ini
-#     #app.config.update(SESSION_COOKIE_SECURE=True)
-#     app.config['SESSION_COOKIE_HTTPONLY'] = False
-#     app.config['xen_endpoints'] = [
-#         {'id': 'http://10.10.10.18:80/', 'url': 'http://10.10.10.18:80/', 'description': 'Pool A'},
-#         #{'id': 'http://10.10.10.18:80//', 'url': 'http://10.10.10.18:80/', 'description': 'Pool Z'},
-#         #{'id': 'http://172.31.0.32:80/', 'url': 'http://172.31.0.32:80/', 'description': 'Pool Z'}
-#         ]
-#     app.config['supported-distros'] = {'debianlike': 'all'}
-#     app.config['enabled-distros'] = app.config['supported-distros']
-#     app.config['supported-reverse-proxies'] = {'vmemperor-nginx': 'Nginx configuration files'}
-#     app.config['enabled-reverse-proxies'] = app.config['supported-reverse-proxies']
-#     app.config['vmemperor-address'] = 'http://localhost:5000/'
-#     #retrieve_vms_list(session)
-#     app.run(debug=True, use_reloader=True, threaded=False, host="0.0.0.0", port=5000)
