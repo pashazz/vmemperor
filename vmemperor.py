@@ -243,11 +243,27 @@ def start_event_loop():
     ioloop.start()
     return ioloop
 
+class ScenarioTest(BaseHandler):
+    def __init__(self):
+        super().__init__()
+        self.opts = dict()
+        self.opts['mirror_url'] = "http://mirror.corbina.net"
+        self.opts['mirror_path'] = '/ubuntu'
+        self.opts['fullname'] = 'John Doe'
+        self.opts['username'] = 'john'
+        self.opts['password'] = 'john'
+
+    def get(self, template_name):
+        self.render("templates/installation-scenarios/{0}.jinja2".format(template_name))
+
+    
+
 
 def make_app(auth_class=DummyAuth):
     return tornado.web.Application([
         (r"/login", auth_class),
         (r'/test', Test),
+        (r'/scenarios/test/([^/]+)', ScenarioTest)
     ])
 
 
