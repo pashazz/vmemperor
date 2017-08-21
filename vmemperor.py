@@ -1,18 +1,16 @@
-import configparser
-
 from xenadapter import XenAdapter
 import tornado.web
 import tornado.escape
 import tornado.httpserver
 import json
 from abc import ABCMeta, abstractmethod
+import configparser
 
 from tornado import gen, ioloop
 from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
 
 executor = ThreadPoolExecutor(max_workers=16)  # read from settings
-
 
 
 class BaseHandler(tornado.web.RequestHandler):
@@ -269,8 +267,9 @@ def make_app(auth_class=DummyAuth):
 
 def read_settings():
     """reads settings from ini"""
-    settings = configparser.ConfigParser()
-    settings.read('*.ini')
+    config = configparser.ConfigParser()
+    config.read('*.ini')
+    settings = config._sections['settings'] #dictionary
     return settings
 
 
