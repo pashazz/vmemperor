@@ -258,10 +258,20 @@ class EventLoop:
         if name_db not in r.db_list().run():
             r.db_create(name_db).run()
         self.db = r.db(name_db)
+        tables = self.db.table_list().run()
+        if 'vms' in tables:
+            pass
+        else:
+            self.db.table_create('vms', durability='soft', primary_key='uuid').run()
 
 
     @run_on_executor
     def heavy_task(self):
+        # vms = self.xen.list_vms()
+        # for uuid in vms.keys():
+        #     ret = self.db.table('vms').insert(vms[uuid], conflict = 'update').run()
+        #     if ret['errors']:
+        #         raise ValueError(ret['first_error'])
 
         return
 
@@ -270,10 +280,10 @@ class EventLoop:
         yield self.heavy_task()
 
 
-def start_event_loop():
+def start_event_loop(delay = 1000):
     ioloop = tornado.ioloop.IOLoop.instance()
     loop_object = EventLoop()
-    tornado.ioloop.PeriodicCallback(loop_object.vm_list_update, 1000).start()  # read delay from ini
+    tornado.ioloop.PeriodicCallback(loop_object.vm_list_update, delay).start()  # read delay from ini
     ioloop.start()
     return ioloop
 
@@ -319,16 +329,24 @@ def read_settings():
 def main():
     """ reads settings in ini configures and starts system"""
     settings = read_settings()
+    debug = False
     if 'debug' in settings:
-        debug = settings['debug']['debug']
+        if 'debug' in settings['debug']:
+            debug = bool(settings['debug']['debug'])
     app = make_app(debug)
     server = tornado.httpserver.HTTPServer(app)
     server.listen(8888)
-    ioloop = start_event_loop()
+    delay = 1000
+    if 'ioloop' in settings:
+        if 'delay' in settings['ioloop']:
+            delay = int(settings['ioloop']['delay'])
+    ioloop = start_event_loop(delay)
 
     return
 
 
 if __name__ == '__main__':
-    main()
-
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass
