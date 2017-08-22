@@ -273,8 +273,7 @@ class EventLoop:
         #     if ret['errors']:
         #         raise ValueError(ret['first_error'])
 
-        return
-
+        pass
     @gen.coroutine
     def vm_list_update(self):
         yield self.heavy_task()
@@ -288,8 +287,7 @@ def start_event_loop(delay = 1000):
     return ioloop
 
 class ScenarioTest(BaseHandler):
-    def __init__(self):
-        super().__init__()
+    def initialize(self):
         self.opts = dict()
         self.opts['mirror_url'] = "http://mirror.corbina.net"
         self.opts['mirror_path'] = '/ubuntu'
@@ -298,14 +296,14 @@ class ScenarioTest(BaseHandler):
         self.opts['password'] = 'john'
 
     def get(self, template_name):
-        self.render("templates/installation-scenarios/{0}.jinja2".format(template_name))
+        self.render("templates/installation-scenarios/{0}.jinja2".format(template_name), opts=self.opts)
 
     
 
 
 def make_app(auth_class=DummyAuth, debug = False):
     settings = {
-        "cookie_secret": "",
+        "cookie_secret": "sdvizxlklkjdsajk;jf;dsal",
         "login_url": "/login",
         "debug": debug
     }
@@ -328,12 +326,14 @@ def read_settings():
 
 def main():
     """ reads settings in ini configures and starts system"""
+
     settings = read_settings()
     debug = False
     if 'debug' in settings:
         if 'debug' in settings['debug']:
             debug = bool(settings['debug']['debug'])
     app = make_app(debug)
+
     server = tornado.httpserver.HTTPServer(app)
     server.listen(8888)
     delay = 1000

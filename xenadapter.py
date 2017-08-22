@@ -6,7 +6,18 @@ from exc import XenAdapterAPIError, XenAdapterArgumentError, XenAdapterConnectio
 import logging
 import sys
 
+def xenadapter_root(method):
+    def decorator(self, *args, **kwargs):
+        if self.vmemperor_user is None:
+            return method(self, *args, **kwargs)
+        else:
+            raise XenAdapterAPIError(self, "Attempt to call root-only method by user")
+
+
+    return decorator
+
 class XenAdapter:
+
 
     def get_all_records(self, subject) -> dict :
         """
@@ -29,9 +40,12 @@ class XenAdapter:
         except StopIteration:
             return ""
 
-    def __init__(self, settings):
-        """creates session connection to XenAPI. Connects using admin username/password from settings"""
 
+    def __init__(self, settings, vmemperor_user=None):
+        """creates session connection to XenAPI. Connects using admin login/password from settings
+        :param vmemperor_user: vmemperor 'virtual' user. In order to be root, leave it None(default)
+    """
+        self.vmemperor_user = vmemperor_user
         self.log = logging.getLogger(__class__.__name__)
         self.log.setLevel(logging.DEBUG)
 
@@ -68,19 +82,31 @@ class XenAdapter:
 
         return
 
+    @xenadapter_root
     def list_pools(self) -> dict:
         '''
         :return: dict of pool records
         '''
         return self.get_all_records(self.api.pool)
 
-    def list_vms(self) -> dict:
+    @xenadapter_root
+    def list_vms(self):
         '''
         :return: dict of vm records except dom0 and templates
         '''
-        return {key : value for key, value in self.get_all_records(self.api.VM).items()
-                if not value['is_a_template'] and not value['is_control_domain']}
+        keys = ['power_state', 'name_label', 'uuid']
+        #return {key : value for key, value in self.get_all_records(self.api.VM).items()
+        #       if not value['is_a_template'] and not value['is_control_domain']}
 
+        def process(value):
+            new_rec = {k : v for k,v in value.items() if k in keys}
+            return new_rec
+
+        return [process(value) for key, value in self.get_all_records(self.api.VM).items()]
+
+
+
+    @xenadapter_root
     def list_srs(self) -> dict:
         '''
         :return: dict of storage repositories' records
@@ -88,12 +114,14 @@ class XenAdapter:
         return self.get_all_records(self.api.SR)
 
 
+    @xenadapter_root
     def list_vdis(self) -> dict:
         '''
         :return: dict of virtual disk images' records
         '''
         return self.get_all_records(self.api.VDI)
 
+    @xenadapter_root
     def list_networks(self) -> dict:
         '''
         dict of network interfaces' records
@@ -101,6 +129,7 @@ class XenAdapter:
         '''
         return self.get_all_records(self.api.network)
 
+    @xenadapter_root
     def list_templates(self) -> dict:
         '''
         dict of VM templates' records
@@ -149,6 +178,12 @@ class XenAdapter:
 
         self.connect_vm(new_vm_uuid, net_uuid)
 
+
+        if self.vmemperor_user is not None:
+            self.set_other_config(new_vm_uuid, "vmemperor_user", self.vmemperor_user)
+
+
+
         if start:
             self.api.VM.start(new_vm_ref, False, True) # args: VM reference, start in paused state, force start
             self.log.info ("Created VM is started")
@@ -171,8 +206,12 @@ class XenAdapter:
             sr = self.api.SR.get_record(sr_ref)
             name_label = sr['name_label'] + ' disk'
 
+        other_config = {}
+        if self.vmemperor_user:
+            other_config['vmemperor_user'] = self.vmemperor_user
+
         args = {'SR': sr_ref, 'virtual_size': str(size), 'type': 'system', \
-                'sharable': False, 'read_only': False, 'other_config': {}, \
+                'sharable': False, 'read_only': False, 'other_config': other_config, \
                 'name_label': name_label}
         try:
             vdi_ref = self.api.VDI.create(args)
@@ -335,7 +374,7 @@ class XenAdapter:
             try:
                 self.api.VBD.unplug(vbd_ref)
             except Exception as e:
-                self.log.error ("Failed to detach disk from running VM")
+                self.log.warning("Failed to detach disk from running VM")
                 return 1
             
         try:
@@ -368,6 +407,7 @@ class XenAdapter:
         try:
             self.api.VDI.destroy(vdi_ref)
         except XenAPI.Failure as f:
+
             raise XenAdapterAPIError(self, "Failed to destroy VDI: {0}".format(f.details))
 
         return
@@ -376,3 +416,30 @@ class XenAdapter:
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
         if self.api.VM.get_power_state(vm_ref) != 'Halted':
             self.api.VM.hard_shutdown(vm_ref)
+
+
+    def set_other_config(self, subject, uuid, name, value=None):
+        '''
+        Set value of other_config field
+        :param subject: API subject
+        :param uuid:
+        :param name:
+        :param value: none if you wish to remove field
+        :return:
+        '''
+        ref = subject.get_by_uuid(uuid)
+        if value is not None:
+            try:
+                subject.add_to_other_config(ref, name, value)
+            except XenAPI.Failure as f:
+                raise XenAdapterAPIError(self, "Failed to add tag '{0}' with value '{1}' to subject '{2}'s other_config field {3}': {4}".format(
+                    name, value, subject, uuid, f.details))
+        else:
+            try:
+                subject.remove_from_other_config(ref, name, value)
+            except XenAPI.Failure as f:
+                raise XenAdapterAPIError(self,
+                                         "Failed to remove tag '{0}' from subject '{1}'s other_config field {2}': {3}".format(
+                                             name, subject, uuid, f.details))
+
+

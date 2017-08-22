@@ -2,7 +2,7 @@ import unittest
 from configparser import ConfigParser
 from xenadapter import XenAdapter
 import requests
-
+import rethinkdb
 
 
 class XenAdapterSetupMixin:
@@ -41,9 +41,15 @@ class TestXenAdapterDict(unittest.TestCase, XenAdapterSetupMixin):
 
     def test_list_vms(self):
         vms = self.xen.list_vms()
-        self.assertIs(type(vms), dict)
-        for key, value in vms.items():
-            self.xen.api.VM.get_by_uuid(key)
+        #self.assertIs(type(vms), dict)
+        conn = rethinkdb.connect()
+
+        for item in vms:
+            ins = rethinkdb.db('vms').table('vms').insert(item,conflict='replace').run(conn)
+            print(ins)
+
+        print(vms)
+
 
     def test_list_vdis(self):
         vdis = XenAdapterSetupMixin.xen.list_vdis()
@@ -91,7 +97,7 @@ class XenAdapterSetupVmMixin(XenAdapterSetupMixin):
             cls.start = True
         XenAdapterSetupMixin.setUpClass()
         #remove all vms that are vm_name
-        vms_to_remove=[vm for vm, value in cls.xen.list_vms().items() if value['name_label'] == cls.VM_NAME]
+        vms_to_remove=[vm['uuid'] for vm in cls.xen.list_vms() if vm['name_label'] == cls.VM_NAME]
         # create vm
         sr_uuid = cls.choose_sr()
         template_uuid = cls.choose_template()
@@ -154,7 +160,7 @@ class TestXenAdapterVM(unittest.TestCase, XenAdapterSetupVmMixin):
 
         self.assertNotEqual(self.xen.uuid_by_name(self.xen.api.VM, self.VM_NAME),
                              str())
-        self.assertIn(self.vm_uuid, self.xen.list_vms().keys())
+        self.assertIn(self.vm_uuid, (vm['uuid'] for vm in self.xen.list_vms()))
 
     def test_vnc_url(self):
         '''
