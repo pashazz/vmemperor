@@ -1,5 +1,8 @@
 from configparser import ConfigParser
 from xenadapter import XenAdapter
+import rethinkdb as r
+from rethinkdb.errors import ReqlDriverError
+import sys
 
 def print_list (list):
     for x in list:
@@ -37,43 +40,26 @@ def main():
     settings = config._sections['settings'] #dictionary
     print()
 
-    xen = XenAdapter(settings)
     try:
-        # destroy_vms(xen)
+        conn = r.connect(db='vmemperor').repl()
+    except ReqlDriverError as e:
+        print ("Failed to establish connection: {0}".format(e))
+        sys.exit(1)
 
-        # sr_uuid = choose_sr(xen.api.SR.get_all_records())
-        # tmpl_uuid = choose_tmpl(xen.list_templates())
-        # net_uuid = choose_net(xen.api.network.get_all_records())
-        # vdi_size = 57767936
-        # xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, str(vdi_size), 'try_kuku')
-        # vms = xen.list_vms()
-        # print (vms[-1]['uuid'])
-        # print(len(vms))
-
-        # vms = xen.list_vms()
-        # vm = vms[-1]
-        # vm_uuid = vm['uuid']
-        # if (vm['power_state'] != 'Running'):
-        #     xen.start_stop_vm(vm_uuid, True)
-        # vm_ref = xen.api.VM.get_by_uuid(vm_uuid)
-        # consoles = xen.api.VM.get_consoles(vm_ref) #references
-        # if (len(consoles) == 0):
-        #     print('Failed to find console')
-        # else:
-        #     cons_ref = consoles[0]
-        #     console = xen.api.console.get_record(cons_ref)
-        #     url = xen.api.console.get_location(cons_ref)
-        #     print(url)
-
-
-        # todo что за хрень?????
-        templates = xen.list_templates()
-        ku = [x for x in templates if x['name_label'] == 'try_ku']
-        print(len(ku))
-
-
+    try:
+        db = r.db('vmemperor')
+        # doc = {
+        #     'name': 'kukuku',
+        #     'description': 'testing insert'
+        # }
+        # ret = db.table('user').insert(doc, conflict = 'error').run()
+        # if ret['errors']:
+        #     raise ValueError(ret['first_error'])
+        print(db.table('user').pluck('name').count().run())
+        print(db.table('user').get('60bf5c40-a34e-45ae-9414-a6636309e8b8').run())
     finally:
-        xen.session._logout()
+        conn.close(noreply_wait = False)
+
 
 if __name__ == '__main__':
     main()

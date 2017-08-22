@@ -10,8 +10,10 @@ from tornado import gen, ioloop
 from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
 
-executor = ThreadPoolExecutor(max_workers=16)  # read from settings
+import rethinkdb as r
+from rethinkdb.errors import ReqlDriverError
 
+executor = ThreadPoolExecutor(max_workers=16)  # read from settings
 
 class BaseHandler(tornado.web.RequestHandler):
     def get_current_user(self):
@@ -99,10 +101,19 @@ class AdminAuth(BaseHandler):
 class VMList(BaseHandler):
     executor = executor
 
-    def get(self):
+    def get(self, user_id):
         """ """
+
+        conn = r.connect(db='vmemperor').repl()
+        db = r.db('vmemperor').run()
+
+        try:
+            doc = db.table('user').get(user_id).run()
+            list = doc['VMs']
+        finally:
+            conn.close(noreply_wait = False)
         # read from db
-        self.write()
+        self.write(json.dumps(list))
 
 
 class PoolList(BaseHandler):
@@ -126,6 +137,7 @@ class TemplateList(BaseHandler):
 class CreateVM(BaseHandler):
     executor = executor
 
+    @tornado.web.authenticated
     def post(self):
         """ """
         XenAdapter.create_vm()
@@ -223,10 +235,34 @@ class EventLoop:
     executor = executor
 
     def __init__(self):
-        pass
+        settings = read_settings()
+        self.xen = XenAdapter(settings['xenadapter'])
+        if 'rethinkdb' in settings:
+            if 'database' in settings['rethinkdb']:
+                name_db = settings['rethinkdb']['database']
+            else:
+                name_db = 'test'
+            if 'host' in settings['rethinkdb']:
+                host_db = settings['rethinkdb']['host']
+            else:
+                host_db = 'localhost'
+            if 'port' in settings['rethinkdb']:
+                port_db = settings['rethinkdb']['port']
+            else:
+                port_db = 28015
+        else:
+            name_db = 'test'
+            host_db = 'localhost'
+            port_db = 28015
+        r.connect(host_db, port_db, name_db).repl()
+        if name_db not in r.db_list().run():
+            r.db_create(name_db).run()
+        self.db = r.db(name_db)
+
 
     @run_on_executor
     def heavy_task(self):
+
         return
 
     @gen.coroutine
@@ -257,26 +293,35 @@ class ScenarioTest(BaseHandler):
     
 
 
-def make_app(auth_class=DummyAuth):
+def make_app(auth_class=DummyAuth, debug = False):
+    settings = {
+        "cookie_secret": "",
+        "login_url": "/login",
+        "debug": debug
+    }
     return tornado.web.Application([
         (r"/login", auth_class),
         (r'/test', Test),
         (r'/scenarios/test/([^/]+)', ScenarioTest)
-    ])
+    ], **settings)
 
 
 def read_settings():
     """reads settings from ini"""
     config = configparser.ConfigParser()
-    config.read('*.ini')
-    settings = config._sections['settings'] #dictionary
+    config.read('login.ini')
+    settings = {}
+    for section in config._sections:
+        settings[section] = dict(config._sections[section])
     return settings
 
 
 def main():
     """ reads settings in ini configures and starts system"""
     settings = read_settings()
-    app = make_app()
+    if 'debug' in settings:
+        debug = settings['debug']['debug']
+    app = make_app(debug)
     server = tornado.httpserver.HTTPServer(app)
     server.listen(8888)
     ioloop = start_event_loop()

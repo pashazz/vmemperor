@@ -30,7 +30,7 @@ class XenAdapter:
             return ""
 
     def __init__(self, settings):
-        """creates session connection to XenAPI. Connects using admin login/password from settings"""
+        """creates session connection to XenAPI. Connects using admin username/password from settings"""
 
         self.log = logging.getLogger(__class__.__name__)
         self.log.setLevel(logging.DEBUG)
@@ -51,20 +51,20 @@ class XenAdapter:
 
         try:
             url = settings['url']
-            login = settings['login']
+            username = settings['username']
             password = settings['password']
         except KeyError as e:
             raise XenAdapterArgumentError(self, 'Failed to parse settings: {0}'.format(str(e)))
 
         try:
             self.session = XenAPI.Session(url)
-            self.session.xenapi.login_with_password(login, password)
+            self.session.xenapi.login_with_password(username, password)
             self.log.info ('Authentication is successful')
             self.api = self.session.xenapi
         except OSError as e:
             raise XenAdapterConnectionError(self, "Unable to reach XenServer at {0}: {1}".format(url, str(e)))
         except XenAPI.Failure as e:
-            raise XenAdapterConnectionError(self, 'Failed to login: url: "{1}"; login: "{2}"; password: "{3}"; error: {0}'.format(str(e), url, login, password))
+            raise XenAdapterConnectionError(self, 'Failed to login: url: "{1}"; username: "{2}"; password: "{3}"; error: {0}'.format(str(e), url, username, password))
 
         return
 
