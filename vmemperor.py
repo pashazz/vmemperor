@@ -15,6 +15,10 @@ from rethinkdb.errors import ReqlDriverError
 
 executor = ThreadPoolExecutor(max_workers=16)  # read from settings
 
+def CHECK_ER(ret):
+    if ret['errors']:
+        raise ValueError('Failed to modify data: {0}'.format(ret['first_error']))
+
 class BaseHandler(tornado.web.RequestHandler):
     def get_current_user(self):
         return self.get_secure_cookie("user")
@@ -103,15 +107,6 @@ class VMList(BaseHandler):
 
     def get(self, user_id):
         """ """
-
-        conn = r.connect(db='vmemperor').repl()
-        db = r.db('vmemperor').run()
-
-        try:
-            doc = db.table('user').get(user_id).run()
-            list = doc['VMs']
-        finally:
-            conn.close(noreply_wait = False)
         # read from db
         self.write(json.dumps(list))
 
@@ -254,26 +249,49 @@ class EventLoop:
             name_db = 'test'
             host_db = 'localhost'
             port_db = 28015
-        r.connect(host_db, port_db, name_db).repl()
+        self.conn = r.connect(host_db, port_db, name_db).repl()
         if name_db not in r.db_list().run():
             r.db_create(name_db).run()
         self.db = r.db(name_db)
         tables = self.db.table_list().run()
         if 'vms' in tables:
-            pass
+            print("OK")
+            #todo doesn't work
+            self.heavy_task()
         else:
             self.db.table_create('vms', durability='soft', primary_key='uuid').run()
+            #todo fill table
+            vms = self.xen.list_vms()
+            for uuid in vms.keys():
+                doc = {
+                    'user': '',
+                    'uuid': uuid,
+                    'power_state': vms[uuid]['power_state']
+                }
+                CHECK_ER(self.db.table('vms').insert(doc, conflict = 'error').run())
 
 
     @run_on_executor
     def heavy_task(self):
-        # vms = self.xen.list_vms()
-        # for uuid in vms.keys():
-        #     ret = self.db.table('vms').insert(vms[uuid], conflict = 'update').run()
-        #     if ret['errors']:
-        #         raise ValueError(ret['first_error'])
+        self.conn.repl()
+        vms = self.xen.list_vms()
+        for uuid in vms.keys():
+            doc = {
+                'uuid': uuid,
+                'power_state': vms[uuid]['power_state']
+            }
+            CHECK_ER(self.db.table('vms').insert(doc, conflict = 'update').run())
 
-        pass
+        db_vms = self.db.table('vms').pluck('uuid')
+        if len(vms) != db_vms.count().run():
+            db_vms = db_vms.run()
+            for doc in db_vms:
+                if doc['uuid'] not in vms.keys():
+                    CHECK_ER(self.db.table('vms').get(doc['uuid']).delete(returnChanges = False).run())
+
+        raise ValueError("SUCCESS")
+        return
+
     @gen.coroutine
     def vm_list_update(self):
         yield self.heavy_task()
@@ -288,6 +306,7 @@ def start_event_loop(delay = 1000):
 
 class ScenarioTest(BaseHandler):
     def initialize(self):
+        super().__init__()
         self.opts = dict()
         self.opts['mirror_url'] = "http://mirror.corbina.net"
         self.opts['mirror_path'] = '/ubuntu'
@@ -298,12 +317,10 @@ class ScenarioTest(BaseHandler):
     def get(self, template_name):
         self.render("templates/installation-scenarios/{0}.jinja2".format(template_name), opts=self.opts)
 
-    
-
 
 def make_app(auth_class=DummyAuth, debug = False):
     settings = {
-        "cookie_secret": "sdvizxlklkjdsajk;jf;dsal",
+        "cookie_secret": "SADFccadaeqw221fdssdvxccvsdf",
         "login_url": "/login",
         "debug": debug
     }

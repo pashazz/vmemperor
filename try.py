@@ -34,10 +34,7 @@ def choose_net (records):
         if x['name_label'] == 'Pool-wide network associated with eth0':
             return x['uuid']
 
-def main():
-    config = ConfigParser()
-    config.read('login.ini')
-    settings = config._sections['settings'] #dictionary
+def db():
     print()
 
     try:
@@ -55,11 +52,27 @@ def main():
         # ret = db.table('user').insert(doc, conflict = 'error').run()
         # if ret['errors']:
         #     raise ValueError(ret['first_error'])
-        print(db.table('user').pluck('name').count().run())
-        print(db.table('user').get('60bf5c40-a34e-45ae-9414-a6636309e8b8').run())
+        print(db.table('user').pluck('name').run())
+        # print(db.table('user').get('60bf5c40-a34e-45ae-9414-a6636309e8b8').run())
     finally:
         conn.close(noreply_wait = False)
 
+def xen():
+    print()
+    config = ConfigParser()
+    config.read('login.ini')
+    settings = config._sections['xenadapter']
+    xen = XenAdapter(settings)
+
+    try:
+        vms = xen.list_vms()
+        print(len(vms))
+        for vm in vms.values():
+            for key, val in vm.items():
+                print(key, val)
+            break
+    finally:
+        xen.session._logout()
 
 if __name__ == '__main__':
-    main()
+    xen()
