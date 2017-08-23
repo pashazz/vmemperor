@@ -2,13 +2,16 @@ from xenadapter import XenAdapter
 import tornado.web
 import tornado.escape
 import tornado.httpserver
+import tornado.iostream
 import json
 from abc import ABCMeta, abstractmethod
 import configparser
-
+import socket
 from tornado import gen, ioloop
 from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlparse
+import base64
 
 import rethinkdb as r
 from rethinkdb.errors import ReqlDriverError
@@ -306,7 +309,6 @@ def start_event_loop(delay = 1000):
 
 class ScenarioTest(BaseHandler):
     def initialize(self):
-        super().__init__()
         self.opts = dict()
         self.opts['mirror_url'] = "http://mirror.corbina.net"
         self.opts['mirror_path'] = '/ubuntu'
@@ -318,6 +320,66 @@ class ScenarioTest(BaseHandler):
         self.render("templates/installation-scenarios/{0}.jinja2".format(template_name), opts=self.opts)
 
 
+class ConsoleHandler(BaseHandler):
+    SUPPORTED_METHODS = {"CONNECT"}
+
+    def initialize(self):
+        settings = read_settings()
+        url = urlparse(settings['xenadapter']['url'])
+        username = settings['xenadapter']['username']
+        password = settings['xenadapter']['password']
+        if ':' in url.netloc:
+            host, port = url.netloc.split(':')
+        else:
+            host = url.netloc
+            port = 80 #TODO: AS FOR NOW ONLY HTTP IS SUPPORTED
+
+        self.host = host
+        self.port = int(port)
+        self.auth_token = base64.encodebytes('{0}:{1}'.format
+                                             (username,
+                                              password).encode())
+
+
+
+
+
+    @tornado.web.asynchronous
+    def connect(self, path):
+        client_stream = self.request.connection.stream
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_stream = tornado.iostream.IOStream(sock)
+
+        def connect_callback():
+            lines =[
+                'CONNECT {0} HTTP/1.1'.format(path), #HTTP 1.1 creates Keep-alive connection
+                'Host: {0}'.format(self.host),
+                'Authorization: Basic {0}'.format(self.auth_token),
+            ]
+            server_stream.write('\r\n'.join(lines).encode())
+            server_stream.write(b'\r\n\r\n')
+            server_stream.read_until_close(streaming_callback=server_read)
+
+        def server_read(data):
+            if not data:
+                client_stream.close()
+            else:
+                client_stream.write(data)
+
+
+        def client_read(data):
+            if not data:
+                server_stream.close()
+            else:
+                server_stream.write(data)
+
+
+        server_stream.connect((self.host, self.port), callback=connect_callback)
+
+        client_stream.read_until_close(streaming_callback=client_read)
+
+
+
 def make_app(auth_class=DummyAuth, debug = False):
     settings = {
         "cookie_secret": "SADFccadaeqw221fdssdvxccvsdf",
@@ -327,7 +389,8 @@ def make_app(auth_class=DummyAuth, debug = False):
     return tornado.web.Application([
         (r"/login", auth_class),
         (r'/test', Test),
-        (r'/scenarios/test/([^/]+)', ScenarioTest)
+        (r'/scenarios/test/([^/]+)', ScenarioTest),
+        (r'/(console?[^/]+)', ConsoleHandler)
     ], **settings)
 
 

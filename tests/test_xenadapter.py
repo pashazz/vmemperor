@@ -10,7 +10,7 @@ class XenAdapterSetupMixin:
     def setUpClass(cls):
         cls.config = ConfigParser()
         cls.config.read('../login.ini')
-        cls.settings = cls.config._sections['settings']  # dictionary
+        cls.settings = cls.config._sections['xenadapter']  # dictionary
         cls.settings['debug'] = True
         cls.xen = XenAdapter(cls.settings)
 
