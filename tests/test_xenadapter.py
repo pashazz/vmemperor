@@ -170,7 +170,7 @@ class TestXenAdapterVM(unittest.TestCase, XenAdapterSetupVmMixin):
 
         # If we'd use it more than once, move to an external method
 
-        req = requests.api.request('GET', vnc_url, auth=(self.settings['login'], self.settings['password']),
+        req = requests.api.request('GET', vnc_url, auth=(self.settings['username'], self.settings['password']),
                                    verify=False, headers={"Connection": "close"})
         self.assertEqual(req.status_code, 501) #not implemented
 

@@ -16,6 +16,9 @@ import base64
 import rethinkdb as r
 from rethinkdb.errors import ReqlDriverError
 
+import ldap3
+
+
 executor = ThreadPoolExecutor(max_workers=16)  # read from settings
 
 def CHECK_ER(ret):
@@ -48,12 +51,8 @@ class Authentication(metaclass=ABCMeta):
         """creates cookie given username"""
         return
 
-
 @Authentication.register
-class DummyAuth(BaseHandler):
-    def check_credentials(self, password, username):
-        return True
-
+class BasicAuthenticator(BaseHandler):
     def post(self):
         username = self.get_argument("username", "")
         password = self.get_argument("password", "")
@@ -70,6 +69,23 @@ class DummyAuth(BaseHandler):
 
         else:
             self.clear_cookie("user")
+
+
+class DummyAuth(BasicAuthenticator):
+    def check_credentials(self, password, username):
+        return True
+
+class LDAPAuthenticator(BasicAuthenticator):
+    def check_credentials(self, password, username):
+        server = ldap3.Server('10.10.12.9')
+        conn = ldap3.Connection(server, user='mailuser', password='mailuser', raise_exceptions=False)
+        conn.bind()
+        search_filter="(&(objectClass=person)(!(objectClass=computer))(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(cn=*)(sAMAccountName=%s))" % username
+        conn.search(search_base='dc=intra,dc=ispras,dc=ru',search_filter=search_filter,
+                    attributes=['givenName', 'mail'])
+
+
+
 
 
 """
@@ -352,11 +368,12 @@ class ConsoleHandler(BaseHandler):
 
         def connect_callback():
             lines =[
-                'CONNECT {0} HTTP/1.1'.format(path), #HTTP 1.1 creates Keep-alive connection
+                'CONNECT {0} HTTP/1.1'.format(self.request.uri), #HTTP 1.1 creates Keep-alive connection
                 'Host: {0}'.format(self.host),
-                'Authorization: Basic {0}'.format(self.auth_token),
+             #   'Authorization: Basic {0}'.format(self.auth_token),
             ]
             server_stream.write('\r\n'.join(lines).encode())
+            server_stream.write(b'\r\nAuthorization: Basic ' + self.auth_token)
             server_stream.write(b'\r\n\r\n')
             server_stream.read_until_close(streaming_callback=server_read)
 
@@ -377,6 +394,8 @@ class ConsoleHandler(BaseHandler):
         server_stream.connect((self.host, self.port), callback=connect_callback)
 
         client_stream.read_until_close(streaming_callback=client_read)
+        print("closed")
+
 
 
 
@@ -390,7 +409,7 @@ def make_app(auth_class=DummyAuth, debug = False):
         (r"/login", auth_class),
         (r'/test', Test),
         (r'/scenarios/test/([^/]+)', ScenarioTest),
-        (r'/(console?[^/]+)', ConsoleHandler)
+        (r'/(console.*)', ConsoleHandler)
     ], **settings)
 
 
@@ -402,6 +421,7 @@ def read_settings():
     for section in config._sections:
         settings[section] = dict(config._sections[section])
     return settings
+
 
 
 def main():
