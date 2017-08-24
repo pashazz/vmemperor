@@ -16,7 +16,9 @@ import base64
 import rethinkdb as r
 from rethinkdb.errors import ReqlDriverError
 
+
 import ldap3
+
 
 
 executor = ThreadPoolExecutor(max_workers=16)  # read from settings
@@ -24,6 +26,8 @@ executor = ThreadPoolExecutor(max_workers=16)  # read from settings
 def CHECK_ER(ret):
     if ret['errors']:
         raise ValueError('Failed to modify data: {0}'.format(ret['first_error']))
+    if ret['skipped']:
+        raise ValueError('Failed to modify data: skipped - {0}'.format(ret['skipped']))
 
 class BaseHandler(tornado.web.RequestHandler):
     def get_current_user(self):
@@ -151,11 +155,19 @@ class TemplateList(BaseHandler):
 class CreateVM(BaseHandler):
     executor = executor
 
-    @tornado.web.authenticated
     def post(self):
         """ """
-        XenAdapter.create_vm()
-        self.write()
+        settings = read_settings()['xenadapter']
+        xen = XenAdapter(settings)
+        tmpl_uuid = self.get_argument('template-select', )
+        sr_uuid = self.get_argument('storage-select')
+        net_uuid = self.get_argument('network-select')
+        vdi_size = self.get_argument('hdd', '512')
+        hostname = self.get_argument('hostname', '')
+        os_kind = self.get_argument('os_kind', 'ubuntu')
+        preseed_prefix = 'http://localhost:5000/' + 'preseed'
+        vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, os_kind, preseed_prefix)
+        self.write(json.dump({'vm_uuid': vm_uuid}))
 
 
 class NetworkList(BaseHandler):
@@ -273,42 +285,26 @@ class EventLoop:
             r.db_create(name_db).run()
         self.db = r.db(name_db)
         tables = self.db.table_list().run()
-        if 'vms' in tables:
-            print("OK")
-            #todo doesn't work
-            self.heavy_task()
-        else:
+        if 'vms' not in tables:
             self.db.table_create('vms', durability='soft', primary_key='uuid').run()
-            #todo fill table
             vms = self.xen.list_vms()
-            for uuid in vms.keys():
-                doc = {
-                    'user': '',
-                    'uuid': uuid,
-                    'power_state': vms[uuid]['power_state']
-                }
-                CHECK_ER(self.db.table('vms').insert(doc, conflict = 'error').run())
-
+            CHECK_ER(self.db.table('vms').insert(vms, conflict='error').run())
 
     @run_on_executor
     def heavy_task(self):
         self.conn.repl()
         vms = self.xen.list_vms()
-        for uuid in vms.keys():
-            doc = {
-                'uuid': uuid,
-                'power_state': vms[uuid]['power_state']
-            }
-            CHECK_ER(self.db.table('vms').insert(doc, conflict = 'update').run())
+        CHECK_ER(self.db.table('vms').insert(vms, conflict = 'update').run())
 
         db_vms = self.db.table('vms').pluck('uuid')
         if len(vms) != db_vms.count().run():
             db_vms = db_vms.run()
+            vm_uuid = [vm['uuid'] for vm in vms]
             for doc in db_vms:
-                if doc['uuid'] not in vms.keys():
-                    CHECK_ER(self.db.table('vms').get(doc['uuid']).delete(returnChanges = False).run())
+                if doc['uuid'] not in vm_uuid:
+                    CHECK_ER(self.db.table('vms').get(doc['uuid']).delete().run())
 
-        raise ValueError("SUCCESS")
+        # raise ValueError('SUCCESS')
         return
 
     @gen.coroutine
