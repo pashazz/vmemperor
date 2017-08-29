@@ -8,7 +8,7 @@ class Loggable:
         self.log.setLevel(logging.DEBUG)
 
         fileHandler = logging.FileHandler("{0}.log".format(self.__class__.__name__))
-        formatter = logging.Formatter("%(levelname)-8s [%(asctgime)s] %(message)s")
+        formatter = logging.Formatter("%(levelname)-8s [%(asctime)s] %(message)s")
         fileHandler.setLevel(logging.DEBUG)
         fileHandler.setFormatter(formatter)
         self.log.addHandler(fileHandler)

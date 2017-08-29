@@ -2,3 +2,4 @@ tornado
 six
 requests
 rethinkdb
+netifaces

@@ -44,5 +44,8 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
         res = self.fetch(r'/login', method='POST', body=urlencode(body))
         self.assertEqual(res.code, 401)
 
+    def test_createvm(self):
+        pass
+
 
 

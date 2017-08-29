@@ -20,6 +20,7 @@ from loggable import Loggable
 import ldap3
 from exc import *
 import logging
+from netifaces import ifaddresses, AF_INET
 
 executor = ThreadPoolExecutor(max_workers=16)  # read from settings
 
@@ -241,15 +242,19 @@ class CreateVM(BaseHandler):
 
     def post(self):
         """ """
+        # tmpl_uuid = '0124e204-5fae-48cf-beaa-05b79579ef28'
+        # sr_uuid = '88458f94-2e69-6332-423a-00eba8f2008c'
+        # net_uuid = '920b8d47-9945-63d8-4b04-ad06c65d950a'
         settings = read_settings()['xenadapter']
         xen = XenAdapter(settings)
-        tmpl_uuid = self.get_argument('template-select', )
-        sr_uuid = self.get_argument('storage-select')
-        net_uuid = self.get_argument('network-select')
+        tmpl_uuid = self.get_argument('template-select', '0124e204-5fae-48cf-beaa-05b79579ef28')
+        sr_uuid = self.get_argument('storage-select', '88458f94-2e69-6332-423a-00eba8f2008c')
+        net_uuid = self.get_argument('network-select', '920b8d47-9945-63d8-4b04-ad06c65d950a')
         vdi_size = self.get_argument('hdd', '512')
-        hostname = self.get_argument('hostname', '')
+        hostname = self.get_argument('hostname', 'test1')
         os_kind = self.get_argument('os_kind', 'ubuntu')
-        preseed_prefix = 'http://localhost:5000/' + 'preseed'
+        port_num = 8888
+        preseed_prefix = 'http://'+ ifaddresses('virbr0')[AF_INET][0]['addr'] + ':' + str(port_num) + '/preseed'
         vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, os_kind, preseed_prefix)
         self.write(json.dump({'vm_uuid': vm_uuid}))
 
@@ -407,14 +412,14 @@ class ScenarioTest(BaseHandler):
     def initialize(self):
         self.opts = dict()
         self.opts['mirror_url'] = "mirror.corbina.ru"
-        self.opts['mirror_path'] = '/ubuntu/dists/precise/main/installer-amd64/'
+        self.opts['mirror_path'] = '/ubuntu'
         self.opts['fullname'] = 'John Doe'
         self.opts['username'] = 'john'
         self.opts['password'] = 'john'
+        self.opts['hostname'] = 'kuku'
 
     def get(self, template_name):
-        self.render("templates/installation-scenarios/{0}.jinja2".format(template_name), opts=self.opts)
-        # url=http://192.168.122.1:8888/scenarios/test/ubuntu
+        self.write("templates/installation-scenarios/{0}.jinja2".format(template_name), opts=self.opts)
 
 
 class ConsoleHandler(BaseHandler):
@@ -494,8 +499,9 @@ def make_app(auth_class=DummyAuth, debug = False):
     return tornado.web.Application([
         (r"/login", auth_class),
         (r'/test', Test),
-        (r'/scenarios/test/([^/]+)', ScenarioTest),
-        (r'/(console.*)', ConsoleHandler)
+        (r'/preseed/([^/]+)', ScenarioTest),
+        (r'/(console.*)', ConsoleHandler),
+        (r'/createvm', CreateVM),
     ], **settings)
 
 

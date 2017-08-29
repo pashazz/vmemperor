@@ -92,7 +92,8 @@ class XenAdapter(Loggable):
             new_rec = {k : v for k,v in value.items() if k in keys}
             return new_rec
 
-        return [process(value) for key, value in self.get_all_records(self.api.VM).items()]
+        return [process(value) for value in self.get_all_records(self.api.VM).values()
+                if not value['is_a_template'] and not value['is_control_domain']]
 
 
 
@@ -128,7 +129,7 @@ class XenAdapter(Loggable):
         return {key : value for key, value in self.get_all_records(self.api.VM).items()
                   if value['is_a_template']}
 
-    def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, name_label = '', start=True) -> str:
+    def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, os_kind, preseed_prefix, name_label = '', start=True) -> str:
         '''
         Creates a virtual machine and installs an OS
         :param tmpl_uuid: Template UUID
@@ -145,6 +146,18 @@ class XenAdapter(Loggable):
             self.log.info ("New VM is created: UUID {0}".format(new_vm_uuid))
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self, "Failed to clone template: {0}".format(f.details))
+
+        try:
+            preseed = "".join((preseed_prefix, "/", os_kind))
+            if os_kind == "ubuntu":
+                pv_args = "-- quiet auto=true netcfg/get_hostname=%s console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 netcfg/disable_dhcp=false preseed/url=%s" % (
+                hostname, preseed)
+            else:
+                pv_args = ""
+            self.api.VM.set_PV_args(new_vm_ref, pv_args)
+        except XenAPI.Failure as f:
+            self.destroy_vm(new_vm_uuid)
+            raise XenAdapterAPIError(self, 'Failed to install preseed: {0}'.format(f.details))
 
         try:
             specs = provision.ProvisionSpec()

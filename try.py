@@ -3,6 +3,10 @@ from xenadapter import XenAdapter
 import rethinkdb as r
 from rethinkdb.errors import ReqlDriverError
 import sys
+from ldap3 import Server, Connection, SUBTREE, ALL
+from ldap3.core.exceptions import *
+
+import netifaces
 
 def print_list (list):
     for x in list:
@@ -43,17 +47,23 @@ def db():
         print ("Failed to establish connection: {0}".format(e))
         sys.exit(1)
 
+    config = ConfigParser()
+    config.read('login.ini')
+    settings = config._sections['xenadapter']
+    xen = XenAdapter(settings)
+
     try:
         db = r.db('vmemperor')
-        # doc = {
-        #     'name': 'kukuku',
-        #     'description': 'testing insert'
-        # }
-        # ret = db.table('user').insert(doc, conflict = 'error').run()
-        # if ret['errors']:
-        #     raise ValueError(ret['first_error'])
-        print(db.table('user').pluck('name').run())
-        # print(db.table('user').get('60bf5c40-a34e-45ae-9414-a6636309e8b8').run())
+
+        vms = xen.list_vms()
+        db_vms = db.table('vms').pluck('uuid')
+        if len(vms) != db_vms.count().run():
+            db_vms = db_vms.run()
+            vm_uuid = [vm['uuid'] for vm in vms]
+            for doc in db_vms:
+                if doc['uuid'] not in vm_uuid:
+                    print(db.table('vms').get(doc['uuid']).delete().run())
+                    break
     finally:
         conn.close(noreply_wait = False)
 
@@ -65,14 +75,53 @@ def xen():
     xen = XenAdapter(settings)
 
     try:
-        vms = xen.list_vms()
-        print(len(vms))
-        for vm in vms.values():
-            for key, val in vm.items():
-                print(key, val)
-            break
+        # tmpl_uuid = '0124e204-5fae-48cf-beaa-05b79579ef28'
+        # sr_uuid = '88458f94-2e69-6332-423a-00eba8f2008c'
+        # net_uuid = '920b8d47-9945-63d8-4b04-ad06c65d950a'
+        # xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, '512', 'kuku', 'ubuntu', 'http://localhost:5000/preseed', 'kukuku')
+        vm_uuid = '44900640-5c28-c93a-3925-78340eec50d9'
+        # xen.destroy_vm(vm_uuid)
+        # vm_ref = xen.api.VM.get_by_uuid(vm_uuid)
+        # tmpl_ref = xen.api.VM.get_by_uuid(tmpl_uuid)
+        # vm = xen.api.VM.get_record(vm_ref)
+        # tmpl = xen.api.VM.get_record(tmpl_ref)
+        # for key, val in vm.items():
+        #     if key not in tmpl or val != tmpl[key]:
+        #         print(key, val, tmpl[key])
+
     finally:
         xen.session._logout()
 
+def connect():
+    username = 'mailuser'
+    password = 'mailuser'
+
+    server = Server('10.10.12.9')
+    conn = Connection(server, user=username, password = password, raise_exceptions=False)
+    print(server.info)
+    conn.bind()
+
+    search_filter = ("(&(objectClass=person)(!(objectClass=computer))(!(UserAccountControl:1.2.840.113556.1.4.803:=2))"
+                     "(cn=*)(sAMAccountName=%s))") % username
+    conn.search(search_base='dc=intra,dc=ispras,dc=ru', search_filter=search_filter, attributes=['dn', 'givenName', 'mail'],
+                search_scope=SUBTREE, paged_size=1)
+    if conn.entries:
+        try:
+            mail = conn.entries[0].mail[0]
+        except:
+            raise ValueError('NoUserException()')
+        dn = conn.entries[0].entry_get_dn()
+        check_login = Connection(server, user=dn, password=password)
+        if check_login.bind():
+            return "Auth successful", mail
+        else:
+            raise ValueError('PasswordException()')
+    else:
+        raise ValueError('NoUserException()')
+
+def network():
+    print(type(netifaces.ifaddresses('virbr0')[netifaces.AF_INET][0]['addr']))
+
+
 if __name__ == '__main__':
-    xen()
+    network()
