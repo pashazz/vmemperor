@@ -406,14 +406,15 @@ def event_loop(delay = 1000):
 class ScenarioTest(BaseHandler):
     def initialize(self):
         self.opts = dict()
-        self.opts['mirror_url'] = "http://mirror.corbina.net"
-        self.opts['mirror_path'] = '/ubuntu'
+        self.opts['mirror_url'] = "mirror.corbina.ru"
+        self.opts['mirror_path'] = '/ubuntu/dists/precise/main/installer-amd64/'
         self.opts['fullname'] = 'John Doe'
         self.opts['username'] = 'john'
         self.opts['password'] = 'john'
 
     def get(self, template_name):
         self.render("templates/installation-scenarios/{0}.jinja2".format(template_name), opts=self.opts)
+        # url=http://192.168.122.1:8888/scenarios/test/ubuntu
 
 
 class ConsoleHandler(BaseHandler):
@@ -520,7 +521,7 @@ def main():
     app = make_app(LDAPIspAuthenticator, debug)
 
     server = tornado.httpserver.HTTPServer(app)
-    server.listen(8888)
+    server.listen(8888, address="0.0.0.0")
     delay = 1000
     if 'ioloop' in settings:
         if 'delay' in settings['ioloop']:
