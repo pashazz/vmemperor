@@ -16,10 +16,10 @@ import base64
 import rethinkdb as r
 from rethinkdb.errors import ReqlDriverError
 
-
+from loggable import Loggable
 import ldap3
-
-
+from exc import *
+import logging
 
 executor = ThreadPoolExecutor(max_workers=16)  # read from settings
 
@@ -29,7 +29,11 @@ def CHECK_ER(ret):
     if ret['skipped']:
         raise ValueError('Failed to modify data: skipped - {0}'.format(ret['skipped']))
 
-class BaseHandler(tornado.web.RequestHandler):
+class BaseHandler(tornado.web.RequestHandler, Loggable):
+
+    def initialize(self):
+        self.init_log()
+
     def get_current_user(self):
         return self.get_secure_cookie("user")
 
@@ -41,12 +45,12 @@ class Authentication(metaclass=ABCMeta):
         return
 
     @abstractmethod
-    def get_user_groups(self, username):
+    def get_user_groups(self):
         """gets list of user groups"""
         return
 
     @abstractmethod
-    def set_user_group(self, username, group):
+    def set_user_group(self, group):
         """adds user to group"""
         return
 
@@ -60,33 +64,113 @@ class BasicAuthenticator(BaseHandler):
     def post(self):
         username = self.get_argument("username", "")
         password = self.get_argument("password", "")
-        authenticated = self.check_credentials(password, username)
-        if authenticated:
-            self.set_user(username)
+        try:
+            token = self.check_credentials(password, username)
+        except AuthenticationException:
+            token = None
+        if token:
             self.write(json.dumps({}))
         else:
+            self.set_status(401) # not authorized
             return self.write(json.dumps({"error": "wrong credentials"}))
 
-    def set_user(self, username):
+    def set_user_cookie(self, username):
+        '''
+        Sets user token as a cookie and returns it
+        :param username:
+        :return: do logout if username is empty and return nothing; else return user token
+        '''
         if username:
-            self.set_secure_cookie("user", tornado.escape.json_encode(username))
-
+            token = self.get_token(username)
+            self.set_secure_cookie("user", token)
+            return token
         else:
             self.clear_cookie("user")
 
 
+    def get_token(self, username):
+        return tornado.escape.json_encode(username)
+
+
 class DummyAuth(BasicAuthenticator):
     def check_credentials(self, password, username):
-        return True
+        return self.set_user_cookie(username)
 
-class LDAPAuthenticator(BasicAuthenticator):
+
+
+
+class LDAPIspAuthenticator(BasicAuthenticator):
+    def initialize(self):
+        '''
+        Establishes connection to a ldap server
+        :return:
+        '''
+        super().initialize()
+
+        self.server = ldap3.Server('10.10.12.9')
+        self.conn = ldap3.Connection(self.server, user='mailuser', password='mailuser', raise_exceptions=False)
+        if self.conn.bind():
+            self.log.debug("LDAP Connection established: server: {0}, user: {1}".format(self.server.host, self.conn.user))
+        else:
+            self.log.error("Unable to establish connection to LDAP server: {0}".format(self.server.host))
+
     def check_credentials(self, password, username):
-        server = ldap3.Server('10.10.12.9')
-        conn = ldap3.Connection(server, user='mailuser', password='mailuser', raise_exceptions=False)
-        conn.bind()
+        '''
+        Checks credentials
+        :param password:
+        :param username:
+        :return: user token
+        '''
+        self.username=username
         search_filter="(&(objectClass=person)(!(objectClass=computer))(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(cn=*)(sAMAccountName=%s))" % username
-        conn.search(search_base='dc=intra,dc=ispras,dc=ru',search_filter=search_filter,
-                    attributes=['givenName', 'mail'])
+        self.conn.search(search_base='dc=intra,dc=ispras,dc=ru',search_filter=search_filter,
+        attributes=['givenName', 'mail'], search_scope=ldap3.SUBTREE, paged_size=1)
+        if self.conn.entries:
+           try:
+               mail = self.conn.entries[0].mail[0]
+               self.log.debug("Authentication entry found, e-mail: {0}".format(mail))
+               #find groups
+               self.conn.search(search_base='dc=intra,dc=ispras,dc=ru', search_filter=search_filter,
+               attributes=['memberOf'], search_scope=ldap3.SUBTREE, paged_size=1)
+
+               self.groups = [group.split(',')[0].split('=')[1] for group in self.conn.entries[0].memberOf]
+
+           except:
+               raise AuthenticationUserNotFoundException(self)
+
+           dn = self.conn.entries[0]
+           check_login = ldap3.Connection(self.server, user=dn.entry_dn, password=password)
+           try:
+               if check_login.bind():
+                   self.log.debug("Authentication as {0} successful".format(username))
+                   self.login_connection = check_login
+                   return self.set_user_cookie(username)
+               else:
+                   raise AuthenticationPasswordException(self)
+           except: #empty password
+               raise AuthenticationWithEmptyPasswordException(self)
+        else:
+            raise AuthenticationUserNotFoundException(self)
+
+
+
+
+
+
+
+
+
+    def get_user_groups(self, username):
+        '''
+        Get list of user groups
+        '''
+        return self.groups
+
+    def set_user_groups(self):
+        raise NotImplementedError()
+
+
+
 
 
 
@@ -312,11 +396,11 @@ class EventLoop:
         yield self.heavy_task()
 
 
-def start_event_loop(delay = 1000):
+def event_loop(delay = 1000):
     ioloop = tornado.ioloop.IOLoop.instance()
     loop_object = EventLoop()
     tornado.ioloop.PeriodicCallback(loop_object.vm_list_update, delay).start()  # read delay from ini
-    ioloop.start()
+
     return ioloop
 
 class ScenarioTest(BaseHandler):
@@ -396,11 +480,16 @@ class ConsoleHandler(BaseHandler):
 
 
 def make_app(auth_class=DummyAuth, debug = False):
+    classes = [auth_class, Test, ScenarioTest, ConsoleHandler]
+
     settings = {
         "cookie_secret": "SADFccadaeqw221fdssdvxccvsdf",
         "login_url": "/login",
         "debug": debug
     }
+    for cls in classes:
+        cls.debug = debug
+
     return tornado.web.Application([
         (r"/login", auth_class),
         (r'/test', Test),
@@ -428,7 +517,7 @@ def main():
     if 'debug' in settings:
         if 'debug' in settings['debug']:
             debug = bool(settings['debug']['debug'])
-    app = make_app(debug)
+    app = make_app(LDAPIspAuthenticator, debug)
 
     server = tornado.httpserver.HTTPServer(app)
     server.listen(8888)
@@ -436,8 +525,8 @@ def main():
     if 'ioloop' in settings:
         if 'delay' in settings['ioloop']:
             delay = int(settings['ioloop']['delay'])
-    ioloop = start_event_loop(delay)
-
+    ioloop = event_loop(delay)
+    ioloop.start()
     return
 
 

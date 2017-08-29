@@ -5,6 +5,7 @@ from exc import XenAdapterAPIError, XenAdapterArgumentError, XenAdapterConnectio
 
 import logging
 import sys
+from loggable import Loggable
 
 def xenadapter_root(method):
     def decorator(self, *args, **kwargs):
@@ -16,7 +17,7 @@ def xenadapter_root(method):
 
     return decorator
 
-class XenAdapter:
+class XenAdapter(Loggable):
 
 
     def get_all_records(self, subject) -> dict :
@@ -46,22 +47,11 @@ class XenAdapter:
         :param vmemperor_user: vmemperor 'virtual' user. In order to be root, leave it None(default)
     """
         self.vmemperor_user = vmemperor_user
-        self.log = logging.getLogger(__class__.__name__)
-        self.log.setLevel(logging.DEBUG)
-
-
-        fileHandler = logging.FileHandler("{0}.log".format(__class__.__name__))
-        formatter = logging.Formatter("%(levelname)-8s [%(asctime)s] %(message)s")
-        fileHandler.setLevel(logging.DEBUG)
-        fileHandler.setFormatter(formatter)
-        self.log.addHandler(fileHandler)
         if 'debug' in settings:
-            debugHandler = logging.StreamHandler(sys.stdout)
-            debugHandler.setLevel(logging.ERROR)
-            debugFormatter = logging.Formatter("%(filename)s:%(lineno)d: %(message)s")
-            debugHandler.setFormatter(debugFormatter)
-            self.log.addHandler(debugHandler)
-            self.log.error("Running in debug mode: all errors are in stderr, for further info check log file")
+                self.debug = bool(settings['debug'])
+        self.init_log()
+
+
 
         try:
             url = settings['url']
