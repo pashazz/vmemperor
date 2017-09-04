@@ -1,11 +1,10 @@
 {# List of options needed to get everything work:
-    dist_type
-    dist_version
     mirror_url
     mirror_path
     fullname
     username
     password
+    hostname
  #}
 
 #### Contents of the preconfiguration file
@@ -26,7 +25,7 @@ d-i netcfg/choose_interface select eth0
 # Any hostname and domain names assigned from dhcp take precedence over
 # values set here. However, setting the values still prevents the questions
 # from being shown, even if values come from dhcp.
-d-i netcfg/get_hostname string {{ opts["username"] }}
+d-i netcfg/get_hostname string {{ opts["hostname"] }}
 d-i netcfg/get_domain string unassigned-domain
 
 # Disable that annoying WEP key dialog.
@@ -191,4 +190,4 @@ d-i debian-installer/exit/poweroff boolean true
 # packages and run commands in the target system.
 
 
-#d-i preseed/late_command string in-target perl -pi -e 's/(errors=remount-ro)/noatime,nodiratime,$1,barrier=1/' /etc/fstab ; in-target /usr/bin/apt-get install -y software-properties-common && in-target /usr/bin/add-apt-repository -y ppa:retrosnub/xenserver-support && in-target /usr/bin/apt-get -y update && in-target /usr/bin/apt-get -y install xe-guest-utilities
+# d-i preseed/late_command string in-target perl -pi -e 's/(errors=remount-ro)/noatime,nodiratime,$1,barrier=1/' /etc/fstab ; in-target /usr/bin/apt-get -y update ; in-target /usr/bin/apt-get install -y python-software-properties ; in-target /usr/bin/add-apt-repository -y ppa:retrosnub/xenserver-support ; in-target /usr/bin/apt-get -y update ; in-target /usr/bin/apt-get -y install xe-guest-utilities

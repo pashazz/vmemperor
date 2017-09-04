@@ -1,6 +1,6 @@
 from xenadapter import XenAdapter
 import tornado.web
-import tornado.escape
+from tornado.escape import json_encode, json_decode
 import tornado.httpserver
 import tornado.iostream
 import json
@@ -22,7 +22,7 @@ from exc import *
 import logging
 from netifaces import ifaddresses, AF_INET
 
-executor = ThreadPoolExecutor(max_workers=16)  # read from settings
+from tornado.options import define, options as opts, parse_config_file
 
 def CHECK_ER(ret):
     if ret['errors']:
@@ -32,12 +32,12 @@ def CHECK_ER(ret):
 
 class BaseHandler(tornado.web.RequestHandler, Loggable):
 
-    def initialize(self):
+    def initialize(self, executor):
+        self.executor = executor
         self.init_log()
 
     def get_current_user(self):
         return self.get_secure_cookie("user")
-
 
 class Authentication(metaclass=ABCMeta):
     @abstractmethod
@@ -90,7 +90,7 @@ class BasicAuthenticator(BaseHandler):
 
 
     def get_token(self, username):
-        return tornado.escape.json_encode(username)
+        return json_encode(username)
 
 
 class DummyAuth(BasicAuthenticator):
@@ -153,14 +153,6 @@ class LDAPIspAuthenticator(BasicAuthenticator):
         else:
             raise AuthenticationUserNotFoundException(self)
 
-
-
-
-
-
-
-
-
     def get_user_groups(self, username):
         '''
         Get list of user groups
@@ -169,12 +161,6 @@ class LDAPIspAuthenticator(BasicAuthenticator):
 
     def set_user_groups(self):
         raise NotImplementedError()
-
-
-
-
-
-
 
 
 """
@@ -190,7 +176,6 @@ errors should be returned in next format: {'status': 'error', 'details': string,
 
 
 class Test(BaseHandler):
-    executor = executor
 
     @run_on_executor
     def heavy_task(self):
@@ -203,7 +188,6 @@ class Test(BaseHandler):
 
 
 class AdminAuth(BaseHandler):
-    executor = executor
 
     def post(self):
         """ """
@@ -211,8 +195,6 @@ class AdminAuth(BaseHandler):
 
 
 class VMList(BaseHandler):
-    executor = executor
-
     def get(self, user_id):
         """ """
         # read from db
@@ -220,8 +202,6 @@ class VMList(BaseHandler):
 
 
 class PoolList(BaseHandler):
-    executor = executor
-
     def get(self):
         """ """
         # read from db
@@ -229,7 +209,6 @@ class PoolList(BaseHandler):
 
 
 class TemplateList(BaseHandler):
-    executor = executor
 
     def get(self):
         """ """
@@ -238,29 +217,26 @@ class TemplateList(BaseHandler):
 
 
 class CreateVM(BaseHandler):
-    executor = executor
 
     def post(self):
         """ """
         # tmpl_uuid = '0124e204-5fae-48cf-beaa-05b79579ef28'
         # sr_uuid = '88458f94-2e69-6332-423a-00eba8f2008c'
         # net_uuid = '920b8d47-9945-63d8-4b04-ad06c65d950a'
-        settings = read_settings()['xenadapter']
-        xen = XenAdapter(settings)
-        tmpl_uuid = self.get_argument('template-select', '0124e204-5fae-48cf-beaa-05b79579ef28')
-        sr_uuid = self.get_argument('storage-select', '88458f94-2e69-6332-423a-00eba8f2008c')
-        net_uuid = self.get_argument('network-select', '920b8d47-9945-63d8-4b04-ad06c65d950a')
-        vdi_size = self.get_argument('hdd', '512')
-        hostname = self.get_argument('hostname', 'test1')
-        os_kind = self.get_argument('os_kind', 'ubuntu')
-        port_num = 8888
+        xen = XenAdapter(opts.group_dict('xenadapter'))
+        tmpl_uuid = self.get_argument('template-select')
+        sr_uuid = self.get_argument('storage-select')
+        net_uuid = self.get_argument('network-select')
+        vdi_size = self.get_argument('hdd')
+        hostname = self.get_argument('hostname')
+        os_kind = self.get_argument('os_kind')
+        port_num = self.request.host.split(':')[1]
         preseed_prefix = 'http://'+ ifaddresses('virbr0')[AF_INET][0]['addr'] + ':' + str(port_num) + '/preseed'
         vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, os_kind, preseed_prefix)
-        self.write(json.dump({'vm_uuid': vm_uuid}))
+        self.write(json.dumps({'vm_uuid': vm_uuid}))
 
 
 class NetworkList(BaseHandler):
-    executor = executor
 
     def get(self):
         """ """
@@ -269,70 +245,70 @@ class NetworkList(BaseHandler):
 
 
 class CreateNetwork(BaseHandler):
-    executor = executor
 
     def get(self):
         """ """
-        XenAdapter.create_network()
+        xen = XenAdapter(opts.group_dict('xenadapter'))
+        xen.create_network()
         # update db
-        XenAdapter.list_networks()
+        xen.list_networks()
         self.write()
 
 
 class StartStopVM(BaseHandler):
-    executor = executor
 
     def post(self):
         """ """
-        XenAdapter.start_stop_vm()
+        xen = XenAdapter(opts.group_dict('xenadapter'))
+        xen.start_stop_vm()
         # update db
         self.write()
 
 
 class EnableDisableTemplate(BaseHandler):
-    executor = executor
 
     def post(self):
         """ """
-        XenAdapter.enable_disable_template()
+        xen = XenAdapter(opts.group_dict('xenadapter'))
+        xen.enable_disable_template()
         self.write()
 
 
 class VNC(BaseHandler):
-    executor = executor
 
     def get(self):
         """http://xapi-project.github.io/xen-api/consoles.html"""
-        XenAdapter.get_vnc()
+        xen = XenAdapter(opts.group_dict('xenadapter'))
+        xen.get_vnc()
         self.write()
 
 
 class AttachDetachDisc(BaseHandler):
-    executor = executor
 
-    def post(self):
-        XenAdapter.create_disk()
-        XenAdapter.attach_disk()
-        XenAdapter.detach_disk()
-        XenAdapter.destroy_disk()
+    def post(self, enable):
+        xen = XenAdapter(opts.group_dict('xenadapter'))
+        xen.create_disk()
+        xen.attach_disk()
+        xen.detach_disk()
+        xen.destroy_disk()
         # update db info
         self.write()
 
 
 class DestroyVM(BaseHandler):
-    executor = executor
 
     def post(self):
-        XenAdapter.destroy_vm()
+        xen = XenAdapter(opts.group_dict('xenadapter'))
+        xen.destroy_vm()
         # update db info
         self.write()
 
 
 class ConnectVM(BaseHandler):
-    executor = executor
 
     def post(self):
-        XenAdapter.connect_vm()
+        xen = XenAdapter(opts.group_dict('xenadapter'))
+        xen.connect_vm()
         # update db info
         self.write()
 
@@ -347,32 +323,14 @@ class EventLoop:
     """every n seconds asks all vms about their status and updates collections (dbs, tables)
     of corresponding user, if they are logged in (have open connection to dbms notifications)
      and admin db if admin is logged in"""
-    executor = executor
 
-    def __init__(self):
-        settings = read_settings()
-        self.xen = XenAdapter(settings['xenadapter'])
-        if 'rethinkdb' in settings:
-            if 'database' in settings['rethinkdb']:
-                name_db = settings['rethinkdb']['database']
-            else:
-                name_db = 'test'
-            if 'host' in settings['rethinkdb']:
-                host_db = settings['rethinkdb']['host']
-            else:
-                host_db = 'localhost'
-            if 'port' in settings['rethinkdb']:
-                port_db = settings['rethinkdb']['port']
-            else:
-                port_db = 28015
-        else:
-            name_db = 'test'
-            host_db = 'localhost'
-            port_db = 28015
-        self.conn = r.connect(host_db, port_db, name_db).repl()
-        if name_db not in r.db_list().run():
-            r.db_create(name_db).run()
-        self.db = r.db(name_db)
+    def __init__(self, executor):
+        self.executor = executor
+        self.xen = XenAdapter(opts.group_dict('xenadapter'))
+        self.conn = r.connect(opts.host, opts.port, opts.database).repl()
+        if opts.database not in r.db_list().run():
+            r.db_create(opts.database).run()
+        self.db = r.db(opts.database)
         tables = self.db.table_list().run()
         if 'vms' not in tables:
             self.db.table_create('vms', durability='soft', primary_key='uuid').run()
@@ -401,9 +359,9 @@ class EventLoop:
         yield self.heavy_task()
 
 
-def event_loop(delay = 1000):
+def event_loop(executor, delay = 1000):
     ioloop = tornado.ioloop.IOLoop.instance()
-    loop_object = EventLoop()
+    loop_object = EventLoop(executor)
     tornado.ioloop.PeriodicCallback(loop_object.vm_list_update, delay).start()  # read delay from ini
 
     return ioloop
@@ -413,23 +371,22 @@ class ScenarioTest(BaseHandler):
         self.opts = dict()
         self.opts['mirror_url'] = "mirror.corbina.ru"
         self.opts['mirror_path'] = '/ubuntu'
-        self.opts['fullname'] = 'John Doe'
-        self.opts['username'] = 'john'
-        self.opts['password'] = 'john'
-        self.opts['hostname'] = 'kuku'
+        self.opts['fullname'] = 'Xen User'
+        self.opts['username'] = 'user'
+        self.opts['password'] = 'password'
+        self.opts['hostname'] = 'xen-vm'
 
     def get(self, template_name):
-        self.write("templates/installation-scenarios/{0}.jinja2".format(template_name), opts=self.opts)
+        self.render("templates/installation-scenarios/{0}.jinja2".format(template_name), opts=self.opts)
 
 
 class ConsoleHandler(BaseHandler):
     SUPPORTED_METHODS = {"CONNECT"}
 
     def initialize(self):
-        settings = read_settings()
-        url = urlparse(settings['xenadapter']['url'])
-        username = settings['xenadapter']['username']
-        password = settings['xenadapter']['password']
+        url = urlparse(opts.url)
+        username = opts.username
+        password = opts.password
         if ':' in url.netloc:
             host, port = url.netloc.split(':')
         else:
@@ -485,7 +442,7 @@ class ConsoleHandler(BaseHandler):
 
 
 
-def make_app(auth_class=DummyAuth, debug = False):
+def make_app(executor, auth_class=DummyAuth, debug = False):
     classes = [auth_class, Test, ScenarioTest, ConsoleHandler]
 
     settings = {
@@ -497,42 +454,51 @@ def make_app(auth_class=DummyAuth, debug = False):
         cls.debug = debug
 
     return tornado.web.Application([
-        (r"/login", auth_class),
-        (r'/test', Test),
-        (r'/preseed/([^/]+)', ScenarioTest),
-        (r'/(console.*)', ConsoleHandler),
-        (r'/createvm', CreateVM),
+        (r"/login", auth_class, dict(executor=executor)),
+        (r'/test', Test, dict(executor=executor)),
+        (r'/preseed/([^/]+)', ScenarioTest, dict(executor=executor)),
+        (r'/(console.*)', ConsoleHandler, dict(executor=executor)),
+        (r'/createvm', CreateVM, dict(executor=executor)),
     ], **settings)
 
 
 def read_settings():
     """reads settings from ini"""
-    config = configparser.ConfigParser()
-    config.read('login.ini')
-    settings = {}
-    for section in config._sections:
-        settings[section] = dict(config._sections[section])
-    return settings
+    define('debug', group = 'debug', type = bool, default=False)
+    define('username', group = 'xenadapter')
+    define('password', group = 'xenadapter')
+    define('url', group = 'xenadapter')
+    define('database', group = 'rethinkdb', default = 'test')
+    define('host', group = 'rethinkdb', default = 'localhost')
+    define('port', group = 'rethinkdb', type = int, default = 28015)
+    define('delay', group = 'ioloop', type = int, default=5000)
+    define('max_workers', group = 'executor', type = int)
 
+    from os import path
 
+    file_path = path.join(path.dirname(path.realpath(__file__)), 'login.ini')
+    parse_config_file(file_path)
+    # config = configparser.ConfigParser()
+    # config.read('login.ini')
+    # settings = {}
+    # for section in config._sections:
+    #     settings[section] = dict(config._sections[section])
+    #
+    # for group, sets in settings.items():
+    #     for x in sets:
+    #         define(x, default=sets[x], group=group)
+    #
+    # return settings
 
 def main():
     """ reads settings in ini configures and starts system"""
-
-    settings = read_settings()
-    debug = False
-    if 'debug' in settings:
-        if 'debug' in settings['debug']:
-            debug = bool(settings['debug']['debug'])
-    app = make_app(LDAPIspAuthenticator, debug)
-
+    read_settings()
+    executor = ThreadPoolExecutor(max_workers = opts.max_workers)
+    app = make_app(executor, LDAPIspAuthenticator, opts.debug)
+    #
     server = tornado.httpserver.HTTPServer(app)
     server.listen(8888, address="0.0.0.0")
-    delay = 1000
-    if 'ioloop' in settings:
-        if 'delay' in settings['ioloop']:
-            delay = int(settings['ioloop']['delay'])
-    ioloop = event_loop(delay)
+    ioloop = event_loop(executor, opts.delay)
     ioloop.start()
     return
 
