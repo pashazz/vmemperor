@@ -7,6 +7,7 @@ import logging
 import sys
 from loggable import Loggable
 
+
 def xenadapter_root(method):
     def decorator(self, *args, **kwargs):
         if self.vmemperor_user is None:
@@ -18,7 +19,7 @@ def xenadapter_root(method):
     return decorator
 
 class XenAdapter(Loggable):
-
+    AUTOINSTALL_PREFIX = '/autoinstall'
 
     def get_all_records(self, subject) -> dict :
         """
@@ -40,6 +41,11 @@ class XenAdapter(Loggable):
                      if value['name_label'] == name))
         except StopIteration:
             return ""
+
+
+
+
+
 
 
     def __init__(self, settings, vmemperor_user=None):
@@ -129,35 +135,151 @@ class XenAdapter(Loggable):
         return {key : value for key, value in self.get_all_records(self.api.VM).items()
                   if value['is_a_template']}
 
-    def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, os_kind, preseed_prefix, name_label = '', start=True) -> str:
+
+    class GenericOS:
+        '''
+        A class that generates kernel boot arguments string for various Linux distributions
+        '''
+        def __init__(self):
+            self.dhcp = True
+
+        def pv_args(self) -> str:
+            '''
+            Obtain pv_args - kernel parameters for paravirtualized VM
+            :return:
+            '''
+
+        def hvm_args(self) -> str:
+            '''
+            Obtain hvm_args - whatever that might be
+            :return:
+            '''
+        def set_scenario(self, hostname):
+            raise NotImplementedError()
+
+        def set_kickstart(self, url):
+            self.scenario = "ks=%s" % url
+
+        def set_hostname(self, hostname):
+            self.hostname = hostname
+
+        def set_network_parameters(self, ip=None, gw=None, netmask=None, dns1=None, dns2=None):
+            if not ip:
+               self.dhcp = True
+            else:
+                if not gw:
+                    raise XenAdapterArgumentError(self,"Network configuration: IP has been specified, missing gateway")
+                if not netmask:
+                    raise XenAdapterArgumentError(self,"Network configuration: IP has been specified, missing netmask")
+                ip_string = "ip=%s::%s:%s" % (ip, gw, netmask)
+
+                if dns1:
+                    ip_string = ip_string + ":::off:%s" % dns1
+                    if dns2:
+                        ip_string = ip_string +":%s" % dns2
+
+            self.ip = ip_string
+
+    class UbuntuOS (GenericOS):
+        '''
+        OS-specific parameters for Ubuntu
+        '''
+
+        def set_scenario(self, url):
+            '''
+            Set scenario URL. For kickstart, provide a tuple (url, 'ks')
+            :param url: preseed file url or kickstart tuple
+            :return:
+            '''
+            if type(url) == str:
+                self.set_preseed(url)
+            else:
+                try:
+                    if url[1] == 'ks':
+                        self.set_kickstart(url[0])
+                except:
+                    raise XenAdapterArgumentError("set_scenario [ubuntu]: Not a string and/or malformed tuple")
+
+
+
+
+
+        def set_preseed(self, url):
+            '''
+            set preseed url. Debian only
+            :return:
+            '''
+            self.scenario = "preseed/url=%s" % url
+
+
+
+        def pv_args(self):
+            if self.dhcp:
+                self.ip = "netcfg/disable_dhcp=false"
+            return "-- quiet auto=true netcfg/get_hostname=%s console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 %s %s" % (
+                self.hostname, self.ip, self.scenario)
+
+
+    def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, os_kind=None, ip=None, install_url=None, scenario_url=None, mode='pv', name_label = '', start=True) -> str:
         '''
         Creates a virtual machine and installs an OS
+
         :param tmpl_uuid: Template UUID
         :param sr_uuid: Storage Repository UUID
         :param net_uuid: Network UUID
         :param vdi_size: Size of disk
+        :param hostname: Host name
+        :param os_kind: OS kind (used for automatic installation. Default: manual installation)
+        :param ip: IP configuration. Default: auto configuration. Otherwise expects a tuple of the following format
+        (ip, mask, gateway, dns1(optional), dns2(optional))
+        :param install_url: URL to install OS from
+        :scenario_url: preseed/kickstart file url. It's Preseed for debian-based systems, Kickstart for RedHat. If os_kind is ubuntu and scenario_url is kickstart, provide a tuple (url, 'ks')
+        :param mode: 'pv' or 'hvm'. Refer to http://xapi-project.github.io/xen-api/vm-lifecycle
         :param name_label: Name for created VM
+
         :return: VM UUID
         '''
         try:
             tmpl_ref = self.api.VM.get_by_uuid(tmpl_uuid)
             new_vm_ref = self.api.VM.clone(tmpl_ref, name_label)
             new_vm_uuid = self.api.VM.get_uuid(new_vm_ref)
-            self.log.info ("New VM is created: UUID {0}".format(new_vm_uuid))
+            self.log.info ("New VM is created: UUID {0}, OS type {1}".format(new_vm_uuid, os_kind))
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self, "Failed to clone template: {0}".format(f.details))
 
         try:
-            preseed = "".join((preseed_prefix, "/", os_kind))
+
+
+            if install_url:
+                self.log.info("Adding Installation URL: %s" % install_url)
+                self.set_other_config(self.api.VM, new_vm_uuid, 'default_mirror', install_url, True)
+                self.set_other_config(self.api.VM, new_vm_uuid, 'install-repository', install_url, True)
+                #self.api.VM.add_to_other_config(new_vm_ref, 'default_mirror', install_url)
+                #self.api.VM.add_to_other_config(new_vm_ref, 'install-repository', install_url)
+
             if os_kind == "ubuntu":
-                pv_args = "-- quiet auto=true netcfg/get_hostname=%s console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 netcfg/disable_dhcp=false preseed/url=%s" % (
-                hostname, preseed)
+                os = XenAdapter.UbuntuOS()
             else:
-                pv_args = ""
-            self.api.VM.set_PV_args(new_vm_ref, pv_args)
+                os = None
+
+
+            if os:
+                os.set_network_parameters(*ip)
+                os.set_hostname(hostname)
+                os.set_scenario(scenario_url)
+
+                if mode == 'pv':
+                    pv_args = os.pv_args()
+                    self.api.VM.set_HVM_boot_policy(new_vm_ref, "")
+                    self.api.VM.set_PV_bootloader(new_vm_ref, 'pygrub')
+                    self.api.VM.set_PV_args(new_vm_ref, pv_args)
+
+
+
+
         except XenAPI.Failure as f:
             self.destroy_vm(new_vm_uuid)
-            raise XenAdapterAPIError(self, 'Failed to install preseed: {0}'.format(f.details))
+            raise XenAdapterAPIError(self, 'Failed to install OS: {0}'.format(f.details))
 
         try:
             specs = provision.ProvisionSpec()
@@ -421,7 +543,7 @@ class XenAdapter(Loggable):
             self.api.VM.hard_shutdown(vm_ref)
 
 
-    def set_other_config(self, subject, uuid, name, value=None):
+    def set_other_config(self, subject, uuid, name, value=None, overwrite=True):
         '''
         Set value of other_config field
         :param subject: API subject
@@ -432,6 +554,11 @@ class XenAdapter(Loggable):
         '''
         ref = subject.get_by_uuid(uuid)
         if value is not None:
+            if overwrite:
+                try:
+                    subject.remove_from_other_config(ref, name)
+                except XenAPI.Failure as f:
+                    self.log.debug("set_other_config: failed to remove entry %s from other_config (overwrite=True): %s" % (name, f.details))
             try:
                 subject.add_to_other_config(ref, name, value)
             except XenAPI.Failure as f:

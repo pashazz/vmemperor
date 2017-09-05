@@ -10,9 +10,9 @@ import socket
 from tornado import gen, ioloop
 from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlencode
 import base64
-
+import pickle
 import rethinkdb as r
 from rethinkdb.errors import ReqlDriverError
 
@@ -35,6 +35,7 @@ class BaseHandler(tornado.web.RequestHandler, Loggable):
     def initialize(self, executor):
         self.executor = executor
         self.init_log()
+        super().initialize()
 
     def get_current_user(self):
         return self.get_secure_cookie("user")
@@ -60,92 +61,106 @@ class Authentication(metaclass=ABCMeta):
         """creates cookie given username"""
         return
 
-@Authentication.register
-class BasicAuthenticator(BaseHandler):
+class AuthHandler(BaseHandler):
+
+    def initialize(self, executor, authenticator):
+        super().initialize(executor)
+        self.authenticator = authenticator()
+
     def post(self):
         username = self.get_argument("username", "")
         password = self.get_argument("password", "")
         try:
-            token = self.check_credentials(password, username)
+            self.authenticator.check_credentials(username=username, password=password, log=self.log)
         except AuthenticationException:
-            token = None
-        if token:
-            self.write(json.dumps({}))
-        else:
-            self.set_status(401) # not authorized
-            return self.write(json.dumps({"error": "wrong credentials"}))
-
-    def set_user_cookie(self, username):
-        '''
-        Sets user token as a cookie and returns it
-        :param username:
-        :return: do logout if username is empty and return nothing; else return user token
-        '''
-        if username:
-            token = self.get_token(username)
-            self.set_secure_cookie("user", token)
-            return token
-        else:
-            self.clear_cookie("user")
+            self.write(json.dumps({"error": "wrong credentials"}))
+            self.set_status(401)
+            return
 
 
-    def get_token(self, username):
-        return json_encode(username)
+        self.write(json.dumps({}))
+        self.set_secure_cookie("user", pickle.dumps(self.authenticator))
+
+
+@Authentication.register
+class BasicAuthenticator:
+    pass
+
 
 
 class DummyAuth(BasicAuthenticator):
     def check_credentials(self, password, username):
-        return self.set_user_cookie(username)
+        pass
 
 
 
 
 class LDAPIspAuthenticator(BasicAuthenticator):
-    def initialize(self):
+    def initialize(self, executor):
         '''
         Establishes connection to a ldap server
         :return:
         '''
-        super().initialize()
+        super().initialize(executor)
 
-        self.server = ldap3.Server('10.10.12.9')
-        self.conn = ldap3.Connection(self.server, user='mailuser', password='mailuser', raise_exceptions=False)
-        if self.conn.bind():
-            self.log.debug("LDAP Connection established: server: {0}, user: {1}".format(self.server.host, self.conn.user))
-        else:
-            self.log.error("Unable to establish connection to LDAP server: {0}".format(self.server.host))
 
-    def check_credentials(self, password, username):
+
+        self.id = None
+
+
+    def get_id(self):
+        '''
+
+        :return: Unique user identifier
+        '''
+        if not self.id:
+            raise AuthenticationException()
+        return self.id
+
+
+    def check_credentials(self, password, username, log):
         '''
         Checks credentials
         :param password:
         :param username:
-        :return: user token
+        :param log: logger
         '''
+        server = ldap3.Server('10.10.12.9')
+        conn = ldap3.Connection(server, user='mailuser', password='mailuser', raise_exceptions=False)
+        if conn.bind():
+            log.debug("LDAP Connection established: server: {0}, user: {1}".format(server.host, conn.user))
+        else:
+            log.error("Unable to establish connection to LDAP server: {0}".format(server.host))
+
+
         self.username=username
+        self.password = password
         search_filter="(&(objectClass=person)(!(objectClass=computer))(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(cn=*)(sAMAccountName=%s))" % username
-        self.conn.search(search_base='dc=intra,dc=ispras,dc=ru',search_filter=search_filter,
+        conn.search(search_base='dc=intra,dc=ispras,dc=ru',search_filter=search_filter,
         attributes=['givenName', 'mail'], search_scope=ldap3.SUBTREE, paged_size=1)
-        if self.conn.entries:
+        if conn.entries:
            try:
-               mail = self.conn.entries[0].mail[0]
-               self.log.debug("Authentication entry found, e-mail: {0}".format(mail))
+               mail = conn.entries[0].mail[0]
+               log.debug("Authentication entry found, e-mail: {0}".format(mail))
                #find groups
-               self.conn.search(search_base='dc=intra,dc=ispras,dc=ru', search_filter=search_filter,
+               conn.search(search_base='dc=intra,dc=ispras,dc=ru', search_filter=search_filter,
                attributes=['memberOf'], search_scope=ldap3.SUBTREE, paged_size=1)
 
-               self.groups = [group.split(',')[0].split('=')[1] for group in self.conn.entries[0].memberOf]
+               self.groups = [group.split(',')[0].split('=')[1] for group in conn.entries[0].memberOf]
 
            except:
                raise AuthenticationUserNotFoundException(self)
 
-           dn = self.conn.entries[0]
-           check_login = ldap3.Connection(self.server, user=dn.entry_dn, password=password)
+           dn = conn.entries[0]
+           check_login = ldap3.Connection(server, user=dn.entry_dn, password=password)
            try:
                if check_login.bind():
-                   self.log.debug("Authentication as {0} successful".format(username))
-                   self.login_connection = check_login
-                   return self.set_user_cookie(username)
+                   log.debug("Authentication as {0} successful".format(username))
+                   login_connection = check_login
+                   check_login.search(search_base='dc=intra,dc=ispras,dc=ru', search_filter=search_filter,
+               attributes=['objectGUID'], search_scope=ldap3.SUBTREE, paged_size=1)
+                   self.id = check_login.entries[0].objectGUID.value
+                   return
                else:
                    raise AuthenticationPasswordException(self)
            except: #empty password
@@ -223,16 +238,57 @@ class CreateVM(BaseHandler):
         # tmpl_uuid = '0124e204-5fae-48cf-beaa-05b79579ef28'
         # sr_uuid = '88458f94-2e69-6332-423a-00eba8f2008c'
         # net_uuid = '920b8d47-9945-63d8-4b04-ad06c65d950a'
+
         xen = XenAdapter(opts.group_dict('xenadapter'))
-        tmpl_uuid = self.get_argument('template-select')
-        sr_uuid = self.get_argument('storage-select')
-        net_uuid = self.get_argument('network-select')
-        vdi_size = self.get_argument('hdd')
-        hostname = self.get_argument('hostname')
-        os_kind = self.get_argument('os_kind')
-        port_num = self.request.host.split(':')[1]
-        preseed_prefix = 'http://'+ ifaddresses('virbr0')[AF_INET][0]['addr'] + ':' + str(port_num) + '/preseed'
-        vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, os_kind, preseed_prefix)
+        try:
+            tmpl_uuid = self.get_argument('template')
+            sr_uuid = self.get_argument('storage')
+            net_uuid = self.get_argument('network')
+            vdi_size = self.get_argument('vdi_size')
+            hostname = self.get_argument('hostname')
+            name_label = self.get_argument('name_label')
+
+        except:
+            self.write_error(status_code=404)
+            return
+
+        os_kind = self.get_argument('os_kind', None)
+        mode = self.get_argument('mode', 'pv')
+        self.log.info("Creating VM: name_label %s; os_kind: %s" % (name_label, os_kind))
+        ip = self.get_argument('ip', '')
+        gw = self.get_argument('gateway', '')
+        netmask = self.get_argument('netmask', '')
+        dns0 = self.get_argument('dns0', '')
+        dns1 = self.get_argument('dns1', '')
+        if not ip or not gw or not netmask:
+            ip_tuple = None
+        else:
+            ip_tuple = [ip,gw,netmask]
+
+        if dns0:
+            ip_tuple.append(dns0)
+        if dns1:
+            ip_tuple.append(dns1)
+
+
+
+
+
+
+
+        kwargs = {}
+        if os_kind == 'ubuntu':
+            # see ubuntu,jinja2
+            kwargs['fullname'] = self.get_argument('fullname')
+            kwargs['username'] = self.get_argument('username')
+            kwargs['password'] = self.get_argument('password')
+            kwargs['mirror_url'] = self.get_argument('mirror_url')
+            kwargs['mirror_path'] = self.get_argument('mirror_path')
+            mirror_url = kwargs['mirror_url'] + kwargs['mirror_path']
+        scenario_url = 'http://'+ socket.getfqdn() + ':' + self.request.host.split(':')[1] + XenAdapter.AUTOINSTALL_PREFIX + "/" + os_kind + "?" + "&".join(
+            ('{0}={1}'.format(k, v) for k, v in kwargs.items()))
+        vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, os_kind, ip_tuple, mirror_url, scenario_url, mode,  name_label, True)
+
         self.write(json.dumps({'vm_uuid': vm_uuid}))
 
 
@@ -324,7 +380,7 @@ class EventLoop:
     of corresponding user, if they are logged in (have open connection to dbms notifications)
      and admin db if admin is logged in"""
 
-    def __init__(self, executor):
+    def __init__(self,   executor):
         self.executor = executor
         self.xen = XenAdapter(opts.group_dict('xenadapter'))
         self.conn = r.connect(opts.host, opts.port, opts.database).repl()
@@ -366,24 +422,30 @@ def event_loop(executor, delay = 1000):
 
     return ioloop
 
-class ScenarioTest(BaseHandler):
-    def initialize(self):
-        self.opts = dict()
-        self.opts['mirror_url'] = "mirror.corbina.ru"
-        self.opts['mirror_path'] = '/ubuntu'
-        self.opts['fullname'] = 'Xen User'
-        self.opts['username'] = 'user'
-        self.opts['password'] = 'password'
-        self.opts['hostname'] = 'xen-vm'
-
+class AutoInstall(BaseHandler):
     def get(self, template_name):
-        self.render("templates/installation-scenarios/{0}.jinja2".format(template_name), opts=self.opts)
+
+        opts={}
+        try:
+            opts['mirror_url'] = self.get_argument('mirror_url')
+            opts['mirror_path'] = self.get_argument('mirror_path')
+            opts['fullname'] = self.get_argument('fullname')
+            opts['username'] = self.get_argument('username')
+            opts['password'] = self.get_argument('password')
+            opts['hostname'] = self.get_argument('hostname')
+
+        except:
+            self.write_error(400)
+
+        self.render("templates/installation-scenarios/{0}.jinja2".format(template_name), opts=opts)
+
 
 
 class ConsoleHandler(BaseHandler):
     SUPPORTED_METHODS = {"CONNECT"}
 
-    def initialize(self):
+    def initialize(self,executor):
+        super().initialize(executor)
         url = urlparse(opts.url)
         username = opts.username
         password = opts.password
@@ -442,8 +504,9 @@ class ConsoleHandler(BaseHandler):
 
 
 
+
 def make_app(executor, auth_class=DummyAuth, debug = False):
-    classes = [auth_class, Test, ScenarioTest, ConsoleHandler]
+    classes = [auth_class, Test, AutoInstall, ConsoleHandler]
 
     settings = {
         "cookie_secret": "SADFccadaeqw221fdssdvxccvsdf",
@@ -454,11 +517,13 @@ def make_app(executor, auth_class=DummyAuth, debug = False):
         cls.debug = debug
 
     return tornado.web.Application([
-        (r"/login", auth_class, dict(executor=executor)),
+
+        (r"/login", AuthHandler, dict(executor=executor, authenticator=auth_class)),
         (r'/test', Test, dict(executor=executor)),
-        (r'/preseed/([^/]+)', ScenarioTest, dict(executor=executor)),
+        (XenAdapter.AUTOINSTALL_PREFIX + r'/([^/]+)', AutoInstall, dict(executor=executor)),
         (r'/(console.*)', ConsoleHandler, dict(executor=executor)),
         (r'/createvm', CreateVM, dict(executor=executor)),
+
     ], **settings)
 
 
@@ -472,7 +537,7 @@ def read_settings():
     define('host', group = 'rethinkdb', default = 'localhost')
     define('port', group = 'rethinkdb', type = int, default = 28015)
     define('delay', group = 'ioloop', type = int, default=5000)
-    define('max_workers', group = 'executor', type = int)
+    define('max_workers', group = 'executor', type = int, default=16)
 
     from os import path
 

@@ -41,3 +41,6 @@ class AuthenticationWithEmptyPasswordException(AuthenticationException):
         super().__init__(exc_obj,
                          "Realm {0} can't find authenticate user {1}: empty password".format(type(exc_obj).__name__,
                                                                                                  exc_obj.username))
+
+class UnauthorizedException(AuthenticationException):
+    pass

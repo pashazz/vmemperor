@@ -6,20 +6,18 @@ from urllib.parse import urlencode
 class VmEmperorTest(testing.AsyncHTTPTestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.settings = read_settings()
+        read_settings()
+        self.executor = ThreadPoolExecutor(max_workers=opts.max_workers)
+
 
     def get_app(self):
 
-        app=make_app(LDAPIspAuthenticator, True)
+        app=make_app(self.executor, LDAPIspAuthenticator, True)
         return app
 
     def get_new_ioloop(self):
-        delay  = 1000
-        if 'ioloop' in self.settings:
-            if 'delay' in self.settings['ioloop']:
-                delay = int(self.settings['ioloop']['delay'])
 
-        return event_loop(delay)
+        return event_loop(opts.delay)
 
     def test_ldap_login(self):
         '''
@@ -28,7 +26,7 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
         :return:
         '''
         config = configparser.ConfigParser()
-        config.read('secret.ini')
+        config.read('tests/secret.ini')
         body=config._sections['test']
 
 
@@ -37,7 +35,7 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
 
     def test_ldap_login_incorrect_password(self):
         config = configparser.ConfigParser()
-        config.read('secret.ini')
+        config.read('tests/secret.ini')
         body=config._sections['test']
         body['password'] = ''
 
@@ -45,7 +43,12 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
         self.assertEqual(res.code, 401)
 
     def test_createvm(self):
-        pass
+
+        config = configparser.ConfigParser()
+        config.read('tests/createvm.ini')
+        for body in config._sections.values():
+            res = self.fetch(r'/createvm', method='POST', body=urlencode(body))
+            self.assertEqual(res.code, 200)
 
 
 

@@ -2,6 +2,8 @@ import logging
 import sys
 
 class Loggable:
+
+
     def init_log(self):
         self.log = logging.getLogger(self.__class__.__name__)
         self.log.propagate = False
