@@ -435,11 +435,21 @@ class AutoInstall(BaseHandler):
             opts['hostname'] = self.get_argument('hostname')
 
         except:
-            self.write_error(400)
+            self.write_error(404)
 
         self.render("templates/installation-scenarios/{0}.jinja2".format(template_name), opts=opts)
 
-
+class KsInst(BaseHandler):
+    def get(self, os_kind):
+        if os_kind == 'ubuntu':
+            mirror_url = "http://mirror.corbina.net/ubuntu/"
+        if os_kind == 'centos':
+            mirror_url = "http://mirror.corbina.net/centos/7/os/x86_64/"
+        if os_kind == 'redhat':
+            mirror_url = "ftp://mirror.corbina.net/"
+        if not mirror_url:
+            raise ValueError("No installation scenarios")
+        self.render("templates/installation-scenarios/{0}-ks.cfg".format(os_kind), mirror_url=mirror_url)
 
 class ConsoleHandler(BaseHandler):
     SUPPORTED_METHODS = {"CONNECT"}
@@ -521,9 +531,9 @@ def make_app(executor, auth_class=DummyAuth, debug = False):
         (r"/login", AuthHandler, dict(executor=executor, authenticator=auth_class)),
         (r'/test', Test, dict(executor=executor)),
         (XenAdapter.AUTOINSTALL_PREFIX + r'/([^/]+)', AutoInstall, dict(executor=executor)),
+        (r'/ksinst/([^/]+)', KsInst, dict(executor=executor)),
         (r'/(console.*)', ConsoleHandler, dict(executor=executor)),
         (r'/createvm', CreateVM, dict(executor=executor)),
-
     ], **settings)
 
 
@@ -543,17 +553,6 @@ def read_settings():
 
     file_path = path.join(path.dirname(path.realpath(__file__)), 'login.ini')
     parse_config_file(file_path)
-    # config = configparser.ConfigParser()
-    # config.read('login.ini')
-    # settings = {}
-    # for section in config._sections:
-    #     settings[section] = dict(config._sections[section])
-    #
-    # for group, sets in settings.items():
-    #     for x in sets:
-    #         define(x, default=sets[x], group=group)
-    #
-    # return settings
 
 def main():
     """ reads settings in ini configures and starts system"""
