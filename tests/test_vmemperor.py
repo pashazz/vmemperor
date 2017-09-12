@@ -2,13 +2,13 @@ from vmemperor import *
 from tornado import  testing
 from tornado.httpclient import HTTPRequest
 from urllib.parse import urlencode
-
+from base64 import decodebytes
 class VmEmperorTest(testing.AsyncHTTPTestCase):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        read_settings()
-        self.executor = ThreadPoolExecutor(max_workers=opts.max_workers)
 
+    @classmethod
+    def setUpClass(cls):
+        read_settings()
+        cls.executor = ThreadPoolExecutor(max_workers=opts.max_workers)
 
     def get_app(self):
 
@@ -17,7 +17,7 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
 
     def get_new_ioloop(self):
 
-        return event_loop(opts.delay)
+        return event_loop(self.executor, opts.delay)
 
     def test_ldap_login(self):
         '''
@@ -33,6 +33,7 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
         res = self.fetch(r'/login', method='POST', body=urlencode(body))
         self.assertEqual(res.code, 200)
 
+
     def test_ldap_login_incorrect_password(self):
         config = configparser.ConfigParser()
         config.read('tests/secret.ini')
@@ -41,6 +42,18 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
 
         res = self.fetch(r'/login', method='POST', body=urlencode(body))
         self.assertEqual(res.code, 401)
+
+    def test_ldap_group_name_by_id(self):
+        '''
+        In our system  there is wifi users
+        '''
+        self.assertEqual(LDAPIspAuthenticator.get_group_name_by_id("5b8527e5-cff7-403e-bb74-485f3d71c9dd"), "Wifi users")
+
+    def test_get_all_groups(self):
+        '''
+
+        '''
+        self.assertIn("5b8527e5-cff7-403e-bb74-485f3d71c9dd", LDAPIspAuthenticator.get_all_groups().keys())
 
     def test_createvm(self):
 

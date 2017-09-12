@@ -18,6 +18,9 @@ def xenadapter_root(method):
 
     return decorator
 
+
+
+
 class XenAdapter(Loggable):
     AUTOINSTALL_PREFIX = '/autoinstall'
 
