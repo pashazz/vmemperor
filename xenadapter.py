@@ -195,11 +195,11 @@ class XenAdapter(Loggable):
             :return:
             '''
             if type(url) == str:
-                self.set_preseed(url)
+                self.set_kickstart(url)
             else:
                 try:
-                    if url[1] == 'ks':
-                        self.set_kickstart(url[0])
+                    if url[1] == 'ps':
+                        self.set_preseed(url[0])
                 except:
                     raise XenAdapterArgumentError("set_scenario [ubuntu]: Not a string and/or malformed tuple")
 
@@ -255,10 +255,12 @@ class XenAdapter(Loggable):
 
             if install_url:
                 self.log.info("Adding Installation URL: %s" % install_url)
-                self.set_other_config(self.api.VM, new_vm_uuid, 'default_mirror', install_url, True)
-                self.set_other_config(self.api.VM, new_vm_uuid, 'install-repository', install_url, True)
-                #self.api.VM.add_to_other_config(new_vm_ref, 'default_mirror', install_url)
-                #self.api.VM.add_to_other_config(new_vm_ref, 'install-repository', install_url)
+                # self.set_other_config(self.api.VM, new_vm_uuid, 'default_mirror', install_url, True)
+                # self.set_other_config(self.api.VM, new_vm_uuid, 'install-repository', install_url, True)
+                print('YA TUT BYL')
+                config = self.api.VM.get_other_config(new_vm_ref)
+                config['install-repository'] = install_url
+                self.api.VM.set_other_config(new_vm_ref, config)
 
             if os_kind == "ubuntu":
                 os = XenAdapter.UbuntuOS()
@@ -276,9 +278,6 @@ class XenAdapter(Loggable):
                     self.api.VM.set_HVM_boot_policy(new_vm_ref, "")
                     self.api.VM.set_PV_bootloader(new_vm_ref, 'pygrub')
                     self.api.VM.set_PV_args(new_vm_ref, pv_args)
-
-
-
 
         except XenAPI.Failure as f:
             self.destroy_vm(new_vm_uuid)
@@ -304,7 +303,7 @@ class XenAdapter(Loggable):
             except XenAPI.Failure as f:
                 raise XenAdapterAPIError(self, "Failed to provision: {0}".format(f.details))
 
-        self.connect_vm(new_vm_uuid, net_uuid)
+        self.connect_vm(new_vm_uuid, net_uuid, ip)
 
 
         if self.vmemperor_user is not None:
@@ -367,11 +366,11 @@ class XenAdapter(Loggable):
                 self.api.VM.shutdown(vm_ref)
                 self.log.info("Shutted down VM UUID {0}".format(vm_uuid))
         except XenAPI.Failure as f:
-            raise XenAdapterAPIError (self, "Failed to start/stop VM: {0}".format(f.details))
+            raise XenAdapterAPIError (self.log, "Failed to start/stop VM: {0}".format(f.details))
 
         return
 
-    def connect_vm(self, vm_uuid, net_uuid):
+    def connect_vm(self, vm_uuid, net_uuid, ip=None):
         """
         Creates VIF to connect VM to network
         :param vm_uuid:
@@ -385,6 +384,9 @@ class XenAdapter(Loggable):
         args = {'VM': vm_ref, 'network': net_ref, 'device': str(len(vm['VIFs'])), \
                 'MAC': '', 'MTU': net['MTU'], 'other_config': {}, \
                 'qos_algorithm_type': '', 'qos_algorithm_params': {}}
+        if ip:
+            args['ipv4_addresses'] = ['10.10.10.'+ x + '/24' for x in range(20,30)]
+
         try:
             vif_ref = self.api.VIF.create(args)
             vif_uuid = self.api.VIF.get_uuid(vif_ref)
