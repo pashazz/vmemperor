@@ -292,13 +292,10 @@ class CreateVM(BaseHandler):
 
     def post(self):
         """ """
-        # tmpl_uuid = '0124e204-5fae-48cf-beaa-05b79579ef28'
-        # sr_uuid = '88458f94-2e69-6332-423a-00eba8f2008c'
-        # net_uuid = '920b8d47-9945-63d8-4b04-ad06c65d950a'
-
         xen = XenAdapter(opts.group_dict('xenadapter'))
         try:
-            tmpl_uuid = self.get_argument('template')
+            tmpl_name = self.get_argument('template')
+            print(tmpl_name)
             sr_uuid = self.get_argument('storage')
             net_uuid = self.get_argument('network')
             vdi_size = self.get_argument('vdi_size')
@@ -309,8 +306,18 @@ class CreateVM(BaseHandler):
             self.write_error(status_code=404)
             return
 
+        tmpls = xen.list_templates()
+        if tmpl_name in tmpls.keys():
+            tmpl_uuid = tmpl_name
+        else:
+            for tmpl in tmpls.values():
+                if tmpl['name_label'] == tmpl_name:
+                    tmpl_uuid = tmpl['uuid']
+        if not tmpl_uuid:
+            raise ValueError('Wrong template name: {0}'.format(tmpl_name))
+
         os_kind = self.get_argument('os_kind', None)
-        mode = self.get_argument('mode', 'pv')
+        mode = self.get_argument('mode')
         self.log.info("Creating VM: name_label %s; os_kind: %s" % (name_label, os_kind))
         ip = self.get_argument('ip', '')
         gw = self.get_argument('gateway', '')
@@ -330,14 +337,15 @@ class CreateVM(BaseHandler):
         kwargs = {}
         if os_kind == 'ubuntu' or os_kind == 'centos':
             # see os_kind-ks.cfg
-            kwargs['fullname'] = self.get_argument('fullname')
-            kwargs['username'] = self.get_argument('username')
+            kwargs['hostname'] = self.get_argument('hostname', default='xen_vm')
+            kwargs['username'] = self.get_argument('username', default=None)
             kwargs['password'] = self.get_argument('password')
             kwargs['mirror_url'] = self.get_argument('mirror_url')
+            kwargs['ip'] = ip
             mirror_url = kwargs['mirror_url']
-        scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + 'centos' + "?" + "&".join(
+        scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + os_kind + "?" + "&".join(
             ('{0}={1}'.format(k, v) for k, v in kwargs.items()))
-        vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, os_kind, ip_tuple, mirror_url, scenario_url, mode,  name_label, True)
+        vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, mode, os_kind, ip_tuple, mirror_url, scenario_url, name_label, False)
 
         self.write(json.dumps({'vm_uuid': vm_uuid}))
 
@@ -368,7 +376,11 @@ class StartStopVM(BaseHandler):
         vm_uuid = self.get_argument('vm_uuid')
         enable = self.get_argument('enable')
         xen = XenAdapter(opts.group_dict('xenadapter'))
-        xen.start_stop_vm(vm_uuid, enable)
+        try:
+            xen.start_stop_vm(vm_uuid, enable)
+        except Exception as e:
+            self.write(e)
+            raise e
         # update db
         self.write('ok')
 
@@ -477,21 +489,13 @@ def event_loop(executor, delay = 1000):
 
 class AutoInstall(BaseHandler):
     def get(self, os_kind):
-        fullname = self.get_argument('fullname', default='')
-        username = self.get_argument('username', default='')
-        password = self.get_argument('password', default='')
-        mirror_url = self.get_argument('mirror_url', default=None)
+        hostname = self.get_argument('hostname', default='xen_vm')
+        username = self.get_argument('username', default=None)
+        password = self.get_argument('password')
+        mirror_url = self.get_argument('mirror_url')
+        ip = self.get_argument('ip', default=None)
 
-        # if not mirror_url:
-        #     if os_kind == 'ubuntu':
-        #         mirror_url = "http://mirror.corbina.net/ubuntu/"
-        #     if os_kind == 'centos':
-        #         mirror_url = "http://mirror.corbina.net/centos/7/os/x86_64/"
-            # if os_kind == 'redhat':
-            #     mirror_url = "ftp://mirror.corbina.net/redhat"
-            # if not mirror_url:
-            #     raise ValueError("No installation scenarios")
-        self.render("templates/installation-scenarios/{0}-ks.cfg".format(os_kind), fullname = fullname, username = username, password = password, mirror_url=mirror_url)
+        self.render("templates/installation-scenarios/{0}-ks.cfg".format(os_kind), hostname = hostname, username = username, password = password, mirror_url=mirror_url, ip=ip)
 
 class ConsoleHandler(BaseHandler):
     SUPPORTED_METHODS = {"CONNECT"}
@@ -591,7 +595,7 @@ def read_settings():
     define('delay', group = 'ioloop', type = int, default=5000)
     define('max_workers', group = 'executor', type = int, default=16)
     define('vmemperor_url', group ='vmemperor', default = '10.10.10.61')
-    define('vmemperor_port', group = 'vmemperor', type = int, default = 8888)
+    define('vmemperor_port', group = 'vmemperor', type = int, default = 8889)
 
     from os import path
 
@@ -603,7 +607,6 @@ def main():
     read_settings()
     executor = ThreadPoolExecutor(max_workers = opts.max_workers)
     app = make_app(executor, LDAPIspAuthenticator, opts.debug)
-    #
     server = tornado.httpserver.HTTPServer(app)
     server.listen(opts.vmemperor_port, address="0.0.0.0")
     ioloop = event_loop(executor, opts.delay)

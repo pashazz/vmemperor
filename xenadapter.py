@@ -182,6 +182,7 @@ class XenAdapter(Loggable):
                         ip_string = ip_string +":%s" % dns2
 
             self.ip = ip_string
+            self.dhcp = False
 
     class UbuntuOS (GenericOS):
         '''
@@ -222,8 +223,16 @@ class XenAdapter(Loggable):
             return "-- quiet auto=true netcfg/get_hostname=%s console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 %s %s" % (
                 self.hostname, self.ip, self.scenario)
 
+    class CentOS (GenericOS):
+        """
+        OS-specific parameters for CetOS
+        """
+        def set_scenario(self, url):
+            self.set_kickstart(url)
+        def pv_args(self):
+            return "%s %s" % (self.ip, self.scenario)
 
-    def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, os_kind=None, ip=None, install_url=None, scenario_url=None, mode='pv', name_label = '', start=True) -> str:
+    def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, mode, os_kind=None, ip=None, install_url=None, scenario_url=None, name_label = '', start=True) -> str:
         '''
         Creates a virtual machine and installs an OS
 
@@ -257,7 +266,6 @@ class XenAdapter(Loggable):
                 self.log.info("Adding Installation URL: %s" % install_url)
                 # self.set_other_config(self.api.VM, new_vm_uuid, 'default_mirror', install_url, True)
                 # self.set_other_config(self.api.VM, new_vm_uuid, 'install-repository', install_url, True)
-                print('YA TUT BYL')
                 config = self.api.VM.get_other_config(new_vm_ref)
                 config['install-repository'] = install_url
                 self.api.VM.set_other_config(new_vm_ref, config)
@@ -265,8 +273,10 @@ class XenAdapter(Loggable):
             if os_kind == "ubuntu":
                 os = XenAdapter.UbuntuOS()
             else:
-                os = None
-
+                if os_kind == "centos":
+                    os = XenAdapter.CentOS()
+                else:
+                    os = None
 
             if os:
                 os.set_network_parameters(*ip)
@@ -275,9 +285,17 @@ class XenAdapter(Loggable):
 
                 if mode == 'pv':
                     pv_args = os.pv_args()
-                    self.api.VM.set_HVM_boot_policy(new_vm_ref, "")
-                    self.api.VM.set_PV_bootloader(new_vm_ref, 'pygrub')
+                    self.api.VM.set_HVM_boot_policy(new_vm_ref, '')
+                    self.api.VM.set_PV_bootloader(new_vm_ref, 'eliloader')
                     self.api.VM.set_PV_args(new_vm_ref, pv_args)
+                if mode == 'hvm':
+                    policy = self.api.VM.get_HVM_boot_policy(new_vm_ref)
+                    if policy == '':
+                        self.api.VM.set_HVM_boot_policy(new_vm_ref, 'BIOS order')
+                    bp = self.api.VM.get_HVM_boot_params(new_vm_ref)
+                    bp['ks'] = scenario_url
+                    key, value = os.ip.split('=')
+                    bp[key] = value
 
         except XenAPI.Failure as f:
             self.destroy_vm(new_vm_uuid)
@@ -357,12 +375,12 @@ class XenAdapter(Loggable):
         :return:
         """
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
-        vm = self.api.VM.get_record(vm_ref)
+        ps = self.api.VM.get_power_state(vm_ref)
         try:
-            if vm['power_state'] != 'Running' and enable == True:
+            if ps != 'Running' and bool(enable) == True:
                 self.api.VM.start (vm_ref, False, True)
                 self.log.info ("Started VM UUID {0}".format(vm_uuid))
-            if vm['power_state'] == 'Running' and enable == False:
+            if ps == 'Running' and bool(enable) == False:
                 self.api.VM.shutdown(vm_ref)
                 self.log.info("Shutted down VM UUID {0}".format(vm_uuid))
         except XenAPI.Failure as f:
@@ -384,9 +402,6 @@ class XenAdapter(Loggable):
         args = {'VM': vm_ref, 'network': net_ref, 'device': str(len(vm['VIFs'])), \
                 'MAC': '', 'MTU': net['MTU'], 'other_config': {}, \
                 'qos_algorithm_type': '', 'qos_algorithm_params': {}}
-        if ip:
-            args['ipv4_addresses'] = ['10.10.10.'+ x + '/24' for x in range(20,30)]
-
         try:
             vif_ref = self.api.VIF.create(args)
             vif_uuid = self.api.VIF.get_uuid(vif_ref)
