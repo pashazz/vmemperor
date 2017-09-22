@@ -174,12 +174,10 @@ class XenAdapter(Loggable):
                     raise XenAdapterArgumentError(self,"Network configuration: IP has been specified, missing gateway")
                 if not netmask:
                     raise XenAdapterArgumentError(self,"Network configuration: IP has been specified, missing netmask")
-                ip_string = "ip=%s::%s:%s" % (ip, gw, netmask)
 
-                if dns1:
-                    ip_string = ip_string + ":::off:%s" % dns1
-                    if dns2:
-                        ip_string = ip_string +":%s" % dns2
+                ip_string = " ipv6.disable=1 netcfg/disable_dhcp=true netcfg/disable_autoconfig=true netcfg/use_autoconfig=false  netcfg/confirm_static=true netcfg/get_ipaddress=%s netcfg/get_gateway=%s netcfg/get_netmask=%s netcfg/get_nameservers=%s netcfg/get_domain=vmemperor" % (ip, gw, netmask, dns1)
+
+
 
             self.ip = ip_string
             self.dhcp = False
@@ -220,8 +218,23 @@ class XenAdapter(Loggable):
         def pv_args(self):
             if self.dhcp:
                 self.ip = "netcfg/disable_dhcp=false"
-            return "-- quiet auto=true netcfg/get_hostname=%s console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 %s %s" % (
+            return "-- auto=true netcfg/get_hostname=%s console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 %s %s" % (
                 self.hostname, self.ip, self.scenario)
+
+        def set_network_parameters(self, ip=None, gw=None, netmask=None, dns1=None, dns2=None):
+            if not ip:
+                self.dhcp = True
+            else:
+                if not gw:
+                    raise XenAdapterArgumentError(self, "Network configuration: IP has been specified, missing gateway")
+                if not netmask:
+                    raise XenAdapterArgumentError(self, "Network configuration: IP has been specified, missing netmask")
+
+                ip_string = " ipv6.disable=1 netcfg/disable_dhcp=true netcfg/disable_autoconfig=true netcfg/use_autoconfig=false  netcfg/confirm_static=true netcfg/get_ipaddress=%s netcfg/get_gateway=%s netcfg/get_netmask=%s netcfg/get_nameservers=%s netcfg/get_domain=vmemperor" % (
+                ip, gw, netmask, dns1)
+
+            self.ip = ip_string
+            self.dhcp = False
 
     class CentOS (GenericOS):
         """
@@ -229,6 +242,26 @@ class XenAdapter(Loggable):
         """
         def set_scenario(self, url):
             self.set_kickstart(url)
+
+
+        def set_network_parameters(self, ip=None, gw=None, netmask=None, dns1=None, dns2=None):
+            if not ip:
+               self.dhcp = True
+            else:
+                if not gw:
+                    raise XenAdapterArgumentError(self,"Network configuration: IP has been specified, missing gateway")
+                if not netmask:
+                    raise XenAdapterArgumentError(self,"Network configuration: IP has been specified, missing netmask")
+                ip_string = " ip=%s::%s:%s" % (ip, gw, netmask)
+
+                if dns1:
+                    ip_string = ip_string + ":::off:%s" % dns1
+                    if dns2:
+                        ip_string = ip_string +":%s" % dns2
+
+            self.ip = ip_string
+            self.dhcp = False
+
         def pv_args(self):
             return "%s %s" % (self.ip, self.scenario)
 
@@ -288,6 +321,7 @@ class XenAdapter(Loggable):
                     self.api.VM.set_HVM_boot_policy(new_vm_ref, '')
                     self.api.VM.set_PV_bootloader(new_vm_ref, 'eliloader')
                     self.api.VM.set_PV_args(new_vm_ref, pv_args)
+
                 if mode == 'hvm':
                     policy = self.api.VM.get_HVM_boot_policy(new_vm_ref)
                     if policy == '':

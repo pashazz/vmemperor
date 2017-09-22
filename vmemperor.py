@@ -341,11 +341,19 @@ class CreateVM(BaseHandler):
             kwargs['username'] = self.get_argument('username', default=None)
             kwargs['password'] = self.get_argument('password')
             kwargs['mirror_url'] = self.get_argument('mirror_url')
+            kwargs['fullname'] = self.get_argument('fullname')
             kwargs['ip'] = ip
+            if ip:
+                kwargs['gateway'] = gw
+                kwargs['netmask'] = netmask
+                if dns0:
+                    kwargs['dns0'] = dns0
+                if dns1:
+                    kwargs['dns1'] = dns1
             mirror_url = kwargs['mirror_url']
         scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + os_kind + "?" + "&".join(
             ('{0}={1}'.format(k, v) for k, v in kwargs.items()))
-        vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, mode, os_kind, ip_tuple, mirror_url, scenario_url, name_label, False)
+        vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, mode, os_kind, ip_tuple, mirror_url, scenario_url, name_label, True)
 
         self.write(json.dumps({'vm_uuid': vm_uuid}))
 
@@ -493,9 +501,15 @@ class AutoInstall(BaseHandler):
         username = self.get_argument('username', default=None)
         password = self.get_argument('password')
         mirror_url = self.get_argument('mirror_url')
+        fullname = self.get_argument('fullname')
         ip = self.get_argument('ip', default=None)
+        gateway = self.get_argument('gateway', default=None)
+        netmask = self.get_argument('netmask', default=None)
+        dns0 = self.get_argument('dns0', default=None)
+        dns1 = self.get_argument('dns1', default=None)
 
-        self.render("templates/installation-scenarios/{0}-ks.cfg".format(os_kind), hostname = hostname, username = username, password = password, mirror_url=mirror_url, ip=ip)
+        self.render("templates/installation-scenarios/{0}-ks.cfg".format(os_kind), hostname = hostname, username = username,
+                    fullname=fullname, password = password, mirror_url=mirror_url, ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1)
 
 class ConsoleHandler(BaseHandler):
     SUPPORTED_METHODS = {"CONNECT"}
@@ -594,7 +608,7 @@ def read_settings():
     define('port', group = 'rethinkdb', type = int, default = 28015)
     define('delay', group = 'ioloop', type = int, default=5000)
     define('max_workers', group = 'executor', type = int, default=16)
-    define('vmemperor_url', group ='vmemperor', default = '10.10.10.61')
+    define('vmemperor_url', group ='vmemperor', default = '10.10.10.102')
     define('vmemperor_port', group = 'vmemperor', type = int, default = 8889)
 
     from os import path
