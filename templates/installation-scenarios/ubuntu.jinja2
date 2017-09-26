@@ -25,7 +25,7 @@ d-i netcfg/choose_interface select eth0
 # Any hostname and domain names assigned from dhcp take precedence over
 # values set here. However, setting the values still prevents the questions
 # from being shown, even if values come from dhcp.
-d-i netcfg/get_hostname string {{ opts["hostname"] }}
+d-i netcfg/get_hostname string {{ hostname }}
 d-i netcfg/get_domain string unassigned-domain
 
 # Disable that annoying WEP key dialog.
@@ -35,8 +35,8 @@ d-i netcfg/wireless_wep string
 # If you select ftp, the mirror/country string does not need to be set.
 #d-i mirror/protocol string ftp
 d-i mirror/country string manual
-d-i mirror/http/hostname string {{ opts["mirror_url"] }}
-d-i mirror/http/directory string {{ opts["mirror_path"] }}
+d-i mirror/http/hostname string mirror.corbina.net
+d-i mirror/http/directory string /ubuntu
 d-i mirror/http/proxy string
 
 ### Clock and time zone setup
@@ -85,11 +85,11 @@ d-i partman/confirm_nooverwrite boolean true
 ### Account setup
 
 # To create a normal user account.
-d-i passwd/user-fullname string {{ opts["fullname"] }}
-d-i passwd/username string {{ opts["username"] }}
+d-i passwd/user-fullname string {{ fullname }}
+d-i passwd/username string {{ username }}
 # Normal user's password
-d-i passwd/user-password password {{ opts["password"] }}
-d-i passwd/user-password-again password {{ opts["password"] }}
+d-i passwd/user-password password {{ password }}
+d-i passwd/user-password-again password {{ password }}
 #d-i passwd/user-password-crypted password $1$DNhkrozT$wd.eE93h82Y8wIuNhWlMf/
 # The installer will warn about weak passwords. If you are sure you know
 # what you're doing and want to override it, uncomment this.
@@ -113,8 +113,8 @@ d-i user-setup/encrypt-home boolean false
 # Select which update services to use; define the mirrors to be used.
 # Values shown below are the normal defaults.
 d-i apt-setup/services-select multiselect security
-d-i apt-setup/security_host string {{ opts["mirror_url"] }}
-d-i apt-setup/security_path string {{ opts["mirror_path"] }}
+d-i apt-setup/security_host string mirror.corbina.net
+d-i apt-setup/security_path string /ubuntu
 
 ### Package selection
 tasksel tasksel/first multiselect OpenSSH server

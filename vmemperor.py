@@ -353,7 +353,7 @@ class CreateVM(BaseHandler):
             mirror_url = kwargs['mirror_url']
         scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + os_kind + "?" + "&".join(
             ('{0}={1}'.format(k, v) for k, v in kwargs.items()))
-        vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, mode, os_kind, ip_tuple, mirror_url, scenario_url, name_label, True)
+        vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, mode, os_kind, ip_tuple, mirror_url, scenario_url, name_label, False)
 
         self.write(json.dumps({'vm_uuid': vm_uuid}))
 
@@ -508,7 +508,11 @@ class AutoInstall(BaseHandler):
         dns0 = self.get_argument('dns0', default=None)
         dns1 = self.get_argument('dns1', default=None)
 
-        self.render("templates/installation-scenarios/{0}-ks.cfg".format(os_kind), hostname = hostname, username = username,
+        if os_kind == 'ubuntu':
+            part = '.jinja2'
+        else:
+            part = '-ks.cfg'
+        self.render("templates/installation-scenarios/{0}{1}".format(os_kind, part), hostname = hostname, username = username,
                     fullname=fullname, password = password, mirror_url=mirror_url, ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1)
 
 class ConsoleHandler(BaseHandler):
@@ -608,7 +612,7 @@ def read_settings():
     define('port', group = 'rethinkdb', type = int, default = 28015)
     define('delay', group = 'ioloop', type = int, default=5000)
     define('max_workers', group = 'executor', type = int, default=16)
-    define('vmemperor_url', group ='vmemperor', default = '10.10.10.102')
+    define('vmemperor_url', group ='vmemperor', default = '10.10.10.61')
     define('vmemperor_port', group = 'vmemperor', type = int, default = 8889)
 
     from os import path

@@ -62,7 +62,7 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
         #for body in config._sections.values():
         #    res = self.fetch(r'/createvm', method='POST', body=urlencode(body))
         #    self.assertEqual(res.code, 200)
-        body  = config._sections['ubuntu']
+        body  = config._sections['centos']
         res = self.fetch(r'/createvm', method='POST', body=urlencode(body))
         self.assertEqual(res.code, 200)
 

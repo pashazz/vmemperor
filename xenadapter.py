@@ -194,7 +194,7 @@ class XenAdapter(Loggable):
             :return:
             '''
             if type(url) == str:
-                self.set_kickstart(url)
+                self.set_preseed(url)
             else:
                 try:
                     if url[1] == 'ps':
@@ -294,6 +294,7 @@ class XenAdapter(Loggable):
 
         try:
 
+            self.api.VM.set_memory(new_vm_ref, '1073741824')
 
             if install_url:
                 self.log.info("Adding Installation URL: %s" % install_url)
