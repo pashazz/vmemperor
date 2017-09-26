@@ -218,8 +218,8 @@ class XenAdapter(Loggable):
         def pv_args(self):
             if self.dhcp:
                 self.ip = "netcfg/disable_dhcp=false"
-            return "-- auto=true netcfg/get_hostname=%s console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 %s %s" % (
-                self.hostname, self.ip, self.scenario)
+            return "auto=true console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 %s %s netcfg/get_hostname=%s" % (
+                self.ip, self.scenario, self.hostname)
 
         def set_network_parameters(self, ip=None, gw=None, netmask=None, dns1=None, dns2=None):
             if not ip:
@@ -230,7 +230,7 @@ class XenAdapter(Loggable):
                 if not netmask:
                     raise XenAdapterArgumentError(self, "Network configuration: IP has been specified, missing netmask")
 
-                ip_string = " ipv6.disable=1 netcfg/disable_dhcp=true netcfg/disable_autoconfig=true netcfg/use_autoconfig=false  netcfg/confirm_static=true netcfg/get_ipaddress=%s netcfg/get_gateway=%s netcfg/get_netmask=%s netcfg/get_nameservers=%s netcfg/get_domain=vmemperor" % (
+                ip_string = " ipv6.disable=1 netcfg/disable_autoconfig=true netcfg/use_autoconfig=false  netcfg/confirm_static=true netcfg/get_ipaddress=%s netcfg/get_gateway=%s netcfg/get_netmask=%s netcfg/get_nameservers=%s netcfg/get_domain=vmemperor" % (
                 ip, gw, netmask, dns1)
 
             self.ip = ip_string
