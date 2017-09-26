@@ -265,7 +265,7 @@ class XenAdapter(Loggable):
         def pv_args(self):
             return "%s %s" % (self.ip, self.scenario)
 
-    def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, mode, os_kind=None, ip=None, install_url=None, scenario_url=None, name_label = '', start=True) -> str:
+    def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, mode, os_kind=None, ip=None, install_url=None, scenario_url=None, name_label = '', start=True, override_pv_args=None) -> str:
         '''
         Creates a virtual machine and installs an OS
 
@@ -281,7 +281,8 @@ class XenAdapter(Loggable):
         :scenario_url: preseed/kickstart file url. It's Preseed for debian-based systems, Kickstart for RedHat. If os_kind is ubuntu and scenario_url is kickstart, provide a tuple (url, 'ks')
         :param mode: 'pv' or 'hvm'. Refer to http://xapi-project.github.io/xen-api/vm-lifecycle
         :param name_label: Name for created VM
-
+        :param start: if True, start VM immediately
+        :param override_pv_args: if specified, overrides all pv_args for Linux kernel
         :return: VM UUID
         '''
         try:
@@ -302,6 +303,7 @@ class XenAdapter(Loggable):
                 # self.set_other_config(self.api.VM, new_vm_uuid, 'install-repository', install_url, True)
                 config = self.api.VM.get_other_config(new_vm_ref)
                 config['install-repository'] = install_url
+                config['default-mirror'] = install_url
                 self.api.VM.set_other_config(new_vm_ref, config)
 
             if 'ubuntu' in os_kind:
@@ -325,7 +327,10 @@ class XenAdapter(Loggable):
                 os.set_scenario(scenario_url)
 
                 if mode == 'pv':
-                    pv_args = os.pv_args()
+                    if not override_pv_args:
+                        pv_args = os.pv_args()
+                    else:
+                        pv_args = override_pv_args
                     self.api.VM.set_HVM_boot_policy(new_vm_ref, '')
                     self.api.VM.set_PV_bootloader(new_vm_ref, 'eliloader')
                     self.api.VM.set_PV_args(new_vm_ref, pv_args)

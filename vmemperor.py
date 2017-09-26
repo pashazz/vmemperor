@@ -317,6 +317,7 @@ class CreateVM(BaseHandler):
             raise ValueError('Wrong template name: {0}'.format(tmpl_name))
 
         os_kind = self.get_argument('os_kind', None)
+        override_pv_args = self.get_argument('override_pv_args', None)
         mode = self.get_argument('mode')
         self.log.info("Creating VM: name_label %s; os_kind: %s" % (name_label, os_kind))
         ip = self.get_argument('ip', '')
@@ -353,7 +354,7 @@ class CreateVM(BaseHandler):
             mirror_url = kwargs['mirror_url']
         scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + os_kind.split()[0] + "?" + "&".join(
             ('{0}={1}'.format(k, v) for k, v in kwargs.items()))
-        vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, mode, os_kind, ip_tuple, mirror_url, scenario_url, name_label, False)
+        vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, mode, os_kind, ip_tuple, mirror_url, scenario_url, name_label, True, override_pv_args)
 
         self.write(json.dumps({'vm_uuid': vm_uuid}))
 
