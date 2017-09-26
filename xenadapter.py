@@ -304,10 +304,17 @@ class XenAdapter(Loggable):
                 config['install-repository'] = install_url
                 self.api.VM.set_other_config(new_vm_ref, config)
 
-            if os_kind == "ubuntu":
+            if 'ubuntu' in os_kind:
                 os = XenAdapter.UbuntuOS()
+                try:
+                    debian_release = os_kind.split()[1]
+                    config = self.api.VM.get_other_config(new_vm_ref)
+                    config['debian-release'] = debian_release
+                    self.api.VM.set_other_config(new_vm_ref, config)
+                except IndexError:
+                    pass
             else:
-                if os_kind == "centos":
+                if 'centos' in os_kind:
                     os = XenAdapter.CentOS()
                 else:
                     os = None

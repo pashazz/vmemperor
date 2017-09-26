@@ -335,7 +335,7 @@ class CreateVM(BaseHandler):
             ip_tuple.append(dns1)
 
         kwargs = {}
-        if os_kind == 'ubuntu' or os_kind == 'centos':
+        if 'ubuntu' in os_kind or 'centos' in os_kind:
             # see os_kind-ks.cfg
             kwargs['hostname'] = self.get_argument('hostname', default='xen_vm')
             kwargs['username'] = self.get_argument('username', default=None)
@@ -351,7 +351,7 @@ class CreateVM(BaseHandler):
                 if dns1:
                     kwargs['dns1'] = dns1
             mirror_url = kwargs['mirror_url']
-        scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + os_kind + "?" + "&".join(
+        scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + os_kind.split()[0] + "?" + "&".join(
             ('{0}={1}'.format(k, v) for k, v in kwargs.items()))
         vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, mode, os_kind, ip_tuple, mirror_url, scenario_url, name_label, False)
 

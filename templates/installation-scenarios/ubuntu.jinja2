@@ -27,6 +27,8 @@ d-i netcfg/choose_interface select eth0
 # from being shown, even if values come from dhcp.
 d-i netcfg/get_hostname string {{ hostname }}
 d-i netcfg/get_domain string unassigned-domain
+d-i netcfg/disable_autoconfig boolean true
+d-i netcfg/use_autoconfig boolean false
 
 # Disable that annoying WEP key dialog.
 d-i netcfg/wireless_wep string
