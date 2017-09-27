@@ -301,6 +301,7 @@ class CreateVM(BaseHandler):
             vdi_size = self.get_argument('vdi_size')
             hostname = self.get_argument('hostname')
             name_label = self.get_argument('name_label')
+            mirror_url = self.get_argument('mirror_url')
 
         except:
             self.write_error(status_code=404)
@@ -336,12 +337,12 @@ class CreateVM(BaseHandler):
             ip_tuple.append(dns1)
 
         kwargs = {}
-        if 'ubuntu' in os_kind or 'centos' in os_kind:
+        if 'ubuntu' in os_kind or 'centos' in os_kind or 'debian' in os_kind:
             # see os_kind-ks.cfg
             kwargs['hostname'] = self.get_argument('hostname', default='xen_vm')
             kwargs['username'] = self.get_argument('username', default=None)
             kwargs['password'] = self.get_argument('password')
-            kwargs['mirror_url'] = self.get_argument('mirror_url')
+            kwargs['mirror_url'] = mirror_url
             kwargs['fullname'] = self.get_argument('fullname')
             kwargs['ip'] = ip
             if ip:
@@ -351,10 +352,13 @@ class CreateVM(BaseHandler):
                     kwargs['dns0'] = dns0
                 if dns1:
                     kwargs['dns1'] = dns1
-            mirror_url = kwargs['mirror_url']
+        if 'ubuntu' in os_kind or 'debian' in os_kind:
+            kwargs['mirror_url'] = kwargs['mirror_url'].split('http://')[1]
+            kwargs['mirror_path'] = kwargs['mirror_url'][kwargs['mirror_url'].find('/'):]
+            kwargs['mirror_url'] = kwargs['mirror_url'][:kwargs['mirror_url'].find('/')]
         scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + os_kind.split()[0] + "?" + "&".join(
             ('{0}={1}'.format(k, v) for k, v in kwargs.items()))
-        vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, mode, os_kind, ip_tuple, mirror_url, scenario_url, name_label, True, override_pv_args)
+        vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, mode, os_kind, ip_tuple, mirror_url, scenario_url, name_label, False, override_pv_args)
 
         self.write(json.dumps({'vm_uuid': vm_uuid}))
 
@@ -502,6 +506,7 @@ class AutoInstall(BaseHandler):
         username = self.get_argument('username', default=None)
         password = self.get_argument('password')
         mirror_url = self.get_argument('mirror_url')
+        mirror_path = self.get_argument('mirror_path', default=None)
         fullname = self.get_argument('fullname')
         ip = self.get_argument('ip', default=None)
         gateway = self.get_argument('gateway', default=None)
@@ -509,12 +514,15 @@ class AutoInstall(BaseHandler):
         dns0 = self.get_argument('dns0', default=None)
         dns1 = self.get_argument('dns1', default=None)
 
-        if os_kind == 'ubuntu':
-            part = '.jinja2'
-        else:
-            part = '-ks.cfg'
-        self.render("templates/installation-scenarios/{0}{1}".format(os_kind, part), hostname = hostname, username = username,
-                    fullname=fullname, password = password, mirror_url=mirror_url, ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1)
+        # part = '-ks.cfg'
+        if 'ubuntu' in os_kind or 'debian' in os_kind:
+            filename = 'debian.jinja2'
+        if 'centos' in os_kind:
+            filename = 'centos-ks.cfg'
+        if not filename:
+            raise ValueError("OS {0} doesn't support autoinstallation".format(os_kind))
+        self.render("templates/installation-scenarios/{0}".format(filename), hostname = hostname, username = username,
+                    fullname=fullname, password = password, mirror_url=mirror_url, mirror_path=mirror_path, ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1)
 
 class ConsoleHandler(BaseHandler):
     SUPPORTED_METHODS = {"CONNECT"}

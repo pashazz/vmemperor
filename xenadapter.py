@@ -157,11 +157,12 @@ class XenAdapter(Loggable):
             Obtain hvm_args - whatever that might be
             :return:
             '''
-        def set_scenario(self, hostname):
-            raise NotImplementedError()
-
+        def set_scenario(self, url):
+            raise NotImplementedError
         def set_kickstart(self, url):
-            self.scenario = "ks=%s" % url
+            return 'ks={0}'.format(url)
+        def set_preseed(self, url):
+            return 'preseed/url={0}'.format(url)
 
         def set_hostname(self, hostname):
             self.hostname = hostname
@@ -175,7 +176,7 @@ class XenAdapter(Loggable):
                 if not netmask:
                     raise XenAdapterArgumentError(self,"Network configuration: IP has been specified, missing netmask")
 
-                ip_string = " ipv6.disable=1 netcfg/disable_dhcp=true netcfg/disable_autoconfig=true netcfg/use_autoconfig=false  netcfg/confirm_static=true netcfg/get_ipaddress=%s netcfg/get_gateway=%s netcfg/get_netmask=%s netcfg/get_nameservers=%s netcfg/get_domain=vmemperor" % (ip, gw, netmask, dns1)
+                ip_string = " ipv6.disable=true netcfg/disable_dhcp=true netcfg/disable_autoconfig=true netcfg/use_autoconfig=false  netcfg/confirm_static=true netcfg/get_ipaddress=%s netcfg/get_gateway=%s netcfg/get_netmask=%s netcfg/get_nameservers=%s netcfg/get_domain=vmemperor" % (ip, gw, netmask, dns1)
 
 
 
@@ -188,32 +189,7 @@ class XenAdapter(Loggable):
         '''
 
         def set_scenario(self, url):
-            '''
-            Set scenario URL. For kickstart, provide a tuple (url, 'ks')
-            :param url: preseed file url or kickstart tuple
-            :return:
-            '''
-            if type(url) == str:
-                self.set_preseed(url)
-            else:
-                try:
-                    if url[1] == 'ps':
-                        self.set_preseed(url[0])
-                except:
-                    raise XenAdapterArgumentError("set_scenario [ubuntu]: Not a string and/or malformed tuple")
-
-
-
-
-
-        def set_preseed(self, url):
-            '''
-            set preseed url. Debian only
-            :return:
-            '''
-            self.scenario = "preseed/url=%s" % url
-
-
+            self.scenario = self.set_preseed(url)
 
         def pv_args(self):
             if self.dhcp:
@@ -241,8 +217,7 @@ class XenAdapter(Loggable):
         OS-specific parameters for CetOS
         """
         def set_scenario(self, url):
-            self.set_kickstart(url)
-
+            self.scenario = self.set_kickstart(url)
 
         def set_network_parameters(self, ip=None, gw=None, netmask=None, dns1=None, dns2=None):
             if not ip:
@@ -306,7 +281,7 @@ class XenAdapter(Loggable):
                 config['default-mirror'] = install_url
                 self.api.VM.set_other_config(new_vm_ref, config)
 
-            if 'ubuntu' in os_kind:
+            if 'ubuntu' in os_kind or 'debian' in os_kind:
                 os = XenAdapter.UbuntuOS()
                 try:
                     debian_release = os_kind.split()[1]
