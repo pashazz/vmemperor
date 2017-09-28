@@ -102,7 +102,8 @@ class XenAdapterSetupVmMixin(XenAdapterSetupMixin):
         sr_uuid = cls.choose_sr()
         template_uuid = cls.choose_template()
         net_uuid = cls.choose_net()
-        cls.vm_uuid = cls.xen.create_vm(template_uuid, sr_uuid, net_uuid, '2048', TestXenAdapterVM.VM_NAME, cls.start)
+        mode = 'pv'
+        cls.vm_uuid = cls.xen.create_vm(template_uuid, sr_uuid, net_uuid, '2048', TestXenAdapterVM.VM_NAME, mode, cls.start)
 
     @classmethod
     def tearDownClass(cls):

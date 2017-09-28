@@ -99,12 +99,11 @@ class XenAdapter(Loggable):
 
         def process(value):
             new_rec = {k : v for k,v in value.items() if k in keys}
+            new_rec['user'] = 'root'
             return new_rec
 
         return [process(value) for value in self.get_all_records(self.api.VM).values()
                 if not value['is_a_template'] and not value['is_control_domain']]
-
-
 
     @xenadapter_root
     def list_srs(self) -> dict:
@@ -135,7 +134,16 @@ class XenAdapter(Loggable):
         dict of VM templates' records
         :return:
         '''
-        return {key : value for key, value in self.get_all_records(self.api.VM).items()
+        keys = ['hvm', 'name_label', 'uuid']
+        def process(value):
+            new_rec = {k: v for k, v in value.items() if k in keys}
+            if value['HVM_boot_policy'] == '':
+                new_rec['hvm'] = False
+            else:
+                new_rec['hvm'] = True
+            return new_rec
+
+        return {value['uuid'] : process(value) for value in self.get_all_records(self.api.VM).values()
                   if value['is_a_template']}
 
 
@@ -157,11 +165,12 @@ class XenAdapter(Loggable):
             Obtain hvm_args - whatever that might be
             :return:
             '''
-        def set_scenario(self, hostname):
-            raise NotImplementedError()
-
+        def set_scenario(self, url):
+            raise NotImplementedError
         def set_kickstart(self, url):
-            self.scenario = "ks=%s" % url
+            return 'ks={0}'.format(url)
+        def set_preseed(self, url):
+            return 'preseed/url={0}'.format(url)
 
         def set_hostname(self, hostname):
             self.hostname = hostname
@@ -175,7 +184,7 @@ class XenAdapter(Loggable):
                 if not netmask:
                     raise XenAdapterArgumentError(self,"Network configuration: IP has been specified, missing netmask")
 
-                ip_string = " ipv6.disable=1 netcfg/disable_dhcp=true netcfg/disable_autoconfig=true netcfg/use_autoconfig=false  netcfg/confirm_static=true netcfg/get_ipaddress=%s netcfg/get_gateway=%s netcfg/get_netmask=%s netcfg/get_nameservers=%s netcfg/get_domain=vmemperor" % (ip, gw, netmask, dns1)
+                ip_string = " ipv6.disable=true netcfg/disable_dhcp=true netcfg/disable_autoconfig=true netcfg/use_autoconfig=false  netcfg/confirm_static=true netcfg/get_ipaddress=%s netcfg/get_gateway=%s netcfg/get_netmask=%s netcfg/get_nameservers=%s netcfg/get_domain=vmemperor" % (ip, gw, netmask, dns1)
 
 
 
@@ -188,32 +197,7 @@ class XenAdapter(Loggable):
         '''
 
         def set_scenario(self, url):
-            '''
-            Set scenario URL. For kickstart, provide a tuple (url, 'ks')
-            :param url: preseed file url or kickstart tuple
-            :return:
-            '''
-            if type(url) == str:
-                self.set_preseed(url)
-            else:
-                try:
-                    if url[1] == 'ps':
-                        self.set_preseed(url[0])
-                except:
-                    raise XenAdapterArgumentError("set_scenario [ubuntu]: Not a string and/or malformed tuple")
-
-
-
-
-
-        def set_preseed(self, url):
-            '''
-            set preseed url. Debian only
-            :return:
-            '''
-            self.scenario = "preseed/url=%s" % url
-
-
+            self.scenario = self.set_preseed(url)
 
         def pv_args(self):
             if self.dhcp:
@@ -241,8 +225,7 @@ class XenAdapter(Loggable):
         OS-specific parameters for CetOS
         """
         def set_scenario(self, url):
-            self.set_kickstart(url)
-
+            self.scenario = self.set_kickstart(url)
 
         def set_network_parameters(self, ip=None, gw=None, netmask=None, dns1=None, dns2=None):
             if not ip:
@@ -299,14 +282,12 @@ class XenAdapter(Loggable):
 
             if install_url:
                 self.log.info("Adding Installation URL: %s" % install_url)
-                # self.set_other_config(self.api.VM, new_vm_uuid, 'default_mirror', install_url, True)
-                # self.set_other_config(self.api.VM, new_vm_uuid, 'install-repository', install_url, True)
                 config = self.api.VM.get_other_config(new_vm_ref)
                 config['install-repository'] = install_url
                 config['default-mirror'] = install_url
                 self.api.VM.set_other_config(new_vm_ref, config)
 
-            if 'ubuntu' in os_kind:
+            if 'ubuntu' in os_kind or 'debian' in os_kind:
                 os = XenAdapter.UbuntuOS()
                 try:
                     debian_release = os_kind.split()[1]
@@ -557,15 +538,24 @@ class XenAdapter(Loggable):
         return vbd_uuid
 
 
-    def detach_disk(self, vbd_uuid):
+    def detach_disk(self, vm_uuid, vdi_uuid):
         '''
         Detach a VBD object while trying to eject it if the machine is running
         :param vbd_uuid: virtual block device UUID to detach
         :return:
         '''
+        vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+        vdi_ref = self.api.VDI.get_by_uuid(vdi_uuid)
+        vbds = self.api.VM.get_VBDs(vm_ref)
+        for vbd_ref in vbds:
+            vdi = self.api.VBD.get_VDI(vbd_ref)
+            if vdi == vdi_ref:
+                vbd_uuid = self.api.VBD.get_uuid(vbd_ref)
+                break
+        if not vbd_uuid:
+            raise XenAdapterAPIError(self, "Failed to detach disk: Disk isn't attached")
+
         vbd_ref = self.api.VBD.get_by_uuid(vbd_uuid)
-        vbd = self.api.VBD.get_record(vbd_ref)
-        vm_ref = vbd['VM']
         if self.api.VM.get_power_state(vm_ref) == 'Running':
             try:
                 self.api.VBD.unplug(vbd_ref)

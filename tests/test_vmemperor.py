@@ -48,10 +48,12 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
     def test_createvm(self):
         config = configparser.ConfigParser()
         config.read('tests/createvm.ini')
-        for body in config._sections.values():
-            res = self.fetch(r'/createvm', method='POST', body=urlencode(body))
-            self.assertEqual(res.code, 200)
-
+        #for body in config._sections.values():
+        #    res = self.fetch(r'/createvm', method='POST', body=urlencode(body))
+        #    self.assertEqual(res.code, 200)
+        body  = config._sections['debian']
+        res = self.fetch(r'/createvm', method='POST', body=urlencode(body))
+        self.assertEqual(res.code, 200)
 
     def test_startvm(self):
         vm_uuid = '79408dde-d420-0b5b-3f97-fa87715a9da4'
