@@ -309,8 +309,8 @@ class EventLoop:
         self.db = r.db(opts.database)
         tables = self.db.table_list().run()
         # required = ['vms', 'tmpls', 'pools', 'nets']
-        # if 'vms' in tables:
-        #     self.db.table('vms').delete().run()
+        if 'vms' in tables:
+            self.db.table('vms').delete().run()
         if 'vms' not in tables:
             self.db.table_create('vms', durability='soft', primary_key='uuid').run()
             vms = self.xen.list_vms()

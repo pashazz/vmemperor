@@ -98,8 +98,21 @@ class XenAdapter(Loggable):
         #       if not value['is_a_template'] and not value['is_control_domain']}
 
         def process(value):
+            vm_ref = self.api.VM.get_by_uuid(value['uuid'])
             new_rec = {k : v for k,v in value.items() if k in keys}
             new_rec['user'] = 'root'
+            new_rec['network'] = []
+            vifs = self.api.VM.get_VIFs(vm_ref)
+            for vif in vifs:
+                net_ref = self.api.VIF.get_network(vif)
+                net_uuid = self.api.network.get_uuid(net_ref)
+                new_rec['networks'].append(net_uuid)
+            new_rec['disks'] = []
+            vbds = self.api.VM.get_VBDs(vm_ref)
+            for vbd in vbds:
+                vdi_ref = self.api.VBD.get_VDI(vbd)
+                vdi_uuid = self.api.VDI.get_uuid(vdi_ref)
+                new_rec['disks'].append(vdi_uuid)
             return new_rec
 
         return [process(value) for value in self.get_all_records(self.api.VM).values()
