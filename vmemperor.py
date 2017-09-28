@@ -36,6 +36,7 @@ class BaseHandler(tornado.web.RequestHandler, Loggable):
     def initialize(self, executor):
         self.executor = executor
         self.init_log()
+        self.conn = r.connect(opts.host, opts.port, opts.database)
         super().initialize()
 
     def get_current_user(self):
@@ -267,25 +268,43 @@ class AdminAuth(BaseHandler):
 
 
 class VMList(BaseHandler):
-    def get(self, user_id):
+    def get(self):
         """ """
+        #TODO where do we get user from
+        user = 'root'
         # read from db
-        self.write(json.dumps(list))
+        self.conn.repl()
+        table = r.db(opts.database).table('vms')
+        list = [x for x in table.get_all(user, index='user').run()]
+
+        if len(list) == 0:
+            self.write('None')
+        else:
+            self.write(json.dumps(list))
 
 
 class PoolList(BaseHandler):
     def get(self):
         """ """
         # read from db
-        self.write()
+        self.conn.repl()
+        table = r.db(opts.database).table('pools')
+        list = [x for x in table.run()]
+
+        self.write(json.dumps(list))
 
 
 class TemplateList(BaseHandler):
 
     def get(self):
         """ """
-        XenAdapter.list_templates()
-        self.write()
+
+        # read from db
+        self.conn.repl()
+        table = r.db(opts.database).table('tmpls')
+        list = [x for x in table.run()]
+
+        self.write(json.dumps(list))
 
 
 class CreateVM(BaseHandler):
@@ -360,7 +379,7 @@ class CreateVM(BaseHandler):
             ('{0}={1}'.format(k, v) for k, v in kwargs.items()))
         vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, mode, os_kind, ip_tuple, mirror_url, scenario_url, name_label, False, override_pv_args)
 
-        self.write(json.dumps({'vm_uuid': vm_uuid}))
+        self.write(vm_uuid)
 
 
 class NetworkList(BaseHandler):
@@ -368,33 +387,20 @@ class NetworkList(BaseHandler):
     def get(self):
         """ """
         # read from db
-        self.write()
+        self.conn.repl()
+        table = r.db(opts.database).table('nets')
+        list = [x for x in table.run()]
 
-
-class CreateNetwork(BaseHandler):
-
-    def get(self):
-        """ """
-        xen = XenAdapter(opts.group_dict('xenadapter'))
-        xen.create_network()
-        # update db
-        xen.list_networks()
-        self.write()
-
+        self.write(json.dumps(list))
 
 class StartStopVM(BaseHandler):
 
     def post(self):
         """ """
-        vm_uuid = self.get_argument('vm_uuid')
+        vm_uuid = self.get_argument('uuid')
         enable = self.get_argument('enable')
         xen = XenAdapter(opts.group_dict('xenadapter'))
-        try:
-            xen.start_stop_vm(vm_uuid, enable)
-        except Exception as e:
-            self.write(e)
-            raise e
-        # update db
+        xen.start_stop_vm(vm_uuid, enable)
         self.write('ok')
 
 
@@ -402,48 +408,55 @@ class EnableDisableTemplate(BaseHandler):
 
     def post(self):
         """ """
+        uuid = self.get_argument('uuid')
+        enable = self.get_argument('enable')
         xen = XenAdapter(opts.group_dict('xenadapter'))
-        xen.enable_disable_template()
-        self.write()
+        xen.enable_disable_template(uuid, bool(enable))
+        self.write('ok')
 
 
 class VNC(BaseHandler):
 
     def get(self):
         """http://xapi-project.github.io/xen-api/consoles.html"""
+        vm_uuid = self.get_argument('uuid')
         xen = XenAdapter(opts.group_dict('xenadapter'))
-        xen.get_vnc()
-        self.write()
+        url = xen.get_vnc(vm_uuid)
+        self.write(url)
 
 
 class AttachDetachDisc(BaseHandler):
 
-    def post(self, enable):
+    def post(self):
         xen = XenAdapter(opts.group_dict('xenadapter'))
-        xen.create_disk()
-        xen.attach_disk()
-        xen.detach_disk()
-        xen.destroy_disk()
-        # update db info
-        self.write()
-
+        vm_uuid = self.get_argument('vm_uuid')
+        vdi_uuid = self.get_argument('vdi_uuid')
+        enable = self.get_argument('enable')
+        if enable:
+            vbd_uuid = xen.attach_disk(vm_uuid, vdi_uuid)
+            self.write(vbd_uuid)
+        else:
+            xen.detach_disk(vm_uuid, vdi_uuid)
+        self.write('ok')
 
 class DestroyVM(BaseHandler):
 
     def post(self):
         xen = XenAdapter(opts.group_dict('xenadapter'))
-        xen.destroy_vm()
-        # update db info
-        self.write()
+        vm_uuid = self.get_argument('uuid')
+        xen.destroy_vm(vm_uuid)
+        self.write('ok')
 
 
 class ConnectVM(BaseHandler):
 
     def post(self):
         xen = XenAdapter(opts.group_dict('xenadapter'))
-        xen.connect_vm()
-        # update db info
-        self.write()
+        vm_uuid = self.get_argument('vm_uuid')
+        net_uuid = self.get_argument('net_uuid')
+        ip = self.get_argument('ip', default=None)
+        vif_uuid = xen.connect_vm(vm_uuid, net_uuid, ip)
+        self.write(vif_uuid)
 
 
 class AnsibleHooks:
@@ -457,7 +470,7 @@ class EventLoop:
     of corresponding user, if they are logged in (have open connection to dbms notifications)
      and admin db if admin is logged in"""
 
-    def __init__(self,   executor):
+    def __init__(self, executor):
         self.executor = executor
         self.xen = XenAdapter(opts.group_dict('xenadapter'))
         self.conn = r.connect(opts.host, opts.port, opts.database).repl()
@@ -465,10 +478,40 @@ class EventLoop:
             r.db_create(opts.database).run()
         self.db = r.db(opts.database)
         tables = self.db.table_list().run()
+        # required = ['vms', 'tmpls', 'pools', 'nets']
+        # if 'vms' in tables:
+        #     self.db.table('vms').delete().run()
         if 'vms' not in tables:
             self.db.table_create('vms', durability='soft', primary_key='uuid').run()
             vms = self.xen.list_vms()
             CHECK_ER(self.db.table('vms').insert(vms, conflict='error').run())
+            self.db.table('vms').index_create('user').run()
+            self.db.table('vms').index_wait('user').run()
+        else:
+            vms = self.xen.list_vms()
+            CHECK_ER(self.db.table('vms').insert(vms, conflict='update').run())
+        if 'tmpls' not in tables:
+            self.db.table_create('tmpls', durability='soft', primary_key='uuid').run()
+            tmpls = self.xen.list_templates().values()
+            CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='error').run())
+        else:
+            tmpls = self.xen.list_templates().values()
+            CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='update').run())
+        if 'pools' not in tables:
+            self.db.table_create('pools', durability='soft', primary_key='uuid').run()
+            pools = self.xen.list_pools().values()
+            CHECK_ER(self.db.table('pools').insert(list(pools), conflict='error').run())
+        else:
+            pools = self.xen.list_pools().values()
+            CHECK_ER(self.db.table('pools').insert(list(pools), conflict='update').run())
+        if 'nets' not in tables:
+            self.db.table_create('nets', durability='soft', primary_key='uuid').run()
+            nets = self.xen.list_networks().values()
+            CHECK_ER(self.db.table('nets').insert(list(nets), conflict='error').run())
+        else:
+            nets = self.xen.list_networks().values()
+            CHECK_ER(self.db.table('nets').insert(list(nets), conflict='update').run())
+
 
     @run_on_executor
     def heavy_task(self):
@@ -514,7 +557,6 @@ class AutoInstall(BaseHandler):
         dns0 = self.get_argument('dns0', default=None)
         dns1 = self.get_argument('dns1', default=None)
 
-        # part = '-ks.cfg'
         if 'ubuntu' in os_kind or 'debian' in os_kind:
             filename = 'debian.jinja2'
         if 'centos' in os_kind:
@@ -607,6 +649,15 @@ def make_app(executor, auth_class=DummyAuth, debug = False):
         (r'/(console.*)', ConsoleHandler, dict(executor=executor)),
         (r'/createvm', CreateVM, dict(executor=executor)),
         (r'/startstopvm', StartStopVM, dict(executor=executor)),
+        (r'/vmlist', VMList, dict(executor=executor)),
+        (r'/poollist', PoolList, dict(executor=executor)),
+        (r'/tmpllist', TemplateList, dict(executor=executor)),
+        (r'/netlist', NetworkList, dict(executor=executor)),
+        (r'/enabledisabletmpl', EnableDisableTemplate, dict(executor=executor)),
+        (r'/vnc', VNC, dict(executor=executor)),
+        (r'/attachdetachdisk', AttachDetachDisc, dict(executor=executor)),
+        (r'/destroyvm', DestroyVM, dict(executor=executor)),
+        (r'/connectvm', ConnectVM, dict(executor=executor)),
     ], **settings)
 
 

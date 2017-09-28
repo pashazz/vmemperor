@@ -99,12 +99,11 @@ class XenAdapter(Loggable):
 
         def process(value):
             new_rec = {k : v for k,v in value.items() if k in keys}
+            new_rec['user'] = 'root'
             return new_rec
 
         return [process(value) for value in self.get_all_records(self.api.VM).values()
                 if not value['is_a_template'] and not value['is_control_domain']]
-
-
 
     @xenadapter_root
     def list_srs(self) -> dict:
@@ -135,7 +134,16 @@ class XenAdapter(Loggable):
         dict of VM templates' records
         :return:
         '''
-        return {key : value for key, value in self.get_all_records(self.api.VM).items()
+        keys = ['hvm', 'name_label', 'uuid']
+        def process(value):
+            new_rec = {k: v for k, v in value.items() if k in keys}
+            if value['HVM_boot_policy'] == '':
+                new_rec['hvm'] = False
+            else:
+                new_rec['hvm'] = True
+            return new_rec
+
+        return {value['uuid'] : process(value) for value in self.get_all_records(self.api.VM).values()
                   if value['is_a_template']}
 
 
@@ -274,8 +282,6 @@ class XenAdapter(Loggable):
 
             if install_url:
                 self.log.info("Adding Installation URL: %s" % install_url)
-                # self.set_other_config(self.api.VM, new_vm_uuid, 'default_mirror', install_url, True)
-                # self.set_other_config(self.api.VM, new_vm_uuid, 'install-repository', install_url, True)
                 config = self.api.VM.get_other_config(new_vm_ref)
                 config['install-repository'] = install_url
                 config['default-mirror'] = install_url
@@ -528,15 +534,24 @@ class XenAdapter(Loggable):
         return vbd_uuid
 
 
-    def detach_disk(self, vbd_uuid):
+    def detach_disk(self, vm_uuid, vdi_uuid):
         '''
         Detach a VBD object while trying to eject it if the machine is running
         :param vbd_uuid: virtual block device UUID to detach
         :return:
         '''
+        vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+        vdi_ref = self.api.VDI.get_by_uuid(vdi_uuid)
+        vbds = self.api.VM.get_VBDs(vm_ref)
+        for vbd_ref in vbds:
+            vdi = self.api.VBD.get_VDI(vbd_ref)
+            if vdi == vdi_ref:
+                vbd_uuid = self.api.VBD.get_uuid(vbd_ref)
+                break
+        if not vbd_uuid:
+            raise XenAdapterAPIError(self, "Failed to detach disk: Disk isn't attached")
+
         vbd_ref = self.api.VBD.get_by_uuid(vbd_uuid)
-        vbd = self.api.VBD.get_record(vbd_ref)
-        vm_ref = vbd['VM']
         if self.api.VM.get_power_state(vm_ref) == 'Running':
             try:
                 self.api.VBD.unplug(vbd_ref)
