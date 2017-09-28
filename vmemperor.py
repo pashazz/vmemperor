@@ -4,7 +4,7 @@ from tornado.escape import json_encode, json_decode
 import tornado.httpserver
 import tornado.iostream
 import json
-from abc import ABCMeta, abstractmethod
+from dynamicloader import DynamicLoader
 import configparser
 import socket
 from tornado import gen, ioloop
@@ -15,10 +15,10 @@ import base64
 import pickle
 import rethinkdb as r
 from rethinkdb.errors import ReqlDriverError
-
+from authentication import BasicAuthenticator
 from loggable import Loggable
-import ldap3
-from ldap3.utils.conv import escape_bytes
+from pathlib import Path
+
 from exc import *
 import logging
 from netifaces import ifaddresses, AF_INET
@@ -41,26 +41,7 @@ class BaseHandler(tornado.web.RequestHandler, Loggable):
     def get_current_user(self):
         return self.get_secure_cookie("user")
 
-class Authentication(metaclass=ABCMeta):
-    @abstractmethod
-    def check_credentials(self, password, username):
-        """asserts credentials using inner db, or some outer authentication system"""
-        return
 
-    @abstractmethod
-    def get_user_groups(self):
-        """gets list of user groups"""
-        return
-
-    @abstractmethod
-    def set_user_group(self, group):
-        """adds user to group"""
-        return
-
-    @abstractmethod
-    def set_user(self, username):
-        """creates cookie given username"""
-        return
 
 class AuthHandler(BaseHandler):
 
@@ -82,157 +63,6 @@ class AuthHandler(BaseHandler):
         self.write(json.dumps({}))
         self.set_secure_cookie("user", pickle.dumps(self.authenticator))
 
-
-@Authentication.register
-class BasicAuthenticator:
-    pass
-
-
-
-class DummyAuth(BasicAuthenticator):
-    def check_credentials(self, password, username):
-        pass
-
-class LDAPIspAuthenticator(BasicAuthenticator):
-
-    @classmethod
-    def guid_to_search(cls, guid):
-        return escape_bytes(uuid.UUID(guid).bytes_le)
-
-
-    @classmethod
-    def get_all_groups(cls, log=logging):
-        server = ldap3.Server('10.10.12.9')
-        conn = ldap3.Connection(server, user='mailuser', password='mailuser', raise_exceptions=False)
-        if conn.bind():
-            log.debug("LDAP Connection established: server: {0}, user: {1}".format(server.host, conn.user))
-        else:
-            log.error("Unable to establish connection to LDAP server: {0}".format(server.host))
-
-        search_filter = "(&(objectClass=group)(cn=*))"
-
-        conn.search(search_base='dc=intra,dc=ispras,dc=ru', search_filter=search_filter,
-                attributes=['sAMAccountName', 'objectGUID'], search_scope=ldap3.SUBTREE)
-        if conn.entries:
-            return {entry.objectGUID.value : entry.sAMAccountName.value for entry in conn.entries}
-
-    @classmethod
-    def get_group_name_by_id(cls, id, log=logging):
-        server = ldap3.Server('10.10.12.9')
-        conn = ldap3.Connection(server, user='mailuser', password='mailuser', raise_exceptions=False)
-        if conn.bind():
-            log.debug("LDAP Connection established: server: {0}, user: {1}".format(server.host, conn.user))
-        else:
-            log.error("Unable to establish connection to LDAP server: {0}".format(server.host))
-
-
-        search_filter = "(&(objectGUID={0}))".format(cls.guid_to_search(id))
-
-
-        conn.search(search_base='dc=intra,dc=ispras,dc=ru', search_filter=search_filter,
-                attributes=['sAMAccountName'], search_scope=ldap3.SUBTREE, paged_size=1)
-        if conn.entries:
-            return conn.entries[0].sAMAccountName.value
-        else:
-            log.error("LDAP: No such group: GUID %s" % id)
-
-
-
-
-    def initialize(self, executor):
-        '''
-        Establishes connection to a ldap server
-        :return:
-        '''
-        super().initialize(executor)
-
-
-
-        self.id = None
-
-
-    def get_id(self):
-        '''
-
-        :return: Unique user identifier
-        '''
-        if not self.id:
-            raise AuthenticationException()
-        return self.id
-
-
-    def check_credentials(self, password, username, log):
-        '''
-        Checks credentials
-        :param password:
-        :param username:
-        :param log: logger
-        '''
-        server = ldap3.Server('10.10.12.9')
-        conn = ldap3.Connection(server, user='mailuser', password='mailuser', raise_exceptions=False)
-        if conn.bind():
-            log.debug("LDAP Connection established: server: {0}, user: {1}".format(server.host, conn.user))
-        else:
-            log.error("Unable to establish connection to LDAP server: {0}".format(server.host))
-
-
-        self.username=username
-        self.password = password
-        search_filter="(&(objectClass=person)(!(objectClass=computer))(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(cn=*)(sAMAccountName=%s))" % username
-        conn.search(search_base='dc=intra,dc=ispras,dc=ru',search_filter=search_filter,
-        attributes=['givenName', 'mail'], search_scope=ldap3.SUBTREE, paged_size=1)
-        if conn.entries:
-           try:
-               mail = conn.entries[0].mail[0]
-               log.debug("Authentication entry found, e-mail: {0}".format(mail))
-
-
-           except:
-               raise AuthenticationUserNotFoundException(log,self)
-
-           dn = conn.entries[0]
-           check_login = ldap3.Connection(server, user=dn.entry_dn, password=password)
-           try:
-               if check_login.bind():
-                   log.info("Authentication as {0} successful".format(username))
-                   login_connection = check_login
-                   check_login.search(search_base='dc=intra,dc=ispras,dc=ru', search_filter=search_filter,
-               attributes=['objectGUID'], search_scope=ldap3.SUBTREE, paged_size=1)
-                   self.id = check_login.entries[0].objectGUID.value
-                   # find groups
-                   conn.search(search_base='dc=intra,dc=ispras,dc=ru', search_filter=search_filter,
-                               attributes=['memberOf'], search_scope=ldap3.SUBTREE, paged_size=1)
-                   # group queue
-                   search_filter = "(&(objectClass=group)(!(objectClass=computer))(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(cn=*)(sAMAccountName=%s))"
-                   log.info("Obtaining groups for %s" % username)
-                   def get_group_id(name):
-                       conn.search(search_base='dc=intra,dc=ispras,dc=ru', search_filter=search_filter % name,
-                               attributes=['objectGUID'], search_scope=ldap3.SUBTREE, paged_size=1)
-                       if conn.entries:
-                           return conn.entries[0].objectGUID.value
-
-
-                   groups = (group.split(',')[0].split('=')[1] for group in conn.entries[0].memberOf)
-                   self.groups = {get_group_id(g): g for g in groups}
-
-
-                   return
-               else:
-                   raise AuthenticationPasswordException(log,self)
-           except: #empty password
-               raise AuthenticationWithEmptyPasswordException(log,self)
-        else:
-            raise AuthenticationUserNotFoundException(log,self)
-
-
-    def get_user_groups(self, username):
-        '''
-        Get dict of user groups: id -> name
-        '''
-        return self.groups
-
-    def set_user_groups(self):
-        raise NotImplementedError()
 
 
 """
@@ -580,7 +410,13 @@ class ConsoleHandler(BaseHandler):
 
 
 
-def make_app(executor, auth_class=DummyAuth, debug = False):
+
+
+def make_app(executor, auth_class=None, debug = False):
+    if auth_class is None:
+        d = DynamicLoader('auth')
+        auth_class = d.load_class(class_base=BasicAuthenticator)[0]
+
     classes = [auth_class, Test, AutoInstall, ConsoleHandler]
 
     settings = {
@@ -625,7 +461,7 @@ def main():
     """ reads settings in ini configures and starts system"""
     read_settings()
     executor = ThreadPoolExecutor(max_workers = opts.max_workers)
-    app = make_app(executor, LDAPIspAuthenticator, opts.debug)
+    app = make_app(executor, debug= opts.debug)
     server = tornado.httpserver.HTTPServer(app)
     server.listen(opts.vmemperor_port, address="0.0.0.0")
     ioloop = event_loop(executor, opts.delay)

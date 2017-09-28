@@ -318,6 +318,10 @@ class XenAdapter(Loggable):
             else:
                 if 'centos' in os_kind:
                     os = XenAdapter.CentOS()
+                    config = self.api.VM.get_other_config(new_vm_ref)
+                    if 'rhel6' in config:
+                        del config['rhel6']
+                    self.api.VM.set_other_config(new_vm_ref, config)
                 else:
                     os = None
 
