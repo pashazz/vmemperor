@@ -1,11 +1,12 @@
 import XenAPI
 import hooks
 import provision
-from exc import XenAdapterAPIError, XenAdapterArgumentError, XenAdapterConnectionError
+from exc import XenAdapterAPIError, XenAdapterArgumentError, XenAdapterConnectionError, XenAdapterUnauthorizedActionException
 
 import logging
 import sys
 from loggable import Loggable
+from inspect import signature
 
 
 def xenadapter_root(method):
@@ -13,10 +14,26 @@ def xenadapter_root(method):
         if self.vmemperor_user is None:
             return method(self, *args, **kwargs)
         else:
-            raise XenAdapterAPIError(self, "Attempt to call root-only method by user")
+            raise XenAdapterAPIError(self.log,  "Attempt to call root-only method by user")
 
 
     return decorator
+
+def requires_privilege(privilege):
+    def requires_privilege_decorator(method):
+        def decorator(self, *args, **kwargs):
+            sig = signature(method)
+            bound_arguments = sig.bind(self, *args, **kwargs)
+            if self.check_rights(privilege, bound_arguments.arguments['vm_uuid']):
+                return method(self, *args, **kwargs)
+            else:
+                raise XenAdapterUnauthorizedActionException(self.log, "Unauthorized attempt to call function '%s': needs privilege '%s'"
+                                                            % (str(method), privilege))
+
+        return decorator
+    return requires_privilege_decorator
+
+
 
 
 
@@ -47,17 +64,89 @@ class XenAdapter(Loggable):
 
 
 
+    def check_rights(self,  action, uuid):
+        '''
+        Check if it's possible to do 'action' with specified VM
+        :param action: action to perform
+        - launch destroy attach
+        :param uuid: VM uuid
+        :return:
+        '''
+        if not self.vmemperor_user:
+            return True
+        self.log.debug("Checking VM %s rights for user %s: action %s" % (uuid, self.vmemperor_user, action))
+
+        username = 'u' + self.vmemperor_user
+        xenstore_data = self.api.VM.get_xenstore_data(self.api.VM.get_by_uuid(uuid))
+        actionlist = xenstore_data[username].split(';') if username in xenstore_data else None
+        if actionlist and (action in actionlist or 'all' in actionlist):
+            self.log.debug('User %s is allowed to perform action %s on VM %s' % (self.vmemperor_user, action, uuid))
+            return True
+        else:
+            for group in self.authenticator.get_user_groups():
+                groupname = 'g' + group
+                actionlist = xenstore_data[groupname].split(';') if groupname in xenstore_data else None
+                if actionlist and any(('all' in actionlist, action in actionlist)):
+                    self.log.debug('User %s via group %s is allowed to perform action %s on VM %s' % (self.vmemperor_user, group, action, uuid))
+                    return True
+
+            self.log.warning('User %s is not allowed to perform action %s on VM %s' % (self.vmemperor_user, action, uuid))
+            return False
+
+    def manage_actions(self, action, vm_uuid, revoke=False, user=None, group=None):
+        '''
+        Changes action list for a VM
+        :param authenticator:
+        :param action:
+        :param uuid:
+        :param revoke:
+        :param user:
+        :param group:
+        :return:
+        '''
+        if all((user,group)) or not any(user, group):
+            raise XenAdapterArgumentError()
+
+
+
+        if user:
+            real_name = 'u' + user
+        elif group:
+            real_name = 'g' + group
+
+        if self.check_rights(self.authenticator, action, vm_uuid):
+            vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+            xenstore_data = self.api.VM.get_xenstore_data(vm_ref)
+            if real_name in xenstore_data:
+                actionlist = xenstore_data[real_name].split(';')
+            else:
+                actionlist = []
+
+            if revoke:
+                if action in actionlist:
+                    actionlist.remove(action)
+            else:
+                if action not in actionlist:
+                    actionlist.append(action)
+
+            actions = ';'.join(actionlist)
+
+            xenstore_data[real_name] = actions
+            self.api.VM.set_xenstore_data(vm_ref, xenstore_data)
 
 
 
 
-    def __init__(self, settings, vmemperor_user=None):
+    def __init__(self, settings, vmemperor_user=None, authenticator=None):
         """creates session connection to XenAPI. Connects using admin login/password from settings
         :param vmemperor_user: vmemperor 'virtual' user. In order to be root, leave it None(default)
     """
         self.vmemperor_user = vmemperor_user
+        self.authenticator = authenticator
         if 'debug' in settings:
                 self.debug = bool(settings['debug'])
+
+
         self.init_log()
 
 
@@ -72,7 +161,7 @@ class XenAdapter(Loggable):
         try:
             self.session = XenAPI.Session(url)
             self.session.xenapi.login_with_password(username, password)
-            self.log.info ('Authentication is successful')
+            self.log.info ('Authentication is successful. XenAdapter object created. VMEmperor username: %s' % self.vmemperor_user)
             self.api = self.session.xenapi
         except OSError as e:
             raise XenAdapterConnectionError(self, "Unable to reach XenServer at {0}: {1}".format(url, str(e)))
@@ -276,6 +365,10 @@ class XenAdapter(Loggable):
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self, "Failed to clone template: {0}".format(f.details))
 
+        if self.vmemperor_user:
+            self.manage_actions(self, 'all', new_vm_uuid, user=self.vmemperor_user)
+
+
         try:
 
             self.api.VM.set_memory(new_vm_ref, '1073741824')
@@ -356,8 +449,6 @@ class XenAdapter(Loggable):
         self.connect_vm(new_vm_uuid, net_uuid, ip)
 
 
-        if self.vmemperor_user is not None:
-            self.set_other_config(new_vm_uuid, "vmemperor_user", self.vmemperor_user)
 
 
 
@@ -420,6 +511,7 @@ class XenAdapter(Loggable):
 
         return
 
+    @requires_privilege('attach')
     def connect_vm(self, vm_uuid, net_uuid, ip=None):
         """
         Creates VIF to connect VM to network
@@ -470,7 +562,7 @@ class XenAdapter(Loggable):
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
         return self.api.VM.get_power_state(vm_ref)
 
-
+    @requires_privilege('launch')
     def get_vnc(self, vm_uuid) -> str:
         """
         Get VNC Console
@@ -482,7 +574,7 @@ class XenAdapter(Loggable):
         consoles = self.api.VM.get_consoles(vm_ref) #references
         if (len(consoles) == 0):
             self.log.error('Failed to find console of VM UUID {0}'.format(vm_uuid))
-            return
+            return ""
         try:
             cons_ref = consoles[0]
             console = self.api.console.get_record(cons_ref)
@@ -495,7 +587,7 @@ class XenAdapter(Loggable):
 
 
 
-
+    @requires_privilege('attach')
     def attach_disk(self, vm_uuid, vdi_uuid) -> str:
         '''
         Attach a VDI object to a VM by creating a VBD object and attempting to hotplug it if the machine is running        if VM is running
@@ -537,7 +629,7 @@ class XenAdapter(Loggable):
 
         return vbd_uuid
 
-
+    @requires_privilege('attach')
     def detach_disk(self, vm_uuid, vdi_uuid):
         '''
         Detach a VBD object while trying to eject it if the machine is running
@@ -571,7 +663,9 @@ class XenAdapter(Loggable):
 
         return
 
+    @requires_privilege('destroy')
     def destroy_vm(self, vm_uuid):
+
         self.start_stop_vm(vm_uuid, False)
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
         vm = self.api.VM.get_record(vm_ref)
@@ -598,6 +692,7 @@ class XenAdapter(Loggable):
 
         return
 
+    @requires_privilege('launch')
     def hard_shutdown(self, vm_uuid):
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
         if self.api.VM.get_power_state(vm_ref) != 'Halted':

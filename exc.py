@@ -9,9 +9,12 @@ class XenAdapterException(EmperorException):
     pass
 
 
+
 class XenAdapterConnectionError(XenAdapterException):
     pass
 
+class XenAdapterUnauthorizedActionException(XenAdapterException):
+    pass
 
 class XenAdapterAPIError(XenAdapterException):
     pass

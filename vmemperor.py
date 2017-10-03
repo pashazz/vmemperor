@@ -255,7 +255,7 @@ class VNC(BaseHandler):
         self.write(url)
 
 
-class AttachDetachDisc(BaseHandler):
+class AttachDetachDisk(BaseHandler):
 
     def post(self):
         xen = XenAdapter(opts.group_dict('xenadapter'))
@@ -491,7 +491,7 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/netlist', NetworkList, dict(executor=executor)),
         (r'/enabledisabletmpl', EnableDisableTemplate, dict(executor=executor)),
         (r'/vnc', VNC, dict(executor=executor)),
-        (r'/attachdetachdisk', AttachDetachDisc, dict(executor=executor)),
+        (r'/attachdetachdisk', AttachDetachDisk, dict(executor=executor)),
         (r'/destroyvm', DestroyVM, dict(executor=executor)),
         (r'/connectvm', ConnectVM, dict(executor=executor)),
     ], **settings)
