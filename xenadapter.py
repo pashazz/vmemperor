@@ -40,6 +40,13 @@ def requires_privilege(privilege):
 
 class XenAdapter(Loggable):
     AUTOINSTALL_PREFIX = '/autoinstall'
+    VMEMPEROR_ACCESS_PREFIX='vm-data/access/'
+
+    def get_access_path(self, username, is_group):
+        return 'vm-data/vmemperor/access/{0}/{1}/{2}'.format(self.authenticator.__class__.__name__,
+                                                               'groups' if is_group else 'users',
+                                                            username)
+
 
     def get_all_records(self, subject) -> dict :
         """
@@ -76,15 +83,18 @@ class XenAdapter(Loggable):
             return True
         self.log.debug("Checking VM %s rights for user %s: action %s" % (uuid, self.vmemperor_user, action))
 
-        username = 'u' + self.vmemperor_user
+        username = self.get_access_path(self.vmemperor_user, False)
         xenstore_data = self.api.VM.get_xenstore_data(self.api.VM.get_by_uuid(uuid))
+        if not xenstore_data:
+            self.log.debug("No access information for vm %s, returning None.." % uuid)
+            return None
         actionlist = xenstore_data[username].split(';') if username in xenstore_data else None
         if actionlist and (action in actionlist or 'all' in actionlist):
             self.log.debug('User %s is allowed to perform action %s on VM %s' % (self.vmemperor_user, action, uuid))
             return True
         else:
             for group in self.authenticator.get_user_groups():
-                groupname = 'g' + group
+                groupname = self.get_access_path(group, True)
                 actionlist = xenstore_data[groupname].split(';') if groupname in xenstore_data else None
                 if actionlist and any(('all' in actionlist, action in actionlist)):
                     self.log.debug('User %s via group %s is allowed to perform action %s on VM %s' % (self.vmemperor_user, group, action, uuid))
@@ -106,14 +116,14 @@ class XenAdapter(Loggable):
         :return:
         '''
         if all((user,group)) or not any((user, group)):
-            raise XenAdapterArgumentError()
+            raise XenAdapterArgumentError(self.log, 'Specify user or group for XenAdapter::manage_actions')
 
 
 
         if user:
-            real_name = 'u' + user
+            real_name = self.get_access_path(user, False)
         elif group:
-            real_name = 'g' + group
+            real_name = self.get_access_path(group, True)
 
         if force or self.check_rights(action, vm_uuid):
             vm_ref = self.api.VM.get_by_uuid(vm_uuid)
@@ -133,6 +143,7 @@ class XenAdapter(Loggable):
             actions = ';'.join(actionlist)
 
             xenstore_data[real_name] = actions
+
             self.api.VM.set_xenstore_data(vm_ref, xenstore_data)
 
 
@@ -380,8 +391,6 @@ class XenAdapter(Loggable):
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self, "Failed to clone template: {0}".format(f.details))
 
-        if self.vmemperor_user:
-            self.manage_actions('all', new_vm_uuid, user=self.vmemperor_user, force=True)
 
 
         try:
@@ -463,6 +472,9 @@ class XenAdapter(Loggable):
             except XenAPI.Failure as f:
                 raise XenAdapterAPIError(self, "Failed to provision: {0}".format(f.details))
 
+        if self.vmemperor_user:
+            self.manage_actions('all', new_vm_uuid, user=self.vmemperor_user, force=True)
+
         self.connect_vm(new_vm_uuid, net_uuid, ip)
 
 
@@ -474,6 +486,8 @@ class XenAdapter(Loggable):
             self.log.info ("Created VM is started")
         else:
             self.log.warning('Created VM is off')
+
+
 
         return new_vm_uuid
 
