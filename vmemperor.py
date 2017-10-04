@@ -31,6 +31,19 @@ def CHECK_ER(ret):
     if ret['skipped']:
         raise ValueError('Failed to modify data: skipped - {0}'.format(ret['skipped']))
 
+def auth_required(method):
+    def decorator(self, *args, **kwargs):
+        user = self.get_current_user()
+        if not user:
+            self.redirect(r'/login')
+        else:
+            self.user_authenticator = pickle.loads(user)
+            method(self, *args, **kwargs)
+
+    return decorator
+
+
+
 class BaseHandler(tornado.web.RequestHandler, Loggable):
 
     def initialize(self, executor):
@@ -139,9 +152,11 @@ class TemplateList(BaseHandler):
 
 class CreateVM(BaseHandler):
 
+    @auth_required
     def post(self):
         """ """
-        xen = XenAdapter(opts.group_dict('xenadapter'))
+
+        xen = XenAdapter(opts.group_dict('xenadapter'), self.user_authenticator)
         try:
             tmpl_name = self.get_argument('template')
             print(tmpl_name)
@@ -477,7 +492,7 @@ def make_app(executor, auth_class=None, debug = False):
     for cls in classes:
         cls.debug = debug
 
-    return tornado.web.Application([
+    app =  tornado.web.Application([
 
         (r"/login", AuthHandler, dict(executor=executor, authenticator=auth_class)),
         (r'/test', Test, dict(executor=executor)),
@@ -496,6 +511,8 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/connectvm', ConnectVM, dict(executor=executor)),
     ], **settings)
 
+    app.auth_class = auth_class
+    return app
 
 def read_settings():
     """reads settings from ini"""

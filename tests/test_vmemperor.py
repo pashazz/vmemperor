@@ -3,8 +3,11 @@ from tornado import  testing
 from tornado.httpclient import HTTPRequest
 from urllib.parse import urlencode
 from base64 import decodebytes
-class VmEmperorTest(testing.AsyncHTTPTestCase):
+import pickle
+from tornado.web import create_signed_value
 
+
+class VmEmperorTest(testing.AsyncHTTPTestCase):
     @classmethod
     def setUpClass(cls):
         read_settings()
@@ -12,37 +15,32 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
 
     def get_app(self):
 
-        app=make_app(self.executor, debug=True)
-        return app
+        self.app = make_app(self.executor, debug=True)
+        return self.app
 
     def get_new_ioloop(self):
 
         return event_loop(self.executor, opts.delay)
 
-    def test_ldap_login(self):
-        '''
-        Tests ldap login using settings -> test -> username and password entries
+class VmEmperorAfterLoginTest(VmEmperorTest):
 
-        :return:
-        '''
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
         config = configparser.ConfigParser()
         config.read('tests/secret.ini')
-        body=config._sections['test']
+        cls.body = config._sections['test']
+        cls.xen_options = opts.group_dict('xenadapter')
+        cls.xen_options['debug'] = True
 
-
-        res = self.fetch(r'/login', method='POST', body=urlencode(body))
-        self.assertEqual(res.code, 200)
-
-
-    def test_ldap_login_incorrect_password(self):
-        config = configparser.ConfigParser()
-        config.read('tests/secret.ini')
-        body=config._sections['test']
-        body['password'] = ''
-
-        res = self.fetch(r'/login', method='POST', body=urlencode(body))
-        self.assertEqual(res.code, 401)
-
+    def setUp(self):
+        super().setUp()
+        self.auth = self.app.auth_class()
+        self.auth.check_credentials(self.body['password'], self.body['username'])
+        auth_pickled = pickle.dumps(self.auth)
+        secure_cookie = create_signed_value(self.app.settings['cookie_secret'], 'user', auth_pickled)
+        self.headers = {'Cookie' : b'='.join((b'user', secure_cookie))}
 
 
     def test_createvm(self):
@@ -52,8 +50,15 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
         #    res = self.fetch(r'/createvm', method='POST', body=urlencode(body))
         #    self.assertEqual(res.code, 200)
         body  = config._sections['centos7']
-        res = self.fetch(r'/createvm', method='POST', body=urlencode(body))
+        res = self.fetch(r'/createvm', method='POST', body=urlencode(body), headers=self.headers)
         self.assertEqual(res.code, 200)
+        uuid = res.body.decode()
+
+        xen = XenAdapter(self.xen_options, authenticator=self.auth)
+
+        actions = ['launch', 'destroy', 'attach']
+        for action in actions:
+            self.assertTrue(xen.check_rights(action, uuid))
 
     def test_startvm(self):
         vm_uuid = '79408dde-d420-0b5b-3f97-fa87715a9da4'
@@ -62,8 +67,8 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
             'vm_uuid': vm_uuid,
             'enable': enable
         }
-        xen = XenAdapter(opts.group_dict('xenadapter'))
-        res = self.fetch(r'/startstopvm', method='POST', body=urlencode(body))
+        xen = XenAdapter(self.xen_options)
+        res = self.fetch(r'/startstopvm', method='POST', body=urlencode(body), headers=self.headers)
         self.assertEqual(res.code, 200)
         vm_ref = xen.api.VM.get_by_uuid(vm_uuid)
         ps = xen.api.VM.get_power_state(vm_ref)

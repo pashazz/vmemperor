@@ -63,7 +63,7 @@ class LDAPIspAuthenticator(BasicAuthenticator):
 
 
         self.id = None
-
+        self.given_name = None
 
     def get_id(self):
         '''
@@ -74,8 +74,14 @@ class LDAPIspAuthenticator(BasicAuthenticator):
             raise AuthenticationException()
         return self.id
 
+    def get_name(self):
+        if not self.given_name:
+            return self.get_id()
+        else:
+            return self.given_name
 
-    def check_credentials(self, password, username, log):
+
+    def check_credentials(self, password, username, log=logging):
         '''
         Checks credentials
         :param password:
@@ -94,11 +100,12 @@ class LDAPIspAuthenticator(BasicAuthenticator):
         self.password = password
         search_filter="(&(objectClass=person)(!(objectClass=computer))(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(cn=*)(sAMAccountName=%s))" % username
         conn.search(search_base='dc=intra,dc=ispras,dc=ru',search_filter=search_filter,
-        attributes=['givenName', 'mail'], search_scope=ldap3.SUBTREE, paged_size=1)
+        attributes=['name', 'mail'], search_scope=ldap3.SUBTREE, paged_size=1)
         if conn.entries:
            try:
                mail = conn.entries[0].mail[0]
-               log.debug("Authentication entry found, e-mail: {0}".format(mail))
+               givenName = conn.entries[0].name[0]
+               log.debug("Authentication entry found, e-mail: {0}, givenName: {1}".format(mail, givenName))
 
 
            except:
@@ -110,6 +117,7 @@ class LDAPIspAuthenticator(BasicAuthenticator):
                if check_login.bind():
                    log.info("Authentication as {0} successful".format(username))
                    login_connection = check_login
+                   self.given_name = givenName
                    check_login.search(search_base='dc=intra,dc=ispras,dc=ru', search_filter=search_filter,
                attributes=['objectGUID'], search_scope=ldap3.SUBTREE, paged_size=1)
                    self.id = check_login.entries[0].objectGUID.value
@@ -139,7 +147,7 @@ class LDAPIspAuthenticator(BasicAuthenticator):
             raise AuthenticationUserNotFoundException(log,self)
 
 
-    def get_user_groups(self, username):
+    def get_user_groups(self):
         '''
         Get dict of user groups: id -> name
         '''

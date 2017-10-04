@@ -93,7 +93,7 @@ class XenAdapter(Loggable):
             self.log.warning('User %s is not allowed to perform action %s on VM %s' % (self.vmemperor_user, action, uuid))
             return False
 
-    def manage_actions(self, action, vm_uuid, revoke=False, user=None, group=None):
+    def manage_actions(self, action, vm_uuid, revoke=False, user=None, group=None, force=False):
         '''
         Changes action list for a VM
         :param authenticator:
@@ -102,9 +102,10 @@ class XenAdapter(Loggable):
         :param revoke:
         :param user:
         :param group:
+        :param force: Change actionlist even if user do not have sufficient permissions. Used by CreateVM
         :return:
         '''
-        if all((user,group)) or not any(user, group):
+        if all((user,group)) or not any((user, group)):
             raise XenAdapterArgumentError()
 
 
@@ -114,7 +115,7 @@ class XenAdapter(Loggable):
         elif group:
             real_name = 'g' + group
 
-        if self.check_rights(self.authenticator, action, vm_uuid):
+        if force or self.check_rights(action, vm_uuid):
             vm_ref = self.api.VM.get_by_uuid(vm_uuid)
             xenstore_data = self.api.VM.get_xenstore_data(vm_ref)
             if real_name in xenstore_data:
@@ -137,11 +138,12 @@ class XenAdapter(Loggable):
 
 
 
-    def __init__(self, settings, vmemperor_user=None, authenticator=None):
+    def __init__(self, settings,  authenticator=None):
         """creates session connection to XenAPI. Connects using admin login/password from settings
-        :param vmemperor_user: vmemperor 'virtual' user. In order to be root, leave it None(default)
+        :param authenticator: authorized authenticator object
     """
-        self.vmemperor_user = vmemperor_user
+
+        self.vmemperor_user = authenticator.get_id() if authenticator else None
         self.authenticator = authenticator
         if 'debug' in settings:
                 self.debug = bool(settings['debug'])
@@ -161,7 +163,7 @@ class XenAdapter(Loggable):
         try:
             self.session = XenAPI.Session(url)
             self.session.xenapi.login_with_password(username, password)
-            self.log.info ('Authentication is successful. XenAdapter object created. VMEmperor username: %s' % self.vmemperor_user)
+            self.log.info ('Authentication is successful. XenAdapter object created. VMEmperor user: %s aka %s' % (self.vmemperor_user, self.authenticator.get_name() if self.authenticator else "(not used)"))
             self.api = self.session.xenapi
         except OSError as e:
             raise XenAdapterConnectionError(self, "Unable to reach XenServer at {0}: {1}".format(url, str(e)))
@@ -195,7 +197,7 @@ class XenAdapter(Loggable):
             for vif in vifs:
                 net_ref = self.api.VIF.get_network(vif)
                 net_uuid = self.api.network.get_uuid(net_ref)
-                new_rec['networks'].append(net_uuid)
+                new_rec['network'].append(net_uuid)
             new_rec['disks'] = []
             vbds = self.api.VM.get_VBDs(vm_ref)
             for vbd in vbds:
@@ -230,7 +232,7 @@ class XenAdapter(Loggable):
         '''
         return self.get_all_records(self.api.network)
 
-    @xenadapter_root
+    #@xenadapter_root
     def list_templates(self) -> dict:
         '''
         dict of VM templates' records
@@ -379,7 +381,7 @@ class XenAdapter(Loggable):
             raise XenAdapterAPIError(self, "Failed to clone template: {0}".format(f.details))
 
         if self.vmemperor_user:
-            self.manage_actions(self, 'all', new_vm_uuid, user=self.vmemperor_user)
+            self.manage_actions('all', new_vm_uuid, user=self.vmemperor_user, force=True)
 
 
         try:
