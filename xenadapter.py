@@ -352,7 +352,7 @@ class XenAdapter(Loggable):
         def pv_args(self):
             return "%s %s" % (self.ip, self.scenario)
 
-    def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, mode, os_kind=None, ip=None, install_url=None, scenario_url=None, name_label = '', start=True, override_pv_args=None) -> str:
+    def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, scenario_url=None, name_label = '', start=True, override_pv_args=None) -> str:
         '''
         Creates a virtual machine and installs an OS
 
@@ -386,7 +386,8 @@ class XenAdapter(Loggable):
 
         try:
 
-            self.api.VM.set_memory(new_vm_ref, '1073741824')
+            ram_size = str(1048576 * int(ram_size))
+            self.api.VM.set_memory(new_vm_ref, ram_size)
 
             if install_url:
                 self.log.info("Adding Installation URL: %s" % install_url)
@@ -443,6 +444,7 @@ class XenAdapter(Loggable):
 
         try:
             specs = provision.ProvisionSpec()
+            vdi_size = str(1048576 * int(vdi_size))
             specs.disks.append(provision.Disk("0", vdi_size, sr_uuid, True))
             provision.setProvisionSpec(self.session, new_vm_ref, specs)
         except Exception as e:

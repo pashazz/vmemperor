@@ -17,6 +17,8 @@ d-i debian-installer/locale string en_US
 d-i console-setup/ask_detect boolean false
 {#d-i keyboard-configuration/modelcode string pc105#}
 d-i keyboard-configuration/layoutcode string us
+d-i console-keymaps-at/keymap select us
+d-i keyboard-configuration/xkb-keymap select us
 
 ### Network configuration
 # To pick a particular interface instead:
@@ -78,7 +80,31 @@ d-i partman-lvm/confirm boolean true
 # - atomic: all files in one partition
 # - home:   separate /home partition
 # - multi:  separate /home, /usr, /var, and /tmp partitions
-d-i partman-auto/choose_recipe select atomic
+{% if gpt %}
+d-i partman-basicfilesystems/choose_label string gpt
+d-i partman-basicfilesystems/default_label string gpt
+d-i partman-partitioning/choose_label string gpt
+d-i partman-partitioning/default_label string gpt
+d-i partman/choose_label string gpt
+d-i partman/default_label string gpt
+partman-partitioning partman-partitioning/choose_label select gpt
+
+d-i partman-auto/choose_recipe select multiraid
+d-i partman-auto/expert_recipe string \
+    multiraid :: \
+        1 1 1 free \
+            $gptonly{ } \
+            $primary{ } \
+            $bios_boot{ } \
+            method{ biosgrub } \
+        . \
+        1024 2096 1024 raid \
+            $gptonly{ } \
+            $primary{ } \
+            method{ raid }
+        .
+{% else %}d-i partman-auto/choose_recipe select atomic
+{% end %}
 
 # This makes partman automatically partition without confirmation, provided
 # that you told it what to do using one of the methods above.
@@ -102,6 +128,8 @@ d-i passwd/username string {{ username }}
 # Normal user's password
 d-i passwd/user-password password {{ password }}
 d-i passwd/user-password-again password {{ password }}
+d-i passwd/root-password password {{ password }}
+d-i passwd/root-password-again password {{ password }}
 #d-i passwd/user-password-crypted password $1$DNhkrozT$wd.eE93h82Y8wIuNhWlMf/
 # The installer will warn about weak passwords. If you are sure you know
 # what you're doing and want to override it, uncomment this.
@@ -120,8 +148,6 @@ d-i user-setup/encrypt-home boolean false
 #d-i apt-setup/restricted boolean true
 #d-i apt-setup/universe boolean true
 #d-i apt-setup/backports boolean true
-# Uncomment this if you don't want to use a network mirror.
-#d-i apt-setup/use_mirror boolean false
 # Select which update services to use; define the mirrors to be used.
 # Values shown below are the normal defaults.
 d-i apt-setup/services-select multiselect security
@@ -149,7 +175,7 @@ d-i pkgsel/update-policy select unattended-upgrades
 # installed, and what software you use. The default is not to report back,
 # but sending reports helps the project determine what software is most
 # popular and include it on CDs.
-#popularity-contest popularity-contest/participate boolean false
+popularity-contest popularity-contest/participate boolean false
 
 # By default, the system's locate database will be updated after the
 # installer has finished installing most packages. This may take a while, so
@@ -164,6 +190,7 @@ d-i grub-installer/only_debian boolean true
 # This one makes grub-installer install to the MBR if it also finds some other
 # OS, which is less safe as it might not be able to boot that other OS.
 d-i grub-installer/with_other_os boolean true
+d-i grub-installer/bootdev string /dev/xvda
 
 # Avoid that last message about the install being complete.
 d-i finish-install/reboot_in_progress note
@@ -175,8 +202,8 @@ d-i debian-installer/exit/poweroff boolean true
 # be asked. You can preseed those too, of course. To get a list of every
 # possible question that could be asked during an install, do an
 # installation, and then run these commands:
-#   debconf-get-selections --installer > file
-#   debconf-get-selections >> file
+#debconf-get-selections --installer > file
+#debconf-get-selections >> file
 
 
 #### Advanced options

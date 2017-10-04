@@ -49,7 +49,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         #for body in config._sections.values():
         #    res = self.fetch(r'/createvm', method='POST', body=urlencode(body))
         #    self.assertEqual(res.code, 200)
-        body  = config._sections['centos7']
+        body  = config._sections['debian']
         res = self.fetch(r'/createvm', method='POST', body=urlencode(body), headers=self.headers)
         self.assertEqual(res.code, 200)
         uuid = res.body.decode()
@@ -60,11 +60,10 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         for action in actions:
             self.assertTrue(xen.check_rights(action, uuid))
 
-    def test_startvm(self):
-        vm_uuid = '79408dde-d420-0b5b-3f97-fa87715a9da4'
+    def test_startvm(self, vm_uuid):
         enable = True
         body = {
-            'vm_uuid': vm_uuid,
+            'uuid': vm_uuid,
             'enable': enable
         }
         xen = XenAdapter(self.xen_options)
@@ -77,3 +76,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         else:
             self.assertEqual(ps, 'Halted')
 
+    def test_vmlist(self):
+        res = self.fetch(r'/vmlist', method='GET', headers=self.headers)
+        self.assertEqual(res.code, 200)
+        print(res.body)

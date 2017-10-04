@@ -111,10 +111,11 @@ class AdminAuth(BaseHandler):
 
 
 class VMList(BaseHandler):
+    @auth_required
     def get(self):
         """ """
         #TODO where do we get user from
-        user = 'root'
+        user = self.user_authenticator.get_id()
         # read from db
         self.conn.repl()
         table = r.db(opts.database).table('vms')
@@ -159,10 +160,10 @@ class CreateVM(BaseHandler):
         xen = XenAdapter(opts.group_dict('xenadapter'), self.user_authenticator)
         try:
             tmpl_name = self.get_argument('template')
-            print(tmpl_name)
             sr_uuid = self.get_argument('storage')
             net_uuid = self.get_argument('network')
             vdi_size = self.get_argument('vdi_size')
+            ram_size = self.get_argument('ram_size')
             hostname = self.get_argument('hostname')
             name_label = self.get_argument('name_label')
             mirror_url = self.get_argument('mirror_url')
@@ -204,11 +205,14 @@ class CreateVM(BaseHandler):
         if 'ubuntu' in os_kind or 'centos' in os_kind or 'debian' in os_kind:
             # see os_kind-ks.cfg
             kwargs['hostname'] = self.get_argument('hostname', default='xen_vm')
-            kwargs['username'] = self.get_argument('username', default=None)
+            kwargs['username'] = self.get_argument('username', default='')
             kwargs['password'] = self.get_argument('password')
             kwargs['mirror_url'] = mirror_url
             kwargs['fullname'] = self.get_argument('fullname')
             kwargs['ip'] = ip
+            kwargs['disk_size'] = vdi_size
+            kwargs['partition'] = self.get_argument('partition', default='auto')
+
             if ip:
                 kwargs['gateway'] = gw
                 kwargs['netmask'] = netmask
@@ -222,7 +226,10 @@ class CreateVM(BaseHandler):
             kwargs['mirror_url'] = kwargs['mirror_url'][:kwargs['mirror_url'].find('/')]
         scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + os_kind.split()[0] + "?" + "&".join(
             ('{0}={1}'.format(k, v) for k, v in kwargs.items()))
-        vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, hostname, mode, os_kind, ip_tuple, mirror_url, scenario_url, name_label, False, override_pv_args)
+        print()
+        print(scenario_url)
+        print()
+        vm_uuid = xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind, ip_tuple, mirror_url, scenario_url, name_label, True, override_pv_args)
 
         self.write(vm_uuid)
 
@@ -391,16 +398,23 @@ def event_loop(executor, delay = 1000):
 class AutoInstall(BaseHandler):
     def get(self, os_kind):
         hostname = self.get_argument('hostname', default='xen_vm')
-        username = self.get_argument('username', default=None)
+        username = self.get_argument('username', default='')
         password = self.get_argument('password')
         mirror_url = self.get_argument('mirror_url')
-        mirror_path = self.get_argument('mirror_path', default=None)
+        mirror_path = self.get_argument('mirror_path', default='')
         fullname = self.get_argument('fullname')
-        ip = self.get_argument('ip', default=None)
-        gateway = self.get_argument('gateway', default=None)
-        netmask = self.get_argument('netmask', default=None)
-        dns0 = self.get_argument('dns0', default=None)
-        dns1 = self.get_argument('dns1', default=None)
+        ip = self.get_argument('ip', default='')
+        gateway = self.get_argument('gateway', default='')
+        netmask = self.get_argument('netmask', default='')
+        dns0 = self.get_argument('dns0', default='')
+        dns1 = self.get_argument('dns1', default='')
+        disk_size = self.get_argument('disk_size')
+        partition = self.get_argument('partition')
+        if partition == 'auto':
+            part_met, part_mode = 'regular'
+            part_mode = ''
+        else:
+            part_met, part_mode = partition.split('.')
 
         if 'ubuntu' in os_kind or 'debian' in os_kind:
             filename = 'debian.jinja2'
@@ -409,7 +423,7 @@ class AutoInstall(BaseHandler):
         if not filename:
             raise ValueError("OS {0} doesn't support autoinstallation".format(os_kind))
         self.render("templates/installation-scenarios/{0}".format(filename), hostname = hostname, username = username,
-                    fullname=fullname, password = password, mirror_url=mirror_url, mirror_path=mirror_path, ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1)
+                    fullname=fullname, password = password, mirror_url=mirror_url, mirror_path=mirror_path, ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, disk_size=disk_size, part_met=part_met, part_mode=part_mode)
 
 class ConsoleHandler(BaseHandler):
     SUPPORTED_METHODS = {"CONNECT"}
@@ -526,7 +540,7 @@ def read_settings():
     define('delay', group = 'ioloop', type = int, default=5000)
     define('max_workers', group = 'executor', type = int, default=16)
     define('vmemperor_url', group ='vmemperor', default = '10.10.10.61')
-    define('vmemperor_port', group = 'vmemperor', type = int, default = 8889)
+    define('vmemperor_port', group = 'vmemperor', type = int, default = 8888)
 
     from os import path
 
