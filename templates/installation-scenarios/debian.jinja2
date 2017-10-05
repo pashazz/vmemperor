@@ -59,11 +59,7 @@ d-i clock-setup/ntp boolean true
 d-i partman-auto/method string {{ part_met }}
 d-i partman-auto/disk string /dev/xvda
 
-# You can choose one of the three predefined partitioning recipes:
-# - atomic: all files in one partition
-# - home:   separate /home partition
-# - multi:  separate /home, /usr, /var, and /tmp partitions
-d-i partman-auto/choose_recipe select atomic
+{% if part_met=='regular' %}d-i partman-auto/choose_recipe select {{ part_recipe }} {% end %}
 {% if part_mode=='gpt' %}
 d-i partman-basicfilesystems/choose_label string gpt
 d-i partman-basicfilesystems/default_label string gpt
@@ -72,51 +68,50 @@ d-i partman-partitioning/default_label string gpt
 d-i partman/choose_label string gpt
 d-i partman/default_label string gpt
 partman-partitioning partman-partitioning/choose_label select gpt
-
-{% if part_met=='raid' %}
-d-i partman-auto/expert_recipe string multiraid :: \
-    1 1 1 free \
-        $gptonly{ } \
-        $primary{ } \
-        $bios_boot{ } \
-        method{ biosgrub } \
-    . \
-    2096 {{ disk_size }} -1 ext4 \
-        $gptonly{ } \
-        $primary{ } \
-        method{ raid } \
-        use_filesystem{ } \
-        filesystem{ ext4 } \
-        mountpoint{ / } \
-    . \
-    1 1024 2048 linux-swap \
-        $gptonly{ } \
-        $primary{ } \
-        method{ swap } \
-     .
-d-i partman-auto-raid/recipe string 1 2 0 ext4 /
 {% end %}{% if part_met=='lvm' %}
 d-i partman-auto/expert_recipe string root :: \
-
-    1 1 1 free \
+    {% if part_mode=='gpt' %}1 1 1 free \
         $gptonly{ } \
         $primary{ } \
         $bios_boot{ } \
         method{ biosgrub } \
     . \
-    2096 {{ disk_size }} -1 ext4 \
+    {% end %}1 1024 2048 linux-swap \
+        {% if part_mode=='gpt' %}$gptonly{ } \
+        {% end %}$lvmok{ } \
+        lv_name{ swap }
+        method{ swap } \
+        format{ } \
+    . \
+    2096 {{ disk_size }} -1 $default_filesystem \
+        lv_name{ root } \
+        method{ lvm } format{ } \
+        {% if part_mode=='gpt' %}$gptonly{ } \
+        {% end %}$lvmok{ } \
+        use_filesystem{ } $default_filesystem{ } \
+        mountpoint{ / } \
+    .
+{% else %}d-i partman-auto/expert_recipe string multiraid :: \
+    {% if part_mode=='gpt' %}1 1 1 free \
         $gptonly{ } \
         $primary{ } \
+        $bios_boot{ } \
+        method{ biosgrub } \
+    . \
+    {% end %}1 1024 2048 linux-swap \
+        {% if part_mode=='gpt' %}$gptonly{ } \
+        {% end %}$primary{ } \
+        method{ swap } \
+    . \
+    2096 {{ disk_size }} -1 $default_filesystem \
+        {% if part_mode=='gpt' %}$gptonly{ } \
+        {% end %}$primary{ } \
         method{ format } \
         format{ } \
+        use_filesystem{ } $default_filesystem{ }\
         mountpoint{ / } \
-    . \
-    1 1024 2048 linux-swap \
-        $gptonly{ } \
-        $primary{ } \
-        method{ swap } \
-     .
-{% end %}{% end %}
+    .
+{% end %}
 # Install grub in the first device (assuming it is not a USB stick)
 d-i grub-installer/bootdev string default
 

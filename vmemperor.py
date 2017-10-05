@@ -411,10 +411,19 @@ class AutoInstall(BaseHandler):
         disk_size = self.get_argument('disk_size')
         partition = self.get_argument('partition')
         if partition == 'auto':
-            part_met, part_mode = 'regular'
+            part_met = 'regular'
+            part_recipe = 'atomic'
             part_mode = ''
-        else:
-            part_met, part_mode = partition.split('.')
+        if partition == 'gpt' or partition =='mbr':
+            part_met = 'regular'
+            part_recipe = 'multiraid'
+            part_mode = partition
+        if partition.split('-')[0] == 'lvm':
+            part_met = 'lvm'
+            part_mode = partition.split('-')[1]
+            part_recipe = ''
+        if not part_met:
+            raise ValueError("Partition {0} isn't recognisable, possible variants: auto, gpt, mbr, lvm-mbr, lvm-gpt".format(partition))
 
         if 'ubuntu' in os_kind or 'debian' in os_kind:
             filename = 'debian.jinja2'
@@ -422,8 +431,9 @@ class AutoInstall(BaseHandler):
             filename = 'centos-ks.cfg'
         if not filename:
             raise ValueError("OS {0} doesn't support autoinstallation".format(os_kind))
+        # filename = 'raid10.cfg'
         self.render("templates/installation-scenarios/{0}".format(filename), hostname = hostname, username = username,
-                    fullname=fullname, password = password, mirror_url=mirror_url, mirror_path=mirror_path, ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, disk_size=disk_size, part_met=part_met, part_mode=part_mode)
+                    fullname=fullname, password = password, mirror_url=mirror_url, mirror_path=mirror_path, ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, disk_size=disk_size, part_met=part_met, part_mode=part_mode, part_recipe=part_recipe)
 
 class ConsoleHandler(BaseHandler):
     SUPPORTED_METHODS = {"CONNECT"}
