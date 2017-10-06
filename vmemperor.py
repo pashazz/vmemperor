@@ -37,7 +37,7 @@ def auth_required(method):
         if not user:
             self.redirect(r'/login')
         else:
-            self.user_authenticator = pickle.loads(user)
+            self.user_authenticator  = pickle.loads(user)
             method(self, *args, **kwargs)
 
     return decorator
@@ -117,14 +117,29 @@ class VMList(BaseHandler):
         #TODO where do we get user from
         user = self.user_authenticator.get_id()
         # read from db
+        userid= 'users/' + user
         self.conn.repl()
-        table = r.db(opts.database).table('vms')
-        list = [x for x in table.get_all(user, index='user').run()]
+        table = r.db(opts.database).table('access_list')
+        result = []
+        def populate_result(userid):
+            cursor = table.get_all(userid, index='userid').run()
 
-        if len(list) == 0:
-            self.write('None')
-        else:
-            self.write(json.dumps(list))
+            if len(cursor.items):
+                for res in cursor.items:
+                    result.extend(res['vms'])
+
+        populate_result(userid)
+        for group in self.user_authenticator.get_user_groups():
+            groupid = 'groups/' + group
+            populate_result(groupid)
+
+
+
+        self.write(json.dumps(result))
+
+
+
+
 
 
 class PoolList(BaseHandler):
@@ -322,9 +337,9 @@ class EventLoop:
     of corresponding user, if they are logged in (have open connection to dbms notifications)
      and admin db if admin is logged in"""
 
-    def __init__(self, executor):
+    def __init__(self, executor, authenticator):
         self.executor = executor
-        self.xen = XenAdapter(opts.group_dict('xenadapter'))
+        self.xen = XenAdapter(opts.group_dict('xenadapter'), authenticator)
         self.conn = r.connect(opts.host, opts.port, opts.database).repl()
         if opts.database not in r.db_list().run():
             r.db_create(opts.database).run()
@@ -337,11 +352,30 @@ class EventLoop:
             self.db.table_create('vms', durability='soft', primary_key='uuid').run()
             vms = self.xen.list_vms()
             CHECK_ER(self.db.table('vms').insert(vms, conflict='error').run())
-            self.db.table('vms').index_create('user').run()
-            self.db.table('vms').index_wait('user').run()
+            #self.db.table('vms').index_create('user').run()
+            #self.db.table('vms').index_wait('user').run()
         else:
             vms = self.xen.list_vms()
             CHECK_ER(self.db.table('vms').insert(vms, conflict='update').run())
+
+        if 'access_list' in tables:
+            #self.db.table('access_list').delete().run()
+            self.db.table_drop('access_list').run()
+            tables.remove('access_list')
+
+
+        if 'access_list' not in tables:
+            self.db.table_create('access_list', durability='soft').run()
+            access_list  = self.xen.access_list()
+            CHECK_ER(self.db.table('access_list').insert(access_list, conflict='error').run())
+            self.db.table('access_list').index_create('userid').run()
+            self.db.table('access_list').index_wait('userid').run()
+
+        else:
+            access_list = self.xen.access_list()
+            CHECK_ER(self.db.table('access_list').insert(access_list, conflict='update').run())
+
+
         if 'tmpls' not in tables:
             self.db.table_create('tmpls', durability='soft', primary_key='uuid').run()
             tmpls = self.xen.list_templates().values()
@@ -387,9 +421,9 @@ class EventLoop:
         yield self.heavy_task()
 
 
-def event_loop(executor, delay = 1000):
+def event_loop(executor, delay = 1000, authenticator=None):
     ioloop = tornado.ioloop.IOLoop.instance()
-    loop_object = EventLoop(executor)
+    loop_object = EventLoop(executor, authenticator)
     tornado.ioloop.PeriodicCallback(loop_object.vm_list_update, delay).start()  # read delay from ini
 
     return ioloop
@@ -564,7 +598,7 @@ def main():
     app = make_app(executor, debug= opts.debug)
     server = tornado.httpserver.HTTPServer(app)
     server.listen(opts.vmemperor_port, address="0.0.0.0")
-    ioloop = event_loop(executor, opts.delay)
+    ioloop = event_loop(executor, opts.delay, authenticator=app.auth_class)
     ioloop.start()
     return
 

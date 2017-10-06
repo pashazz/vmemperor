@@ -38,7 +38,7 @@ class TestXenAdapterWithLogin(unittest.TestCase, XenAdapterSetupMixin):
     '''
     @classmethod
     def setUpClass(cls):
-        cls.uuid = 'd673c8d2-65c2-fb20-219d-bef5bc4bc9a3'
+        cls.uuid = 'fc4eec10-0cb6-406a-14b8-42b1c8dc63ac'
         cls.userid = '570e9a59-e3bd-42c5-87ee-d46b312dbfcb'
         XenAdapterSetupMixin.auth_obj = DummyAuth(id=cls.userid, name='Ololoj Ololojson')
         XenAdapterSetupMixin.setUpClass()
@@ -50,6 +50,6 @@ class TestXenAdapterWithLogin(unittest.TestCase, XenAdapterSetupMixin):
         self.assertTrue(self.xen.api.VM.get_xenstore_data(vm_ref))
         self.assertTrue(self.xen.check_rights('launch', uuid=uuid))
 
-
-
-
+    def test_list_vms(self):
+        vms = self.xen.list_vms()
+        print(vms)

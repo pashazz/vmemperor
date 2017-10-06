@@ -40,12 +40,12 @@ def requires_privilege(privilege):
 
 class XenAdapter(Loggable):
     AUTOINSTALL_PREFIX = '/autoinstall'
-    VMEMPEROR_ACCESS_PREFIX='vm-data/access/'
+    VMEMPEROR_ACCESS_PREFIX='vm-data/vmemperor/access'
 
-    def get_access_path(self, username, is_group):
-        return 'vm-data/vmemperor/access/{0}/{1}/{2}'.format(self.authenticator.__class__.__name__,
+    def get_access_path(self, username=None, is_group=False):
+        return '{3}/{0}/{1}/{2}'.format(self.authenticator.__class__.__name__,
                                                                'groups' if is_group else 'users',
-                                                            username)
+                                                            username, self.VMEMPEROR_ACCESS_PREFIX)
 
 
     def get_all_records(self, subject) -> dict :
@@ -153,8 +153,11 @@ class XenAdapter(Loggable):
         """creates session connection to XenAPI. Connects using admin login/password from settings
         :param authenticator: authorized authenticator object
     """
+        try:
+            self.vmemperor_user = authenticator.get_id()
+        except:
+            self.vmemperor_user = None
 
-        self.vmemperor_user = authenticator.get_id() if authenticator else None
         self.authenticator = authenticator
         if 'debug' in settings:
                 self.debug = bool(settings['debug'])
@@ -174,7 +177,7 @@ class XenAdapter(Loggable):
         try:
             self.session = XenAPI.Session(url)
             self.session.xenapi.login_with_password(username, password)
-            self.log.info ('Authentication is successful. XenAdapter object created. VMEmperor user: %s aka %s' % (self.vmemperor_user, self.authenticator.get_name() if self.authenticator else "(not used)"))
+            self.log.info ('Authentication is successful. XenAdapter object created. VMEmperor user: %s aka %s' % (self.vmemperor_user, self.authenticator.get_name() if self.vmemperor_user else "(not used)"))
             self.api = self.session.xenapi
         except OSError as e:
             raise XenAdapterConnectionError(self, "Unable to reach XenServer at {0}: {1}".format(url, str(e)))
@@ -202,7 +205,7 @@ class XenAdapter(Loggable):
         def process(value):
             vm_ref = self.api.VM.get_by_uuid(value['uuid'])
             new_rec = {k : v for k,v in value.items() if k in keys}
-            new_rec['user'] = 'root'
+
             new_rec['network'] = []
             vifs = self.api.VM.get_VIFs(vm_ref)
             for vif in vifs:
@@ -261,6 +264,42 @@ class XenAdapter(Loggable):
         return {value['uuid'] : process(value) for value in self.get_all_records(self.api.VM).values()
                   if value['is_a_template']}
 
+    @xenadapter_root
+    def access_list(self) -> list:
+        if not self.authenticator:
+            raise XenAdapterAPIError(self.log, "Unable to generate access list: no authenticator object given to XenAdapter")
+        def read_xenstore_access_rights(xenstore_data : dict):
+            filtered_iterator = filter(lambda keyvalue : keyvalue[1] and  keyvalue[0].startswith(self.VMEMPEROR_ACCESS_PREFIX),
+                                       xenstore_data.items())
+
+            for k, v in filtered_iterator:
+                key_components= k[len(self.VMEMPEROR_ACCESS_PREFIX) + 1:].split('/')
+                if key_components[0] == self.authenticator.__name__:
+
+                    yield {'userid' :  '%s/%s' % (key_components[1], key_components[2]), 'access' : v}
+
+
+        vms = self.api.VM.get_all_records()
+        result_dict = {}
+        for k, v in vms.items():
+            if v['is_a_template'] or v['is_control_domain']:
+                continue
+            xenstore_data = v['xenstore_data']
+            for d in read_xenstore_access_rights(xenstore_data):
+                if d['userid'] in result_dict:
+                    result_dict[d['userid']].append({'vm_uuid' : v['uuid'], 'access' : d['access']})
+                else:
+                    result_dict[d['userid']] = [{'vm_uuid' : v['uuid'], 'access' : d['access']}]
+
+        return [{'userid' : k, 'vms' : v} for k, v in result_dict.items()]
+
+
+
+
+
+
+
+
 
     class GenericOS:
         '''
@@ -298,13 +337,16 @@ class XenAdapter(Loggable):
                     raise XenAdapterArgumentError(self,"Network configuration: IP has been specified, missing gateway")
                 if not netmask:
                     raise XenAdapterArgumentError(self,"Network configuration: IP has been specified, missing netmask")
+                ip_string = " ip=%s::%s:%s" % (ip, gw, netmask)
 
-                ip_string = " ipv6.disable=true netcfg/disable_dhcp=true netcfg/disable_autoconfig=true netcfg/use_autoconfig=false  netcfg/confirm_static=true netcfg/get_ipaddress=%s netcfg/get_gateway=%s netcfg/get_netmask=%s netcfg/get_nameservers=%s netcfg/get_domain=vmemperor" % (ip, gw, netmask, dns1)
-
-
+                if dns1:
+                    ip_string = ip_string + ":::off:%s" % dns1
+                    if dns2:
+                        ip_string = ip_string +":%s" % dns2
 
             self.ip = ip_string
             self.dhcp = False
+
 
     class UbuntuOS (GenericOS):
         '''
@@ -342,23 +384,7 @@ class XenAdapter(Loggable):
         def set_scenario(self, url):
             self.scenario = self.set_kickstart(url)
 
-        def set_network_parameters(self, ip=None, gw=None, netmask=None, dns1=None, dns2=None):
-            if not ip:
-               self.dhcp = True
-            else:
-                if not gw:
-                    raise XenAdapterArgumentError(self,"Network configuration: IP has been specified, missing gateway")
-                if not netmask:
-                    raise XenAdapterArgumentError(self,"Network configuration: IP has been specified, missing netmask")
-                ip_string = " ip=%s::%s:%s" % (ip, gw, netmask)
 
-                if dns1:
-                    ip_string = ip_string + ":::off:%s" % dns1
-                    if dns2:
-                        ip_string = ip_string +":%s" % dns2
-
-            self.ip = ip_string
-            self.dhcp = False
 
         def pv_args(self):
             return "%s %s" % (self.ip, self.scenario)
@@ -521,6 +547,7 @@ class XenAdapter(Loggable):
 
         return vdi_uuid
 
+    @requires_privilege('launch')
     def start_stop_vm(self, vm_uuid, enable):
         """
         Starts and stops VM if required
