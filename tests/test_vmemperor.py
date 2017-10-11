@@ -22,7 +22,12 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
         self.get_app()
         return event_loop(self.executor, opts.delay, self.app.auth_class)
 
+
+class VmEmperorNoLoginTest(VmEmperorTest):
+    pass
+
 class VmEmperorAfterLoginTest(VmEmperorTest):
+
 
     @classmethod
     def setUpClass(cls):
@@ -64,23 +69,24 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
         print(uuid)
 
-    def test_startvm(self, vm_uuid):
-        enable = True
-        body = {
-            'uuid': vm_uuid,
-            'enable': enable
-        }
+
+    def test_startvm(self, uuid='6f55cd4f-2409-2860-84c3-e975d1da72db'):
         xen = XenAdapter(self.xen_options)
+        body = {
+            'uuid': uuid,
+            'enable': True
+        }
         res = self.fetch(r'/startstopvm', method='POST', body=urlencode(body), headers=self.headers)
         self.assertEqual(res.code, 200)
-        vm_ref = xen.api.VM.get_by_uuid(vm_uuid)
+        vm_ref = xen.api.VM.get_by_uuid(uuid)
         ps = xen.api.VM.get_power_state(vm_ref)
-        if enable:
-            self.assertEqual(ps, 'Running')
-        else:
-            self.assertEqual(ps, 'Halted')
+        self.assertEqual(ps, 'Running')
+
 
     def test_vmlist(self):
         res = self.fetch(r'/vmlist', method='GET', headers=self.headers)
         self.assertEqual(res.code, 200)
+        vms = json.loads(res.body.decode())
+
+
         print(res.body)

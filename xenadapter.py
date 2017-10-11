@@ -2,7 +2,7 @@ import XenAPI
 import hooks
 import provision
 from exc import XenAdapterAPIError, XenAdapterArgumentError, XenAdapterConnectionError, XenAdapterUnauthorizedActionException
-
+from authentication import BasicAuthenticator
 import logging
 import sys
 from loggable import Loggable
@@ -11,7 +11,7 @@ from inspect import signature
 
 def xenadapter_root(method):
     def decorator(self, *args, **kwargs):
-        if self.vmemperor_user is None:
+        if self.vmemperor_user == 'root':
             return method(self, *args, **kwargs)
         else:
             raise XenAdapterAPIError(self.log,  "Attempt to call root-only method by user")
@@ -79,7 +79,7 @@ class XenAdapter(Loggable):
         :param uuid: VM uuid
         :return:
         '''
-        if not self.vmemperor_user:
+        if self.vmemperor_user == 'root':
             return True
         self.log.debug("Checking VM %s rights for user %s: action %s" % (uuid, self.vmemperor_user, action))
 
@@ -153,10 +153,17 @@ class XenAdapter(Loggable):
         """creates session connection to XenAPI. Connects using admin login/password from settings
         :param authenticator: authorized authenticator object
     """
-        try:
-            self.vmemperor_user = authenticator.get_id()
-        except:
-            self.vmemperor_user = None
+        if isinstance(authenticator, tuple):
+            settings['username'] = authenticator[0]
+            settings['password'] = authenticator[1]
+            self.vmemperor_user = authenticator[0]
+        else:
+            try:
+                self.vmemperor_user = authenticator.get_id()
+            except:
+                self.vmemperor_user = 'root'
+
+
 
         self.authenticator = authenticator
         if 'debug' in settings:
@@ -177,7 +184,7 @@ class XenAdapter(Loggable):
         try:
             self.session = XenAPI.Session(url)
             self.session.xenapi.login_with_password(username, password)
-            self.log.info ('Authentication is successful. XenAdapter object created. VMEmperor user: %s aka %s' % (self.vmemperor_user, self.authenticator.get_name() if self.vmemperor_user else "(not used)"))
+            self.log.info ('Authentication is successful. XenAdapter object created. VMEmperor user: %s aka %s' % (self.vmemperor_user, self.authenticator.get_name() if isinstance(self.authenticator, BasicAuthenticator)  else "(XenServer authentication)"))
             self.api = self.session.xenapi
         except OSError as e:
             raise XenAdapterConnectionError(self, "Unable to reach XenServer at {0}: {1}".format(url, str(e)))
