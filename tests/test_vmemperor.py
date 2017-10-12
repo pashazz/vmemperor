@@ -14,15 +14,20 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
         cls.executor = ThreadPoolExecutor(max_workers=opts.max_workers)
 
     def get_app(self):
-
-        self.app = make_app(self.executor, debug=True)
+        if not hasattr(self, 'app'):
+            self.app = make_app(self.executor, debug=True)
         return self.app
 
     def get_new_ioloop(self):
+        self.get_app()
+        return event_loop(self.executor, opts.delay, self.app.auth_class)
 
-        return event_loop(self.executor, opts.delay)
+
+class VmEmperorNoLoginTest(VmEmperorTest):
+    pass
 
 class VmEmperorAfterLoginTest(VmEmperorTest):
+
 
     @classmethod
     def setUpClass(cls):
@@ -34,6 +39,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         cls.xen_options = opts.group_dict('xenadapter')
         cls.xen_options['debug'] = True
 
+
     def setUp(self):
         super().setUp()
         self.auth = self.app.auth_class()
@@ -43,13 +49,14 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         self.headers = {'Cookie' : b'='.join((b'user', secure_cookie))}
 
 
+
     def test_createvm(self):
         config = configparser.ConfigParser()
         config.read('tests/createvm.ini')
         #for body in config._sections.values():
         #    res = self.fetch(r'/createvm', method='POST', body=urlencode(body))
         #    self.assertEqual(res.code, 200)
-        body  = config._sections['debian']
+        body  = config._sections['ubuntu']
         res = self.fetch(r'/createvm', method='POST', body=urlencode(body), headers=self.headers)
         self.assertEqual(res.code, 200)
         uuid = res.body.decode()
@@ -60,23 +67,26 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         for action in actions:
             self.assertTrue(xen.check_rights(action, uuid))
 
-    def test_startvm(self, vm_uuid):
-        enable = True
-        body = {
-            'uuid': vm_uuid,
-            'enable': enable
-        }
+        print(uuid)
+
+
+    def test_startvm(self, uuid='6f55cd4f-2409-2860-84c3-e975d1da72db'):
         xen = XenAdapter(self.xen_options)
+        body = {
+            'uuid': uuid,
+            'enable': True
+        }
         res = self.fetch(r'/startstopvm', method='POST', body=urlencode(body), headers=self.headers)
         self.assertEqual(res.code, 200)
-        vm_ref = xen.api.VM.get_by_uuid(vm_uuid)
+        vm_ref = xen.api.VM.get_by_uuid(uuid)
         ps = xen.api.VM.get_power_state(vm_ref)
-        if enable:
-            self.assertEqual(ps, 'Running')
-        else:
-            self.assertEqual(ps, 'Halted')
+        self.assertEqual(ps, 'Running')
+
 
     def test_vmlist(self):
         res = self.fetch(r'/vmlist', method='GET', headers=self.headers)
         self.assertEqual(res.code, 200)
+        vms = json.loads(res.body.decode())
+
+
         print(res.body)
