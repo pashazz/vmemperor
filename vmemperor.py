@@ -210,7 +210,6 @@ class CreateVM(BaseHandler):
             kwargs['mirror_url'] = mirror_url
             kwargs['fullname'] = self.get_argument('fullname')
             kwargs['ip'] = ip
-            kwargs['disk_size'] = vdi_size
             kwargs['partition'] = self.get_argument('partition', default='auto')
 
             if ip:
@@ -220,10 +219,6 @@ class CreateVM(BaseHandler):
                     kwargs['dns0'] = dns0
                 if dns1:
                     kwargs['dns1'] = dns1
-        if 'ubuntu' in os_kind or 'debian' in os_kind:
-            kwargs['mirror_url'] = kwargs['mirror_url'].split('http://')[1]
-            kwargs['mirror_path'] = kwargs['mirror_url'][kwargs['mirror_url'].find('/'):]
-            kwargs['mirror_url'] = kwargs['mirror_url'][:kwargs['mirror_url'].find('/')]
         scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + os_kind.split()[0] + "?" + "&".join(
             ('{0}={1}'.format(k, v) for k, v in kwargs.items()))
         print()
@@ -401,39 +396,51 @@ class AutoInstall(BaseHandler):
         username = self.get_argument('username', default='')
         password = self.get_argument('password')
         mirror_url = self.get_argument('mirror_url')
-        mirror_path = self.get_argument('mirror_path', default='')
         fullname = self.get_argument('fullname')
         ip = self.get_argument('ip', default='')
         gateway = self.get_argument('gateway', default='')
         netmask = self.get_argument('netmask', default='')
         dns0 = self.get_argument('dns0', default='')
         dns1 = self.get_argument('dns1', default='')
-        disk_size = self.get_argument('disk_size')
-        partition = self.get_argument('partition')
-        if partition == 'auto':
-            part_met = 'regular'
-            part_recipe = 'atomic'
-            part_mode = ''
-        if partition == 'gpt' or partition =='mbr':
-            part_met = 'regular'
-            part_recipe = 'multiraid'
-            part_mode = partition
-        if partition.split('-')[0] == 'lvm':
-            part_met = 'lvm'
-            part_mode = partition.split('-')[1]
-            part_recipe = ''
-        if not part_met:
-            raise ValueError("Partition {0} isn't recognisable, possible variants: auto, gpt, mbr, lvm-mbr, lvm-gpt".format(partition))
-
+        part = self.get_argument('partition').split('-')
+        partition = {'method': 'regular',
+                     'mode': 'mbr',
+                     'expert_recipe': [],
+                     'swap' : '2048'}
+        if part[0] == 'auto':
+            part.remove('auto')
+        if 'swap' in part:
+            ind = part.index('swap')
+            partition['swap'] = part[ind + 1]
+            part.remove('swap')
+            part.remove(part[ind])
+        if 'mbr' in part:
+            part.remove('mbr')
+        if 'gpt' in part:
+            partition['mode'] = 'gpt'
+            part.remove('gpt')
+        if 'lvm' in part:
+            partition['method'] = 'lvm'
+            part.remove('lvm')
+            if '/boot' not in part:
+                raise ValueError("LVM partition require boot properties")
+        partition['expert_recipe'] = [{'mp': part[i + 0], 'size': part[i + 1], 'fs': part[i + 2]}
+                for i in range(0, len(part), 3)]
         if 'ubuntu' in os_kind or 'debian' in os_kind:
+            mirror_url = mirror_url.split('http://')[1]
+            mirror_path = mirror_url[mirror_url.find('/'):]
+            mirror_url = mirror_url[:mirror_url.find('/')]
             filename = 'debian.jinja2'
+            # filename = 'ubuntu-ks.cfg'
+            # mirror_path = ''
         if 'centos' in os_kind:
             filename = 'centos-ks.cfg'
+            mirror_path = ''
         if not filename:
             raise ValueError("OS {0} doesn't support autoinstallation".format(os_kind))
         # filename = 'raid10.cfg'
         self.render("templates/installation-scenarios/{0}".format(filename), hostname = hostname, username = username,
-                    fullname=fullname, password = password, mirror_url=mirror_url, mirror_path=mirror_path, ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, disk_size=disk_size, part_met=part_met, part_mode=part_mode, part_recipe=part_recipe)
+                    fullname=fullname, password = password, mirror_url=mirror_url, mirror_path=mirror_path, ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, partition=partition)
 
 class ConsoleHandler(BaseHandler):
     SUPPORTED_METHODS = {"CONNECT"}

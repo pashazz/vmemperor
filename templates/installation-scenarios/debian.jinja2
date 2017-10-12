@@ -56,11 +56,10 @@ d-i time/zone string Europe/Moscow
 d-i clock-setup/ntp boolean true
 
 ### Partitioning
-d-i partman-auto/method string {{ part_met }}
+d-i partman-auto/method string {{ partition['method'] }}
 d-i partman-auto/disk string /dev/xvda
 
-{% if part_met=='regular' %}d-i partman-auto/choose_recipe select {{ part_recipe }} {% end %}
-{% if part_mode=='gpt' %}
+{% if partition['mode']=='gpt' %}
 d-i partman-basicfilesystems/choose_label string gpt
 d-i partman-basicfilesystems/default_label string gpt
 d-i partman-partitioning/choose_label string gpt
@@ -68,50 +67,40 @@ d-i partman-partitioning/default_label string gpt
 d-i partman/choose_label string gpt
 d-i partman/default_label string gpt
 partman-partitioning partman-partitioning/choose_label select gpt
-{% end %}{% if part_met=='lvm' %}
-d-i partman-auto/expert_recipe string root :: \
-    {% if part_mode=='gpt' %}1 1 1 free \
-        $gptonly{ } \
-        $primary{ } \
-        $bios_boot{ } \
+{% end %}
+{% if partition['expert_recipe']==[] %}d-i partman-auto/choose_recipe select atomic
+{% else %}d-i partman-auto/expert_recipe string boot-root :: \
+    {% if (partition['mode']=='gpt') or (partition['method']=='lvm') %}1 1 1 free \
+        {% if partition['mode']=='gpt' %}$gptonly{ } \
+        {% end %}#$primary{ } \
+        #$bios_boot{ } \
         method{ biosgrub } \
     . \
-    {% end %}1 1024 2048 linux-swap \
-        {% if part_mode=='gpt' %}$gptonly{ } \
-        {% end %}$lvmok{ } \
-        lv_name{ swap }
-        method{ swap } \
+    {% end %}{% for part in partition['expert_recipe'] %}1 {{ part['size'] }} {{ part['size'] }} {% if part['fs']=='' %}$default_filesystem{ } {% else %} {{ part['fs'] }} {% end %} \
+        {% if partition['method']=='lvm' and part['mp']!='/boot'%}$defaultignore{ } $lvmok{ }\
+        method{ lvm }{% else %}method{ format }{% end %} format{ }\
+        {% if partition['mode']=='gpt' %}$gptonly{ } \
+        {% end %}$primary{ } \
+        {% if (part['mp']=='/boot') or (part['mp']=='/') %}$bootable{ } \
+        {% end %}use_filesystem{ } {% if part['fs']=='' %}$default_filesystem{ } {% else %} filesystem{ {{ part['fs'] }} } {% end %}\
+        mountpoint{ {{ part['mp'] }} } \
+    . \
+    {% end %}1 {{ partition['swap'] }} 200% linux-swap \
+        {% if partition['method']=='lvm' %}$defaultignore{ } $lvmok{ } \
+        {% end %}{% if partition['mode']=='gpt' %}$gptonly{ } \
+        {% end %}method{ swap } \
         format{ } \
     . \
-    2096 {{ disk_size }} -1 $default_filesystem \
-        lv_name{ root } \
-        method{ lvm } format{ } \
-        {% if part_mode=='gpt' %}$gptonly{ } \
-        {% end %}$lvmok{ } \
-        use_filesystem{ } $default_filesystem{ } \
-        mountpoint{ / } \
-    .
-{% else %}d-i partman-auto/expert_recipe string multiraid :: \
-    {% if part_mode=='gpt' %}1 1 1 free \
-        $gptonly{ } \
-        $primary{ } \
-        $bios_boot{ } \
-        method{ biosgrub } \
-    . \
-    {% end %}1 1024 2048 linux-swap \
-        {% if part_mode=='gpt' %}$gptonly{ } \
-        {% end %}$primary{ } \
-        method{ swap } \
-    . \
-    2096 {{ disk_size }} -1 $default_filesystem \
-        {% if part_mode=='gpt' %}$gptonly{ } \
-        {% end %}$primary{ } \
-        method{ format } \
-        format{ } \
-        use_filesystem{ } $default_filesystem{ }\
-        mountpoint{ / } \
+    1024 1024 -1 xfs \
+        {% if partition['method']=='lvm'%}$defaultignore{ } $lvmok{ }\
+        method{ lvm }{% else %}method{ format }{% end %} format{ }\
+        use_filesystem{ } filesystem{ xfs }     \
+        mountpoint{ /data }                     \
     .
 {% end %}
+
+d-i partman-auto-lvm/guided_size string 20%
+
 # Install grub in the first device (assuming it is not a USB stick)
 d-i grub-installer/bootdev string default
 
@@ -119,7 +108,7 @@ d-i grub-installer/bootdev string default
 d-i partman-auto-lvm/no_boot boolean true
 
 # Name of the volume group for the new system
-d-i partman-auto-lvm/new_vg_name string VolGroup00
+#d-i partman-auto-lvm/new_vg_name string vg00
 
 # Remove existing software RAID partitions?
 d-i partman-md/device_remove_md boolean true

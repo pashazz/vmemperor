@@ -313,12 +313,13 @@ class XenAdapter(Loggable):
 
         def set_scenario(self, url):
             self.scenario = self.set_preseed(url)
+            # self.scenario = self.set_kickstart(url)
 
         def pv_args(self):
             if self.dhcp:
                 self.ip = "netcfg/disable_dhcp=false"
-            return "auto=true console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 %s %s netcfg/get_hostname=%s" % (
-                self.ip, self.scenario, self.hostname)
+            return "auto=true console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 %s netcfg/get_hostname=%s %s --" % (
+                self.ip, self.hostname, self.scenario)
 
         def set_network_parameters(self, ip=None, gw=None, netmask=None, dns1=None, dns2=None):
             if not ip:
