@@ -36,6 +36,7 @@ class TestXenAdapterWithLogin(unittest.TestCase, XenAdapterSetupMixin):
     '''
     This class creates XenAdapter with a Dummy authentication object
     '''
+    @unittest.skip
     @classmethod
     def setUpClass(cls):
         cls.uuid = 'fc4eec10-0cb6-406a-14b8-42b1c8dc63ac'
@@ -43,6 +44,7 @@ class TestXenAdapterWithLogin(unittest.TestCase, XenAdapterSetupMixin):
         XenAdapterSetupMixin.auth_obj = DummyAuth(id=cls.userid, name='Ololoj Ololojson')
         XenAdapterSetupMixin.setUpClass()
 
+    @unittest.skip
     def test_check_rights(self):
         uuid = self.uuid
         vm_ref = self.xen.api.VM.get_by_uuid(uuid)
@@ -50,6 +52,7 @@ class TestXenAdapterWithLogin(unittest.TestCase, XenAdapterSetupMixin):
         self.assertTrue(self.xen.api.VM.get_xenstore_data(vm_ref))
         self.assertTrue(self.xen.check_rights('launch', uuid=uuid))
 
-    def test_list_vms(self):
-        vms = self.xen.list_vms()
-        print(vms)
+
+    #def test_list_vms(self):
+    #    vms = self.xen.list_vms()
+    #    print(vms)

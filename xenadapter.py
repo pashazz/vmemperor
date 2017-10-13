@@ -3,10 +3,10 @@ import hooks
 import provision
 from exc import XenAdapterAPIError, XenAdapterArgumentError, XenAdapterConnectionError, XenAdapterUnauthorizedActionException
 from authentication import BasicAuthenticator
-import logging
-import sys
+
 from loggable import Loggable
 from inspect import signature
+
 
 
 def xenadapter_root(method):
@@ -75,7 +75,9 @@ class XenAdapter(Loggable):
         '''
         Check if it's possible to do 'action' with specified VM
         :param action: action to perform
-        - launch destroy attach
+        - launch: can start/stop vm
+        - destroy: can destroy vm
+        - attach: can attach/detach disk/network interfaces
         :param uuid: VM uuid
         :return:
         '''
@@ -179,7 +181,7 @@ class XenAdapter(Loggable):
             username = settings['username']
             password = settings['password']
         except KeyError as e:
-            raise XenAdapterArgumentError(self, 'Failed to parse settings: {0}'.format(str(e)))
+            raise XenAdapterArgumentError(self.log, 'Failed to parse settings: {0}'.format(str(e)))
 
         try:
             self.session = XenAPI.Session(url)
@@ -187,9 +189,9 @@ class XenAdapter(Loggable):
             self.log.info ('Authentication is successful. XenAdapter object created. VMEmperor user: %s aka %s' % (self.vmemperor_user, self.authenticator.get_name() if isinstance(self.authenticator, BasicAuthenticator)  else "(XenServer authentication)"))
             self.api = self.session.xenapi
         except OSError as e:
-            raise XenAdapterConnectionError(self, "Unable to reach XenServer at {0}: {1}".format(url, str(e)))
+            raise XenAdapterConnectionError(self.log, "Unable to reach XenServer at {0}: {1}".format(url, str(e)))
         except XenAPI.Failure as e:
-            raise XenAdapterConnectionError(self, 'Failed to login: url: "{1}"; username: "{2}"; password: "{3}"; error: {0}'.format(str(e), url, username, password))
+            raise XenAdapterConnectionError(self.log, 'Failed to login: url: "{1}"; username: "{2}"; password: "{3}"; error: {0}'.format(str(e), url, username, password))
 
         return
 

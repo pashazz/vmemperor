@@ -1,3 +1,4 @@
+from unittest import skip
 from vmemperor import *
 from tornado import  testing
 from tornado.httpclient import HTTPRequest
@@ -6,11 +7,14 @@ from base64 import decodebytes
 import pickle
 from tornado.web import create_signed_value
 
-
+settings_read = False
 class VmEmperorTest(testing.AsyncHTTPTestCase):
     @classmethod
     def setUpClass(cls):
-        read_settings()
+        global  settings_read
+        if not settings_read:
+            read_settings()
+            settings_read = True
         cls.executor = ThreadPoolExecutor(max_workers=opts.max_workers)
 
     def get_app(self):
@@ -24,7 +28,23 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
 
 
 class VmEmperorNoLoginTest(VmEmperorTest):
-    pass
+    def test_admin_login(self):
+        xen_opts = opts.group_dict('xenadapter')
+        #auth_tuple = (xen_opts['username'], xen_opts['password'])
+        body = dict(username=xen_opts['username'], password=xen_opts['password'])
+        res = self.fetch(r'/adminauth', method='POST', body=urlencode(body))
+        self.assertEqual(res.code, 200)
+
+    def test_failed_admin_login(self):
+
+        # auth_tuple = (xen_opts['username'], xen_opts['password'])
+        body = dict(username='olololo', password='alalala')
+        res = self.fetch(r'/adminauth', method='POST', body=urlencode(body))
+        self.assertEqual(res.code, 401)
+
+
+
+
 
 class VmEmperorAfterLoginTest(VmEmperorTest):
 
@@ -69,8 +89,8 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
         print(uuid)
 
-
-    def test_startvm(self, uuid='6f55cd4f-2409-2860-84c3-e975d1da72db'):
+    @skip
+    def test_startvm(self, uuid='ololo'):
         xen = XenAdapter(self.xen_options)
         body = {
             'uuid': uuid,
