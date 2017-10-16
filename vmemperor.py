@@ -497,9 +497,11 @@ class AutoInstall(BaseHandler):
         partition = {'method': 'regular',
                      'mode': 'mbr',
                      'expert_recipe': [],
-                     'swap' : '2048'}
+                     'swap' : ''}
         if part[0] == 'auto':
             part.remove('auto')
+        if 'swap' not in part and 'centos' not in os_kind:
+            partition['swap'] = '2048'
         if 'swap' in part:
             ind = part.index('swap')
             partition['swap'] = part[ind + 1]
@@ -525,6 +527,11 @@ class AutoInstall(BaseHandler):
             # filename = 'ubuntu-ks.cfg'
             # mirror_path = ''
         if 'centos' in os_kind:
+            for part in partition['expert_recipe']:
+                if part['mp'] is "/":
+                    part['name'] = 'root'
+                else:
+                    part['name'] = part['mp'].replace('/','')
             filename = 'centos-ks.cfg'
             mirror_path = ''
         if not filename:
