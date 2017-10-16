@@ -18,7 +18,7 @@ from rethinkdb.errors import ReqlDriverError
 from authentication import BasicAuthenticator
 from loggable import Loggable
 from pathlib import Path
-
+from urllib.parse import urlsplit, urlunsplit
 from exc import *
 import logging
 from netifaces import ifaddresses, AF_INET
@@ -78,10 +78,23 @@ class BaseHandler(tornado.web.RequestHandler, Loggable):
 class AuthHandler(BaseHandler):
 
     def initialize(self, executor, authenticator):
+        '''
+
+        :param executor:
+        :param authenticator: authentication object derived from BasicAuthenticator
+        :return:
+        '''
         super().initialize(executor)
         self.authenticator = authenticator()
 
     def post(self):
+        '''
+        Authenticate as a regular user
+        params:
+        :param username
+        :param password
+        :return:
+        '''
         username = self.get_argument("username", "")
         password = self.get_argument("password", "")
         try:
@@ -127,6 +140,12 @@ class AdminAuth(BaseHandler):
 
 
     def post(self):
+        '''
+        Authenticate using XenServer auth system directly (as admin)
+        :param username
+        :param password
+        :return:
+        '''
         username = self.get_argument("username", "")
         password = self.get_argument("password", "")
         try:
@@ -145,7 +164,19 @@ class AdminAuth(BaseHandler):
 class VMList(BaseHandler):
     @auth_required
     def get(self):
-        """ """
+        '''
+        List of VMs available for user. For admin, return everything.
+        Control domain and templates are not included
+        Format: list of the following form
+       [{"access": access qualificator, separated by commas. Look at XenAdapter.check_rights documentation, parameter 'action',
+        "disks": list of attached VDI UUIDs,
+        "power_state": see http://xapi-project.github.io/xen-api/classes/vm.html -> Enums -> vm_power_state
+          "network": list of virtual network UUIDs a VM is connected to.
+          "uuid": vm UUID,
+          "name_label": vm human readable name}, ...]
+
+        :return:
+        '''
         #TODO where do we get user from
         if isinstance(self.user_authenticator, tuple):
             user = self.user_authenticator[0]
@@ -199,7 +230,10 @@ class VMList(BaseHandler):
 class PoolList(BaseHandler):
     @auth_required
     def get(self):
-        """ """
+        """
+        List of XenServer pools
+         Format: list of http://xapi-project.github.io/xen-api/classes/pool.html ('fields')
+         """
         # read from db
         self.conn.repl()
         table = r.db(opts.database).table('pools')
@@ -211,7 +245,15 @@ class PoolList(BaseHandler):
 class TemplateList(BaseHandler):
     @auth_required
     def get(self):
-        """ """
+        """
+        List of available templates
+        format:
+        [{'uuid': template UUID,
+          'name_label': template human-readable name,
+          'hvm': True if this is an HVM template, False if PV template
+          },...]
+
+         """
 
         # read from db
         self.conn.repl()
@@ -225,7 +267,34 @@ class CreateVM(BaseHandler):
 
     @auth_required
     def post(self):
-        """ """
+        """
+        Create a new VM. Current user gets full permissions of newly created VM
+        Arguments:
+        template - template UUID or name_label
+        storage - SR UUID
+        network - network UUID
+        vdi_size - size of Virtual Disk Image to install OS on, in megabytes
+        ram_size - size of virtual RAM
+        hostname - VM hostname
+        name_label - VM human-readable name
+        mirror_url - repository URL for auto-installation
+        os_kind - OS type to install ('ubuntu <release name>', 'debian <release name>', 'centos')
+        mode - VM type  'pv' (Paravirtualization) or 'hvm' (Hardware virtual machine)
+        username - UNIX username of an account to be created
+        password - password for said user account
+        fullname - user account's full name
+        ip: IP address for static IP configuration (do not specify if desire DHCP)
+        gateway: Gateway for static IP configuration
+        netmask: Netmask for static IP configuration
+        dns0: First DNS server for static IP configuration
+        dns1: Second DNS server for static IP configuration (optional)
+        partition: how to partition a virtual disk image. Default: 'auto'. TODO: Lera, provide documentation for this parameter
+        override_pv_args: override all kernel command-line arguments in PV mode with this line, if specified
+
+
+        :return: UUID of newly created VM
+
+        """
 
         xen = XenAdapter(opts.group_dict('xenadapter'), self.user_authenticator)
         try:
@@ -300,7 +369,9 @@ class CreateVM(BaseHandler):
 class NetworkList(BaseHandler):
     @auth_required
     def get(self):
-        """ """
+        """
+        Format: list of fields of http://xapi-project.github.io/xen-api/classes/network.html
+        """
         # read from db
         self.conn.repl()
         table = r.db(opts.database).table('nets')
@@ -311,7 +382,12 @@ class NetworkList(BaseHandler):
 class StartStopVM(BaseHandler):
     @auth_required
     def post(self):
-        """ """
+        """
+         Start or stop VM, requires 'launch' permission
+         Arguments:
+             uuid: VM UUID
+             enable: True if to start VM, False if to stop VM
+         """
         vm_uuid = self.get_argument('uuid')
         enable = self.get_argument('enable')
         xen = XenAdapter(opts.group_dict('xenadapter'))
@@ -321,7 +397,12 @@ class StartStopVM(BaseHandler):
 class EnableDisableTemplate(BaseHandler):
     @auth_required
     def post(self):
-        """ """
+        """
+         Enable or disable template
+         Arguments:
+             uuid: VM UUID
+             enable: True if template needs to be enabled
+         """
         uuid = self.get_argument('uuid')
         enable = self.get_argument('enable')
         xen = XenAdapter(opts.group_dict('xenadapter'))
@@ -334,16 +415,36 @@ class EnableDisableTemplate(BaseHandler):
 class VNC(BaseHandler):
     @auth_required
     def get(self):
-        """http://xapi-project.github.io/xen-api/consoles.html"""
+        '''
+        Get VNC console url that supports HTTP CONNECT method. Requires permission 'launch'
+        Arguments:
+            uuid: VM UUID
+
+        '''
         vm_uuid = self.get_argument('uuid')
         xen = XenAdapter(opts.group_dict('xenadapter'))
-        self.try_xenadapter(lambda :  xen.get_vnc(vm_uuid) )
+        def get_vnc():
+            url = xen.get_vnc(vm_uuid)
+            url_splitted = urlsplit(url)
+            url_splitted[0] = 'http'
+            url_splitted[1] = opts.vmemperor_url
+            url = urlunsplit(url_splitted)
+            return url
+        self.try_xenadapter(get_vnc)
+
 
 
 
 class AttachDetachDisk(BaseHandler):
     @auth_required
     def post(self):
+        '''
+        Attach or detach VDI from/to VM
+        Arguments:
+            vm_uuid: VM UUID
+            vdi_uuid: VDI UUID
+            enable: True if to attach disk, False if to detach.
+        '''
         xen = XenAdapter(opts.group_dict('xenadapter'))
         vm_uuid = self.get_argument('vm_uuid')
         vdi_uuid = self.get_argument('vdi_uuid')
@@ -361,6 +462,13 @@ class AttachDetachDisk(BaseHandler):
 class DestroyVM(BaseHandler):
     @auth_required
     def post(self):
+        '''
+        Destroy VM. Requires permission "destroy"
+        Arguments:
+        uuid: VM UUID
+        :return:
+        '''
+
         xen = XenAdapter(opts.group_dict('xenadapter'))
         vm_uuid = self.get_argument('uuid')
         self.try_xenadapter(lambda : xen.destroy_vm(vm_uuid))
@@ -371,6 +479,14 @@ class DestroyVM(BaseHandler):
 class ConnectVM(BaseHandler):
     @auth_required
     def post(self):
+        '''
+        Connect a VM to a Network. Requires permission "attach"
+        Arguments:
+        vm_uuid: VM UUID
+        net_uuid: Network UUID
+        ip: undocumented. Lera?
+        :return:
+        '''
         xen = XenAdapter(opts.group_dict('xenadapter'))
         vm_uuid = self.get_argument('vm_uuid')
         net_uuid = self.get_argument('net_uuid')
@@ -483,6 +599,11 @@ def event_loop(executor, delay = 1000, authenticator=None):
 
 class AutoInstall(BaseHandler):
     def get(self, os_kind):
+        '''
+        This is used by CreateVM
+        :param os_kind:
+        :return:
+        '''
         hostname = self.get_argument('hostname', default='xen_vm')
         username = self.get_argument('username', default='')
         password = self.get_argument('password')
@@ -563,9 +684,12 @@ class ConsoleHandler(BaseHandler):
 
 
 
-
+    @auth_required
     @tornado.web.asynchronous
     def connect(self, path):
+        '''
+        This method proxies CONNECT calls to XenServer
+        '''
         client_stream = self.request.connection.stream
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_stream = tornado.iostream.IOStream(sock)
@@ -638,6 +762,7 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/attachdetachdisk', AttachDetachDisk, dict(executor=executor)),
         (r'/destroyvm', DestroyVM, dict(executor=executor)),
         (r'/connectvm', ConnectVM, dict(executor=executor)),
+        (r'/adminauth', AdminAuth, dict(executor=executor))
     ], **settings)
 
     app.auth_class = auth_class
