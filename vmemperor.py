@@ -288,7 +288,7 @@ class CreateVM(BaseHandler):
         netmask: Netmask for static IP configuration
         dns0: First DNS server for static IP configuration
         dns1: Second DNS server for static IP configuration (optional)
-        partition: how to partition a virtual disk image. Default: 'auto'. TODO: Lera, provide documentation for this parameter
+        partition: how to partition a virtual disk image. Default: 'auto'. Parameters are separated with '-'. Available parameters are 'auto', 'mbr', 'gpt', 'lvm', 'swap' (requires size as next param) and sets by 3 params: 'mountpoint', 'size', 'filesystem'. Example: lvm-/-4096--/boot-1024-ext4-swap-2048. If filesystem is skipped, default fs is used.
         override_pv_args: override all kernel command-line arguments in PV mode with this line, if specified
 
 
