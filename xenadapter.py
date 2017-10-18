@@ -6,6 +6,8 @@ from authentication import BasicAuthenticator
 
 from loggable import Loggable
 from inspect import signature
+import time
+
 
 
 
@@ -302,9 +304,19 @@ class XenAdapter(Loggable):
 
         return [{'userid' : k, 'vms' : v} for k, v in result_dict.items()]
 
-
-
-
+    @requires_privilege('launch')
+    def convert_vm(self, vm_uuid):
+        '''
+        convert vm from/to hvm
+        :param vm_uuid:
+        :return:
+        '''
+        vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+        hvm_boot_policy = self.api.VM.get_HVM_boot_policy(vm_ref)
+        if hvm_boot_policy:
+            self.api.VM.set_HVM_boot_policy(vm_ref, '')
+        else:
+            self.api.VM.set_HVM_boot_policy(vm_ref, 'BIOS order')
 
 
 
@@ -488,7 +500,7 @@ class XenAdapter(Loggable):
         try:
             specs = provision.ProvisionSpec()
             vdi_size = str(1048576 * int(vdi_size))
-            specs.disks.append(provision.Disk("0", vdi_size, sr_uuid, True))
+            specs.disks.append(provision.Disk(name_label, vdi_size, sr_uuid, True))
             provision.setProvisionSpec(self.session, new_vm_ref, specs)
         except Exception as e:
             self.destroy_vm(new_vm_uuid)
@@ -511,6 +523,9 @@ class XenAdapter(Loggable):
 
         self.connect_vm(new_vm_uuid, net_uuid, ip)
 
+        self.api.VM.start(new_vm_ref, False, True)
+        while self.api.VM.get_power_state(new_vm_ref) != 'Halted':
+            time.sleep(7)
 
 
 
@@ -618,6 +633,7 @@ class XenAdapter(Loggable):
                 self.log.info ("Disable template UUID {0}".format(vm_uuid))
         except XenAPI.Failure as f:
             raise XenAdapterAPIError (self, "Failed to enable/disable template: {0}".format(f.details))
+
 
     def get_power_state(self, vm_uuid) -> str:
         '''

@@ -400,6 +400,13 @@ class StartStopVM(BaseHandler):
         self.try_xenadapter( lambda : xen.start_stop_vm(vm_uuid, enable))
 
 
+class ConvertVM(BaseHandler):
+    @auth_required
+    def post(self):
+        vm_uuid =self.get_argument('uuid')
+        xen = XenAdapter(opts.group_dict('xenadapter'))
+        self.try_xenadapter(lambda: xen.convert_vm(vm_uuid))
+
 class EnableDisableTemplate(BaseHandler):
     @auth_required
     def post(self):
@@ -772,7 +779,8 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/attachdetachdisk', AttachDetachDisk, dict(executor=executor)),
         (r'/destroyvm', DestroyVM, dict(executor=executor)),
         (r'/connectvm', ConnectVM, dict(executor=executor)),
-        (r'/adminauth', AdminAuth, dict(executor=executor))
+        (r'/adminauth', AdminAuth, dict(executor=executor)),
+        (r'/convertvm', ConvertVM, dict(executor=executor))
     ], **settings)
 
     app.auth_class = auth_class
