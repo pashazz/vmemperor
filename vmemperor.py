@@ -288,7 +288,7 @@ class CreateVM(BaseHandler):
         netmask: Netmask for static IP configuration
         dns0: First DNS server for static IP configuration
         dns1: Second DNS server for static IP configuration (optional)
-        partition: how to partition a virtual disk image. Default: 'auto'. TODO: Lera, provide documentation for this parameter
+        partition: how to partition a virtual disk image. Default: 'auto'. Parameters are separated with '-'. Available parameters are 'auto', 'mbr', 'gpt', 'lvm', 'swap' (requires size as next param) and sets by 3 params: 'mountpoint', 'size', 'filesystem'. Example: lvm-/-4096--/boot-1024-ext4-swap-2048. If filesystem is skipped, default fs is used.
         override_pv_args: override all kernel command-line arguments in PV mode with this line, if specified
 
 
@@ -625,9 +625,11 @@ class AutoInstall(BaseHandler):
         partition = {'method': 'regular',
                      'mode': 'mbr',
                      'expert_recipe': [],
-                     'swap' : '2048'}
+                     'swap' : ''}
         if part[0] == 'auto':
             part.remove('auto')
+        if 'swap' not in part and 'centos' not in os_kind:
+            partition['swap'] = '2048'
         if 'swap' in part:
             ind = part.index('swap')
             partition['swap'] = part[ind + 1]
@@ -653,6 +655,11 @@ class AutoInstall(BaseHandler):
             # filename = 'ubuntu-ks.cfg'
             # mirror_path = ''
         if 'centos' in os_kind:
+            for part in partition['expert_recipe']:
+                if part['mp'] is "/":
+                    part['name'] = 'root'
+                else:
+                    part['name'] = part['mp'].replace('/','')
             filename = 'centos-ks.cfg'
             mirror_path = ''
         if not filename:
