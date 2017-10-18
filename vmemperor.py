@@ -390,7 +390,7 @@ class StartStopVM(BaseHandler):
          """
         vm_uuid = self.get_argument('uuid')
         enable = self.get_argument('enable')
-        xen = XenAdapter(opts.group_dict('xenadapter'))
+        xen = XenAdapter(opts.group_dict('xenadapter'), self.user_authenticator)
         self.try_xenadapter( lambda : xen.start_stop_vm(vm_uuid, enable))
 
 
@@ -398,7 +398,7 @@ class ConvertVM(BaseHandler):
     @auth_required
     def post(self):
         vm_uuid =self.get_argument('uuid')
-        xen = XenAdapter(opts.group_dict('xenadapter'))
+        xen = XenAdapter(opts.group_dict('xenadapter'), self.user_authenticator)
         self.try_xenadapter(lambda: xen.convert_vm(vm_uuid))
 
 class EnableDisableTemplate(BaseHandler):

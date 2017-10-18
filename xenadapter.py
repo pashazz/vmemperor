@@ -16,7 +16,7 @@ def xenadapter_root(method):
         if self.vmemperor_user == 'root':
             return method(self, *args, **kwargs)
         else:
-            raise XenAdapterAPIError(self.log,  "Attempt to call root-only method by user")
+            raise XenAdapterAPIError(self.log,  "Attempt to call root-only method %s by user %s" % (method, self.vmemperor_user))
 
 
     return decorator
@@ -153,7 +153,7 @@ class XenAdapter(Loggable):
 
 
 
-    def __init__(self, settings,  authenticator=None):
+    def __init__(self, settings,  authenticator):
         """creates session connection to XenAPI. Connects using admin login/password from settings
         :param authenticator: authorized authenticator object
     """
