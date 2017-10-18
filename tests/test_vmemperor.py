@@ -102,6 +102,14 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         ps = xen.api.VM.get_power_state(vm_ref)
         self.assertEqual(ps, 'Running')
 
+    def test_convert(self):
+        uuid = '7557c256-fabd-3c21-5cc3-8dca8ed26ae1'
+        body = \
+        {
+            'uuid' :uuid
+        }
+        res = self.fetch(r'/convertvm', method='POST', body=urlencode(body), headers=self.headers)
+        self.assertEqual(res.code, 200)
 
     def test_vmlist(self):
         res = self.fetch(r'/vmlist', method='GET', headers=self.headers)
