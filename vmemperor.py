@@ -159,7 +159,13 @@ class AdminAuth(BaseHandler):
         self.write(json.dumps({}))
         self.set_secure_cookie("user", pickle.dumps((username, password)))
 
+class LogOut(BaseHandler):
+    def initialize(self, executor):
+        super().initialize()
 
+    def get(self):
+        self.clear_cookie('user')
+        self.redirect(self.get_argument("next", "/login"))
 
 class VMList(BaseHandler):
     @auth_required
@@ -604,6 +610,9 @@ class AutoInstall(BaseHandler):
         :param os_kind:
         :return:
         '''
+        if os_kind == 'test':
+            self.render("templates/installation-scenarios/test.cfg")
+            return
         hostname = self.get_argument('hostname', default='xen_vm')
         username = self.get_argument('username', default='')
         password = self.get_argument('password')
@@ -748,6 +757,7 @@ def make_app(executor, auth_class=None, debug = False):
     app =  tornado.web.Application([
 
         (r"/login", AuthHandler, dict(executor=executor, authenticator=auth_class)),
+        (r"/logout", LogOut, dict(executor=executor)),
         (r'/test', Test, dict(executor=executor)),
         (XenAdapter.AUTOINSTALL_PREFIX + r'/([^/]+)', AutoInstall, dict(executor=executor)),
         (r'/(console.*)', ConsoleHandler, dict(executor=executor)),

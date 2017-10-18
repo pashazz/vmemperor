@@ -480,8 +480,6 @@ class XenAdapter(Loggable):
                         self.api.VM.set_HVM_boot_policy(new_vm_ref, 'BIOS order')
                     bp = self.api.VM.get_HVM_boot_params(new_vm_ref)
                     bp['ks'] = scenario_url
-                    key, value = os.ip.split('=')
-                    bp[key] = value
 
         except XenAPI.Failure as f:
             self.destroy_vm(new_vm_uuid)
