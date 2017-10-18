@@ -227,8 +227,14 @@ class XenAdapter(Loggable):
             vbds = self.api.VM.get_VBDs(vm_ref)
             for vbd in vbds:
                 vdi_ref = self.api.VBD.get_VDI(vbd)
-                vdi_uuid = self.api.VDI.get_uuid(vdi_ref)
-                new_rec['disks'].append(vdi_uuid)
+                try:
+                    vdi_uuid = self.api.VDI.get_uuid(vdi_ref)
+                    new_rec['disks'].append(vdi_uuid)
+                except XenAPI.Failure as f:
+                    if f.details[1] != 'VDI':
+                        raise f
+
+
             return new_rec
 
         return [process(value) for value in self.get_all_records(self.api.VM).values()
@@ -500,7 +506,7 @@ class XenAdapter(Loggable):
         try:
             specs = provision.ProvisionSpec()
             vdi_size = str(1048576 * int(vdi_size))
-            specs.disks.append(provision.Disk(name_label, vdi_size, sr_uuid, True))
+            specs.disks.append(provision.Disk('0', vdi_size, sr_uuid, True))
             provision.setProvisionSpec(self.session, new_vm_ref, specs)
         except Exception as e:
             self.destroy_vm(new_vm_uuid)
