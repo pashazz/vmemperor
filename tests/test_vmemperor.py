@@ -103,7 +103,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         self.assertEqual(ps, 'Running')
 
     def test_convert(self):
-        uuid = '14ba9203-7ed1-c97b-39dc-9d4c6d1b6a19'
+        uuid = ''
         body = \
         {
             'uuid' :uuid
