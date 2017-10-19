@@ -366,9 +366,7 @@ class CreateVM(BaseHandler):
                     kwargs['dns1'] = dns1
         scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + os_kind.split()[0] + "?" + "&".join(
             ('{0}={1}'.format(k, v) for k, v in kwargs.items()))
-        print()
-        print(scenario_url)
-        print()
+        print('\n'+scenario_url+'\n')
         self.try_xenadapter(lambda  : xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind, ip_tuple, mirror_url, scenario_url, name_label, False, override_pv_args))
 
 
@@ -540,9 +538,15 @@ class EventLoop:
             CHECK_ER(self.db.table('vms').insert(vms, conflict='update').run())
 
         if 'access_list' in tables:
-            #self.db.table('access_list').delete().run()
-            self.db.table_drop('access_list').run()
-            tables.remove('access_list')
+            # self.db.table('access_list').delete().run()
+            try:
+                self.db.table_drop('access_list').run()
+                tables.remove('access_list')
+            except r.errors.ReqlOpFailedError as e:
+                # TODO make logging
+                print(e.message)
+                r.db('rethinkdb').table('table_config').filter(
+                    {'db': opts.database, 'name': "access_list"}).delete().run()
 
 
         if 'access_list' not in tables:
