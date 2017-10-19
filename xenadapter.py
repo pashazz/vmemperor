@@ -311,17 +311,18 @@ class XenAdapter(Loggable):
         return [{'userid' : k, 'vms' : v} for k, v in result_dict.items()]
 
     @requires_privilege('launch')
-    def convert_vm(self, vm_uuid):
-        '''
+    def convert_vm(self, vm_uuid, mode):
+        """
         convert vm from/to hvm
         :param vm_uuid:
+        :param mode: pv/hvm
         :return:
-        '''
+        """
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
         hvm_boot_policy = self.api.VM.get_HVM_boot_policy(vm_ref)
-        if hvm_boot_policy:
+        if hvm_boot_policy and mode == 'pv':
             self.api.VM.set_HVM_boot_policy(vm_ref, '')
-        else:
+        if hvm_boot_policy=='' and mode == 'hvm':
             self.api.VM.set_HVM_boot_policy(vm_ref, 'BIOS order')
 
 
@@ -405,6 +406,66 @@ class XenAdapter(Loggable):
             self.ip = ip_string
             self.dhcp = False
 
+        def get_release(self, num):
+            releases = {
+                '12.04': 'precise',
+                '14.04': 'trusty',
+                '14.10': 'utopic',
+                '15.04': 'vivid',
+                '15.10': 'willy',
+                '16.04': 'xenial',
+                '16.10': 'yakkety',
+                '17.04': 'zesty',
+                '17.10': 'artful',
+            }
+            if num in releases.keys():
+                return releases[num]
+            if num in releases.values():
+                return num
+            return None
+
+    class DebianOS (GenericOS):
+        '''
+        OS-specific parameters for Ubuntu
+        '''
+
+        def set_scenario(self, url):
+            self.scenario = self.set_preseed(url)
+            # self.scenario = self.set_kickstart(url)
+
+        def pv_args(self):
+            if self.dhcp:
+                self.ip = "netcfg/disable_dhcp=false"
+            return "auto=true console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 %s netcfg/get_hostname=%s %s --" % (
+                self.ip, self.hostname, self.scenario)
+
+        def set_network_parameters(self, ip=None, gw=None, netmask=None, dns1=None, dns2=None):
+            if not ip:
+                self.dhcp = True
+            else:
+                if not gw:
+                    raise XenAdapterArgumentError(self, "Network configuration: IP has been specified, missing gateway")
+                if not netmask:
+                    raise XenAdapterArgumentError(self, "Network configuration: IP has been specified, missing netmask")
+
+                ip_string = " ipv6.disable=1 netcfg/disable_autoconfig=true netcfg/use_autoconfig=false  netcfg/confirm_static=true netcfg/get_ipaddress=%s netcfg/get_gateway=%s netcfg/get_netmask=%s netcfg/get_nameservers=%s netcfg/get_domain=vmemperor" % (
+                ip, gw, netmask, dns1)
+
+            self.ip = ip_string
+            self.dhcp = False
+
+        def get_release(self, num):
+            releases = {
+                '7': 'wheezy',
+                '8': 'jessie',
+                '9': 'stretch'
+            }
+            if str(num) in releases.keys():
+                return releases[str(num)]
+            if num in releases.values():
+                return num
+            return None
+
     class CentOS (GenericOS):
         """
         OS-specific parameters for CetOS
@@ -412,10 +473,103 @@ class XenAdapter(Loggable):
         def set_scenario(self, url):
             self.scenario = self.set_kickstart(url)
 
-
-
         def pv_args(self):
             return "%s %s" % (self.ip, self.scenario)
+
+    def clone_tmpl(self, tmpl_uuid, name_label, os_kind):
+        try:
+            tmpl_ref = self.api.VM.get_by_uuid(tmpl_uuid)
+            new_vm_ref = self.api.VM.clone(tmpl_ref, name_label)
+            new_vm_uuid = self.api.VM.get_uuid(new_vm_ref)
+            self.log.info("New VM is created: UUID {0}, OS type {1}".format(new_vm_uuid, os_kind))
+            return new_vm_uuid
+        except XenAPI.Failure as f:
+            raise XenAdapterAPIError(self, "Failed to clone template: {0}".format(f.details))
+
+    def set_ram_size(self, vm_uuid, mbs):
+        try:
+            bs = str(1048576 * int(mbs))
+            vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+            self.api.VM.set_memory(vm_ref, bs)
+        except Exception as e:
+            self.destroy_vm(vm_uuid)
+            try:
+                raise e
+            except XenAPI.Failure as f:
+                raise XenAdapterAPIError(self, "Failed to setting ram size: {0}".format(f.details))
+
+    def set_disks(self, vm_uuid, sr_uuid, sizes):
+        vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+        if type(sizes) != list:
+            sizes = [sizes]
+        for size in sizes:
+            try:
+                specs = provision.ProvisionSpec()
+                size = str(1048576 * int(size))
+                specs.disks.append(provision.Disk('0', size, sr_uuid, True))
+                provision.setProvisionSpec(self.session, vm_ref, specs)
+            except Exception as e:
+                self.destroy_vm(vm_uuid)
+                try:
+                    raise e
+                except XenAPI.Failure as f:
+                    raise XenAdapterAPIError(self, "Failed to setting disk: {0}".format(f.details))
+
+        try:
+            self.api.VM.provision(vm_ref)
+        except Exception as e:
+            self.destroy_vm(vm_uuid)
+            try:
+                raise e
+            except XenAPI.Failure as f:
+                raise XenAdapterAPIError(self, "Failed to provision: {0}".format(f.details))
+
+    def os_detect(self, vm_uuid, os_kind, ip, hostname, scenario_url, override_pv_args):
+        vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+
+        os = None
+        if 'ubuntu' in os_kind:
+            os = XenAdapter.UbuntuOS()
+        if 'debian' in os_kind:
+            os = XenAdapter.DebianOS()
+
+        if os:
+            try:
+                debian_release = os.get_release(os_kind.split()[1])
+            except IndexError:
+                debian_release = None
+            if debian_release:
+                config = self.api.VM.get_other_config(vm_ref)
+                config['debian-release'] = debian_release
+                self.api.VM.set_other_config(vm_ref, config)
+
+        if 'centos' in os_kind:
+            os = XenAdapter.CentOS()
+
+        if os:
+            os.set_network_parameters(*ip)
+            os.set_hostname(hostname)
+            os.set_scenario(scenario_url)
+
+            if not override_pv_args:
+                pv_args = os.pv_args()
+            else:
+                pv_args = override_pv_args
+            self.api.VM.set_PV_args(vm_ref, pv_args)
+
+    def os_install(self, vm_uuid, install_url):
+        vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+
+        if install_url:
+            config = self.api.VM.get_other_config(vm_ref)
+            config['install-repository'] = install_url
+            config['default-mirror'] = install_url
+            self.api.VM.set_other_config(vm_ref, config)
+            self.log.info("Adding Installation URL: %s" % install_url)
+
+        self.api.VM.start(vm_ref, False, True)
+        while self.api.VM.get_power_state(vm_ref) != 'Halted':
+            time.sleep(7)
 
     def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, scenario_url=None, name_label = '', start=True, override_pv_args=None) -> str:
         '''
@@ -437,112 +591,19 @@ class XenAdapter(Loggable):
         :param override_pv_args: if specified, overrides all pv_args for Linux kernel
         :return: VM UUID
         '''
-        try:
-            tmpl_ref = self.api.VM.get_by_uuid(tmpl_uuid)
-            new_vm_ref = self.api.VM.clone(tmpl_ref, name_label)
-            new_vm_uuid = self.api.VM.get_uuid(new_vm_ref)
-            self.log.info ("New VM is created: UUID {0}, OS type {1}".format(new_vm_uuid, os_kind))
-        except XenAPI.Failure as f:
-            raise XenAdapterAPIError(self, "Failed to clone template: {0}".format(f.details))
-
-
-
-        try:
-
-            ram_size = str(1048576 * int(ram_size))
-            self.api.VM.set_memory(new_vm_ref, ram_size)
-
-            if install_url:
-                self.log.info("Adding Installation URL: %s" % install_url)
-                config = self.api.VM.get_other_config(new_vm_ref)
-                config['install-repository'] = install_url
-                config['default-mirror'] = install_url
-                self.api.VM.set_other_config(new_vm_ref, config)
-
-            if 'ubuntu' in os_kind or 'debian' in os_kind:
-                os = XenAdapter.UbuntuOS()
-                try:
-                    debian_release = os_kind.split()[1]
-                    config = self.api.VM.get_other_config(new_vm_ref)
-                    config['debian-release'] = debian_release
-                    self.api.VM.set_other_config(new_vm_ref, config)
-                except IndexError:
-                    pass
-            else:
-                if 'centos' in os_kind:
-                    os = XenAdapter.CentOS()
-                    config = self.api.VM.get_other_config(new_vm_ref)
-                    if 'rhel6' in config:
-                        del config['rhel6']
-                    self.api.VM.set_other_config(new_vm_ref, config)
-                else:
-                    os = None
-
-            if os:
-                os.set_network_parameters(*ip)
-                os.set_hostname(hostname)
-                os.set_scenario(scenario_url)
-
-                if mode == 'pv':
-                    if not override_pv_args:
-                        pv_args = os.pv_args()
-                    else:
-                        pv_args = override_pv_args
-                    self.api.VM.set_HVM_boot_policy(new_vm_ref, '')
-                    self.api.VM.set_PV_bootloader(new_vm_ref, 'eliloader')
-                    self.api.VM.set_PV_args(new_vm_ref, pv_args)
-
-                if mode == 'hvm':
-                    policy = self.api.VM.get_HVM_boot_policy(new_vm_ref)
-                    if policy == '':
-                        self.api.VM.set_HVM_boot_policy(new_vm_ref, 'BIOS order')
-                    bp = self.api.VM.get_HVM_boot_params(new_vm_ref)
-                    bp['ks'] = scenario_url
-
-        except XenAPI.Failure as f:
-            self.destroy_vm(new_vm_uuid)
-            raise XenAdapterAPIError(self, 'Failed to install OS: {0}'.format(f.details))
-
-        try:
-            specs = provision.ProvisionSpec()
-            vdi_size = str(1048576 * int(vdi_size))
-            specs.disks.append(provision.Disk('0', vdi_size, sr_uuid, True))
-            provision.setProvisionSpec(self.session, new_vm_ref, specs)
-        except Exception as e:
-            self.destroy_vm(new_vm_uuid)
-            try:
-                raise e
-            except XenAPI.Failure as f:
-                raise XenAdapterAPIError(self, "Failed to setting disk: {0}".format(f.details))
-
-        try:
-            self.api.VM.provision(new_vm_ref)
-        except Exception as e:
-            self.destroy_vm(new_vm_uuid)
-            try:
-                raise e
-            except XenAPI.Failure as f:
-                raise XenAdapterAPIError(self, "Failed to provision: {0}".format(f.details))
+        new_vm_uuid = self.clone_tmpl(tmpl_uuid, name_label, os_kind)
+        self.set_ram_size(new_vm_uuid, ram_size)
+        self.set_disks(new_vm_uuid, sr_uuid, vdi_size)
 
         if self.vmemperor_user:
             self.manage_actions('all', new_vm_uuid, user=self.vmemperor_user, force=True)
 
         self.connect_vm(new_vm_uuid, net_uuid, ip)
-
-        self.api.VM.start(new_vm_ref, False, True)
-        while self.api.VM.get_power_state(new_vm_ref) != 'Halted':
-            time.sleep(7)
-
-
-
-
-        if start:
-            self.api.VM.start(new_vm_ref, False, True) # args: VM reference, start in paused state, force start
-            self.log.info ("Created VM is started")
-        else:
-            self.log.warning('Created VM is off')
-
-
+        self.convert_vm(new_vm_uuid, 'pv')
+        self.os_detect(new_vm_uuid, os_kind, ip, hostname, scenario_url, override_pv_args)
+        self.os_install(new_vm_uuid, install_url)
+        self.convert_vm(new_vm_uuid, mode)
+        self.start_stop_vm(new_vm_uuid, start)
 
         return new_vm_uuid
 
