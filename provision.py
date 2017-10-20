@@ -23,12 +23,21 @@ import xml.dom.minidom
 
 class Disk:
     """Represents a disk which should be created for this VM"""
-    def __init__(self, device, size, sr, bootable):
-        self.device = device # 0, 1, 2, ...
-        self.size = size     # in bytes
-        self.sr = sr         # uuid of SR
-        self.bootable = bootable
-    def toElement(self, doc):
+    def __init__(self, device : str =None, size : str =None, sr : str =None, bootable : bool =None, element=None):
+        if element:
+            self.device = element.getAttribute("device")
+            self.size = element.getAttribute("size")
+            self.sr = element.getAttribute("sr")
+            self.bootable = element.getAttribute("bootable") == "true"
+        else:
+            if not any((device, size, sr, bootable)):
+                raise ValueError("specify either Element or all of device, size, sr, bootable")
+            self.device = device # 0, 1, 2, ...
+            self.size = size     # in bytes
+            self.sr = sr         # uuid of SR
+            self.bootable = bootable
+
+    def toElement(self, doc : xml.dom.minidom.Document):
         disk = doc.createElement("disk")
         disk.setAttribute("device", self.device)
         disk.setAttribute("size", self.size)
@@ -38,18 +47,11 @@ class Disk:
         disk.setAttribute("bootable", b)
         return disk
 
-def parseDisk(element):
-    device = element.getAttribute("device")
-    size = element.getAttribute("size")
-    sr = element.getAttribute("sr")
-    b = element.getAttribute("bootable") == "true"
-    return Disk(device, size, sr, b)
 
 class ProvisionSpec:
     """Represents a provisioning specification: currently a list of required disks"""
-    def __init__(self):
-        self.disks = []
-    def toElement(self, doc):
+
+    def toElement(self, doc : xml.dom.minidom.Document):
         element = doc.createElement("provision")
         for disk in self.disks:
             element.appendChild(disk.toElement(doc))
@@ -61,32 +63,33 @@ class ProvisionSpec:
     def setDiskSize(self, size):
         (self.disks)[0].size = size
 
-def parseProvisionSpec(txt):
-    """Return an instance of type ProvisionSpec given XML text"""
-    doc = xml.dom.minidom.parseString(txt)
-    all = doc.getElementsByTagName("provision")
-    if len(all) != 1:
-        raise "Expected to find exactly one <provision> element"
-    ps = ProvisionSpec()
-    disks = all[0].getElementsByTagName("disk")
-    for disk in disks:
-        ps.disks.append(parseDisk(disk))
-    return ps
+    def __str__(self):
+        doc = xml.dom.minidom.Document()
+        doc.appendChild(self.toElement(doc))
+        return doc.toprettyxml()
 
-def printProvisionSpec(ps):
-    """Return a string containing pretty-printed XML corresponding to the supplied provisioning spec"""
-    doc = xml.dom.minidom.Document()
-    doc.appendChild(ps.toElement(doc))
-    return doc.toprettyxml()
+    def __init__(self, spec=None):
+        self.disks = []
+        if spec:
+            doc = xml.dom.minidom.parseString(txt)
+            all = doc.getElementsByTagName("provision")
+            if len(all) != 1:
+                raise "Expected to find exactly one <provision> element"
+            disks = all[0].getElementsByTagName("disk")
+            for disk in disks:
+                self.disks.append(Disk(disk))
+
+
+
 
 def getProvisionSpec(session, vm):
     """Read the provision spec of a template/VM"""
     other_config = session.xenapi.VM.get_other_config(vm)
-    return parseProvisionSpec(other_config['disks'])
+    return ProvisionSpec(spec=other_config['disks'])
 
 def setProvisionSpec(session, vm, ps):
     """Set the provision spec of a template/VM"""
-    txt = printProvisionSpec(ps)
+    txt = str(ps)
     try:
         session.xenapi.VM.remove_from_other_config(vm, "disks")
     except:
@@ -100,12 +103,12 @@ if __name__ == "__main__":
     ps.disks.append(Disk("0", "1024", "0000-0000", True))
     ps.disks.append(Disk("1", "2048", "1111-1111", False))
     print ("* Pretty-printing spec")
-    txt = printProvisionSpec(ps)
+    txt = str(ps)
     print (txt)
     print ("* Re-parsing output")
-    ps2 = parseProvisionSpec(txt)
+    ps2 = ProvisionSpec(txt)
     print ("* Pretty-printing spec")
-    txt2 = printProvisionSpec(ps)
+    txt2 = str(ps)
     print (txt2)
     if txt != txt2:
         raise "Sanity-check failed: print(parse(print(x))) <> print(x)"

@@ -25,6 +25,8 @@ from netifaces import ifaddresses, AF_INET
 import uuid
 from tornado.options import define, options as opts, parse_config_file
 
+
+
 def CHECK_ER(ret):
     if ret['errors']:
         raise ValueError('Failed to modify data: {0}'.format(ret['first_error']))
@@ -52,10 +54,23 @@ class BaseHandler(tornado.web.RequestHandler, Loggable):
         self.conn = r.connect(opts.host, opts.port, opts.database)
         super().initialize()
 
+    def init_xen(self, auth=None) -> XenAdapter:
+        opts_dict = {}
+        opts_dict.update(opts.group_dict('xenadapter'))
+        opts_dict.update(opts.group_dict('rethinkdb'))
+        xen = XenAdapter(opts_dict, auth if auth else self.user_authenticator)
+        return xen
+
     def get_current_user(self):
         return self.get_secure_cookie("user")
 
-    def try_xenadapter(self, func):
+    def try_xenadapter(self, func, post_hook = None):
+        '''
+        Call a xenadapter method, handle exceptions
+        :param func:
+        :param post_hook: call this function with a xenadapter method's return value as an argument (optional)
+        :return:
+        '''
         try:
             ret = func()
         except XenAdapterUnauthorizedActionException as ee:
@@ -72,6 +87,8 @@ class BaseHandler(tornado.web.RequestHandler, Loggable):
             else:
                 self.write(json.dumps({'status' : 'ok'}))
 
+            if post_hook:
+                post_hook(ret)
 
 
 
@@ -149,7 +166,7 @@ class AdminAuth(BaseHandler):
         username = self.get_argument("username", "")
         password = self.get_argument("password", "")
         try:
-            xen = XenAdapter(opts.group_dict('xenadapter'), (username, password))
+            xen = self.init_xen((username, password))
 
         except XenAdapterConnectionError as e:
             self.write(json.dumps({"status": 'error', 'message': e.message}))
@@ -302,16 +319,16 @@ class CreateVM(BaseHandler):
 
         """
 
-        xen = XenAdapter(opts.group_dict('xenadapter'), self.user_authenticator)
+        xen = self.init_xen()
         try:
             tmpl_name = self.get_argument('template')
-            sr_uuid = self.get_argument('storage')
-            net_uuid = self.get_argument('network')
-            vdi_size = self.get_argument('vdi_size')
-            ram_size = self.get_argument('ram_size')
-            hostname = self.get_argument('hostname')
-            name_label = self.get_argument('name_label')
-            mirror_url = self.get_argument('mirror_url')
+            self.sr_uuid = self.get_argument('storage')
+            self.net_uuid = self.get_argument('network')
+            self.vdi_size = self.get_argument('vdi_size')
+            self.ram_size = self.get_argument('ram_size')
+            self.hostname = self.get_argument('hostname')
+            self.name_label = self.get_argument('name_label')
+            self.mirror_url = self.get_argument('mirror_url')
 
         except:
             self.write_error(status_code=404)
@@ -327,32 +344,32 @@ class CreateVM(BaseHandler):
         if not tmpl_uuid:
             raise ValueError('Wrong template name: {0}'.format(tmpl_name))
 
-        os_kind = self.get_argument('os_kind', None)
-        override_pv_args = self.get_argument('override_pv_args', None)
-        mode = self.get_argument('mode')
-        self.log.info("Creating VM: name_label %s; os_kind: %s" % (name_label, os_kind))
+        self.os_kind = self.get_argument('os_kind', None)
+        self.override_pv_args = self.get_argument('override_pv_args', None)
+        self.mode = self.get_argument('mode')
+        self.log.info("Creating VM: name_label %s; os_kind: %s" % (self.name_label, self.os_kind))
         ip = self.get_argument('ip', '')
         gw = self.get_argument('gateway', '')
         netmask = self.get_argument('netmask', '')
         dns0 = self.get_argument('dns0', '')
         dns1 = self.get_argument('dns1', '')
         if not ip or not gw or not netmask:
-            ip_tuple = None
+            self.ip_tuple = None
         else:
-            ip_tuple = [ip,gw,netmask]
+            self.ip_tuple = [ip,gw,netmask]
 
         if dns0:
-            ip_tuple.append(dns0)
+            self.ip_tuple.append(dns0)
         if dns1:
-            ip_tuple.append(dns1)
+            self.ip_tuple.append(dns1)
 
         kwargs = {}
-        if 'ubuntu' in os_kind or 'centos' in os_kind or 'debian' in os_kind:
+        if 'ubuntu' in self.os_kind or 'centos' in self.os_kind or 'debian' in self.os_kind:
             # see os_kind-ks.cfg
             kwargs['hostname'] = self.get_argument('hostname', default='xen_vm')
             kwargs['username'] = self.get_argument('username', default='')
             kwargs['password'] = self.get_argument('password')
-            kwargs['mirror_url'] = mirror_url
+            kwargs['mirror_url'] = self.mirror_url
             kwargs['fullname'] = self.get_argument('fullname')
             kwargs['ip'] = ip
             kwargs['partition'] = self.get_argument('partition', default='auto')
@@ -364,10 +381,26 @@ class CreateVM(BaseHandler):
                     kwargs['dns0'] = dns0
                 if dns1:
                     kwargs['dns1'] = dns1
-        scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + os_kind.split()[0] + "?" + "&".join(
+        self.scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + self.os_kind.split()[0] + "?" + "&".join(
             ('{0}={1}'.format(k, v) for k, v in kwargs.items()))
-        print('\n'+scenario_url+'\n')
-        self.try_xenadapter(lambda  : xen.create_vm(tmpl_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind, ip_tuple, mirror_url, scenario_url, name_label, False, override_pv_args))
+        self.log.info("Scenario URL generated: %s", self.scenario_url)
+
+        def clone_post_hook(return_value):
+            ioloop = tornado.ioloop.IOLoop.instance()
+            ioloop.add_callback(self.yield_createvm, xen, return_value)
+
+        self.try_xenadapter(lambda  : xen.clone_tmpl(tmpl_uuid, self.name_label, self.os_kind), post_hook=clone_post_hook)
+            #return
+
+    @run_on_executor
+    def createvm(self, xen, new_vm_uuid):
+        xen.create_vm(new_vm_uuid, self.sr_uuid, self.net_uuid, self.vdi_size, self.ram_size, self.hostname, self.mode, self.os_kind, self.ip_tuple, self.mirror_url, self.scenario_url, self.name_label, False, self.override_pv_args)
+
+    @gen.coroutine
+    def yield_createvm(self, xen, new_vm_uuid):
+        ret = self.createvm(xen, new_vm_uuid)
+        # update vm_logs index
+        self.log.info('VM created, updating vm_logs index...')
 
 
 class NetworkList(BaseHandler):
@@ -394,7 +427,7 @@ class StartStopVM(BaseHandler):
          """
         vm_uuid = self.get_argument('uuid')
         enable = self.get_argument('enable')
-        xen = XenAdapter(opts.group_dict('xenadapter'), self.user_authenticator)
+        xen = self.init_xen()
         self.try_xenadapter( lambda : xen.start_stop_vm(vm_uuid, enable))
 
 
@@ -402,7 +435,7 @@ class ConvertVM(BaseHandler):
     @auth_required
     def post(self):
         vm_uuid =self.get_argument('uuid')
-        xen = XenAdapter(opts.group_dict('xenadapter'), self.user_authenticator)
+        xen = self.init_xen()
         self.try_xenadapter(lambda: xen.convert_vm(vm_uuid))
 
 class EnableDisableTemplate(BaseHandler):
@@ -416,7 +449,8 @@ class EnableDisableTemplate(BaseHandler):
          """
         uuid = self.get_argument('uuid')
         enable = self.get_argument('enable')
-        xen = XenAdapter(opts.group_dict('xenadapter'))
+        xen = self.init_xen()
+
         self.try_xenadapter( lambda : xen.enable_disable_template(uuid, bool(enable)) )
 
 
@@ -433,7 +467,7 @@ class VNC(BaseHandler):
 
         '''
         vm_uuid = self.get_argument('uuid')
-        xen = XenAdapter(opts.group_dict('xenadapter'))
+        xen = self.init_xen()
         def get_vnc():
             url = xen.get_vnc(vm_uuid)
             url_splitted = urlsplit(url)
@@ -456,7 +490,7 @@ class AttachDetachDisk(BaseHandler):
             vdi_uuid: VDI UUID
             enable: True if to attach disk, False if to detach.
         '''
-        xen = XenAdapter(opts.group_dict('xenadapter'))
+        xen = self.init_xen()
         vm_uuid = self.get_argument('vm_uuid')
         vdi_uuid = self.get_argument('vdi_uuid')
         enable = self.get_argument('enable')
@@ -480,7 +514,7 @@ class DestroyVM(BaseHandler):
         :return:
         '''
 
-        xen = XenAdapter(opts.group_dict('xenadapter'))
+        xen = self.init_xen()
         vm_uuid = self.get_argument('uuid')
         self.try_xenadapter(lambda : xen.destroy_vm(vm_uuid))
 
@@ -498,7 +532,7 @@ class ConnectVM(BaseHandler):
         ip: undocumented. Lera?
         :return:
         '''
-        xen = XenAdapter(opts.group_dict('xenadapter'))
+        xen = self.init_xen()
         vm_uuid = self.get_argument('vm_uuid')
         net_uuid = self.get_argument('net_uuid')
         ip = self.get_argument('ip', default=None)
@@ -518,12 +552,13 @@ class EventLoop:
 
     def __init__(self, executor, authenticator):
         self.executor = executor
-        self.xen = XenAdapter(opts.group_dict('xenadapter'), authenticator)
+
         self.conn = r.connect(opts.host, opts.port, opts.database).repl()
         if opts.database not in r.db_list().run():
             r.db_create(opts.database).run()
         self.db = r.db(opts.database)
         tables = self.db.table_list().run()
+        self.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')} , authenticator)
         # required = ['vms', 'tmpls', 'pools', 'nets']
         if 'vms' in tables:
             self.db.table('vms').delete().run()
@@ -559,6 +594,8 @@ class EventLoop:
         else:
             access_list = self.xen.access_list()
             CHECK_ER(self.db.table('access_list').insert(access_list, conflict='update').run())
+
+
 
 
         if 'tmpls' not in tables:

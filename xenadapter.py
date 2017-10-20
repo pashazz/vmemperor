@@ -3,11 +3,11 @@ import hooks
 import provision
 from exc import XenAdapterAPIError, XenAdapterArgumentError, XenAdapterConnectionError, XenAdapterUnauthorizedActionException
 from authentication import BasicAuthenticator
-
+import datetime
 from loggable import Loggable
 from inspect import signature
 import time
-
+import rethinkdb as r
 
 
 
@@ -26,7 +26,9 @@ def requires_privilege(privilege):
         def decorator(self, *args, **kwargs):
             sig = signature(method)
             bound_arguments = sig.bind(self, *args, **kwargs)
-            if self.check_rights(privilege, bound_arguments.arguments['vm_uuid']):
+            if 'force' in bound_arguments.arguments and bound_arguments.arguments['force'] \
+                or \
+            self.check_rights(privilege, bound_arguments.arguments['vm_uuid']):
                 return method(self, *args, **kwargs)
             else:
                 raise XenAdapterUnauthorizedActionException(self.log, "Unauthorized attempt to call function '%s': needs privilege '%s'"
@@ -195,7 +197,18 @@ class XenAdapter(Loggable):
         except XenAPI.Failure as e:
             raise XenAdapterConnectionError(self.log, 'Failed to login: url: "{1}"; username: "{2}"; password: "{3}"; error: {0}'.format(str(e), url, username, password))
 
-        return
+        self.conn = r.connect(settings['host'], settings['port'], db=settings['database']).repl()
+        self.db  = r.db(settings['database'])
+        if  'vm_logs' not in self.db.table_list().run():
+            self.db.table_create('vm_logs', durability='soft').run()
+            self.db.table('vm_logs').index_create('uuid').run()
+            self.db.table('vm_logs').index_wait('uuid').run()
+
+        self.table = self.db.table('vm_logs')
+
+
+
+
 
     @xenadapter_root
     def list_pools(self) -> dict:
@@ -481,9 +494,11 @@ class XenAdapter(Loggable):
             tmpl_ref = self.api.VM.get_by_uuid(tmpl_uuid)
             new_vm_ref = self.api.VM.clone(tmpl_ref, name_label)
             new_vm_uuid = self.api.VM.get_uuid(new_vm_ref)
+            self.insert_log_entry(new_vm_uuid, 'cloned', 'Cloned from %s' % tmpl_uuid)
             self.log.info("New VM is created: UUID {0}, OS type {1}".format(new_vm_uuid, os_kind))
             return new_vm_uuid
         except XenAPI.Failure as f:
+            self.insert_log_entry(tmpl_uuid, 'failed', f.details)
             raise XenAdapterAPIError(self, "Failed to clone template: {0}".format(f.details))
 
     def set_ram_size(self, vm_uuid, mbs):
@@ -492,11 +507,12 @@ class XenAdapter(Loggable):
             vm_ref = self.api.VM.get_by_uuid(vm_uuid)
             self.api.VM.set_memory(vm_ref, bs)
         except Exception as e:
-            self.destroy_vm(vm_uuid)
+            self.destroy_vm(vm_uuid, force=True)
             try:
                 raise e
             except XenAPI.Failure as f:
-                raise XenAdapterAPIError(self, "Failed to setting ram size: {0}".format(f.details))
+                self.insert_log_entry(vm_uuid, 'failed', 'Failed to assign %s Mb of memory: %s' % (vm_uuid, f.details))
+                raise XenAdapterAPIError(self, "Failed to set ram size: {0}".format(f.details))
 
     def set_disks(self, vm_uuid, sr_uuid, sizes):
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
@@ -509,20 +525,29 @@ class XenAdapter(Loggable):
                 specs.disks.append(provision.Disk('0', size, sr_uuid, True))
                 provision.setProvisionSpec(self.session, vm_ref, specs)
             except Exception as e:
-                self.destroy_vm(vm_uuid)
                 try:
                     raise e
                 except XenAPI.Failure as f:
-                    raise XenAdapterAPIError(self, "Failed to setting disk: {0}".format(f.details))
+                    self.insert_log_entry(vm_uuid, 'failed', 'Failed to assign provision specification: %s' % f.details)
+                    raise XenAdapterAPIError(self, "Failed to set disk: {0}".format(f.details))
+                finally:
+                    self.destroy_vm(vm_uuid, force=True)
+
 
         try:
             self.api.VM.provision(vm_ref)
         except Exception as e:
-            self.destroy_vm(vm_uuid)
+
             try:
                 raise e
             except XenAPI.Failure as f:
+                self.insert_log_entry(vm_uuid, 'failed', 'Failed to perform provision: %s' % f.details)
                 raise XenAdapterAPIError(self, "Failed to provision: {0}".format(f.details))
+            finally:
+                self.destroy_vm(vm_uuid, force=True)
+        else:
+            self.insert_log_entry(vm_uuid, 'provisioned',str(specs))
+
 
     def os_detect(self, vm_uuid, os_kind, ip, hostname, scenario_url, override_pv_args):
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
@@ -559,23 +584,43 @@ class XenAdapter(Loggable):
 
     def os_install(self, vm_uuid, install_url):
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
-
+        message = 'Installing OS'
         if install_url:
             config = self.api.VM.get_other_config(vm_ref)
             config['install-repository'] = install_url
             config['default-mirror'] = install_url
             self.api.VM.set_other_config(vm_ref, config)
             self.log.info("Adding Installation URL: %s" % install_url)
+            message += ' from URL: %s' % install_url
 
-        self.api.VM.start(vm_ref, False, True)
-        while self.api.VM.get_power_state(vm_ref) != 'Halted':
-            time.sleep(7)
+        self.insert_log_entry(vm_uuid, 'installing', message)
 
-    def create_vm(self, tmpl_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, scenario_url=None, name_label = '', start=True, override_pv_args=None) -> str:
+
+        try:
+            self.api.VM.start(vm_ref, False, True)
+            while self.api.VM.get_power_state(vm_ref) != 'Halted':
+                time.sleep(7)
+        except Exception as e:
+            try:
+                raise e
+            except XenAPI.Failure as f:
+                self.insert_log_entry(vm_uuid, 'failed', 'Failed to start OS installation:  %s' % f.details)
+        else:
+            self.insert_log_entry(vm_uuid, 'installed', 'OS installed')
+
+
+
+
+    def insert_log_entry(self, uuid, state, message):
+
+        #r.now() is rethink-compatible datetime.datetime.now()
+        self.table.insert(dict(uuid=uuid, state=state, message=message, time=r.now()), durability='soft').run(self.conn)
+
+    def create_vm(self, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, scenario_url=None, name_label = '', start=True, override_pv_args=None) -> str:
         '''
         Creates a virtual machine and installs an OS
 
-        :param tmpl_uuid: Template UUID
+        :param new_vm_uuid: Cloned template UUID (use clone_templ)
         :param sr_uuid: Storage Repository UUID
         :param net_uuid: Network UUID
         :param vdi_size: Size of disk
@@ -591,7 +636,8 @@ class XenAdapter(Loggable):
         :param override_pv_args: if specified, overrides all pv_args for Linux kernel
         :return: VM UUID
         '''
-        new_vm_uuid = self.clone_tmpl(tmpl_uuid, name_label, os_kind)
+        #new_vm_uuid = self.clone_tmpl(tmpl_uuid, name_label, os_kind)
+
         self.set_ram_size(new_vm_uuid, ram_size)
         self.set_disks(new_vm_uuid, sr_uuid, vdi_size)
 
@@ -813,7 +859,7 @@ class XenAdapter(Loggable):
         return
 
     @requires_privilege('destroy')
-    def destroy_vm(self, vm_uuid):
+    def destroy_vm(self, vm_uuid, force=False):
 
         self.start_stop_vm(vm_uuid, False)
         vm_ref = self.api.VM.get_by_uuid(vm_uuid)
