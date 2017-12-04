@@ -592,8 +592,7 @@ class VM (AbstractVM):
 
         """
         Starts and stops VM if required
-        :param vm_uuid:
-        :param enable:
+        :param enable: True = start; False = stop
         :return:
         """
         if not hasattr(self, 'install'):
@@ -602,15 +601,16 @@ class VM (AbstractVM):
 
         ps = self.get_power_state()
         try:
-            if ps != 'Running' and bool(enable) == True:
+            if ps != 'Running' and enable:
                 self.start( False, True)
-                self.log.info("Started VM UUID {0}".format(self.uuid))
-            if ps == 'Running' and bool(enable) == False:
+                self.log.info("Started".format(self.uuid))
+            if ps == 'Running' and not enable:
                 self.shutdown()
-                self.xen.log.info("Shutted down VM UUID {0}".format(self.uuid))
+                self.xen.log.info("Shutted down".format(self.uuid))
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self.log, "Failed to start/stop VM: {0}".format(f.details))
 
+    @use_logger
     def get_vnc(self):
         if not hasattr(self, 'install'):
             self.check_access('launch')
@@ -618,13 +618,13 @@ class VM (AbstractVM):
         self.start_stop_vm(True)
         consoles = self.get_consoles()  # references
         if (len(consoles) == 0):
-            self.log.error('Failed to find console of VM UUID {0}'.format(self.uuid))
-            return ""
+            self.log.error('Failed to find console')
+            return
         try:
             cons_ref = consoles[0]
-            console = self.api.console.get_record(cons_ref)
-            url = self.api.console.get_location(cons_ref)
-            self.xen.log.info("Console location {0} of VM UUID {1}".format(url, self.uuid))
+            console = self.xen.api.console.get_record(cons_ref)
+            url = self.xen.api.console.get_location(cons_ref)
+            self.xen.log.info("Console location: {0}".format(url))
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self.log, "Failed to get console location: {0}".format(f.details))
 
@@ -634,7 +634,7 @@ class VM (AbstractVM):
     def destroy_vm(self, force=False):
 
         if not hasattr(self, 'install'):
-            self.check_access('launch')
+            self.check_access('destroy')
 
         self.start_stop_vm(False)
 

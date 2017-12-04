@@ -457,7 +457,7 @@ class CreateVM(BaseHandler):
                     self.user_authenticator.xen.insert_log_entry(self.uuid, "failed", "failed to start after installation: %s" % e.message)
                 else:
                     self.user_authenticator.xen.insert_log_entry(self.uuid, "installed", "OS successfully installed")
-
+                break
 
 
 
@@ -476,19 +476,6 @@ class NetworkList(BaseHandler):
         list = [x for x in table.run()]
 
         self.write(json.dumps(list))
-
-class StartStopVM(BaseHandler):
-    @auth_required
-    def post(self):
-        """
-         Start or stop VM, requires 'launch' permission
-         Arguments:
-             uuid: VM UUID
-             enable: True if to start VM, False if to stop VM
-         """
-        vm_uuid = self.get_argument('uuid')
-        enable = self.get_argument('enable')
-        self.try_xenadapter( lambda auth: VM(auth, uuid=vm_uuid).start_stop_vm(enable))
 
 
 class ConvertVM(BaseHandler):
@@ -516,25 +503,6 @@ class EnableDisableTemplate(BaseHandler):
 
 
 
-
-class VNC(BaseHandler):
-    @auth_required
-    def get(self):
-        '''
-        Get VNC console url that supports HTTP CONNECT method. Requires permission 'launch'
-        Arguments:
-            uuid: VM UUID
-
-        '''
-        vm_uuid = self.get_argument('uuid')
-        def get_vnc(auth : BasicAuthenticator):
-            url = VM(auth, uuid=vm_uuid).get_vnc()
-            url_splitted = urlsplit(url)
-            url_splitted[0] = 'http'
-            url_splitted[1] = opts.vmemperor_url
-            url = urlunsplit(url_splitted)
-            return url
-        self.try_xenadapter(get_vnc)
 
 
 
@@ -575,18 +543,7 @@ class AttachDetachIso(BaseHandler):
 
 
 
-class DestroyVM(BaseHandler):
-    @auth_required
-    def post(self):
-        '''
-        Destroy VM. Requires permission "destroy"
-        Arguments:
-        uuid: VM UUID
-        :return:
-        '''
 
-        vm_uuid = self.get_argument('uuid')
-        self.try_xenadapter(lambda auth: VM(auth, uuid=vm_uuid).destroy())
 
 
 
@@ -673,7 +630,53 @@ class VMInfo(VMAbstractHandler):
             self.write({'status' : 'database error/no info'})
             return
 
+class DestroyVM(VMAbstractHandler):
 
+    access = 'destroy'
+
+    def get_data(self):
+        uuid = self.get_argument('uuid')
+
+        self.try_xenadapter(lambda auth: VM(auth, uuid=uuid).destroy_vm())
+
+class StartStopVM(VMAbstractHandler):
+
+    access = 'launch'
+
+    def get_data(self):
+        uuid = self.get_argument('uuid')
+        enable = self.get_argument('enable')
+        if enable not in ('True', 'False'):
+            self.set_status(400)
+            self.write({'status': 'invalid enable value: expected True/False'})
+            return
+
+        self.try_xenadapter(lambda auth: VM(auth, uuid=uuid).start_stop_vm(enable == 'True'))
+
+
+class VNC(VMAbstractHandler):
+
+    access = 'launch'
+
+    def get_data(self):
+        '''
+        Get VNC console url that supports HTTP CONNECT method. Requires permission 'launch'
+        Arguments:
+            uuid: VM UUID
+
+        '''
+
+        vm_uuid = self.get_argument('uuid')
+
+        def get_vnc(auth: BasicAuthenticator):
+            url = VM(auth, uuid=vm_uuid).get_vnc()
+            url_splitted = list(urlsplit(url))
+            url_splitted[0] = 'http'
+            url_splitted[1] = opts.vmemperor_url + ":" + str(opts.vmemperor_port)
+            url = urlunsplit(url_splitted)
+            return url
+
+        self.try_xenadapter(get_vnc)
 
 
 class EventLoop(Loggable):
@@ -962,8 +965,7 @@ class ConsoleHandler(BaseHandler):
 
 
     @auth_required
-    @tornado.web.asynchronous
-    def connect(self, path):
+    def connect(self):
         '''
         This method proxies CONNECT calls to XenServer
         '''

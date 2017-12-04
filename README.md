@@ -26,6 +26,10 @@ Specify `url` on line 16
 * `createvm` - Create VM
 * `vminfo` - Get VM info
 * `installstatus` - Get install status
+* `start` - Start VM
+* `stop` - Stop VM
+* `destroy` - Destroy VM
+* `vnc` - Get VNC url (use HTTP CONNECT method with this URL)
 ## Get help
     make_request.py <action> --help
 

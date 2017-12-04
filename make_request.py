@@ -82,18 +82,36 @@ class Main():
         p = argparse.ArgumentParser(description="Start VM")
         p.add_argument('uuid', help='VM UUID')
         args = p.parse_args(sys.argv[2:])
-        r = requests.post("%s/startstopvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, enable=True))
+        r = requests.get("%s/startstopvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, enable=True))
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
+    @login
     def stop(self):
         p = argparse.ArgumentParser(description="Stop VM")
         p.add_argument('uuid', help='VM UUID')
         args = p.parse_args(sys.argv[2:])
-        r = requests.post("%s/startstopvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, enable=False))
+        r = requests.get("%s/startstopvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, enable=False))
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
+    @login
+    def destroy(self):
+        p = argparse.ArgumentParser(description="Destroy VM")
+        p.add_argument('uuid', help='VM UUID')
+        args = p.parse_args(sys.argv[2:])
+        r = requests.get("%s/destroyvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
+        print(r.text)
+        print(r.status_code, file=sys.stderr)
+
+    @login
+    def vnc(self):
+        p = argparse.ArgumentParser(description="Get VNC URL (use HTTP CONNECT method)")
+        p.add_argument('uuid', help='VM UUID')
+        args = p.parse_args(sys.argv[2:])
+        r = requests.get("%s/vnc" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
+        print(r.text)
+        print(r.status_code, file=sys.stderr)
 
 if __name__ == '__main__':
     Main()
