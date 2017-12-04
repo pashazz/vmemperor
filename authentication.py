@@ -3,6 +3,8 @@ from abc import ABCMeta, abstractmethod
 
 
 class Authentication(metaclass=ABCMeta):
+
+
     @abstractmethod
     def check_credentials(self, password, username):
         """asserts credentials using inner db, or some outer authentication system"""
@@ -25,11 +27,11 @@ class Authentication(metaclass=ABCMeta):
 
 
 
+
 @Authentication.register
 class BasicAuthenticator:
-    pass
-
-
+    def init(self, xen):
+        self.xen = xen
 
 class DummyAuth(BasicAuthenticator):
 

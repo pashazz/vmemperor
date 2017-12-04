@@ -69,7 +69,7 @@ class LDAPIspAuthenticator(BasicAuthenticator):
         :return: Unique user identifier
         '''
         if not self.id:
-            raise AuthenticationException()
+            raise RuntimeError("Not authorized")
         return self.id
 
     def get_name(self):
@@ -153,3 +153,5 @@ class LDAPIspAuthenticator(BasicAuthenticator):
 
     def set_user_groups(self):
         raise NotImplementedError()
+
+

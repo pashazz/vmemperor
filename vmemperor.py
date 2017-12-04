@@ -1,4 +1,7 @@
-from xenadapter import XenAdapter
+from auth import dummy
+from xenadapter import XenAdapter, Template, VM, Network
+import traceback
+import inspect
 import tornado.web
 from tornado.escape import json_encode, json_decode
 import tornado.httpserver
@@ -24,6 +27,9 @@ import logging
 from netifaces import ifaddresses, AF_INET
 import uuid
 from tornado.options import define, options as opts, parse_config_file
+import queue
+import threading
+
 
 
 
@@ -40,9 +46,14 @@ def auth_required(method):
             self.redirect(r'/login')
         else:
             self.user_authenticator  = pickle.loads(user)
-            method(self, *args, **kwargs)
+            self.user_authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
+            self.xen = self.user_authenticator.xen
+            return method(self, *args, **kwargs)
 
     return decorator
+
+
+
 
 
 
@@ -54,41 +65,53 @@ class BaseHandler(tornado.web.RequestHandler, Loggable):
         self.conn = r.connect(opts.host, opts.port, opts.database)
         super().initialize()
 
-    def init_xen(self, auth=None) -> XenAdapter:
-        opts_dict = {}
-        opts_dict.update(opts.group_dict('xenadapter'))
-        opts_dict.update(opts.group_dict('rethinkdb'))
-        xen = XenAdapter(opts_dict, auth if auth else self.user_authenticator)
-        return xen
+    #def init_xen(self, auth=None) -> XenAdapter:
+    #    opts_dict = {}
+    #    opts_dict.update(opts.group_dict('xenadapter'))
+    #    opts_dict.update(opts.group_dict('rethinkdb'))
+    #    xen = XenAdapter(opts_dict, auth if auth else self.user_authenticator)
+    #    return xen
 
     def get_current_user(self):
         return self.get_secure_cookie("user")
+
 
     def try_xenadapter(self, func, post_hook = None):
         '''
         Call a xenadapter method, handle exceptions
         :param func:
-        :param post_hook: call this function with a xenadapter method's return value as an argument (optional)
-        :return:
+        :param post_hook: call this function with a xenadapter method's return value and an authenticator object  as arguments argument (optional)        :return:
         '''
+        auth = self.user_authenticator
         try:
-            ret = func()
+            ret = func(auth)
+
         except XenAdapterUnauthorizedActionException as ee:
             self.set_status(403)
-            self.write(json.dumps({'status' : 'not allowed', 'details' : ee.message}))
+            self.write(json.dumps({'status': 'not allowed', 'details': ee.message}))
+            self.finish()
+
 
         except EmperorException as ee:
             self.set_status(400)
-            self.write(json.dumps({'status' : 'error', 'details' : ee.message}))
+            self.write(json.dumps({'status': 'error', 'details': ee.message}))
+            self.finish()
 
         else:
             if ret:
                 self.write(ret)
             else:
-                self.write(json.dumps({'status' : 'ok'}))
+                self.write(json.dumps({'status': 'ok'}))
+
+
+            self.finish()
 
             if post_hook:
-                post_hook(ret)
+                post_hook(ret, auth)
+
+
+
+
 
 
 
@@ -163,18 +186,18 @@ class AdminAuth(BaseHandler):
         :param password
         :return:
         '''
-        username = self.get_argument("username", "")
-        password = self.get_argument("password", "")
-        try:
-            xen = self.init_xen((username, password))
+        #username = self.get_argument("username", "")
+        #password = self.get_argument("password", "")
+        #try:
+        #    xen = self.init_xen((username, password))
 
-        except XenAdapterConnectionError as e:
-            self.write(json.dumps({"status": 'error', 'message': e.message}))
-            self.set_status(401)
-            return
+        #except XenAdapterConnectionError as e:
+        #    self.write(json.dumps({"status": 'error', 'message': e.message}))
+        #    self.set_status(401)
+        #    return
 
-        self.write(json.dumps({}))
-        self.set_secure_cookie("user", pickle.dumps((username, password)))
+#        self.write(json.dumps({}))
+ #       self.set_secure_cookie("user", pickle.dumps((username, password)))
 
 class LogOut(BaseHandler):
     def initialize(self, executor):
@@ -220,9 +243,9 @@ class VMList(BaseHandler):
             #    lambda doc: doc.merge({'vms': doc['vms'].merge(
             #        lambda vm: table('vms').get(vm['vm_uuid'])).without('vm_uuid')}))
             if userid:
-                cur= db.table('access_list').get_all(userid, index='userid').concat_map(
-                lambda doc : doc['vms'].merge(
-                    lambda vm : db.table('vms').get(vm['vm_uuid'])).without('vm_uuid')
+                cur= db.table('access_list').get_all((userid, 'VM'), index='userid_and_type').concat_map(
+                lambda doc : doc['items'].merge(
+                    lambda vm : db.table('vms').get(vm['uuid'])).without('uuid')
                 ).coerce_to('array').run()
 
                 result.extend(cur)
@@ -244,6 +267,7 @@ class VMList(BaseHandler):
 
 
         self.write(json.dumps(result))
+
 
 
 
@@ -289,6 +313,7 @@ class TemplateList(BaseHandler):
 class CreateVM(BaseHandler):
 
     @auth_required
+    @tornado.web.asynchronous
     def post(self):
         """
         Create a new VM. Current user gets full permissions of newly created VM
@@ -319,7 +344,6 @@ class CreateVM(BaseHandler):
 
         """
 
-        xen = self.init_xen()
         try:
             tmpl_name = self.get_argument('template')
             self.sr_uuid = self.get_argument('storage')
@@ -334,7 +358,7 @@ class CreateVM(BaseHandler):
             self.write_error(status_code=404)
             return
 
-        tmpls = xen.list_templates()
+        tmpls = self.user_authenticator.xen.list_templates()
         if tmpl_name in tmpls.keys():
             tmpl_uuid = tmpl_name
         else:
@@ -385,22 +409,59 @@ class CreateVM(BaseHandler):
             ('{0}={1}'.format(k, v) for k, v in kwargs.items()))
         self.log.info("Scenario URL generated: %s", self.scenario_url)
 
-        def clone_post_hook(return_value):
+        def clone_post_hook(return_value, auth):
+            vm =  VM.create(auth, return_value, self.sr_uuid, self.net_uuid, self.vdi_size, self.ram_size,
+                                     self.hostname, self.mode, self.os_kind, self.ip_tuple, self.mirror_url,
+                                     self.scenario_url, self.name_label, False, self.override_pv_args)
+
             ioloop = tornado.ioloop.IOLoop.instance()
-            ioloop.add_callback(self.yield_createvm, xen, return_value)
+            self.uuid = vm.uuid
+            ioloop.add_callback(self.do_finalize_install)
 
-        self.try_xenadapter(lambda  : xen.clone_tmpl(tmpl_uuid, self.name_label, self.os_kind), post_hook=clone_post_hook)
-            #return
 
-    @run_on_executor
-    def createvm(self, xen, new_vm_uuid):
-        xen.create_vm(new_vm_uuid, self.sr_uuid, self.net_uuid, self.vdi_size, self.ram_size, self.hostname, self.mode, self.os_kind, self.ip_tuple, self.mirror_url, self.scenario_url, self.name_label, False, self.override_pv_args)
+
+        def do_clone(xen):
+            tmpl = Template(xen, uuid=tmpl_uuid)
+            vm = tmpl.clone(self.name_label)
+            return vm.uuid
+
+
+        self.try_xenadapter(do_clone, post_hook=clone_post_hook)
 
     @gen.coroutine
-    def yield_createvm(self, xen, new_vm_uuid):
-        ret = self.createvm(xen, new_vm_uuid)
-        # update vm_logs index
-        self.log.info('VM created, updating vm_logs index...')
+    def do_finalize_install(self):
+        yield self.finalize_install()
+
+    @run_on_executor
+    def finalize_install(self):
+        '''
+        Watch if VM is halted and boot it once again. Update status accordingly
+
+        :return:
+        '''
+        conn = r.connect(opts.host, opts.port, opts.database).repl()
+        self.log.info("Finalizing installation of VM %s" % self.uuid)
+        db = r.db(opts.database)
+        state = db.table('vms').get(self.uuid).pluck('power_state').run(conn)['power_state']
+        if state != 'Running':
+            self.user_authenticator.xen.insert_log_entry(self.uuid, 'failed', "failed to start VM for installation (low resources?). State: %s" % state)
+            return
+
+        cur = db.table('vms').get(self.uuid).changes().run()
+        for change in cur:
+            if change['new_val']['power_state'] == 'Halted':
+                vm = VM(self.user_authenticator, uuid=self.uuid)
+                try:
+                    vm.start_stop_vm(True)
+                except XenAdapterAPIError as e:
+                    self.user_authenticator.xen.insert_log_entry(self.uuid, "failed", "failed to start after installation: %s" % e.message)
+                else:
+                    self.user_authenticator.xen.insert_log_entry(self.uuid, "installed", "OS successfully installed")
+
+
+
+
+
 
 
 class NetworkList(BaseHandler):
@@ -427,16 +488,15 @@ class StartStopVM(BaseHandler):
          """
         vm_uuid = self.get_argument('uuid')
         enable = self.get_argument('enable')
-        xen = self.init_xen()
-        self.try_xenadapter( lambda : xen.start_stop_vm(vm_uuid, enable))
+        self.try_xenadapter( lambda auth: VM(auth, uuid=vm_uuid).start_stop_vm(enable))
 
 
 class ConvertVM(BaseHandler):
     @auth_required
     def post(self):
         vm_uuid =self.get_argument('uuid')
-        xen = self.init_xen()
-        self.try_xenadapter(lambda: xen.convert_vm(vm_uuid))
+        mode = self.get_argument('mode')
+        self.try_xenadapter(lambda auth: VM(auth, uuid=vm_uuid).convert(mode))
 
 class EnableDisableTemplate(BaseHandler):
     @auth_required
@@ -449,9 +509,9 @@ class EnableDisableTemplate(BaseHandler):
          """
         uuid = self.get_argument('uuid')
         enable = self.get_argument('enable')
-        xen = self.init_xen()
 
-        self.try_xenadapter( lambda : xen.enable_disable_template(uuid, bool(enable)) )
+
+        self.try_xenadapter( lambda auth: Template(auth, uuid=uuid).enable_disable(bool(enable)))
 
 
 
@@ -467,9 +527,8 @@ class VNC(BaseHandler):
 
         '''
         vm_uuid = self.get_argument('uuid')
-        xen = self.init_xen()
-        def get_vnc():
-            url = xen.get_vnc(vm_uuid)
+        def get_vnc(auth : BasicAuthenticator):
+            url = VM(auth, uuid=vm_uuid).get_vnc()
             url_splitted = urlsplit(url)
             url_splitted[0] = 'http'
             url_splitted[1] = opts.vmemperor_url
@@ -490,17 +549,29 @@ class AttachDetachDisk(BaseHandler):
             vdi_uuid: VDI UUID
             enable: True if to attach disk, False if to detach.
         '''
-        xen = self.init_xen()
         vm_uuid = self.get_argument('vm_uuid')
         vdi_uuid = self.get_argument('vdi_uuid')
         enable = self.get_argument('enable')
-        def xen_call():
+        def xen_call(auth):
             if enable:
-                return xen.attach_disk(vm_uuid, vdi_uuid)
+                return auth.xen.attach_disk(vm_uuid, vdi_uuid)
             else:
-                xen.detach_disk(vm_uuid, vdi_uuid)
+                auth.xen.detach_disk(vm_uuid, vdi_uuid)
 
         self.try_xenadapter(xen_call)
+
+class AttachDetachIso(BaseHandler):
+    @auth_required
+    def post(self):
+        '''
+        Attach/detach ISO from/to vm
+        Arguments:
+            vm_uuid: VM UUID
+            iso_uuid: ISO UUID
+        :return:
+        '''
+        self.log.info("AttachDetachIso: check if ISO UUID is valid")
+
 
 
 
@@ -514,9 +585,8 @@ class DestroyVM(BaseHandler):
         :return:
         '''
 
-        xen = self.init_xen()
         vm_uuid = self.get_argument('uuid')
-        self.try_xenadapter(lambda : xen.destroy_vm(vm_uuid))
+        self.try_xenadapter(lambda auth: VM(auth, uuid=vm_uuid).destroy())
 
 
 
@@ -532,7 +602,7 @@ class ConnectVM(BaseHandler):
         ip: undocumented. Lera?
         :return:
         '''
-        xen = self.init_xen()
+
         vm_uuid = self.get_argument('vm_uuid')
         net_uuid = self.get_argument('net_uuid')
         ip = self.get_argument('ip', default=None)
@@ -544,21 +614,90 @@ class AnsibleHooks:
     pass
 
 
+class VMAbstractHandler(BaseHandler):
+    '''
+    Abstact handler for VM requests
+    requires: function self.get_data returning something we can write
+              attribute self.access - access mode
+    provides: self.uuid <- vm_uuid
 
-class EventLoop:
+    '''
+    @auth_required
+    def get(self):
+        vm_uuid = self.get_argument('uuid')
+        self.uuid = vm_uuid
+        try:
+            vm = VM(self.user_authenticator, uuid=vm_uuid)
+        except XenAdapterAPIError as e:
+            self.set_status(400)
+            self.write({'status' : 'bad request', 'message' : e.message})
+            return
+        try:
+            vm.check_access(self.access)
+        except XenAdapterUnauthorizedActionException as e:
+            self.set_status(403)
+            self.write({'status':'access denied'})
+            return
+
+
+        ret = self.get_data()
+        if ret:
+            self.write(ret)
+
+class InstallStatus(VMAbstractHandler):
+
+    access = 'launch'
+
+    def get_data(self):
+        db = r.db(opts.database)
+        try:
+            d = db.table('vm_logs').filter({'uuid': self.uuid}).max('time').run()
+            d['time'] = d['time'].isoformat()
+            return d
+        except:
+            self.set_status(500)
+            self.write({'status': 'database error/no info'})
+            return
+
+class VMInfo(VMAbstractHandler):
+
+    access = 'launch'
+
+    def get_data(self):
+        db = r.db(opts.database)
+        try:
+            d = db.table('vms').get(self.uuid).run()
+            return d
+        except:
+            self.set_status(500)
+            self.write({'status' : 'database error/no info'})
+            return
+
+
+
+
+class EventLoop(Loggable):
     """every n seconds asks all vms about their status and updates collections (dbs, tables)
     of corresponding user, if they are logged in (have open connection to dbms notifications)
      and admin db if admin is logged in"""
 
+
     def __init__(self, executor, authenticator):
+
+        self.init_log()
+
+        #self.xen_lock = threading.Lock()
+
+
         self.executor = executor
+        self.authenticator = authenticator
 
         self.conn = r.connect(opts.host, opts.port, opts.database).repl()
         if opts.database not in r.db_list().run():
             r.db_create(opts.database).run()
         self.db = r.db(opts.database)
         tables = self.db.table_list().run()
-        self.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')} , authenticator)
+        self.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
         # required = ['vms', 'tmpls', 'pools', 'nets']
         if 'vms' in tables:
             self.db.table('vms').delete().run()
@@ -584,19 +723,27 @@ class EventLoop:
                     {'db': opts.database, 'name': "access_list"}).delete().run()
 
 
-        if 'access_list' not in tables:
-            self.db.table_create('access_list', durability='soft').run()
-            access_list  = self.xen.access_list()
-            CHECK_ER(self.db.table('access_list').insert(access_list, conflict='error').run())
-            self.db.table('access_list').index_create('userid').run()
-            self.db.table('access_list').index_wait('userid').run()
+     #   if 'access_list' in tables:
+     #       self.db.table_drop('access_list').run()
 
+        self.db.table_create('access_list', durability='soft').run()
+        access_list  = self.xen.access_list(authenticator.__name__)
+        CHECK_ER(self.db.table('access_list').insert(access_list, conflict='error').run())
+        self.db.table('access_list').index_create('userid_and_type', [r.row["userid"], r.row["type"]]).run()
+        self.db.table('access_list').index_wait('userid_and_type').run()
+
+
+#        else:
+#            access_list = self.xen.access_list()
+#            CHECK_ER(self.db.table('access_list').insert(access_list, conflict='update').run())
+
+        if 'isos' not in tables:
+            self.db.table_create('isos', durability='soft', primary_key='uuid').run()
+            isos = self.xen.list_isos()
+            CHECK_ER(self.db.table('isos').insert(isos, conflict='error').run())
         else:
-            access_list = self.xen.access_list()
-            CHECK_ER(self.db.table('access_list').insert(access_list, conflict='update').run())
-
-
-
+            isos = self.xen.list_isos()
+            CHECK_ER(self.db.table('isos').insert(isos, conflict='update').run())
 
         if 'tmpls' not in tables:
             self.db.table_create('tmpls', durability='soft', primary_key='uuid').run()
@@ -624,16 +771,21 @@ class EventLoop:
     @run_on_executor
     def heavy_task(self):
         self.conn.repl()
-        vms = self.xen.list_vms()
-        CHECK_ER(self.db.table('vms').insert(vms, conflict = 'update').run())
+        #self.xen_lock.acquire()
+        #vms = self.xen.list_vms()
+        #self.xen_lock.release()
+        #CHECK_ER(self.db.table('vms').insert(vms, conflict = 'update').run())
 
-        db_vms = self.db.table('vms').pluck('uuid')
-        if len(vms) != db_vms.count().run():
-            db_vms = db_vms.run()
-            vm_uuid = [vm['uuid'] for vm in vms]
-            for doc in db_vms:
-                if doc['uuid'] not in vm_uuid:
-                    CHECK_ER(self.db.table('vms').get(doc['uuid']).delete().run())
+        #db_vms = self.db.table('vms').pluck('uuid')
+        #if len(vms) != db_vms.count().run():
+#            db_vms = db_vms.run()
+#            vm_uuid = [vm['uuid'] for vm in vms]
+#            for doc in db_vms:
+#                if doc['uuid'] not in vm_uuid:
+#                    CHECK_ER(self.db.table('vms').get(doc['uuid']).delete().run())
+
+        access_list = self.xen.access_list(self.authenticator.__name__)
+        CHECK_ER(self.db.table('access_list').insert(access_list, conflict='update').run())
 
         # raise ValueError('SUCCESS')
         return
@@ -643,12 +795,80 @@ class EventLoop:
         yield self.heavy_task()
 
 
-def event_loop(executor, delay = 1000, authenticator=None):
-    ioloop = tornado.ioloop.IOLoop.instance()
-    loop_object = EventLoop(executor, authenticator)
-    tornado.ioloop.PeriodicCallback(loop_object.vm_list_update, delay).start()  # read delay from ini
+    @run_on_executor
+    def process_xen_events(self):
+        from XenAPI import  Failure
+        xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')}, nosingleton=True)
+        #xen = self.xen
+        xen.api.event.register(["*"])
+        while True:
+            #pass
+            try:
+                for event in xen.api.event.next():
+                    self.log.info("Event: %s" % event)
+                    #similarly to list_vms -> process
+                    if event['class'] == 'vm':
+                        try:
+                            if event['snapshot']['is_a_template'] or event['snapshot']['is_control_domain']:
+                                continue
+                        except:
+                            continue
 
+                        if event['operation'] == 'mod' or event['operation'] == 'add': #Modification
+                            keys = ['power_state', 'name_label', 'uuid']
+                            new_rec = {k:v for k,v in event['snapshot'].items() if k in keys }
+                            new_rec['network'] = []
+                            for vif in event['snapshot']['VIFs']:
+                                net_ref = xen.api.VIF.get_network(vif)
+                                net_uuid = xen.api.network.get_uuid(net_ref)
+                                new_rec['network'].append(net_uuid)
+
+                            new_rec['disks'] = []
+                            for vbd in event['snapshot']['VBDs']:
+                                vdi_ref = xen.api.VBD.get_VDI(vbd)
+                                try:
+                                    vdi_uuid = xen.api.VDI.get_uuid(vdi_ref)
+                                    new_rec['disks'].append(vdi_uuid)
+                                except Failure as f:
+                                    if f.details[1] != 'VDI':
+                                        raise f
+
+                            CHECK_ER(self.db.table('vms').insert(new_rec, conflict = 'update').run())
+
+
+
+                        elif event['operation'] == 'del':
+                            CHECK_ER(self.db.table('vms').get(event['snapshot']['uuid']).delete().run())
+
+
+
+
+
+
+
+
+            except Failure as f:
+                if f.details == [ "EVENTS_LOST" ]:
+                   self.log.warning("Reregistering for events")
+                   xen.api.event.register(["*"])
+
+
+
+
+    @gen.coroutine
+    def run_xen_queue(self):
+        yield self.process_xen_events()
+
+
+def event_loop(executor, delay = 1000, authenticator=None, ioloop = None):
+    if not ioloop:
+        ioloop = tornado.ioloop.IOLoop.instance()
+
+    loop_object = EventLoop(executor, authenticator)
+    #tornado.ioloop.PeriodicCallback(loop_object.vm_list_update, delay).start()  # read delay from ini
+    ioloop.add_callback(loop_object.run_xen_queue)
     return ioloop
+
 
 
 class AutoInstall(BaseHandler):
@@ -821,7 +1041,9 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/destroyvm', DestroyVM, dict(executor=executor)),
         (r'/connectvm', ConnectVM, dict(executor=executor)),
         (r'/adminauth', AdminAuth, dict(executor=executor)),
-        (r'/convertvm', ConvertVM, dict(executor=executor))
+        (r'/convertvm', ConvertVM, dict(executor=executor)),
+        (r'/installstatus', InstallStatus, dict(executor=executor)),
+        (r'/vminfo', VMInfo, dict(executor=executor))
     ], **settings)
 
     app.auth_class = auth_class
@@ -838,7 +1060,7 @@ def read_settings():
     define('port', group = 'rethinkdb', type = int, default = 28015)
     define('delay', group = 'ioloop', type = int, default=5000)
     define('max_workers', group = 'executor', type = int, default=16)
-    define('vmemperor_url', group ='vmemperor', default = '10.10.10.61')
+    define('vmemperor_url', group ='vmemperor', default = '10.10.10.102')
     define('vmemperor_port', group = 'vmemperor', type = int, default = 8888)
 
     from os import path
@@ -850,7 +1072,7 @@ def main():
     """ reads settings in ini configures and starts system"""
     read_settings()
     executor = ThreadPoolExecutor(max_workers = opts.max_workers)
-    app = make_app(executor, debug= opts.debug)
+    app = make_app(executor,auth_class=dummy.DummyAuthenticator, debug= opts.debug)
     server = tornado.httpserver.HTTPServer(app)
     server.listen(opts.vmemperor_port, address="0.0.0.0")
     ioloop = event_loop(executor, opts.delay, authenticator=app.auth_class)

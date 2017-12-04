@@ -11,13 +11,13 @@ class Loggable:
         if self.log.hasHandlers():
             return
 
-        fileHandler = logging.FileHandler("{0}.log".format(self.__class__.__name__))
+        self.fileHandler = logging.FileHandler("{0}.log".format(self.__class__.__name__))
         if not hasattr(self, 'log_format'):
             self.log_format = "%(levelname)-10s [%(asctime)s] {0}: %(message)s".format(self.__class__.__name__)
-        formatter = logging.Formatter(self.log_format)
-        fileHandler.setLevel(logging.DEBUG)
-        fileHandler.setFormatter(formatter)
-        self.log.addHandler(fileHandler)
+        self.formatter = logging.Formatter(self.log_format)
+        self.fileHandler.setLevel(logging.DEBUG)
+        self.fileHandler.setFormatter(self.formatter)
+        self.log.addHandler(self.fileHandler)
         if hasattr(self, 'debug') and self.debug:
             debugHandler = logging.StreamHandler(sys.stderr)
             debugHandler.setLevel(logging.ERROR)

@@ -1,3 +1,4 @@
+
 # Copyright (c) Citrix Systems, Inc.
 # All rights reserved.
 #
@@ -59,7 +60,7 @@ import six.moves.xmlrpc_client as xmlrpclib
 import six.moves.http_client as httplib
 import socket
 import sys
-
+import threading
 translation = gettext.translation('xen-xm', fallback = True)
 
 API_VERSION_1_1 = '1.1'
@@ -143,6 +144,7 @@ class Session(xmlrpclib.ServerProxy):
         self.last_login_method = None
         self.last_login_params = None
         self.API_version = API_VERSION_1_1
+        self.req_lock = threading.RLock()
 
 
     def xenapi_request(self, methodname, params):
@@ -153,6 +155,7 @@ class Session(xmlrpclib.ServerProxy):
             self._logout()
             return None
         else:
+#            with self.req_lock:
             retry_count = 0
             while retry_count < 3:
                 full_params = (self._session,) + params
