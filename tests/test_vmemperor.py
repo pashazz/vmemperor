@@ -10,6 +10,21 @@ import pprint
 
 
 settings_read = False
+'''
+Usage:
+create a file named 'secret.ini' with the following structure:
+
+
+[test]
+username = <username> # Dummy authenticator (default) allows any username
+password = <password> # Dummy authenticator (default) allows any password
+[machines]
+uuid = <test machine uuid>
+
+
+Tests test_startvm, ..., will be performed on VM specified above.
+
+'''
 class VmEmperorTest(testing.AsyncHTTPTestCase):
     @classmethod
     def setUpClass(cls):
@@ -27,6 +42,10 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
     def get_new_ioloop(self):
         self.get_app()
         return event_loop(self.executor, opts.delay, self.app.auth_class)
+
+    @classmethod
+    def tearDownClass(cls):
+        ioloop.IOLoop.instance().stop()
 
 
 class VmEmperorNoLoginTest(VmEmperorTest):
@@ -58,16 +77,22 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         config = configparser.ConfigParser()
         config.read('tests/secret.ini')
         cls.body = config._sections['test']
+        cls.uuid = config['machines']['uuid']
         cls.xen_options = {**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')}
         cls.xen_options['debug'] = True
 
     def setUp(self):
         super().setUp()
-        self.auth = self.app.auth_class()
-        self.auth.check_credentials(self.body['password'], self.body['username'])
-        auth_pickled = pickle.dumps(self.auth)
-        secure_cookie = create_signed_value(self.app.settings['cookie_secret'], 'user', auth_pickled)
-        self.headers = {'Cookie' : b'='.join((b'user', secure_cookie))}
+        #self.auth = self.app.auth_class()
+        #self.auth.check_credentials(self.body['password'], self.body['username'])
+        #auth_pickled = pickle.dumps(self.auth)
+        #secure_cookie = create_signed_value(self.app.settings['cookie_secret'], 'user', auth_pickled)
+        #self.headers = {'Cookie' : b'='.join((b'user', secure_cookie))}
+        res_login = self.fetch(r'/login', method='POST', body=urlencode(self.body))
+        self.assertEqual(res_login.code, 200, "Failed to login")
+        self.headers = {'Cookie': res_login.headers['Set-Cookie']}
+        print(res_login)
+
 
 
 
@@ -90,18 +115,58 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
         print(uuid)
 
-    @skip
-    def test_startvm(self, uuid='ololo'):
-        xen = XenAdapter(self.xen_options)
-        body = {
-            'uuid': uuid,
-            'enable': True
-        }
-        res = self.fetch(r'/startstopvm', method='POST', body=urlencode(body), headers=self.headers)
+
+    def test_startvm(self): #The Great Testing Machine of Dummy Acc.
+        # 1. Get VM Info
+        print("Entering test_startvm")
+        res = self.fetch(r'/vminfo', method='POST', body=urlencode({'uuid':self.uuid}), headers=self.headers)
+        res_dict = json.loads(res.body.decode())
+
         self.assertEqual(res.code, 200)
-        vm_ref = xen.api.VM.get_by_uuid(uuid)
-        ps = xen.api.VM.get_power_state(vm_ref)
-        self.assertEqual(ps, 'Running')
+        enable = res_dict['power_state'] == 'Halted'
+        print("System state: %s" % res_dict['power_state'])
+
+
+        body = {
+            'uuid': self.uuid,
+            'enable' : enable
+        }
+
+        res = self.fetch(r'/startstopvm', method='POST', body=urlencode(body), headers=self.headers)
+
+        self.assertEqual(res.code, 200)
+
+        print("Waiting for state to change (forever loop)...")
+        while True:
+            res = self.fetch(r'/vminfo', method='POST', body=urlencode({'uuid':self.uuid}), headers=self.headers)
+            self.assertEqual(res.code, 200)
+            res_dict2 = json.loads(res.body.decode())
+            if res_dict['power_state'] != res_dict2['power_state']:
+                print("State changed to %s" % res_dict2['power_state'])
+                break
+
+        print("Performing reverse action")
+
+        body = {
+            'uuid': self.uuid,
+            'enable' : not enable
+        }
+
+        res = self.fetch(r'/startstopvm', method='POST', body=urlencode(body), headers=self.headers)
+
+        self.assertEqual(res.code, 200)
+        print("Waiting for state to change (forever loop)...")
+        while True:
+            res = self.fetch(r'/vminfo', method='POST', body=urlencode({'uuid':self.uuid}), headers=self.headers)
+            self.assertEqual(res.code, 200)
+            res_dict3 = json.loads(res.body.decode())
+            if res_dict2['power_state'] != res_dict3['power_state']:
+                print("State changed to %s" % res_dict3['power_state'])
+                break
+
+
+
+
 
     @skip
     def test_convert(self):
@@ -117,10 +182,17 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         res = self.fetch(r'/vmlist', method='GET', headers=self.headers)
         self.assertEqual(res.code, 200)
         vms = json.loads(res.body.decode())
-        pprint.pprint(res.body.decode())
+        for vm in vms:
+            if vm['uuid'] == self.uuid:
+                return
 
-        print(res.body)
+        self.fail("uuid %s (testing machine) not found in vmlist" % self.uuid)
+
+
+
 
     def test_isolist(self):
-        res = self.fetch(r'/isolist', method='')
-        pprint.pprint(res.body.decode())
+        res = self.fetch(r'/isolist', method='GET', headers=self.headers)
+        self.assertEqual(res.code, 200)
+        isos = json.loads(res.body.decode())
+        pprint.pprint(isos)

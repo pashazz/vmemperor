@@ -187,7 +187,10 @@ def use_logger(method):
 
 class XenObjectMeta(type):
     def __getattr__(cls, item):
+        if item[0] == '_':
+            item = item[1:]
         def method(xen : XenAdapter, *args, **kwargs):
+
             if not hasattr(cls, 'api_class'):
                 raise XenAdapterArgumentError(xen.log, "api_class not specified for XenObject")
 
@@ -239,6 +242,35 @@ class XenObject(metaclass=XenObjectMeta):
     def manage_actions(self, action,  revoke=False, user=None, group=None, force=False):
         pass
 
+    @classmethod
+    def process_record(cls, xen, record):
+        '''
+        Used by init_db. Should return dict with info that is supposed to be stored in DB
+        :param xen:
+        :param record:
+        :return: dict suitable for document-oriented DB
+        : default: return record as-is
+        '''
+        return record
+
+    @classmethod
+    def filter_record(cls, record):
+        '''
+        Used by process_xen_events
+        :param record: record from get_all_records
+        :return: true if record is suitable for this class
+        '''
+        return True
+
+    @classmethod
+    def get_all_records(cls, xen):
+        method = getattr(cls, '_get_all_records')
+        return {k: v for k, v in method(xen).items()
+                if cls.filter_record(v)}
+
+    @classmethod
+    def init_db(cls, xen):
+        return [cls.process_record(xen, record) for record in cls.get_all_records(xen).values()]
 
 
 
@@ -361,10 +393,47 @@ class AbstractVM(ACLXenObject):
     def insert_log_entry(self, *args, **kwargs):
         self.auth.xen.insert_log_entry(self.uuid, *args, **kwargs)
 
-class VM (AbstractVM):
 
+class VM (AbstractVM):
+    db_table_name = 'vms'
     def __init__(self, auth, uuid=None, ref=None):
         super().__init__(auth, uuid, ref)
+
+
+
+
+    @classmethod
+    def filter_record(cls, record):
+        return not (record['is_a_template'] or record['is_control_domain'])
+
+
+    @classmethod
+    def process_record(cls, xen,  record):
+        '''
+        Creates a (shortened) dict record from long XenServer record. If no record could be created, return false
+        :param record:
+        :return:
+        '''
+        if not cls.filter_record(record):
+            return False
+        keys = ['power_state', 'name_label', 'uuid']
+        new_rec = {k: v for k, v in record.items() if k in keys}
+        new_rec['network'] = []
+        for vif in record['VIFs']:
+            net_ref = xen.api.VIF.get_network(vif)
+            net_uuid = xen.api.network.get_uuid(net_ref)
+            new_rec['network'].append(net_uuid)
+
+        new_rec['disks'] = []
+        for vbd in record['VBDs']:
+            vdi_ref = xen.api.VBD.get_VDI(vbd)
+            try:
+                vdi_uuid = xen.api.VDI.get_uuid(vdi_ref)
+                new_rec['disks'].append(vdi_uuid)
+            except XenAPI.Failure as f:
+                if f.details[1] != 'VDI':
+                    raise f
+        return new_rec
 
     @classmethod
     def create(self, auth, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, scenario_url=None, name_label = '', start=True, override_pv_args=None):
@@ -423,18 +492,6 @@ class VM (AbstractVM):
         #subscribe to changefeed
 
         return vm
-
-
-
-
-
-
-    @classmethod
-    def get_all_records(cls, xen):
-       return {k:v for k,v in xen.api.VM.get_all_records().items()
-                if not (v['is_a_template'] or v['is_control_domain'])}
-
-
 
     @use_logger
     def set_ram_size(self,  mbs):
@@ -667,9 +724,18 @@ class Template(AbstractVM):
     ALLOW_EMPTY_XENSTORE = True
 
     @classmethod
-    def get_all_records(cls, xen):
-        return {k: v for k, v in xen.api.VM.get_all_records().items()
-                if v['is_a_template']}
+    def filter_record(cls, record):
+        return record['is_a_template']
+
+    @classmethod
+    def process_record(self, xen, record):
+        keys = ['hvm', 'name_label', 'uuid']
+        new_rec = {k: v for k, v in record.items() if k in keys}
+        if record['HVM_boot_policy'] == '':
+            new_rec['hvm'] = False
+        else:
+            new_rec['hvm'] = True
+        return new_rec
 
     @use_logger
     def clone(self, name_label):
@@ -824,8 +890,15 @@ class ISO(XenObject, Attachable):
                 iso_dict[vdi_ref] = rec
         return iso_dict
 
+    @classmethod
+    def process_record(cls, xen, record):
+        fields = {'uuid', 'name_label', 'name_description', 'location'}
+        return  {key: value for key, value in record.items() if key in fields}
+
     def attach(self, vm : VM) -> VBD:
         return VBD(uuid=self._attach(vm, 'CD', 'RO'))
+
+
 
 class VDI(ACLXenObject):
     @classmethod
@@ -993,7 +1066,7 @@ class XenAdapter(Loggable, metaclass=Singleton):
         '''
         return self.get_all_records(self.api.pool)
 
-    def list_vms(self):
+    def  list_vms(self):
         '''
         :return: list of vm records except dom0 and templates
         '''

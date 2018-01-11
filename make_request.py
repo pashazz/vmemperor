@@ -2,6 +2,8 @@
 import requests
 import argparse
 import sys
+import json
+import pprint
 
 def login(method):
     def decorator(self, *args, **kwargs):
@@ -63,7 +65,7 @@ class Main():
         p = argparse.ArgumentParser(description="Check installation status of a VM")
         p.add_argument('uuid', help="VM UUID")
         args = p.parse_args(sys.argv[2:])
-        r = requests.get("%s/installstatus" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
+        r = requests.post("%s/installstatus" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
@@ -73,7 +75,7 @@ class Main():
         p = argparse.ArgumentParser(description="Get VM state information")
         p.add_argument('uuid', help="VM UUID")
         args = p.parse_args(sys.argv[2:])
-        r = requests.get("%s/vminfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
+        r = requests.post("%s/vminfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
@@ -82,7 +84,7 @@ class Main():
         p = argparse.ArgumentParser(description="Start VM")
         p.add_argument('uuid', help='VM UUID')
         args = p.parse_args(sys.argv[2:])
-        r = requests.get("%s/startstopvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, enable=True))
+        r = requests.post("%s/startstopvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, enable=True))
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
@@ -91,7 +93,7 @@ class Main():
         p = argparse.ArgumentParser(description="Stop VM")
         p.add_argument('uuid', help='VM UUID')
         args = p.parse_args(sys.argv[2:])
-        r = requests.get("%s/startstopvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, enable=False))
+        r = requests.post("%s/startstopvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, enable=False))
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
@@ -100,7 +102,7 @@ class Main():
         p = argparse.ArgumentParser(description="Destroy VM")
         p.add_argument('uuid', help='VM UUID')
         args = p.parse_args(sys.argv[2:])
-        r = requests.get("%s/destroyvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
+        r = requests.post("%s/destroyvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
@@ -109,8 +111,22 @@ class Main():
         p = argparse.ArgumentParser(description="Get VNC URL (use HTTP CONNECT method)")
         p.add_argument('uuid', help='VM UUID')
         args = p.parse_args(sys.argv[2:])
-        r = requests.get("%s/vnc" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
+        r = requests.post("%s/vnc" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
         print(r.text)
+        print(r.status_code, file=sys.stderr)
+
+    @login
+    def vmlist(self):
+        r = requests.get("%s/vmlist" % self.url, cookies=self.jar)
+        js = json.loads(r.text)
+        pprint.pprint(js)
+        print(r.status_code, file=sys.stderr)
+
+    @login
+    def isolist(self):
+        r = requests.get("%s/isolist" % self.url, cookies=self.jar)
+        js = json.loads(r.text)
+        pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
 
 if __name__ == '__main__':

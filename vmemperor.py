@@ -1,5 +1,5 @@
 from auth import dummy
-from xenadapter import XenAdapter, Template, VM, Network
+from xenadapter import XenAdapter, Template, VM, Network, ISO
 import traceback
 import inspect
 import tornado.web
@@ -185,7 +185,7 @@ class AdminAuth(BaseHandler):
         :param username
         :param password
         :return:
-        '''
+V        '''
         #username = self.get_argument("username", "")
         #password = self.get_argument("password", "")
         #try:
@@ -245,7 +245,7 @@ class VMList(BaseHandler):
             if userid:
                 cur= db.table('access_list').get_all((userid, 'VM'), index='userid_and_type').concat_map(
                 lambda doc : doc['items'].merge(
-                    lambda vm : db.table('vms').get(vm['uuid'])).without('uuid')
+                    lambda vm : db.table('vms').get(vm['uuid']))
                 ).coerce_to('array').run()
 
                 result.extend(cur)
@@ -305,6 +305,25 @@ class TemplateList(BaseHandler):
         # read from db
         self.conn.repl()
         table = r.db(opts.database).table('tmpls')
+        list = [x for x in table.run()]
+
+        self.write(json.dumps(list))
+
+class ISOList(BaseHandler):
+    @auth_required
+    def get(self):
+        """
+        List of available ISOs
+        format:
+        [{'location': 'file name or device file path',
+          'name_description': 'human readable description',
+          'name_label': file name OR device name if it's a real CD device,
+          'uuid': 'db199908-f133-4c7f-b06c-10ac2784ad5d'}]
+         """
+
+        # read from db
+        self.conn.repl()
+        table = r.db(opts.database).table('isos')
         list = [x for x in table.run()]
 
         self.write(json.dumps(list))
@@ -580,7 +599,7 @@ class VMAbstractHandler(BaseHandler):
 
     '''
     @auth_required
-    def get(self):
+    def post(self):
         vm_uuid = self.get_argument('uuid')
         self.uuid = vm_uuid
         try:
@@ -706,12 +725,12 @@ class EventLoop(Loggable):
             self.db.table('vms').delete().run()
         if 'vms' not in tables:
             self.db.table_create('vms', durability='soft', primary_key='uuid').run()
-            vms = self.xen.list_vms()
+            vms = VM.init_db(self.xen)
             CHECK_ER(self.db.table('vms').insert(vms, conflict='error').run())
             #self.db.table('vms').index_create('user').run()
             #self.db.table('vms').index_wait('user').run()
         else:
-            vms = self.xen.list_vms()
+            vms = VM.init_db(self.xen)
             CHECK_ER(self.db.table('vms').insert(vms, conflict='update').run())
 
         if 'access_list' in tables:
@@ -742,18 +761,22 @@ class EventLoop(Loggable):
 
         if 'isos' not in tables:
             self.db.table_create('isos', durability='soft', primary_key='uuid').run()
-            isos = self.xen.list_isos()
+            isos = ISO.init_db(self.xen)
+            #isos = self.xen.list_isos()
             CHECK_ER(self.db.table('isos').insert(isos, conflict='error').run())
         else:
-            isos = self.xen.list_isos()
+            isos = ISO.init_db(self.xen)
+            #isos = self.xen.list_isos()
             CHECK_ER(self.db.table('isos').insert(isos, conflict='update').run())
 
         if 'tmpls' not in tables:
             self.db.table_create('tmpls', durability='soft', primary_key='uuid').run()
-            tmpls = self.xen.list_templates().values()
+        #    tmpls = self.xen.list_templates().values()
+            tmpls = Template.init_db(self.xen)
             CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='error').run())
         else:
-            tmpls = self.xen.list_templates().values()
+         #   tmpls = self.xen.list_templates().values()
+            tmpls = Template.init_db(self.xen)
             CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='update').run())
         if 'pools' not in tables:
             self.db.table_create('pools', durability='soft', primary_key='uuid').run()
@@ -764,10 +787,11 @@ class EventLoop(Loggable):
             CHECK_ER(self.db.table('pools').insert(list(pools), conflict='update').run())
         if 'nets' not in tables:
             self.db.table_create('nets', durability='soft', primary_key='uuid').run()
-            nets = self.xen.list_networks().values()
+            nets = Network.init_db(self.xen)
             CHECK_ER(self.db.table('nets').insert(list(nets), conflict='error').run())
         else:
-            nets = self.xen.list_networks().values()
+            nets = Network.init_db(self.xen)
+            # nets = self.xen.list_networks().values()
             CHECK_ER(self.db.table('nets').insert(list(nets), conflict='update').run())
 
 
@@ -811,37 +835,24 @@ class EventLoop(Loggable):
                     self.log.info("Event: %s" % event)
                     #similarly to list_vms -> process
                     if event['class'] == 'vm':
-                        try:
-                            if event['snapshot']['is_a_template'] or event['snapshot']['is_control_domain']:
-                                continue
-                        except:
+                        ev_class = VM # use methods filter_record, process_record (classmethods)
+                    else: # Implement ev_classes for all types of events
+                        continue
+
+                    record = event['snapshot']
+                    try:
+                        if not ev_class.filter_record(record):
                             continue
+                    except:
+                        continue
 
-                        if event['operation'] == 'mod' or event['operation'] == 'add': #Modification
-                            keys = ['power_state', 'name_label', 'uuid']
-                            new_rec = {k:v for k,v in event['snapshot'].items() if k in keys }
-                            new_rec['network'] = []
-                            for vif in event['snapshot']['VIFs']:
-                                net_ref = xen.api.VIF.get_network(vif)
-                                net_uuid = xen.api.network.get_uuid(net_ref)
-                                new_rec['network'].append(net_uuid)
+                    if event['operation'] == 'mod' or event['operation'] == 'add': #Modification
+                        new_rec = ev_class.process_record(xen, record)
 
-                            new_rec['disks'] = []
-                            for vbd in event['snapshot']['VBDs']:
-                                vdi_ref = xen.api.VBD.get_VDI(vbd)
-                                try:
-                                    vdi_uuid = xen.api.VDI.get_uuid(vdi_ref)
-                                    new_rec['disks'].append(vdi_uuid)
-                                except Failure as f:
-                                    if f.details[1] != 'VDI':
-                                        raise f
+                        CHECK_ER(self.db.table(ev_class.db_table_name).insert(new_rec, conflict = 'update').run())
 
-                            CHECK_ER(self.db.table('vms').insert(new_rec, conflict = 'update').run())
-
-
-
-                        elif event['operation'] == 'del':
-                            CHECK_ER(self.db.table('vms').get(event['snapshot']['uuid']).delete().run())
+                    elif event['operation'] == 'del':
+                        CHECK_ER(self.db.table(ev_class.db_table_name).get(record['uuid']).delete().run())
 
 
 
@@ -1045,7 +1056,8 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/adminauth', AdminAuth, dict(executor=executor)),
         (r'/convertvm', ConvertVM, dict(executor=executor)),
         (r'/installstatus', InstallStatus, dict(executor=executor)),
-        (r'/vminfo', VMInfo, dict(executor=executor))
+        (r'/vminfo', VMInfo, dict(executor=executor)),
+        (r'/isolist', ISOList, dict(executor=executor))
     ], **settings)
 
     app.auth_class = auth_class
