@@ -27,7 +27,7 @@ class DynamicLoader:
         '''
         Load a class from a module
         :param module: module name (a file name without .py located in path). If None, search everywhere
-        :param class_name: class name (str), if None, search by class_base
+        :param class_name: class name (str), if None, search by class_base. Only usable with specified 'module'
         :param class_base: base class (type) for a class
         :return: list of found classes
         '''
@@ -49,7 +49,10 @@ class DynamicLoader:
         def get_class(module_name):
             mod = importlib.import_module(module_name)
             if class_name:
-                return [getattr(mod, class_name)]
+                if hasattr(mod, class_name):
+                    return [getattr(mod, class_name)]
+                else:
+                    return None
             else:
 
                 classes = (getattr(mod, attribute) for attribute in dir(mod))
@@ -67,6 +70,7 @@ class DynamicLoader:
             ret =  get_class(module)
 
         os.chdir(cwd)
+
         return ret
 
 

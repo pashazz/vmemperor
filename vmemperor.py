@@ -1,5 +1,10 @@
 from auth import dummy
-from xenadapter import XenAdapter, Template, VM, Network, ISO
+from xenadapter import XenAdapter
+from xenadapter.template import Template
+from xenadapter.vm import VM
+from xenadapter.network import Network
+from xenadapter.disk import ISO
+
 import traceback
 import inspect
 import tornado.web
@@ -377,13 +382,13 @@ class CreateVM(BaseHandler):
             self.write_error(status_code=404)
             return
 
-        tmpls = self.user_authenticator.xen.list_templates()
-        if tmpl_name in tmpls.keys():
-            tmpl_uuid = tmpl_name
-        else:
-            for tmpl in tmpls.values():
-                if tmpl['name_label'] == tmpl_name:
-                    tmpl_uuid = tmpl['uuid']
+        tmpls = r.db('vmemperor').table('tmpls').run()
+        for tmpl in tmpls:
+            if tmpl['uuid'] == tmpl_name or \
+            tmpl['name_label'] == tmpl_name:
+                tmpl_uuid = tmpl['uuid']
+                break
+
         if not tmpl_uuid:
             raise ValueError('Wrong template name: {0}'.format(tmpl_name))
 
@@ -778,13 +783,13 @@ class EventLoop(Loggable):
          #   tmpls = self.xen.list_templates().values()
             tmpls = Template.init_db(self.xen)
             CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='update').run())
-        if 'pools' not in tables:
-            self.db.table_create('pools', durability='soft', primary_key='uuid').run()
-            pools = self.xen.list_pools().values()
-            CHECK_ER(self.db.table('pools').insert(list(pools), conflict='error').run())
-        else:
-            pools = self.xen.list_pools().values()
-            CHECK_ER(self.db.table('pools').insert(list(pools), conflict='update').run())
+      #  if 'pools' not in tables:
+      #      self.db.table_create('pools', durability='soft', primary_key='uuid').run()
+      #      pools = self.xen.list_pools().values()
+      #      CHECK_ER(self.db.table('pools').insert(list(pools), conflict='error').run())
+      #  else:
+      #      pools = self.xen.list_pools().values()
+      #      CHECK_ER(self.db.table('pools').insert(list(pools), conflict='update').run())
         if 'nets' not in tables:
             self.db.table_create('nets', durability='soft', primary_key='uuid').run()
             nets = Network.init_db(self.xen)
@@ -1023,7 +1028,9 @@ class ConsoleHandler(BaseHandler):
 def make_app(executor, auth_class=None, debug = False):
     if auth_class is None:
         d = DynamicLoader('auth')
-        auth_class = d.load_class(class_base=BasicAuthenticator)[0]
+
+        module = opts.authenticator if opts.authenticator else None
+        auth_class = d.load_class(class_base=BasicAuthenticator, module=module)[0]
 
     classes = [auth_class, Test, AutoInstall, ConsoleHandler]
 
@@ -1076,6 +1083,7 @@ def read_settings():
     define('max_workers', group = 'executor', type = int, default=16)
     define('vmemperor_url', group ='vmemperor', default = '10.10.10.102')
     define('vmemperor_port', group = 'vmemperor', type = int, default = 8888)
+    define('authenticator', group='vmemperor', default='')
 
     from os import path
 
@@ -1086,7 +1094,7 @@ def main():
     """ reads settings in ini configures and starts system"""
     read_settings()
     executor = ThreadPoolExecutor(max_workers = opts.max_workers)
-    app = make_app(executor,auth_class=dummy.DummyAuthenticator, debug= opts.debug)
+    app = make_app(executor, debug= opts.debug)
     server = tornado.httpserver.HTTPServer(app)
     server.listen(opts.vmemperor_port, address="0.0.0.0")
     ioloop = event_loop(executor, opts.delay, authenticator=app.auth_class)
