@@ -34,6 +34,18 @@ import uuid
 from tornado.options import define, options as opts, parse_config_file
 import queue
 import threading
+import datetime
+from xmlrpc.client import DateTime as xmldt
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, xmldt):
+            t =  datetime.datetime.strptime(o.value, "%Y%m%dT%H:%M:%SZ")
+            return t.strftime("%d.%m.%Y, %H:%M")
+        
+
+        return super().default(o)
 
 
 
@@ -444,8 +456,8 @@ class CreateVM(BaseHandler):
 
 
 
-        def do_clone(xen):
-            tmpl = Template(xen, uuid=tmpl_uuid)
+        def do_clone(auth):
+            tmpl = Template(auth, uuid=tmpl_uuid)
             vm = tmpl.clone(self.name_label)
             return vm.uuid
 
@@ -552,19 +564,6 @@ class AttachDetachDisk(BaseHandler):
 
         self.try_xenadapter(xen_call)
 
-class AttachDetachIso(BaseHandler):
-    @auth_required
-    def post(self):
-        '''
-        Attach/detach ISO from/to vm
-        Arguments:
-            vm_uuid: VM UUID
-            iso_uuid: ISO UUID
-        :return:
-        '''
-        self.log.info("AttachDetachIso: check if ISO UUID is valid")
-
-
 
 
 
@@ -608,13 +607,13 @@ class VMAbstractHandler(BaseHandler):
         vm_uuid = self.get_argument('uuid')
         self.uuid = vm_uuid
         try:
-            vm = VM(self.user_authenticator, uuid=vm_uuid)
+            self.vm = VM(self.user_authenticator, uuid=vm_uuid)
         except XenAdapterAPIError as e:
             self.set_status(400)
             self.write({'status' : 'bad request', 'message' : e.message})
             return
         try:
-            vm.check_access(self.access)
+            self.vm.check_access(self.access)
         except XenAdapterUnauthorizedActionException as e:
             self.set_status(403)
             self.write({'status':'access denied'})
@@ -624,6 +623,10 @@ class VMAbstractHandler(BaseHandler):
         ret = self.get_data()
         if ret:
             self.write(ret)
+
+    def get_data(self):
+        '''return answer information (if everything is OK). Else use set_status and write'''
+        raise NotImplementedError()
 
 class InstallStatus(VMAbstractHandler):
 
@@ -701,6 +704,52 @@ class VNC(VMAbstractHandler):
             return url
 
         self.try_xenadapter(get_vnc)
+
+
+class AttachDetachIso(VMAbstractHandler):
+
+    access = 'attach'
+
+    def get_data(self):
+        '''
+        Attach/detach ISO from/to vm
+        Arguments:
+            uuid: VM UUID
+            iso_uuid: ISO UUID
+            action: 'attach' or 'detach'
+        :return:
+        '''
+        self.log.info("check if ISO UUID is valid")
+        iso_uuid = self.get_argument('iso_uuid')
+        action = self.get_argument('action')
+        if action == 'attach':
+            is_attach = True
+        elif action == 'detach':
+            is_attach = False
+        else:
+            self.set_status(400)
+            self.write({'status': 'error', 'message' : 'invalid parameter "action": should be one of '
+                                                       '"attach", "detach", got %s' % action })
+            return
+
+        res = r.db('vmemperor').table('isos').get(iso_uuid).run()
+        if res:
+            self.log.info("UUID %s valid, attaching/detaching..." % iso_uuid)
+            def attach(auth : BasicAuthenticator):
+                iso = ISO(uuid=iso_uuid, auth=auth)
+                if is_attach:
+                    iso.attach(self.vm)
+                else:
+                    iso.detach(self.vm)
+
+
+            self.try_xenadapter(attach)
+        else:
+            self.log.info("UUID %s invalid, not attaching..." % iso_uuid)
+            self.set_status(400)
+            self.write({'status':'error', 'message': 'invalid UUID iso_uuid'})
+            return
+
 
 
 class EventLoop(Loggable):
@@ -837,7 +886,8 @@ class EventLoop(Loggable):
             #pass
             try:
                 for event in xen.api.event.next():
-                    self.log.info("Event: %s" % event)
+                    if (opts.log_events and event['class'] in opts.log_events.split(',')) or not opts.log_events:
+                        self.log.info("Event: %s" % json.dumps(event, cls=DateTimeEncoder))
                     #similarly to list_vms -> process
                     if event['class'] == 'vm':
                         ev_class = VM # use methods filter_record, process_record (classmethods)
@@ -1058,6 +1108,7 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/enabledisabletmpl', EnableDisableTemplate, dict(executor=executor)),
         (r'/vnc', VNC, dict(executor=executor)),
         (r'/attachdetachdisk', AttachDetachDisk, dict(executor=executor)),
+        (r'/attachdetachiso', AttachDetachIso, dict(executor=executor)),
         (r'/destroyvm', DestroyVM, dict(executor=executor)),
         (r'/connectvm', ConnectVM, dict(executor=executor)),
         (r'/adminauth', AdminAuth, dict(executor=executor)),
@@ -1084,6 +1135,8 @@ def read_settings():
     define('vmemperor_url', group ='vmemperor', default = '10.10.10.102')
     define('vmemperor_port', group = 'vmemperor', type = int, default = 8888)
     define('authenticator', group='vmemperor', default='')
+    define('log_events', group='ioloop', default='')
+
 
     from os import path
 

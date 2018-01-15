@@ -3,6 +3,7 @@ from . import use_logger
 import XenAPI
 from authentication import BasicAuthenticator
 import provision
+
 from .os import *
 
 
@@ -304,7 +305,7 @@ class VM (AbstractVM):
 
     @use_logger
     def destroy_vm(self, force=False):
-
+        from .disk import VBD
         if not hasattr(self, 'install'):
             self.check_access('destroy')
 

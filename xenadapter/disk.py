@@ -20,6 +20,8 @@ class Attachable:
         :param type: 'CD'/'Disk'/'Floppy'
         :return: VBD UUID
         '''
+        #vm.check_access('attach') #done by vmemperor
+
         vm_vbds = vm.get_VBDs()
         my_vbds = self.get_VBDs()
 
@@ -53,6 +55,7 @@ class Attachable:
 
     @use_logger
     def _detach(self : XenObject, vm : VM):
+        #vm.check_access('attach') #done by vmemperor
         vbds = vm.get_VBDs()
         for vbd_ref in vbds:
 
@@ -65,16 +68,17 @@ class Attachable:
         if not vbd_uuid:
             raise XenAdapterAPIError(self.log, "Failed to detach disk: Disk isn't attached")
 
-        vbd_ref = self.auth.xen.api.VBD.get_by_uuid(vbd_uuid)
+        vbd = VBD(auth=self.auth, uuid=vbd_uuid)
+
         if vm.get_power_state() == 'Running':
             try:
-                self.auth.xen.api.VBD.unplug(vbd_ref)
+                vbd.unplug()
             except Exception as e:
                 self.log.warning("Failed to detach disk from running VM")
                 return 1
 
         try:
-            self.api.VBD.destroy(vbd_ref)
+            vbd.destroy()
             self.log.info("VBD UUID {0} is destroyed".format(vbd_uuid))
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self.log, "Failed to detach disk: {0}".format(f.details))
@@ -110,7 +114,16 @@ class ISO(XenObject, Attachable):
         return  {key: value for key, value in record.items() if key in fields}
 
     def attach(self, vm : VM) -> VBD:
-        return VBD(uuid=self._attach(vm, 'CD', 'RO'))
+        '''
+        Attaches ISO to a vm
+        :param vm:
+        :return:
+        WARNING: It does not check whether self is a real ISO, do it for yourself.
+        '''
+        return VBD(auth=self.auth, uuid=self._attach(vm, 'CD', 'RO'))
+
+    def detach(self, vm: VM):
+        self._detach(vm)
 
 
 

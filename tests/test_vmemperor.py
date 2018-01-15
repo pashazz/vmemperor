@@ -196,3 +196,19 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         self.assertEqual(res.code, 200)
         isos = json.loads(res.body.decode())
         pprint.pprint(isos)
+
+    def test_attach_iso(self):
+        res = self.fetch(r'/isolist', method='GET', headers=self.headers)
+        self.assertEqual(res.code, 200)
+        isos = json.loads(res.body.decode())
+        for iso in isos:
+            if iso['name_label'] == 'guest-tools.iso':
+                body = dict(action='attach', uuid=self.uuid, iso_uuid=iso['uuid'])
+                print("Attaching ISO guest-tools")
+                res = self.fetch(r'/attachdetachiso', method='POST', body=urlencode(body), headers=self.headers)
+                self.assertEqual(res.code, 200)
+                body['action'] = 'detach'
+                print("Detaching ISO guest-tools")
+                res = self.fetch(r'/attachdetachiso', method='POST', body=urlencode(body), headers=self.headers)
+                self.assertEqual(res.code, 200)
+                return
