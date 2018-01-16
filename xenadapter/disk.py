@@ -7,6 +7,18 @@ import XenAPI
 class VBD(XenObject):
     api_class = 'VBD'
 
+  #  @classmethod
+  #  def process_event(cls, xen, event, db):
+  #      from vmemperor import CHECK_ER
+  #      if event['class'] != 'vbd':
+  #          raise XenAdapterArgumentError(xen.log, "this method accepts only 'vbd' events")
+
+        #record = event['snapshot']
+        #if event['operation'] == 'add':
+
+
+
+
 
 class Attachable:
     from .vm import VM

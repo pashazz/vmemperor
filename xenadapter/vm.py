@@ -9,17 +9,35 @@ from .os import *
 
 class VM (AbstractVM):
 
-    db_table_name = 'vms'
+
+
     def __init__(self, auth, uuid=None, ref=None):
         super().__init__(auth, uuid, ref)
 
+    @classmethod
+    def process_event(cls,  xen, event, db):
 
+        from vmemperor import CHECK_ER
 
+        if event['class'] != 'vm':
+            raise XenAdapterArgumentError(xen.log, "this method accepts only 'vm' events")
+        record = event['snapshot']
+        if not cls.filter_record(record):
+            return
+        try:
+            if event['operation'] in ('mod', 'add'):
+                new_rec = cls.process_record(xen, record)
+                CHECK_ER(db.table('vms').insert(new_rec, conflict='update').run())
+            elif event['operation'] == 'del':
+                CHECK_ER(db.table('vms').get(record['uuid']).delete().run())
+        except XenAPI.Failure as f:
+            if f.details == ["EVENTS_LOST"]:
+                xen.log.warning("VM: Reregistering for events")
+                xen.api.event.register(["*"])
 
     @classmethod
     def filter_record(cls, record):
         return not (record['is_a_template'] or record['is_control_domain'])
-
 
     @classmethod
     def process_record(cls, xen,  record):

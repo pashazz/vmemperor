@@ -61,6 +61,17 @@ class XenObject(metaclass=XenObjectMeta):
         pass
 
     @classmethod
+    def process_event(cls, xen, event, db):
+        '''
+        Make changes to a RethinkDB-based cache, processing a XenServer event
+        :param xen: XenAdapter which generated event
+        :param event: event dict
+        :param db: rethinkdb DB
+        :return: nothing
+        '''
+        pass
+
+    @classmethod
     def process_record(cls, xen, record):
         '''
         Used by init_db. Should return dict with info that is supposed to be stored in DB
@@ -74,8 +85,8 @@ class XenObject(metaclass=XenObjectMeta):
     @classmethod
     def filter_record(cls, record):
         '''
-        Used by process_xen_events
-        :param record: record from get_all_records
+        Used by get_all_records (my implementation)
+        :param record: record from get_all_records (pure XenAPI method)
         :return: true if record is suitable for this class
         '''
         return True

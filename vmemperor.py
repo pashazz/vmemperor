@@ -894,23 +894,7 @@ class EventLoop(Loggable):
                     else: # Implement ev_classes for all types of events
                         continue
 
-                    record = event['snapshot']
-                    try:
-                        if not ev_class.filter_record(record):
-                            continue
-                    except:
-                        continue
-
-                    if event['operation'] == 'mod' or event['operation'] == 'add': #Modification
-                        new_rec = ev_class.process_record(xen, record)
-
-                        CHECK_ER(self.db.table(ev_class.db_table_name).insert(new_rec, conflict = 'update').run())
-
-                    elif event['operation'] == 'del':
-                        CHECK_ER(self.db.table(ev_class.db_table_name).get(record['uuid']).delete().run())
-
-
-
+                    ev_class.process_event(xen, event, self.db)
 
 
 
