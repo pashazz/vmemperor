@@ -42,7 +42,7 @@ class DateTimeEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, xmldt):
             t =  datetime.datetime.strptime(o.value, "%Y%m%dT%H:%M:%SZ")
-            return t.strftime("%d.%m.%Y, %H:%M")
+            return t.strftime("%d.%m.%Y, %H:%M:%S")
         
 
         return super().default(o)
