@@ -3,44 +3,66 @@ from . import use_logger
 import XenAPI
 from authentication import BasicAuthenticator
 import provision
+import pprint
 
 from .os import *
 
 
 class VM (AbstractVM):
 
-
+    db_table_name = 'vms'
 
     def __init__(self, auth, uuid=None, ref=None):
         super().__init__(auth, uuid, ref)
 
     @classmethod
-    def process_event(cls,  xen, event, db):
+    def process_event(cls,  auth, event, db, authenticator_name):
 
         from vmemperor import CHECK_ER
 
         if event['class'] != 'vm':
-            raise XenAdapterArgumentError(xen.log, "this method accepts only 'vm' events")
+            raise XenAdapterArgumentError(auth.xen.log, "this method accepts only 'vm' events")
         record = event['snapshot']
         if not cls.filter_record(record):
             return
         try:
             if event['operation'] in ('mod', 'add'):
-                new_rec = cls.process_record(xen, record)
+                new_rec = cls.process_record(auth, record)
                 CHECK_ER(db.table('vms').insert(new_rec, conflict='update').run())
             elif event['operation'] == 'del':
                 CHECK_ER(db.table('vms').get(record['uuid']).delete().run())
         except XenAPI.Failure as f:
             if f.details == ["EVENTS_LOST"]:
-                xen.log.warning("VM: Reregistering for events")
-                xen.api.event.register(["*"])
+                auth.xen.log.warning("VM: Reregistering for events")
+                auth.xen.api.event.register(["*"])
+
+
+    @classmethod
+    def process_xenstore(cls, xenstore, authenticator_name):
+
+        def read_xenstore_access_rights(xenstore_data):
+            filtered_iterator = filter(
+                lambda keyvalue: keyvalue[1] and keyvalue[0].startswith(cls.VMEMPEROR_ACCESS_PREFIX),
+                xenstore_data.items())
+
+            for k, v in filtered_iterator:
+                key_components = k[len(cls.VMEMPEROR_ACCESS_PREFIX) + 1:].split('/')
+                if key_components[0] == authenticator_name:
+                    yield {'userid': '%s/%s' % (key_components[1], key_components[2]), 'access': v}
+
+            else:
+                if cls.ALLOW_EMPTY_XENSTORE:
+                    yield {'userid': 'any', 'access': 'all'}
+
+        return list(read_xenstore_access_rights(xenstore))
+
 
     @classmethod
     def filter_record(cls, record):
         return not (record['is_a_template'] or record['is_control_domain'])
 
     @classmethod
-    def process_record(cls, xen,  record):
+    def process_record(cls, auth,  record):
         '''
         Creates a (shortened) dict record from long XenServer record. If no record could be created, return false
         :param record:
@@ -50,17 +72,18 @@ class VM (AbstractVM):
             return False
         keys = ['power_state', 'name_label', 'uuid']
         new_rec = {k: v for k, v in record.items() if k in keys}
+        new_rec['access'] = cls.process_xenstore(record['xenstore_data'], auth.__name__)
         new_rec['network'] = []
         for vif in record['VIFs']:
-            net_ref = xen.api.VIF.get_network(vif)
-            net_uuid = xen.api.network.get_uuid(net_ref)
+            net_ref = auth.xen.api.VIF.get_network(vif)
+            net_uuid = auth.xen.api.network.get_uuid(net_ref)
             new_rec['network'].append(net_uuid)
 
         new_rec['disks'] = []
         for vbd in record['VBDs']:
-            vdi_ref = xen.api.VBD.get_VDI(vbd)
+            vdi_ref = auth.xen.api.VBD.get_VDI(vbd)
             try:
-                vdi_uuid = xen.api.VDI.get_uuid(vdi_ref)
+                vdi_uuid = auth.xen.api.VDI.get_uuid(vdi_ref)
                 new_rec['disks'].append(vdi_uuid)
             except XenAPI.Failure as f:
                 if f.details[1] != 'VDI':

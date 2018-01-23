@@ -116,6 +116,8 @@ class XenAdapter(Loggable, metaclass=Singleton):
     assets = [VM, Template]
 
 
+
+
     def access_list(self, authenticator_name) -> list:
         from .xenobject import ACLXenObject
         def read_xenstore_access_rights(xenstore_data : dict, asset : ACLXenObject):

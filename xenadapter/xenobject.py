@@ -1,6 +1,7 @@
 import XenAPI
 from exc import *
 from authentication import BasicAuthenticator
+from tornado.concurrent import run_on_executor
 import traceback
 
 class XenObjectMeta(type):
@@ -61,21 +62,22 @@ class XenObject(metaclass=XenObjectMeta):
         pass
 
     @classmethod
-    def process_event(cls, xen, event, db):
+    def process_event(cls, xen, event, db, authenticator_name):
         '''
         Make changes to a RethinkDB-based cache, processing a XenServer event
         :param xen: XenAdapter which generated event
         :param event: event dict
         :param db: rethinkdb DB
+        :param authenticator_name: authenticator class name - used by access control
         :return: nothing
         '''
         pass
 
     @classmethod
-    def process_record(cls, xen, record):
+    def process_record(cls, auth, record):
         '''
         Used by init_db. Should return dict with info that is supposed to be stored in DB
-        :param xen:
+        :param auth: current authenticator
         :param record:
         :return: dict suitable for document-oriented DB
         : default: return record as-is
@@ -98,8 +100,8 @@ class XenObject(metaclass=XenObjectMeta):
                 if cls.filter_record(v)}
 
     @classmethod
-    def init_db(cls, xen):
-        return [cls.process_record(xen, record) for record in cls.get_all_records(xen).values()]
+    def init_db(cls, auth):
+        return [cls.process_record(auth, record) for record in cls.get_all_records(auth.xen).values()]
 
 
 
@@ -119,12 +121,22 @@ class XenObject(metaclass=XenObjectMeta):
 
 
 class ACLXenObject(XenObject):
+    VMEMPEROR_ACCESS_PREFIX = 'vm-data/vmemperor/access'
+
     def get_access_path(self, username=None, is_group=False):
         return '{3}/{0}/{1}/{2}'.format(self.auth.__class__.__name__,
                                                                'groups' if is_group else 'users',
                                                         username, self.access_prefix)
 
-    ALLOW_EMPTY_XENSTORE = False # Empty xenstore for some objects might treat them as
+    ALLOW_EMPTY_XENSTORE = False # Empty xenstore for some objects might treat them as for-all-by-default
+
+    @classmethod
+    @run_on_executor
+    def access_monitor(cls):
+        '''
+        check for changes in db_tab
+        :return:
+        '''
     def check_access(self,  action):
         '''
         Check if it's possible to do 'action' with specified VM
@@ -135,37 +147,44 @@ class ACLXenObject(XenObject):
         - destroy: can destroy vm
         - attach: can attach/detach disk/network interfaces
         :return: True if access granted, False if access denied, None if no info
+
+        Implementation details:
+        looks for self.db_table_name and then in db to table $(self.db_table_name)_access
         '''
         #if self.auth == 'root':
 #            return True
         self.log.info("Checking %s %s rights for user %s: action %s" % (self.__class__.__name__, self.uuid, self.auth.get_id(), action))
 
-        username = self.get_access_path(self.auth.get_id(), False)
-        xenstore_data = self.get_xenstore_data()
-        if not xenstore_data:
-            if self.ALLOW_EMPTY_XENSTORE:
-                return True
-            raise XenAdapterUnauthorizedActionException(self.log,
-                                                    "Unauthorized attempt (no info on access rights): needs privilege '%s', call stack: %s"
-                                                    % (action, traceback.format_stack()))
+        username = 'users/' + self.auth.get_id()
+        db  = self.auth.xen.db
+        table_name = self.db_table_name + '_user'
+        access_data = db.table(table_name).get(username).run()
+
+
+        #    if self.ALLOW_EMPTY_XENSTORE:
+        #        return True
+        #    raise XenAdapterUnauthorizedActionException(self.log,
+        #                                            "Unauthorized attempt (no info on access rights): needs privilege '%s', call stack: %s"
+        #                                            % (action, traceback.format_stack()))
 
 
 
-        actionlist = xenstore_data[username].split(';') if username in xenstore_data else None
-        if actionlist and (action in actionlist or 'all' in actionlist):
-            self.log.info('User %s is allowed to perform action %s on %s %s' % (self.auth.get_id(), action, self.__class__.__name__, self.uuid))
-            return True
-        else:
-            for group in self.auth.get_user_groups():
-                groupname = self.get_access_path(group, True)
-                actionlist = xenstore_data[groupname].split(';') if groupname in xenstore_data else None
-                if actionlist and any(('all' in actionlist, action in actionlist)):
-                    self.log.info('User %s via group %s is allowed to perform action %s on %s %s' % (self.auth.get_id(), group, action, self.__class__.__name__,  self.__uuid__))
-                    return True
+        #actionlist = xenstore_data[username].split(';') if username in xenstore_data else None
+        #if actionlist and (action in actionlist or 'all' in actionlist):
+        #    self.log.info('User %s is allowed to perform action %s on %s %s' % (self.auth.get_id(), action, self.__class__.__name__, self.uuid))
+        #    return True
+        #else:
+        #    for group in self.auth.get_user_groups():
+        #        groupname = self.get_access_path(group, True)
+        #       actionlist = xenstore_data[groupname].split(';') if groupname in xenstore_data else None
+        #        if actionlist and any(('all' in actionlist, action in actionlist)):
+        #           self.log.info('User %s via group %s is allowed to perform action %s on %s %s' % (self.auth.get_id(), group, action, self.__class__.__name__,  self.__uuid__))
+        #           return True
 
-            raise XenAdapterUnauthorizedActionException(self.log,
-                                                        "Unauthorized attempt: needs privilege '%s', call stack: %s"
-                                                        % (action, traceback.format_stack()))
+        #    raise XenAdapterUnauthorizedActionException(self.log,
+         #                                               "Unauthorized attempt: needs privilege '%s', call stack: %s"
+          #                                              % (action, traceback.format_stack()))
+        return True
 
     def manage_actions(self, action,  revoke=False, user=None, group=None, force=False):
         '''

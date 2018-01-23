@@ -37,6 +37,15 @@ import threading
 import datetime
 from xmlrpc.client import DateTime as xmldt
 
+def table_drop(db, table_name):
+    try:
+        db.table_drop(table_name).run()
+    except r.errors.ReqlOpFailedError as e:
+        # TODO make logging
+        print(e.message)
+        r.db('rethinkdb').table('table_config').filter(
+            {'db': opts.database, 'name': table_name}).delete().run()
+
 
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, o):
@@ -265,7 +274,7 @@ class VMList(BaseHandler):
                     lambda vm : db.table('vms').get(vm['uuid']))
                 ).coerce_to('array').run()
 
-                result.extend(cur)
+            
             else: #root mode
                    cur = db.table('vms').map(lambda doc: doc.merge( {'access' : 'all'}))
 
@@ -763,10 +772,11 @@ class EventLoop(Loggable):
         self.init_log()
 
         #self.xen_lock = threading.Lock()
-
+        self.objects = [VM]
 
         self.executor = executor
         self.authenticator = authenticator
+        authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
 
         self.conn = r.connect(opts.host, opts.port, opts.database).repl()
         if opts.database not in r.db_list().run():
@@ -779,34 +789,14 @@ class EventLoop(Loggable):
             self.db.table('vms').delete().run()
         if 'vms' not in tables:
             self.db.table_create('vms', durability='soft', primary_key='uuid').run()
-            vms = VM.init_db(self.xen)
+            vms = VM.init_db(authenticator)
             CHECK_ER(self.db.table('vms').insert(vms, conflict='error').run())
             #self.db.table('vms').index_create('user').run()
             #self.db.table('vms').index_wait('user').run()
         else:
-            vms = VM.init_db(self.xen)
+            vms = VM.init_db(authenticator)
             CHECK_ER(self.db.table('vms').insert(vms, conflict='update').run())
 
-        if 'access_list' in tables:
-            # self.db.table('access_list').delete().run()
-            try:
-                self.db.table_drop('access_list').run()
-                tables.remove('access_list')
-            except r.errors.ReqlOpFailedError as e:
-                # TODO make logging
-                print(e.message)
-                r.db('rethinkdb').table('table_config').filter(
-                    {'db': opts.database, 'name': "access_list"}).delete().run()
-
-
-     #   if 'access_list' in tables:
-     #       self.db.table_drop('access_list').run()
-
-        self.db.table_create('access_list', durability='soft').run()
-        access_list  = self.xen.access_list(authenticator.__name__)
-        CHECK_ER(self.db.table('access_list').insert(access_list, conflict='error').run())
-        self.db.table('access_list').index_create('userid_and_type', [r.row["userid"], r.row["type"]]).run()
-        self.db.table('access_list').index_wait('userid_and_type').run()
 
 
 #        else:
@@ -815,22 +805,22 @@ class EventLoop(Loggable):
 
         if 'isos' not in tables:
             self.db.table_create('isos', durability='soft', primary_key='uuid').run()
-            isos = ISO.init_db(self.xen)
+            isos = ISO.init_db(authenticator)
             #isos = self.xen.list_isos()
             CHECK_ER(self.db.table('isos').insert(isos, conflict='error').run())
         else:
-            isos = ISO.init_db(self.xen)
+            isos = ISO.init_db(authenticator)
             #isos = self.xen.list_isos()
             CHECK_ER(self.db.table('isos').insert(isos, conflict='update').run())
 
         if 'tmpls' not in tables:
             self.db.table_create('tmpls', durability='soft', primary_key='uuid').run()
         #    tmpls = self.xen.list_templates().values()
-            tmpls = Template.init_db(self.xen)
+            tmpls = Template.init_db(authenticator)
             CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='error').run())
         else:
          #   tmpls = self.xen.list_templates().values()
-            tmpls = Template.init_db(self.xen)
+            tmpls = Template.init_db(authenticator)
             CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='update').run())
       #  if 'pools' not in tables:
       #      self.db.table_create('pools', durability='soft', primary_key='uuid').run()
@@ -841,46 +831,125 @@ class EventLoop(Loggable):
       #      CHECK_ER(self.db.table('pools').insert(list(pools), conflict='update').run())
         if 'nets' not in tables:
             self.db.table_create('nets', durability='soft', primary_key='uuid').run()
-            nets = Network.init_db(self.xen)
+            nets = Network.init_db(authenticator)
             CHECK_ER(self.db.table('nets').insert(list(nets), conflict='error').run())
         else:
-            nets = Network.init_db(self.xen)
+            nets = Network.init_db(authenticator)
             # nets = self.xen.list_networks().values()
             CHECK_ER(self.db.table('nets').insert(list(nets), conflict='update').run())
 
+        del authenticator.xen
+
 
     @run_on_executor
-    def heavy_task(self):
-        self.conn.repl()
-        #self.xen_lock.acquire()
-        #vms = self.xen.list_vms()
-        #self.xen_lock.release()
-        #CHECK_ER(self.db.table('vms').insert(vms, conflict = 'update').run())
+    def do_access_monitor(self):
+        conn = r.connect(opts.host, opts.port, opts.database).repl()
+        query = self.db.table(self.objects[0].db_table_name).pluck('uuid', 'access')\
+            .merge({'table' : self.objects[0].db_table_name}).changes()
 
-        #db_vms = self.db.table('vms').pluck('uuid')
-        #if len(vms) != db_vms.count().run():
-#            db_vms = db_vms.run()
-#            vm_uuid = [vm['uuid'] for vm in vms]
-#            for doc in db_vms:
-#                if doc['uuid'] not in vm_uuid:
-#                    CHECK_ER(self.db.table('vms').get(doc['uuid']).delete().run())
+        table_list = self.db.table_list().run()
+        def initial_merge(table):
+            nonlocal table_list
+            table_user = table + '_user'
+            if table_user not in table_list:
+                self.db.table_create(table_user, durability='soft', primary_key='userid').run()
+            else:
+                CHECK_ER(self.db.table(table_user).delete().run())
 
-        access_list = self.xen.access_list(self.authenticator.__name__)
-        CHECK_ER(self.db.table('access_list').insert(access_list, conflict='update').run())
+            CHECK_ER(self.db.table(table_user).insert(
+                self.db.table(table).pluck('access', 'uuid').filter(r.row['access'] != []).
+                concat_map(lambda acc: acc['access'].merge({'uuid':acc['uuid']})).group('userid').
+                without('userid').ungroup().
+                map(lambda item: {'userid': item['group'], 'data' : item['reduction']})).run())
 
-        # raise ValueError('SUCCESS')
+
+        i = 0
+        while i < len(self.objects):
+            initial_merge(self.objects[i].db_table_name)
+
+            if i > 0:
+                query.union(self.db.table(self.objects[i].db_table_name).pluck('uuid', 'access')\
+                                .merge({'table': self.objects[i].db_table_name}).changes())
+            i += 1
+
+
+        cur = query.run()
+
+        def uuid_delete(table_user, uuid):
+            self.db.table(table_user).insert(self.db.table(table_user).filter(lambda user:
+                                     user['data'].filter({'uuid': uuid}).ne([])).
+                                     map(lambda item: {'userid' : item['userid'],
+                                                       'data' : item['data'].filter(lambda data: data['uuid'] != uuid)})
+                                     , conflict='update').run()
+
+
+
+        for record in cur:
+
+            if record['new_val']: #edit
+                uuid = record['new_val']['uuid']
+                table = record['new_val']['table']
+                access = record['new_val']['access']
+                table_user = table + '_user'
+
+                self.log.info("Modifying access rights for %s (table %s): %s" % (uuid, table, json.dumps(access)))
+                if not record['old_val']:
+                    access_diff = access
+                else:
+                    access_diff = set(access) - set(record['old_val']['access'])
+
+                for item in access_diff:
+                    self.db.table(table_user).insert(self.db.table(table_user).get(item['userid']).
+                                                     do(lambda ret: r.branch(ret.eq(None),
+                                                     {'userid': item['userid'], 'data': [{'uuid': uuid, 'access': item['access']}]},
+                                                     {'userid' : ret['userid'], 'data': ret['data'].filter(lambda data : data['uuid'] != uuid).
+                                                     set_union([{'uuid' : uuid, 'access' : item['access']}])})),
+                                                     conflict='update').run()
+                if record['old_val']:
+                    access_to_remove = set(record['old_val']['access']) - set(access)
+                    for item in access_to_remove:
+                        self.db.table(table_user).insert(self.db.table(table_user).get(item['userid']).
+                                do(lambda item: {'userid' : item['userid'],
+                                                'data' : item['data'].filter(lambda data: data['uuid'] != 'uuid')}),
+                                                 conflict='update').run()
+            else:
+                uuid = record['old_val']['uuid']
+                table = record['old_val']['table']
+                table_user = table + '_user'
+                self.log.info("Deleting access rights for %s (table %s)" % (uuid, table))
+                uuid_delete(table_user, uuid)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         return
 
     @gen.coroutine
-    def vm_list_update(self):
-        yield self.heavy_task()
+    def access_monitor(self):
+        yield self.do_access_monitor()
 
 
     @run_on_executor
     def process_xen_events(self):
         from XenAPI import  Failure
         xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')}, nosingleton=True)
-        #xen = self.xen
+        self.authenticator.xen = xen
+
         xen.api.event.register(["*"])
         while True:
             #pass
@@ -894,7 +963,9 @@ class EventLoop(Loggable):
                     else: # Implement ev_classes for all types of events
                         continue
 
-                    ev_class.process_event(xen, event, self.db)
+
+
+                    ev_class.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
 
 
 
@@ -920,6 +991,7 @@ def event_loop(executor, delay = 1000, authenticator=None, ioloop = None):
     loop_object = EventLoop(executor, authenticator)
     #tornado.ioloop.PeriodicCallback(loop_object.vm_list_update, delay).start()  # read delay from ini
     ioloop.add_callback(loop_object.run_xen_queue)
+    ioloop.add_callback(loop_object.access_monitor)
     return ioloop
 
 
