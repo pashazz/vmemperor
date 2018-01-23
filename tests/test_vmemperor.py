@@ -1,5 +1,6 @@
 from unittest import skip
 from vmemperor import *
+import os
 from tornado import  testing
 from tornado.httpclient import HTTPRequest
 from urllib.parse import urlencode
@@ -95,8 +96,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
 
 
-
-    def test_createvm(self):
+    def createvm(self):
         config = configparser.ConfigParser()
         config.read('tests/createvm.ini')
         #for body in config._sections.values():
@@ -114,6 +114,13 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         #    self.assertTrue(xen.check_rights(action, uuid))
 
         print(uuid)
+        with open('destroy.txt', 'a') as file:
+            print(uuid, file=file)
+
+
+
+    def test_createvm(self):
+        self.createvm()
 
 
     def test_startvm(self): #The Great Testing Machine of Dummy Acc.
@@ -182,9 +189,11 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         res = self.fetch(r'/vmlist', method='GET', headers=self.headers)
         self.assertEqual(res.code, 200)
         vms = json.loads(res.body.decode())
+        pprint.pprint(vms)
         for vm in vms:
             if vm['uuid'] == self.uuid:
                 return
+
 
         self.fail("uuid %s (testing machine) not found in vmlist" % self.uuid)
 
@@ -212,3 +221,27 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
                 res = self.fetch(r'/attachdetachiso', method='POST', body=urlencode(body), headers=self.headers)
                 self.assertEqual(res.code, 200)
                 return
+
+    def test_destroy_vm(self):
+        if not os.path.isfile('destroy.txt'):
+            self.createvm()
+
+        with open('destroy.txt',mode='r') as file:
+            uuid = file.readline().rstrip('\n')
+            rest = file.read()
+
+        if not rest.strip():
+            os.remove('destroy.txt')
+        else:
+            with open('destroy.txt', mode='w') as file:
+                file.write(rest)
+
+
+        body=dict(uuid=uuid)
+        res = self.fetch(r'/destroyvm', method='POST', body=urlencode(body), headers=self.headers)
+        self.assertEqual(res.code, 200)
+
+
+
+
+
