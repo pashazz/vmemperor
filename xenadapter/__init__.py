@@ -248,3 +248,19 @@ class XenAdapter(Loggable, metaclass=Singleton):
                                              name, subject, uuid, f.details))
 
 
+class XenAdapterPool(metaclass=Singleton):
+    def __init__(self, qty=200):
+        self._xens = []
+        self.qty = qty
+    def get(self):
+        if len(self._xens) == self.qty:
+            #waiting for lock to be unlocked in at least one XenAdapter
+           for xen in self._xens:
+               if not xen.session.locked:
+                   return xen
+        else:
+            from vmemperor import opts
+            self._xens.append(XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')}, nosingleton=True))
+            return self._xens[-1]
+#dont know what to do if limit exceeded
+

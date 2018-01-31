@@ -1,5 +1,5 @@
 from auth import dummy
-from xenadapter import XenAdapter
+from xenadapter import XenAdapter, XenAdapterPool
 from xenadapter.template import Template
 from xenadapter.vm import VM
 from xenadapter.network import Network
@@ -496,7 +496,7 @@ class CreateVM(BaseHandler):
         :return:
         '''
         auth = copy.copy(self.user_authenticator)
-        auth.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')}, nosingleton=True)
+        auth.xen = XenAdapterPool().get()
 
         conn = r.connect(opts.host, opts.port, opts.database).repl()
         self.log.info("Finalizing installation of VM %s" % self.uuid)
@@ -848,9 +848,6 @@ class EventLoop(Loggable):
 
         self.init_log()
 
-        #self.xen_lock = threading.Lock()
-
-
         self.executor = executor
         self.authenticator = authenticator
         authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
@@ -1009,9 +1006,9 @@ class EventLoop(Loggable):
     @run_on_executor
     def process_xen_events(self):
         from XenAPI import  Failure
-        xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')}, nosingleton=True)
-        self.authenticator.xen = xen
 
+        self.authenticator.xen = XenAdapterPool().get()
+        xen = self.authenticator.xen
         xen.api.event.register(["*"])
         while True:
             #pass
