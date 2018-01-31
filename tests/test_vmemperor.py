@@ -8,23 +8,12 @@ from base64 import decodebytes
 import pickle
 from tornado.web import create_signed_value
 import pprint
-
-
+from sqlalchemy.exc import IntegrityError
+from authentication import DebugAuthenticator
+from time import sleep
 settings_read = False
 '''
-Usage:
-create a file named 'secret.ini' with the following structure:
-
-
-[test]
-username = <username> # Dummy authenticator (default) allows any username
-password = <password> # Dummy authenticator (default) allows any password
-[machines]
-uuid = <test machine uuid>
-
-
-Tests test_startvm, ..., will be performed on VM specified above.
-
+This test uses SQLAlchemy-based authenticator
 '''
 class VmEmperorTest(testing.AsyncHTTPTestCase):
     @classmethod
@@ -34,10 +23,28 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
             read_settings()
             settings_read = True
         cls.executor = ThreadPoolExecutor(max_workers=opts.max_workers)
+        if os.path.exists('/tmp/vmemperor-auth.db'):
+            os.remove('/tmp/vmemperor-auth.db')
+
 
     def get_app(self):
+
+        from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator, User, Group
         if not hasattr(self, 'app'):
-            self.app = make_app(self.executor, debug=True)
+
+            self.app = make_app(self.executor, debug=True, auth_class=SqlAlchemyAuthenticator)
+            john_group = Group(name='John friends')
+            SqlAlchemyAuthenticator.session.add(john_group)
+            SqlAlchemyAuthenticator.session.add(User(name='john', password='john', groups=[john_group]))
+            SqlAlchemyAuthenticator.session.add(User(name='mike', password='mike', groups=[john_group]))
+            SqlAlchemyAuthenticator.session.add(User(name='eva', password='eva', groups=[]))
+            try:
+                SqlAlchemyAuthenticator.session.commit()
+            except IntegrityError: # Users have already been added
+                pass
+
+
+
         return self.app
 
     def get_new_ioloop(self):
@@ -46,7 +53,10 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
 
     @classmethod
     def tearDownClass(cls):
+        from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator
         ioloop.IOLoop.instance().stop()
+        SqlAlchemyAuthenticator.session.close()
+
 
 
 class VmEmperorNoLoginTest(VmEmperorTest):
@@ -77,10 +87,14 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
         config = configparser.ConfigParser()
         config.read('tests/secret.ini')
-        cls.body = config._sections['test']
-        cls.uuid = config['machines']['uuid']
+        cls.body = {'username' : 'john', 'password' : 'john' }
+        cls.uuid = config[opts.authenticator]['uuid']
+
         cls.xen_options = {**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')}
         cls.xen_options['debug'] = True
+
+        cls.vms_created = []
+
 
     def setUp(self):
         super().setUp()
@@ -93,6 +107,18 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         self.assertEqual(res_login.code, 200, "Failed to login")
         self.headers = {'Cookie': res_login.headers['Set-Cookie']}
         print(res_login)
+
+    @classmethod
+    def tearDownClass(cls):
+        auth = DebugAuthenticator()
+        for uuid in cls.vms_created:
+            try:
+                vm = VM(auth=auth, uuid=uuid)
+                print("Deleting created VM %s" % uuid)
+                vm.destroy_vm()
+            except:
+                continue
+
 
 
 
@@ -107,6 +133,13 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         self.assertEqual(res.code, 200)
         uuid = res.body.decode()
 
+        body = {'uuid': uuid}
+        res = self.fetch(r'/installstatus', method='POST', body=urlencode(body), headers=self.headers)
+        self.assertEqual(res.code, 200)
+        json_res = json.loads(res.body.decode())
+        self.assertNotEqual(json_res['state'],'failed', msg=json_res['message'])
+
+
         #xen = XenAdapter(self.xen_options, authenticator=self.auth)
 
         actions = ['launch', 'destroy', 'attach']
@@ -116,6 +149,8 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         print(uuid)
         with open('destroy.txt', 'a') as file:
             print(uuid, file=file)
+        self.vms_created.append(uuid)
+        return uuid
 
 
 
@@ -241,6 +276,51 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         res = self.fetch(r'/destroyvm', method='POST', body=urlencode(body), headers=self.headers)
         self.assertEqual(res.code, 200)
 
+
+
+
+    def test_get_set_access(self):
+        uuid = self.createvm()
+        body={'uuid': uuid, 'type': 'VM'}
+        res = self.fetch(r'/getaccess', method='POST', body=urlencode(body), headers=self.headers)
+        self.assertEqual(res.code, 200)
+        ans = json.loads(res.body.decode())
+        self.assertEqual(ans['access'][0]['userid'], 'users/1')
+        self.assertEqual(ans['access'][0]['access'], ['all'])
+        body_set = {'uuid': uuid, 'type': 'VM', 'group': '1', 'action': 'launch'}
+        # login as eva, not in group
+        login_body_eva={'username':'eva', 'password': 'eva'}
+        res_login = self.fetch(r'/login', method='POST', body=urlencode(login_body_eva))
+
+        self.assertEqual(res_login.code, 200, "Failed to login")
+        headers_eva = {'Cookie': res_login.headers['Set-Cookie']}
+
+        login_body_mike = {'username': 'mike', 'password': 'mike'}
+        res_login = self.fetch(r'/login', method='POST', body=urlencode(login_body_mike))
+        self.assertEqual(res_login.code, 200, "Failed to login")
+        headers_mike = {'Cookie': res_login.headers['Set-Cookie']}
+
+        res = self.fetch(r'/getaccess', method='POST', body=urlencode(body), headers=headers_mike)
+        self.assertEqual(res.code, 403, "Access system hijacked by mike: {0}".format(res.body.decode()))
+        res = self.fetch(r'/getaccess', method='POST', body=urlencode(body), headers=headers_eva)
+        self.assertEqual(res.code, 403, "Access system hijacked by eva")
+        res = self.fetch(r'/setaccess', method='POST', body=urlencode(body_set), headers=self.headers)
+        self.assertEqual(res.code, 200, "John is unable to grant launch rights to his group")
+        res = self.fetch(r'/getaccess', method='POST', body=urlencode(body), headers=headers_mike)
+        self.assertEqual(res.code, 200, "Mike should get access rights cause he's in john's group")
+        res = self.fetch(r'/getaccess', method='POST', body=urlencode(body), headers=headers_eva)
+        self.assertEqual(res.code, 403, "Eva still shouldn't have  obtained access rights")
+        res = self.fetch(r'/vminfo', method='POST', body=urlencode(body), headers=headers_eva)
+        self.assertEqual(res.code, 403, "Eva shouldn't have got an access info")
+        res = self.fetch(r'/vminfo', method='POST', body=urlencode(body), headers=headers_mike)
+        self.assertEqual(res.code, 200, "Mike has Launch rights, he must have an ability to get VM info")
+        sleep(2)
+        res = self.fetch(r'/destroyvm', method='POST', body=urlencode(body), headers=headers_mike)
+        self.assertEqual(res.code, 403, "Mike shouldn't have destroyed a VM")
+        res = self.fetch(r'/destroyvm', method='POST', body=urlencode(body), headers=headers_eva)
+        self.assertEqual(res.code, 403, "Eva shouldn't have destroyed a VM")
+        res = self.fetch(r'/destroyvm', method='POST', body=urlencode(body), headers=self.headers)
+        self.assertEqual(res.code, 200, "John should destroy test VM")
 
 
 

@@ -4,7 +4,7 @@ from xenadapter.template import Template
 from xenadapter.vm import VM
 from xenadapter.network import Network
 from xenadapter.disk import ISO
-
+import copy
 import traceback
 import inspect
 import tornado.web
@@ -36,6 +36,11 @@ import queue
 import threading
 import datetime
 from xmlrpc.client import DateTime as xmldt
+from frozendict import frozendict
+from functools import partial
+
+#Objects with ACL enabled
+objects = [VM]
 
 def table_drop(db, table_name):
     try:
@@ -77,6 +82,8 @@ def auth_required(method):
             return method(self, *args, **kwargs)
 
     return decorator
+
+
 
 
 
@@ -131,9 +138,11 @@ class BaseHandler(tornado.web.RequestHandler, Loggable):
 
 
             self.finish()
-
-            if post_hook:
-                post_hook(ret, auth)
+            try:
+                if post_hook:
+                    post_hook(ret, auth)
+            except EmperorException as e:
+                self.log.error("try_xenadapter: exception catched in post_hook: %s" % e.message)
 
 
 
@@ -263,6 +272,8 @@ class VMList(BaseHandler):
 
 
         result = []
+
+
         def populate_result(userid):
 
             #cur = table('access_list').get_all(userid, index='userid').map(
@@ -274,7 +285,7 @@ class VMList(BaseHandler):
                     lambda vm : db.table('vms').get(vm['uuid']))
                 ).coerce_to('array').run()
 
-            
+
             else: #root mode
                    cur = db.table('vms').map(lambda doc: doc.merge( {'access' : 'all'}))
 
@@ -287,7 +298,7 @@ class VMList(BaseHandler):
         populate_result(userid)
 
         for group in self.user_authenticator.get_user_groups():
-            groupid = 'groups/' + group
+            groupid = 'groups/%s' % group
             populate_result(groupid)
 
 
@@ -484,24 +495,27 @@ class CreateVM(BaseHandler):
 
         :return:
         '''
+        auth = copy.copy(self.user_authenticator)
+        auth.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')}, nosingleton=True)
+
         conn = r.connect(opts.host, opts.port, opts.database).repl()
         self.log.info("Finalizing installation of VM %s" % self.uuid)
         db = r.db(opts.database)
         state = db.table('vms').get(self.uuid).pluck('power_state').run(conn)['power_state']
         if state != 'Running':
-            self.user_authenticator.xen.insert_log_entry(self.uuid, 'failed', "failed to start VM for installation (low resources?). State: %s" % state)
+            auth.xen.insert_log_entry(self.uuid, 'failed', "failed to start VM for installation (low resources?). State: %s" % state)
             return
 
         cur = db.table('vms').get(self.uuid).changes().run()
         for change in cur:
             if change['new_val']['power_state'] == 'Halted':
-                vm = VM(self.user_authenticator, uuid=self.uuid)
                 try:
+                    vm = VM(auth, uuid=self.uuid)
                     vm.start_stop_vm(True)
                 except XenAdapterAPIError as e:
-                    self.user_authenticator.xen.insert_log_entry(self.uuid, "failed", "failed to start after installation: %s" % e.message)
+                    auth.xen.insert_log_entry(self.uuid, "failed", "failed to start after installation: %s" % e.message)
                 else:
-                    self.user_authenticator.xen.insert_log_entry(self.uuid, "installed", "OS successfully installed")
+                    auth.xen.insert_log_entry(self.uuid, "installed", "OS successfully installed")
                 break
 
 
@@ -544,10 +558,6 @@ class EnableDisableTemplate(BaseHandler):
 
 
         self.try_xenadapter( lambda auth: Template(auth, uuid=uuid).enable_disable(bool(enable)))
-
-
-
-
 
 
 
@@ -625,7 +635,7 @@ class VMAbstractHandler(BaseHandler):
             self.vm.check_access(self.access)
         except XenAdapterUnauthorizedActionException as e:
             self.set_status(403)
-            self.write({'status':'access denied'})
+            self.write({'status':'access denied', 'message' : e.message})
             return
 
 
@@ -636,6 +646,73 @@ class VMAbstractHandler(BaseHandler):
     def get_data(self):
         '''return answer information (if everything is OK). Else use set_status and write'''
         raise NotImplementedError()
+
+class SetAccessHandler(BaseHandler):
+    @auth_required
+    def post(self):
+        uuid = self.get_argument('uuid')
+        type = self.get_argument('type')
+        action = self.get_argument('action')
+        revoke = self.get_argument('revoke', False)
+        user = self.get_argument('user', default=None)
+        if not user:
+            group = self.get_argument('group')
+        else:
+            group = None
+        type_obj = None
+        for obj in objects:
+            if obj.__name__ == type:
+                type_obj = obj
+                break
+        else:
+            self.set_status(400)
+            self.write({'status' : 'bad request', 'message' : 'unsupported type %s' % type})
+            return
+
+        try:
+            self.target = type_obj(self.user_authenticator, uuid=uuid)
+            self.target.check_access(action)
+            self.target.manage_actions(action, revoke, user, group)
+        except XenAdapterAPIError as e:
+            self.set_status(400)
+            self.write({'status': 'bad request', 'message': e.message})
+            return
+        except XenAdapterUnauthorizedActionException as e:
+            self.set_status(403)
+            self.write({'status': 'access denied', 'message': e.message})
+            return
+
+class GetAccessHandler(BaseHandler):
+    @auth_required
+    def post(self):
+        uuid = self.get_argument('uuid')
+        type = self.get_argument('type')
+        type_obj = None
+        for obj in objects:
+            if obj.__name__ == type:
+                type_obj = obj
+                break
+        else:
+            self.set_status(400)
+            self.write({'status': 'bad request', 'message': 'invalid type: %s' % type})
+            return
+        try:
+            type_obj(self.user_authenticator, uuid=uuid).check_access(None)
+        except XenAdapterAPIError as e:
+            self.set_status(400)
+            self.write({'status': 'bad request', 'message': e.message})
+            return
+
+        except XenAdapterUnauthorizedActionException as e:
+            self.set_status(403)
+            self.write({'status': 'access denied', 'message': e.message})
+            return
+
+        db = r.db(opts.database)
+        self.write(db.table(type_obj.db_table_name).get(uuid).pluck('access').run())
+
+
+
 
 class InstallStatus(VMAbstractHandler):
 
@@ -772,7 +849,7 @@ class EventLoop(Loggable):
         self.init_log()
 
         #self.xen_lock = threading.Lock()
-        self.objects = [VM]
+
 
         self.executor = executor
         self.authenticator = authenticator
@@ -844,8 +921,8 @@ class EventLoop(Loggable):
     @run_on_executor
     def do_access_monitor(self):
         conn = r.connect(opts.host, opts.port, opts.database).repl()
-        query = self.db.table(self.objects[0].db_table_name).pluck('uuid', 'access')\
-            .merge({'table' : self.objects[0].db_table_name}).changes()
+        query = self.db.table(objects[0].db_table_name).pluck('uuid', 'access')\
+            .merge({'table' : objects[0].db_table_name}).changes()
 
         table_list = self.db.table_list().run()
         def initial_merge(table):
@@ -864,12 +941,12 @@ class EventLoop(Loggable):
 
 
         i = 0
-        while i < len(self.objects):
-            initial_merge(self.objects[i].db_table_name)
+        while i < len(objects):
+            initial_merge(objects[i].db_table_name)
 
             if i > 0:
-                query.union(self.db.table(self.objects[i].db_table_name).pluck('uuid', 'access')\
-                                .merge({'table': self.objects[i].db_table_name}).changes())
+                query.union(self.db.table(objects[i].db_table_name).pluck('uuid', 'access')\
+                                .merge({'table': objects[i].db_table_name}).changes())
             i += 1
 
 
@@ -894,9 +971,10 @@ class EventLoop(Loggable):
 
                 self.log.info("Modifying access rights for %s (table %s): %s" % (uuid, table, json.dumps(access)))
                 if not record['old_val']:
-                    access_diff = access
+                    access_diff = [frozendict(x) for x in access]
                 else:
-                    access_diff = set(access) - set(record['old_val']['access'])
+                    access_diff = set((frozendict(x) for x in access)) -\
+                                  set((frozendict(x) for x in record['old_val']['access']))
 
                 for item in access_diff:
                     self.db.table(table_user).insert(self.db.table(table_user).get(item['userid']).
@@ -906,7 +984,9 @@ class EventLoop(Loggable):
                                                      set_union([{'uuid' : uuid, 'access' : item['access']}])})),
                                                      conflict='update').run()
                 if record['old_val']:
-                    access_to_remove = set(record['old_val']['access']) - set(access)
+                    access_to_remove = \
+                        set((frozendict(x) for x in record['old_val']['access'])) -\
+                         set((frozendict(x) for x in access))
                     for item in access_to_remove:
                         self.db.table(table_user).insert(self.db.table(table_user).get(item['userid']).
                                 do(lambda item: {'userid' : item['userid'],
@@ -918,24 +998,6 @@ class EventLoop(Loggable):
                 table_user = table + '_user'
                 self.log.info("Deleting access rights for %s (table %s)" % (uuid, table))
                 uuid_delete(table_user, uuid)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
         return
 
@@ -1136,7 +1198,8 @@ def make_app(executor, auth_class=None, debug = False):
         d = DynamicLoader('auth')
 
         module = opts.authenticator if opts.authenticator else None
-        auth_class = d.load_class(class_base=BasicAuthenticator, module=module)[0]
+        if not auth_class:
+            auth_class = d.load_class(class_base=BasicAuthenticator, module=module)[0]
 
     classes = [auth_class, Test, AutoInstall, ConsoleHandler]
 
@@ -1171,7 +1234,10 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/convertvm', ConvertVM, dict(executor=executor)),
         (r'/installstatus', InstallStatus, dict(executor=executor)),
         (r'/vminfo', VMInfo, dict(executor=executor)),
-        (r'/isolist', ISOList, dict(executor=executor))
+        (r'/isolist', ISOList, dict(executor=executor)),
+        (r'/setaccess', SetAccessHandler, dict(executor=executor)),
+        (r'/getaccess', GetAccessHandler, dict(executor=executor))
+
     ], **settings)
 
     app.auth_class = auth_class

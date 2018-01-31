@@ -48,11 +48,11 @@ class VM (AbstractVM):
             for k, v in filtered_iterator:
                 key_components = k[len(cls.VMEMPEROR_ACCESS_PREFIX) + 1:].split('/')
                 if key_components[0] == authenticator_name:
-                    yield {'userid': '%s/%s' % (key_components[1], key_components[2]), 'access': v}
+                    yield {'userid': '%s/%s' % (key_components[1], key_components[2]), 'access': v.split(';')}
 
             else:
                 if cls.ALLOW_EMPTY_XENSTORE:
-                    yield {'userid': 'any', 'access': 'all'}
+                    yield {'userid': 'any', 'access': ['all']}
 
         return list(read_xenstore_access_rights(xenstore))
 
@@ -116,7 +116,7 @@ class VM (AbstractVM):
         vm = VM(auth, uuid=new_vm_uuid)
         vm.install = True
         if isinstance(auth, BasicAuthenticator):
-            vm.manage_actions('all',  user=auth.get_id(), force=True)
+            vm.manage_actions('all',  user=auth.get_id())
 
         vm.set_ram_size(ram_size)
         vm.set_disks(sr_uuid, vdi_size)
@@ -290,8 +290,6 @@ class VM (AbstractVM):
         :param mode: pv/hvm
         :return:
         """
-        if not hasattr(self, 'install'):
-            self.check_access('launch')
 
         hvm_boot_policy = self.get_HVM_boot_policy()
         if hvm_boot_policy and mode == 'pv':
@@ -309,12 +307,8 @@ class VM (AbstractVM):
         :param enable: True = start; False = stop
         :return:
         """
-        if not hasattr(self, 'install'):
-            self.check_access('launch')
-
-
-        ps = self.get_power_state()
         try:
+            ps = self.get_power_state()
             if ps != 'Running' and enable:
                 self.start( False, True)
                 self.log.info("Started".format(self.uuid))
@@ -326,9 +320,6 @@ class VM (AbstractVM):
 
     @use_logger
     def get_vnc(self):
-        if not hasattr(self, 'install'):
-            self.check_access('launch')
-
         self.start_stop_vm(True)
         consoles = self.get_consoles()  # references
         if (len(consoles) == 0):
@@ -345,10 +336,8 @@ class VM (AbstractVM):
         return url
 
     @use_logger
-    def destroy_vm(self, force=False):
+    def destroy_vm(self):
         from .disk import VBD
-        if not hasattr(self, 'install'):
-            self.check_access('destroy')
 
         self.start_stop_vm(False)
 

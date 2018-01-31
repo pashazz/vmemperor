@@ -3,6 +3,7 @@ import os
 import sys
 import importlib
 from itertools import chain
+import inspect
 
 
 class DynamicLoader:
@@ -56,7 +57,7 @@ class DynamicLoader:
             else:
 
                 classes = (getattr(mod, attribute) for attribute in dir(mod))
-                classes = (cl for cl in classes if type(cl) is type and  cl.__module__ == module_name)
+                classes = (cl for cl in classes if inspect.isclass(cl) and  cl.__module__ == module_name)
 
                 if class_base:
                     return [cl for cl in classes if class_base in cl.__bases__]

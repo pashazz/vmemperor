@@ -9,6 +9,9 @@ class Loggable:
         self.log.propagate = False
         self.log.setLevel(logging.DEBUG)
         if self.log.hasHandlers():
+            for handler in self.log.handlers:
+                if type(handler) == logging.FileHandler and not hasattr(self, 'fileHandler'):
+                    self.fileHandler = handler
             return
 
         self.fileHandler = logging.FileHandler("{0}.log".format(self.__class__.__name__))

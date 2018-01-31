@@ -30,8 +30,27 @@ class Authentication(metaclass=ABCMeta):
 
 @Authentication.register
 class BasicAuthenticator:
-    def init(self, xen):
-        self.xen = xen
+    pass
+
+
+class AdministratorAuthenticator(BasicAuthenticator):
+    # TODO Implement check_credentials
+
+
+    def check_credentials(self, password, username):
+        pass
+
+class DebugAuthenticator(AdministratorAuthenticator): #used by tests
+    def check_credentials(self, password, username):
+        pass #not rly used
+
+    def __init__(self):
+
+        from xenadapter import XenAdapter
+        from vmemperor import opts
+        self.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
+
+        super().__init__()
 
 class DummyAuth(BasicAuthenticator):
 

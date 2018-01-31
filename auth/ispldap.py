@@ -51,17 +51,17 @@ class LDAPIspAuthenticator(BasicAuthenticator):
             log.error("LDAP: No such group: GUID %s" % id)
 
 
-    def initialize(self, executor):
-        '''
-        Establishes connection to a ldap server
-        :return:
-        '''
-        super().initialize(executor)
+  #  def initialize(self, executor):
+  #      '''
+  #      Establishes connection to a ldap server
+  #     :return:
+  #      '''
+  #      super().initialize(executor)
 
 
 
-        self.id = None
-        self.given_name = None
+        #self.id = None
+        #self.given_name = None
 
     def get_id(self):
         '''

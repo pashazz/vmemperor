@@ -1,6 +1,6 @@
 import XenAPI
 from exc import *
-from authentication import BasicAuthenticator
+from authentication import BasicAuthenticator, AdministratorAuthenticator
 from tornado.concurrent import run_on_executor
 import traceback
 
@@ -44,6 +44,8 @@ class XenObject(metaclass=XenObjectMeta):
                 raise  XenAdapterAPIError(auth.xen.log, "Failed to initialize object of type %s with UUID %s: %s" %
                                           (self.__class__.__name__, self.uuid, f.details))
 
+
+
         elif ref:
             self.ref = ref
         else:
@@ -58,7 +60,7 @@ class XenObject(metaclass=XenObjectMeta):
     def check_access(self,  action):
         return True
 
-    def manage_actions(self, action,  revoke=False, user=None, group=None, force=False):
+    def manage_actions(self, action,  revoke=False, user=None, group=None):
         pass
 
     @classmethod
@@ -120,6 +122,9 @@ class XenObject(metaclass=XenObjectMeta):
         return lambda *args, **kwargs : attr(self.ref, *args, **kwargs)
 
 
+
+
+
 class ACLXenObject(XenObject):
     VMEMPEROR_ACCESS_PREFIX = 'vm-data/vmemperor/access'
 
@@ -129,14 +134,9 @@ class ACLXenObject(XenObject):
                                                         username, self.access_prefix)
 
     ALLOW_EMPTY_XENSTORE = False # Empty xenstore for some objects might treat them as for-all-by-default
+    db_table_name = '' # every subclass should override it
 
-    @classmethod
-    @run_on_executor
-    def access_monitor(cls):
-        '''
-        check for changes in db_tab
-        :return:
-        '''
+
     def check_access(self,  action):
         '''
         Check if it's possible to do 'action' with specified VM
@@ -151,42 +151,37 @@ class ACLXenObject(XenObject):
         Implementation details:
         looks for self.db_table_name and then in db to table $(self.db_table_name)_access
         '''
-        #if self.auth == 'root':
-#            return True
+        if issubclass(self.auth.__class__, AdministratorAuthenticator):
+            return True # admin can do it all
+
         self.log.info("Checking %s %s rights for user %s: action %s" % (self.__class__.__name__, self.uuid, self.auth.get_id(), action))
 
-        username = 'users/' + self.auth.get_id()
-        db  = self.auth.xen.db
-        table_name = self.db_table_name + '_user'
-        access_data = db.table(table_name).get(username).run()
+        db = self.auth.xen.db
+        access_info = db.table(self.db_table_name).get(self.uuid).pluck('access').run()
+        access_info = access_info['access'] if access_info else None
+        if not access_info:
+            if self.ALLOW_EMPTY_XENSTORE:
+                    return True
+            raise XenAdapterUnauthorizedActionException(self.log,
+                                                    "Unauthorized attempt (no info on access rights): needs privilege '%s', call stack: %s"
+                                                    % (action, traceback.format_stack()))
 
 
-        #    if self.ALLOW_EMPTY_XENSTORE:
-        #        return True
-        #    raise XenAdapterUnauthorizedActionException(self.log,
-        #                                            "Unauthorized attempt (no info on access rights): needs privilege '%s', call stack: %s"
-        #                                            % (action, traceback.format_stack()))
+        username = 'users/%s'  % self.auth.get_id()
+        groupnames = ['groups/%s' %  group for group in self.auth.get_user_groups()]
+        for item in access_info:
+            if ((action in item['access'] or 'all' in item['access'])\
+                    or (action is None and len(item['access']) > 0))and\
+                    (username == item['userid'] or (item['userid'].startswith('groups/') and item['userid'] in groupnames)):
+                self.log.info('User %s is allowed to perform action %s on %s %s' % (self.auth.get_id(), action, self.__class__.__name__,  self.__uuid__))
+                return True
 
 
+        raise XenAdapterUnauthorizedActionException(self.log,
+                                                       "Unauthorized attempt: needs privilege '%s', call stack: %s"
+                                                        % (action, traceback.format_stack()))
 
-        #actionlist = xenstore_data[username].split(';') if username in xenstore_data else None
-        #if actionlist and (action in actionlist or 'all' in actionlist):
-        #    self.log.info('User %s is allowed to perform action %s on %s %s' % (self.auth.get_id(), action, self.__class__.__name__, self.uuid))
-        #    return True
-        #else:
-        #    for group in self.auth.get_user_groups():
-        #        groupname = self.get_access_path(group, True)
-        #       actionlist = xenstore_data[groupname].split(';') if groupname in xenstore_data else None
-        #        if actionlist and any(('all' in actionlist, action in actionlist)):
-        #           self.log.info('User %s via group %s is allowed to perform action %s on %s %s' % (self.auth.get_id(), group, action, self.__class__.__name__,  self.__uuid__))
-        #           return True
-
-        #    raise XenAdapterUnauthorizedActionException(self.log,
-         #                                               "Unauthorized attempt: needs privilege '%s', call stack: %s"
-          #                                              % (action, traceback.format_stack()))
-        return True
-
-    def manage_actions(self, action,  revoke=False, user=None, group=None, force=False):
+    def manage_actions(self, action,  revoke=False, user=None, group=None):
         '''
         Changes action list for a Xen object
         :param action:
@@ -194,7 +189,7 @@ class ACLXenObject(XenObject):
         :param user: User ID as returned from authenticator.get_id()
         :param group:
         :param force: Change actionlist even if user do not have sufficient permissions. Used by CreateVM
-        :return:
+        :return: False if failed
         '''
 
         if all((user,group)) or not any((user, group)):
@@ -207,22 +202,27 @@ class ACLXenObject(XenObject):
         elif group:
             real_name = self.get_access_path(group, True)
 
-        if force or self.check_rights(action):
-            xenstore_data = self.get_xenstore_data()
-            if real_name in xenstore_data:
-                actionlist = xenstore_data[real_name].split(';')
-            else:
-                actionlist = []
 
-            if revoke:
-                if action in actionlist:
-                    actionlist.remove(action)
-            else:
-                if action not in actionlist:
-                    actionlist.append(action)
 
-            actions = ';'.join(actionlist)
 
-            xenstore_data[real_name] = actions
+        xenstore_data = self.get_xenstore_data()
+        if real_name in xenstore_data:
+            actionlist = xenstore_data[real_name].split(';')
+        else:
+            actionlist = []
 
-            self.set_xenstore_data(xenstore_data)
+        if revoke:
+            if action in actionlist:
+                actionlist.remove(action)
+        else:
+            if action not in actionlist:
+                actionlist.append(action)
+
+        actions = ';'.join(actionlist)
+
+        xenstore_data[real_name] = actions
+
+        self.set_xenstore_data(xenstore_data)
+
+
+
