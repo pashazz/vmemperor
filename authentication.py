@@ -1,6 +1,6 @@
 from abc import ABCMeta, abstractmethod
 
-
+import logging
 
 class Authentication(metaclass=ABCMeta):
 
@@ -36,9 +36,36 @@ class BasicAuthenticator:
 class AdministratorAuthenticator(BasicAuthenticator):
     # TODO Implement check_credentials
 
+    def __init__(self):
+        self.auth = False
 
-    def check_credentials(self, password, username):
-        pass
+    def check_credentials(self, password, username, log=logging):
+        from exc import AuthenticationPasswordException, XenAdapterConnectionError
+        from xenadapter import XenAdapter
+        from vmemperor import opts
+        params = {**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')}
+        params['username'] = username
+        params['password'] = password
+        self.id = username
+        try:
+
+            xen = XenAdapter(params, nosingleton=True)
+        except XenAdapterConnectionError as e:
+            raise AuthenticationPasswordException(e.log, self)
+
+
+
+    def get_id(self):
+        return self.id
+
+    def get_name(self):
+        return self.id
+
+
+
+
+
+
 
 class DebugAuthenticator(AdministratorAuthenticator): #used by tests
     def check_credentials(self, password, username):
@@ -56,7 +83,6 @@ class DummyAuth(BasicAuthenticator):
 
     def check_credentials(self, password, username):
         pass
-
 
     def __init__(self, id='', name=''):
         self.id = id

@@ -26,6 +26,11 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
         if os.path.exists('/tmp/vmemperor-auth.db'):
             os.remove('/tmp/vmemperor-auth.db')
 
+    def setUp(self):
+        super().setUp()
+        self.ws_url = "ws://localhost:" + str(self.get_http_port())
+        print("WebSocket url: %s" % self.ws_url)
+
 
     def get_app(self):
 
@@ -65,15 +70,35 @@ class VmEmperorNoLoginTest(VmEmperorTest):
         #auth_tuple = (xen_opts['username'], xen_opts['password'])
         body = dict(username=xen_opts['username'], password=xen_opts['password'])
         res = self.fetch(r'/adminauth', method='POST', body=urlencode(body))
-        self.assertEqual(res.code, 200)
+        self.assertEqual(200, res.code)
 
     def test_failed_admin_login(self):
 
         # auth_tuple = (xen_opts['username'], xen_opts['password'])
         body = dict(username='olololo', password='alalala')
         res = self.fetch(r'/adminauth', method='POST', body=urlencode(body))
-        self.assertEqual(res.code, 401)
+        self.assertEqual(401, res.code)
 
+
+class VmEmperorAfterAdminLoginTest(VmEmperorTest):
+
+    def setUp(self):
+        super().setUp()
+        xen_opts = opts.group_dict('xenadapter')
+        body = dict(username=xen_opts['username'], password=xen_opts['password'])
+        res = self.fetch(r'/adminauth', method='POST', body=urlencode(body))
+        self.assertEqual(200, res.code)
+        self.headers = {'Cookie' : res.headers['Set-Cookie']}
+
+
+    @tornado.testing.gen_test()
+    def test_vmlist(self):
+        ws_url =  self.ws_url + "/vmlist"
+        def msg_callback(text):
+            print(text)
+        ws_client = yield websocket_connect(HTTPRequest(url=ws_url, headers=self.headers), on_message_callback=msg_callback)
+
+        yield ws_client.read_message()
 
 
 
@@ -157,6 +182,17 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
     def test_createvm(self):
         self.createvm()
 
+    @tornado.testing.gen_test()
+    def test_vmlist(self):
+        ws_url =  self.ws_url + "/vmlist"
+
+        ws_client = yield websocket_connect(HTTPRequest(url=ws_url, headers=self.headers))
+
+        start_message = yield ws_client.read_message()
+        print(start_message)
+
+
+
 
     def test_startvm(self): #The Great Testing Machine of Dummy Acc.
         # 1. Get VM Info
@@ -220,17 +256,17 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         res = self.fetch(r'/convertvm', method='POST', body=urlencode(body), headers=self.headers)
         self.assertEqual(res.code, 200)
 
-    def test_vmlist(self):
-        res = self.fetch(r'/vmlist', method='GET', headers=self.headers)
-        self.assertEqual(res.code, 200)
-        vms = json.loads(res.body.decode())
-        pprint.pprint(vms)
-        for vm in vms:
-            if vm['uuid'] == self.uuid:
-                return
+    #def test_vmlist(self):
+    #    res = self.fetch(r'/vmlist', method='GET', headers=self.headers)
+    #    self.assertEqual(res.code, 200)
+    #    vms = json.loads(res.body.decode())
+    #    pprint.pprint(vms)
+    #    for vm in vms:
+    #        if vm['uuid'] == self.uuid:
+    #            return
 
 
-        self.fail("uuid %s (testing machine) not found in vmlist" % self.uuid)
+     #   self.fail("uuid %s (testing machine) not found in vmlist" % self.uuid)
 
 
 

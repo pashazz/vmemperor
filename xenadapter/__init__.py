@@ -262,5 +262,6 @@ class XenAdapterPool(metaclass=Singleton):
             from vmemperor import opts
             self._xens.append(XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')}, nosingleton=True))
             return self._xens[-1]
-#dont know what to do if limit exceeded
+
+        #TODO dont know what to do if limit exceeded
 

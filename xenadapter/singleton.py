@@ -12,13 +12,10 @@ class Singleton(type):
     _instances = {}
 
     def __call__(cls, *args, **kwargs):
-        try:
+        if 'nosingleton' in kwargs and  kwargs['nosingleton']:
+            del kwargs['nosingleton']
+            return super(Singleton, cls).__call__(*args, **kwargs)
 
-            if kwargs['nosingleton']:
-                del kwargs['nosingleton']
-                return super(Singleton, cls).__call__(*args, **kwargs)
-        except:
-            pass
 
         if cls not in cls._instances:
             cls._instances[cls] = super(Singleton, cls).__call__(*args,

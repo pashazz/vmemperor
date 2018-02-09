@@ -37,8 +37,8 @@ import threading
 import datetime
 from xmlrpc.client import DateTime as xmldt
 from frozendict import frozendict
-from functools import partial
-
+from authentication import AdministratorAuthenticator
+from tornado.websocket import *
 #Objects with ACL enabled
 objects = [VM]
 
@@ -72,7 +72,7 @@ def CHECK_ER(ret):
 
 def auth_required(method):
     def decorator(self, *args, **kwargs):
-        user = self.get_current_user()
+        user = HandlerMethods.get_current_user(self)
         if not user:
             self.redirect(r'/login')
         else:
@@ -86,16 +86,28 @@ def auth_required(method):
 
 
 
-
-
-
-
-class BaseHandler(tornado.web.RequestHandler, Loggable):
-
-    def initialize(self, executor):
+class HandlerMethods(Loggable):
+    def init_executor(self, executor):
         self.executor = executor
         self.init_log()
         self.conn = r.connect(opts.host, opts.port, opts.database)
+
+
+    # def init_xen(self, auth=None) -> XenAdapter:
+    #    opts_dict = {}
+    #    opts_dict.update(opts.group_dict('xenadapter'))
+    #    opts_dict.update(opts.group_dict('rethinkdb'))
+    #    xen = XenAdapter(opts_dict, auth if auth else self.user_authenticator)
+    #    return xen
+
+    def get_current_user(self):
+        return self.get_secure_cookie("user")
+
+
+class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
+
+    def initialize(self, executor):
+        self.init_executor(executor)
         super().initialize()
 
     #def init_xen(self, auth=None) -> XenAdapter:
@@ -145,6 +157,10 @@ class BaseHandler(tornado.web.RequestHandler, Loggable):
                 self.log.error("try_xenadapter: exception catched in post_hook: %s" % e.message)
 
 
+class BaseWSHandler(WebSocketHandler, HandlerMethods):
+    def initialize(self, executor):
+        self.init_executor(executor)
+        super().initialize()
 
 
 
@@ -210,100 +226,137 @@ class Test(BaseHandler):
 
 
 class AdminAuth(BaseHandler):
-    def initialize(self, executor):
-        super().initialize(executor)
-
-
     def post(self):
         '''
         Authenticate using XenServer auth system directly (as admin)
         :param username
         :param password
         :return:
-V        '''
-        #username = self.get_argument("username", "")
-        #password = self.get_argument("password", "")
-        #try:
-        #    xen = self.init_xen((username, password))
+        '''
+        username = self.get_argument("username", "")
+        password = self.get_argument("password", "")
+        try:
+            authenticator = AdministratorAuthenticator()
+            authenticator.check_credentials(username=username, password=password, log=self.log)
+        except AuthenticationException:
+            self.write(json.dumps({"status": 'error', 'message': "wrong credentials"}))
+            self.set_status(401)
+            return
 
-        #except XenAdapterConnectionError as e:
-        #    self.write(json.dumps({"status": 'error', 'message': e.message}))
-        #    self.set_status(401)
-        #    return
+        self.set_secure_cookie("user", pickle.dumps(authenticator))
 
-#        self.write(json.dumps({}))
- #       self.set_secure_cookie("user", pickle.dumps((username, password)))
+
 
 class LogOut(BaseHandler):
-    def initialize(self, executor):
-        super().initialize()
 
     def get(self):
         self.clear_cookie('user')
         self.redirect(self.get_argument("next", "/login"))
 
-class VMList(BaseHandler):
-    @auth_required
-    def get(self):
-        '''
-        List of VMs available for user. For admin, return everything.
-        Control domain and templates are not included
-        Format: list of the following form
-       [{"access": access qualificator, separated by commas. Look at XenAdapter.check_rights documentation, parameter 'action',
-        "disks": list of attached VDI UUIDs,
-        "power_state": see http://xapi-project.github.io/xen-api/classes/vm.html -> Enums -> vm_power_state
-          "network": list of virtual network UUIDs a VM is connected to.
-          "uuid": vm UUID,
-          "name_label": vm human readable name}, ...]
 
-        :return:
-        '''
-        #TODO where do we get user from
-        if isinstance(self.user_authenticator, tuple):
-            user = self.user_authenticator[0]
-            userid = None
+class VMList(BaseWSHandler):
+    @auth_required
+    @tornado.web.asynchronous
+    def open(self):
+        db  = r.db(opts.database)
+        if isinstance(self.user_authenticator, AdministratorAuthenticator): #get all vms
+            query = db.table('vms')
+
         else:
-            user = self.user_authenticator.get_id()
-            userid = 'users/' + user
+            userid = str(self.user_authenticator.get_id())
+            query = db.table('vms_user').get('users/%s' % userid)['data'].\
+                map(lambda rec: rec.merge(db.table('vms').get(rec['uuid'])).merge({'entity' : 'users/%s' % userid }))
+            for group in self.user_authenticator.get_user_groups():
+                group = str(group)
+                query.union(db.table('vms_user').get('groups/%s' % group)['data'].\
+                map(lambda rec: rec.merge(db.table('vms').get(rec['uuid'])).merge({'entity' : 'groups/%s' % group})))
+
+        self.write_message(json.dumps(query.coerce_to('array').run()))
+        self.changes =  query.changes().run()
+
+        ioloop = tornado.ioloop.IOLoop.instance()
+        ioloop.add_callback(self.do_run_changes)
+
+    @gen.coroutine
+    def do_run_changes(self):
+        yield self.run_changes()
+
+
+    @run_on_executor
+    def run_changes(self):
+        for change in self.changes:
+            if not self.ws_connection:
+                return
+            self.write_message(json.dumps(change))
+
+
+
+
+
+    #@auth_required
+    #def get(self):
+   #     '''
+    #    List of VMs available for user. For admin, return everything.
+     #   Control domain and templates are not included
+      #  Format: list of the following form
+     #  [{"access": access qualificator, separated by commas. Look at XenAdapter.check_rights documentation, parameter 'action',
+      #  "disks": list of attached VDI UUIDs,
+      #  "power_state": see http://xapi-project.github.io/xen-api/classes/vm.html -> Enums -> vm_power_state
+       #   "network": list of virtual network UUIDs a VM is connected to.
+        #  "uuid": vm UUID,
+         # "name_label": vm human readable name}, ...]
+
+      #  :return:
+       # '''
+
+        #if isinstance(self.user_authenticator, tuple):
+        #    user = self.user_authenticator[0]
+        #    userid = None
+        #else:
+        #   user = self.user_authenticator.get_id()
+        #    userid = 'users/' + user
         # read from db
 
-        self.conn.repl()
-        db = r.db(opts.database)
+        #self.conn.repl()
+        #db = r.db(opts.database)
 
 
-        result = []
+        #result = []
 
 
-        def populate_result(userid):
+        #def populate_result(userid):
 
             #cur = table('access_list').get_all(userid, index='userid').map(
             #    lambda doc: doc.merge({'vms': doc['vms'].merge(
             #        lambda vm: table('vms').get(vm['vm_uuid'])).without('vm_uuid')}))
-            if userid:
-                cur= db.table('access_list').get_all((userid, 'VM'), index='userid_and_type').concat_map(
-                lambda doc : doc['items'].merge(
-                    lambda vm : db.table('vms').get(vm['uuid']))
-                ).coerce_to('array').run()
+        #    if userid:
+        #        cur= db.table('access_list').get_all((userid, 'VM'), index='userid_and_type').concat_map(
+        #        lambda doc : doc['items'].merge(
+        ##            lambda vm : db.table('vms').get(vm['uuid']))
+          #      ).coerce_to('array').run()
 
 
-            else: #root mode
-                   cur = db.table('vms').map(lambda doc: doc.merge( {'access' : 'all'}))
+          #  else: #root mode
+           #        cur = db.table('vms').map(lambda doc: doc.merge( {'access' : 'all'}))
 
-            result.extend(cur)
-
-
-
-
-
-        populate_result(userid)
-
-        for group in self.user_authenticator.get_user_groups():
-            groupid = 'groups/%s' % group
-            populate_result(groupid)
+            #result.extend(cur)
 
 
 
-        self.write(json.dumps(result))
+
+
+
+
+        #populate_result(userid)
+
+        #for group in self.user_authenticator.get_user_groups():
+        #    groupid = 'groups/%s' % group
+        #    populate_result(groupid)
+
+
+
+
+        #self.write(json.dumps(result))
 
 
 

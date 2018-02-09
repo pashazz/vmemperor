@@ -8,6 +8,7 @@ from sqlalchemy.ext.declarative import declarative_base
 
 from sqlalchemy import Column, Integer, String, Table, ForeignKey
 import logging
+import atexit
 
 Base = declarative_base()
 
@@ -57,8 +58,14 @@ class SqlAlchemyMeta(type):
 
         Base.metadata.create_all(engine)
         self.session.commit()
-
+        atexit.register(self.sqlalchemy_atexit)
         super(SqlAlchemyMeta, self).__init__(name, bases, dct)
+
+
+    def sqlalchemy_atexit(self):
+        self.session.close()
+
+
 
 class SqlAlchemyAuthenticator(BasicAuthenticator, metaclass=SqlAlchemyMeta):
     @classmethod
