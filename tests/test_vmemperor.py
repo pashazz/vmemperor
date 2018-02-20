@@ -160,7 +160,38 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
         body = {'uuid': uuid}
         res = self.fetch(r'/installstatus', method='POST', body=urlencode(body), headers=self.headers)
+        self.assertEqual(200, res.code)
+        json_res = json.loads(res.body.decode())
+        self.assertNotEqual(json_res['state'],'failed', msg=json_res['message'])
+
+
+        #xen = XenAdapter(self.xen_options, authenticator=self.auth)
+
+        actions = ['launch', 'destroy', 'attach']
+        #for action in actions:
+        #    self.assertTrue(xen.check_rights(action, uuid))
+
+        print(uuid)
+        with open('destroy.txt', 'a') as file:
+            print(uuid, file=file)
+        self.vms_created.append(uuid)
+        return uuid
+
+    @gen.coroutine
+    def createvm_gen(self):
+        config = configparser.ConfigParser()
+        config.read('tests/createvm.ini')
+        #for body in config._sections.values():
+        #    res = self.fetch(r'/createvm', method='POST', body=urlencode(body))
+        #    self.assertEqual(res.code, 200)
+        body  = config._sections['ubuntu']
+        res = yield self.http_client.fetch(self.get_url(r'/createvm'), method='POST', body=urlencode(body), headers=self.headers)
         self.assertEqual(res.code, 200)
+        uuid = res.body.decode()
+
+        body = {'uuid': uuid}
+        res = yield self.http_client.fetch(self.get_url(r'/installstatus'), method='POST', body=urlencode(body), headers=self.headers)
+        self.assertEqual(200, res.code)
         json_res = json.loads(res.body.decode())
         self.assertNotEqual(json_res['state'],'failed', msg=json_res['message'])
 
@@ -178,7 +209,6 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         return uuid
 
 
-
     def test_createvm(self):
         self.createvm()
 
@@ -188,8 +218,17 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
         ws_client = yield websocket_connect(HTTPRequest(url=ws_url, headers=self.headers))
 
-        start_message = yield ws_client.read_message()
-        print(start_message)
+
+        uuid = yield self.createvm_gen()
+        #new_message = yield websocket_connect(HTTPRequest(url=ws_url, headers=self.headers))
+#        print(new_message)
+        while True:
+            new_message = yield ws_client.read_message()
+            if not new_message:
+                break
+            print(json.loads(new_message))
+
+
 
 
 
@@ -256,17 +295,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         res = self.fetch(r'/convertvm', method='POST', body=urlencode(body), headers=self.headers)
         self.assertEqual(res.code, 200)
 
-    #def test_vmlist(self):
-    #    res = self.fetch(r'/vmlist', method='GET', headers=self.headers)
-    #    self.assertEqual(res.code, 200)
-    #    vms = json.loads(res.body.decode())
-    #    pprint.pprint(vms)
-    #    for vm in vms:
-    #        if vm['uuid'] == self.uuid:
-    #            return
 
-
-     #   self.fail("uuid %s (testing machine) not found in vmlist" % self.uuid)
 
 
 

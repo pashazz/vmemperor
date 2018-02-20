@@ -39,8 +39,11 @@ from xmlrpc.client import DateTime as xmldt
 from frozendict import frozendict
 from authentication import AdministratorAuthenticator
 from tornado.websocket import *
+import asyncio
 #Objects with ACL enabled
 objects = [VM]
+
+user_table_ready = threading.Event()
 
 def table_drop(db, table_name):
     try:
@@ -259,37 +262,91 @@ class VMList(BaseWSHandler):
     @tornado.web.asynchronous
     def open(self):
         db  = r.db(opts.database)
+        self.db = db
         if isinstance(self.user_authenticator, AdministratorAuthenticator): #get all vms
             query = db.table('vms')
 
         else:
+            user_table_ready.wait()
             userid = str(self.user_authenticator.get_id())
-            query = db.table('vms_user').get('users/%s' % userid)['data'].\
-                map(lambda rec: rec.merge(db.table('vms').get(rec['uuid'])).merge({'entity' : 'users/%s' % userid }))
+            self.changes_query = self.db.table('vms').changes(include_types=True).filter({'type' : 'change'}).merge({'changed':'state'}).union(
+            self.db.table('vms_user').get_all('users/%s' % userid, index='userid').without('id').
+                changes(include_types=True, include_initial=True).merge(r.branch(r.row['type'].eq(r.expr('initial')).or_(r.row['type'].eq(r.expr('add'))),
+                                                                                 self.db.table('vms').get(r.row['new_val']['uuid']),
+                                                                                 {'changed': 'access'})))
+            #query = db.table('vms_user').get_all('users/%s' % userid, index ='userid').eq_join('uuid', db.table('vms'))\
+            #.without({'right': 'uuid'}).zip().without('id')
             for group in self.user_authenticator.get_user_groups():
                 group = str(group)
-                query.union(db.table('vms_user').get('groups/%s' % group)['data'].\
-                map(lambda rec: rec.merge(db.table('vms').get(rec['uuid'])).merge({'entity' : 'groups/%s' % group})))
+             #   query.union(db.table('vms_user').get_all('groups/%s' % group, index ='userid').eq_join('uuid', db.table('vms'))\
+            #.without({'right': 'uuid'}).zip().without('id'))
+                self.changes_query.union(self.db.table('vms_user').get_all( 'groups/%s' % group, index='userid').without('id')
+                                         .changes(include_types=True, include_initial=True).merge(r.branch(r.row['type'].eq(r.expr('initial')).or_(r.row['type']).eq(r.expr('add')),
+                                                                                 self.db.table('vms').get(r.row['new_val']['uuid']),
+                                                                                 {'changed': 'access'})))
 
-        self.write_message(json.dumps(query.coerce_to('array').run()))
-        self.changes =  query.changes().run()
+
+
 
         ioloop = tornado.ioloop.IOLoop.instance()
-        ioloop.add_callback(self.do_run_changes)
+        ioloop.add_callback(self.do_items_changes)
+
 
     @gen.coroutine
-    def do_run_changes(self):
-        yield self.run_changes()
+    def do_items_changes(self):
+        yield self.items_changes()
+
+ #   @gen.coroutine
+#    def do_user_changes(self):
+#        yield self.user_changes()
 
 
     @run_on_executor
-    def run_changes(self):
-        for change in self.changes:
+    def items_changes(self):
+        self.conn.repl()
+        initials = set()
+
+
+
+        cur = None
+        def create_cursor():
+            nonlocal cur
+            cur = self.changes_query.run()
+
+        create_cursor()
+        for change in cur:
+
+
             if not self.ws_connection:
                 return
+
+            if change['type'] == 'initial' or change['type'] == 'add':
+                if change['uuid'] in initials:
+                    continue
+
+                initials.add(change['uuid'])
+                del change['new_val']
+
+            elif change['type'] == 'remove':
+                initials.remove(change['old_val']['uuid'])
+
+            elif change['type'] == 'change' and  change['changed'] == 'state':
+                if change['old_val']['uuid'] not in initials:
+                    continue
+
+
+
             self.write_message(json.dumps(change))
 
 
+
+
+
+
+
+
+
+      #      self.update_lock.release()
 
 
 
@@ -903,7 +960,10 @@ class EventLoop(Loggable):
 
         self.executor = executor
         self.authenticator = authenticator
-        authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
+        try:
+            authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
+        except XenAdapterConnectionError as e:
+            raise RuntimeError("XenServer not reached")
 
         self.conn = r.connect(opts.host, opts.port, opts.database).repl()
         if opts.database not in r.db_list().run():
@@ -978,16 +1038,22 @@ class EventLoop(Loggable):
         def initial_merge(table):
             nonlocal table_list
             table_user = table + '_user'
-            if table_user not in table_list:
-                self.db.table_create(table_user, durability='soft', primary_key='userid').run()
-            else:
-                CHECK_ER(self.db.table(table_user).delete().run())
+            if table_user in table_list:
+                self.db.table_drop(table_user).run()
+
+
+            self.db.table_create(table_user, durability='soft').run()
+            self.db.table(table_user).index_create('uuid_and_userid', [r.row['uuid'], r.row['userid']]).run()
+            self.db.table(table_user).index_wait('uuid_and_userid').run()
+            self.db.table(table_user).index_create('userid', r.row['userid']).run()
+            self.db.table(table_user).index_wait('userid').run()
+            # no need yet
+            #self.db.table(table_user).index_create('uuid', r.row['uuid']).run()
+            #self.db.table(table_user).index_wait('uuid').run()
 
             CHECK_ER(self.db.table(table_user).insert(
-                self.db.table(table).pluck('access', 'uuid').filter(r.row['access'] != []).
-                concat_map(lambda acc: acc['access'].merge({'uuid':acc['uuid']})).group('userid').
-                without('userid').ungroup().
-                map(lambda item: {'userid': item['group'], 'data' : item['reduction']})).run())
+                self.db.table(table).pluck('access', 'uuid').filter(r.row['access'] != []).\
+                concat_map(lambda acc: acc['access'].merge({'uuid':acc['uuid']}))).run())
 
 
         i = 0
@@ -1000,15 +1066,11 @@ class EventLoop(Loggable):
             i += 1
 
 
+        user_table_ready.set()
         cur = query.run()
 
         def uuid_delete(table_user, uuid):
-            self.db.table(table_user).insert(self.db.table(table_user).filter(lambda user:
-                                     user['data'].filter({'uuid': uuid}).ne([])).
-                                     map(lambda item: {'userid' : item['userid'],
-                                                       'data' : item['data'].filter(lambda data: data['uuid'] != uuid)})
-                                     , conflict='update').run()
-
+            self.db.table(table_user).filter({'uuid' : uuid}).delete().run()
 
 
         for record in cur:
@@ -1019,29 +1081,26 @@ class EventLoop(Loggable):
                 access = record['new_val']['access']
                 table_user = table + '_user'
 
-                self.log.info("Modifying access rights for %s (table %s): %s" % (uuid, table, json.dumps(access)))
-                if not record['old_val']:
-                    access_diff = [frozendict(x) for x in access]
-                else:
-                    access_diff = set((frozendict(x) for x in access)) -\
-                                  set((frozendict(x) for x in record['old_val']['access']))
 
-                for item in access_diff:
-                    self.db.table(table_user).insert(self.db.table(table_user).get(item['userid']).
-                                                     do(lambda ret: r.branch(ret.eq(None),
-                                                     {'userid': item['userid'], 'data': [{'uuid': uuid, 'access': item['access']}]},
-                                                     {'userid' : ret['userid'], 'data': ret['data'].filter(lambda data : data['uuid'] != uuid).
-                                                     set_union([{'uuid' : uuid, 'access' : item['access']}])})),
-                                                     conflict='update').run()
                 if record['old_val']:
                     access_to_remove = \
                         set((frozendict(x) for x in record['old_val']['access'])) -\
                          set((frozendict(x) for x in access))
                     for item in access_to_remove:
-                        self.db.table(table_user).insert(self.db.table(table_user).get(item['userid']).
-                                do(lambda item: {'userid' : item['userid'],
-                                                'data' : item['data'].filter(lambda data: data['uuid'] != 'uuid')}),
-                                                 conflict='update').run()
+                        CHECK_ER(self.db.table(table_user).get([record['old_val']['uuid'], item['userid']], index='uuid_and_userid').delete().run())
+                self.log.info("Modifying access rights for %s (table %s): %s" % (uuid, table, json.dumps(access)))
+                if not record['old_val']:
+                    for item in access:
+                        CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid' : uuid})).run())
+                else:
+                    access_diff = set((frozendict(x) for x in access)) -\
+                                  set((frozendict(x) for x in record['old_val']['access']))
+
+                    for item in access_diff:
+                        CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid' : uuid} )).run())
+
+
+
             else:
                 uuid = record['old_val']['uuid']
                 table = record['old_val']['table']

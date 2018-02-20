@@ -3,6 +3,7 @@ from exc import *
 from authentication import BasicAuthenticator, AdministratorAuthenticator
 from tornado.concurrent import run_on_executor
 import traceback
+import rethinkdb as r
 
 class XenObjectMeta(type):
     def __getattr__(cls, item):
@@ -177,9 +178,23 @@ class ACLXenObject(XenObject):
                 return True
 
 
-        raise XenAdapterUnauthorizedActionException(self.log,
-                                                       "Unauthorized attempt: needs privilege '%s', call stack: %s"
-                                                        % (action, traceback.format_stack()))
+        # This is unsafe due to updating _user tables in another thread.
+        #table_user = self.db_table_name + '_user'
+        #def user_and_groups():
+        #    yield 'users/%s' % self.auth.get_id()
+
+        #    for group in self.auth.get_user_groups():
+        #        yield 'groups/%s' % group
+
+        #db.table(table_user).index_wait('uuid_and_userid').run()
+        #access_rights = db.table(table_user).get_all(r.args(r.expr(([self.uuid, id] for id in user_and_groups()))), index='uuid_and_userid').pluck('access')['access'].\
+        #    fold([], lambda acc, row: acc.set_union(row)).run()
+
+        #if 'all' not in access_rights or action not in access_rights:
+
+        raise XenAdapterUnauthorizedActionException(self.log,\
+                                                           "Unauthorized attempt: needs privilege '%s', call stack: %s"
+                                                            % (action, traceback.format_stack()))
 
     def manage_actions(self, action,  revoke=False, user=None, group=None):
         '''
