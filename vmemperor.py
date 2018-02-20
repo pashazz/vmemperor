@@ -1,3 +1,4 @@
+from connman import ReDBConnection
 from auth import dummy
 from xenadapter import XenAdapter, XenAdapterPool
 from xenadapter.template import Template
@@ -93,7 +94,8 @@ class HandlerMethods(Loggable):
     def init_executor(self, executor):
         self.executor = executor
         self.init_log()
-        self.conn = r.connect(opts.host, opts.port, opts.database)
+        self.conn = ReDBConnection().get_connection()
+
 
 
     # def init_xen(self, auth=None) -> XenAdapter:
@@ -113,12 +115,6 @@ class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
         self.init_executor(executor)
         super().initialize()
 
-    #def init_xen(self, auth=None) -> XenAdapter:
-    #    opts_dict = {}
-    #    opts_dict.update(opts.group_dict('xenadapter'))
-    #    opts_dict.update(opts.group_dict('rethinkdb'))
-    #    xen = XenAdapter(opts_dict, auth if auth else self.user_authenticator)
-    #    return xen
 
     def get_current_user(self):
         return self.get_secure_cookie("user")
@@ -261,163 +257,79 @@ class VMList(BaseWSHandler):
     @auth_required
     @tornado.web.asynchronous
     def open(self):
-        db  = r.db(opts.database)
-        self.db = db
-        if isinstance(self.user_authenticator, AdministratorAuthenticator): #get all vms
-            query = db.table('vms')
+        with self.conn:
+            db  = r.db(opts.database)
+            self.db = db
+            if isinstance(self.user_authenticator, AdministratorAuthenticator): #get all vms
+                self.changes_query = db.table('vms').changes(include_types=True, include_initial=True)
 
-        else:
-            user_table_ready.wait()
-            userid = str(self.user_authenticator.get_id())
-            self.changes_query = self.db.table('vms').changes(include_types=True).filter({'type' : 'change'}).merge({'changed':'state'}).union(
-            self.db.table('vms_user').get_all('users/%s' % userid, index='userid').without('id').
-                changes(include_types=True, include_initial=True).merge(r.branch(r.row['type'].eq(r.expr('initial')).or_(r.row['type'].eq(r.expr('add'))),
-                                                                                 self.db.table('vms').get(r.row['new_val']['uuid']),
-                                                                                 {'changed': 'access'})))
-            #query = db.table('vms_user').get_all('users/%s' % userid, index ='userid').eq_join('uuid', db.table('vms'))\
-            #.without({'right': 'uuid'}).zip().without('id')
-            for group in self.user_authenticator.get_user_groups():
-                group = str(group)
-             #   query.union(db.table('vms_user').get_all('groups/%s' % group, index ='userid').eq_join('uuid', db.table('vms'))\
-            #.without({'right': 'uuid'}).zip().without('id'))
-                self.changes_query.union(self.db.table('vms_user').get_all( 'groups/%s' % group, index='userid').without('id')
-                                         .changes(include_types=True, include_initial=True).merge(r.branch(r.row['type'].eq(r.expr('initial')).or_(r.row['type']).eq(r.expr('add')),
-                                                                                 self.db.table('vms').get(r.row['new_val']['uuid']),
-                                                                                 {'changed': 'access'})))
+            else:
+                user_table_ready.wait()
+                userid = str(self.user_authenticator.get_id())
+                self.changes_query = self.db.table('vms').changes(include_types=True).filter({'type' : 'change'}).merge({'changed':'state'}).union(
+                self.db.table('vms_user').get_all('users/%s' % userid, index='userid').without('id').
+                    changes(include_types=True, include_initial=True).merge(r.branch(r.row['type'].eq(r.expr('initial')).or_(r.row['type'].eq(r.expr('add'))),
+                                                                                     self.db.table('vms').get(r.row['new_val']['uuid']),
+                                                                                     {'changed': 'access'})))
 
+                for group in self.user_authenticator.get_user_groups():
+                    group = str(group)
+
+                    self.changes_query.union(self.db.table('vms_user').get_all( 'groups/%s' % group, index='userid').without('id')
+                                             .changes(include_types=True, include_initial=True).merge(r.branch(r.row['type'].eq(r.expr('initial')).or_(r.row['type']).eq(r.expr('add')),
+                                                                                     self.db.table('vms').get(r.row['new_val']['uuid']),
+                                                                                     {'changed': 'access'})))
 
 
 
-        ioloop = tornado.ioloop.IOLoop.instance()
-        ioloop.add_callback(self.do_items_changes)
+
+            ioloop = tornado.ioloop.IOLoop.instance()
+            ioloop.add_callback(self.do_items_changes)
 
 
     @gen.coroutine
     def do_items_changes(self):
         yield self.items_changes()
 
- #   @gen.coroutine
-#    def do_user_changes(self):
-#        yield self.user_changes()
-
 
     @run_on_executor
     def items_changes(self):
-        self.conn.repl()
-        initials = set()
+        conn = ReDBConnection().get_connection()
+        with conn:
+
+            initials = set()
 
 
 
-        cur = None
-        def create_cursor():
-            nonlocal cur
-            cur = self.changes_query.run()
+            cur = None
+            def create_cursor():
+                nonlocal cur
+                cur = self.changes_query.run()
 
-        create_cursor()
-        for change in cur:
-
-
-            if not self.ws_connection:
-                return
-
-            if change['type'] == 'initial' or change['type'] == 'add':
-                if change['uuid'] in initials:
-                    continue
-
-                initials.add(change['uuid'])
-                del change['new_val']
-
-            elif change['type'] == 'remove':
-                initials.remove(change['old_val']['uuid'])
-
-            elif change['type'] == 'change' and  change['changed'] == 'state':
-                if change['old_val']['uuid'] not in initials:
-                    continue
+            create_cursor()
+            for change in cur:
 
 
+                if not self.ws_connection:
+                    return
+                if not isinstance(self.user_authenticator, AdministratorAuthenticator):
+                    if change['type'] == 'initial' or change['type'] == 'add':
+                        if change['uuid'] in initials:
+                            continue
 
-            self.write_message(json.dumps(change))
+                        initials.add(change['uuid'])
+                        del change['new_val']
+
+                    elif change['type'] == 'remove':
+                        initials.remove(change['old_val']['uuid'])
+
+                    elif change['type'] == 'change' and  change['changed'] == 'state':
+                        if change['old_val']['uuid'] not in initials:
+                            continue
 
 
 
-
-
-
-
-
-
-      #      self.update_lock.release()
-
-
-
-    #@auth_required
-    #def get(self):
-   #     '''
-    #    List of VMs available for user. For admin, return everything.
-     #   Control domain and templates are not included
-      #  Format: list of the following form
-     #  [{"access": access qualificator, separated by commas. Look at XenAdapter.check_rights documentation, parameter 'action',
-      #  "disks": list of attached VDI UUIDs,
-      #  "power_state": see http://xapi-project.github.io/xen-api/classes/vm.html -> Enums -> vm_power_state
-       #   "network": list of virtual network UUIDs a VM is connected to.
-        #  "uuid": vm UUID,
-         # "name_label": vm human readable name}, ...]
-
-      #  :return:
-       # '''
-
-        #if isinstance(self.user_authenticator, tuple):
-        #    user = self.user_authenticator[0]
-        #    userid = None
-        #else:
-        #   user = self.user_authenticator.get_id()
-        #    userid = 'users/' + user
-        # read from db
-
-        #self.conn.repl()
-        #db = r.db(opts.database)
-
-
-        #result = []
-
-
-        #def populate_result(userid):
-
-            #cur = table('access_list').get_all(userid, index='userid').map(
-            #    lambda doc: doc.merge({'vms': doc['vms'].merge(
-            #        lambda vm: table('vms').get(vm['vm_uuid'])).without('vm_uuid')}))
-        #    if userid:
-        #        cur= db.table('access_list').get_all((userid, 'VM'), index='userid_and_type').concat_map(
-        #        lambda doc : doc['items'].merge(
-        ##            lambda vm : db.table('vms').get(vm['uuid']))
-          #      ).coerce_to('array').run()
-
-
-          #  else: #root mode
-           #        cur = db.table('vms').map(lambda doc: doc.merge( {'access' : 'all'}))
-
-            #result.extend(cur)
-
-
-
-
-
-
-
-        #populate_result(userid)
-
-        #for group in self.user_authenticator.get_user_groups():
-        #    groupid = 'groups/%s' % group
-        #    populate_result(groupid)
-
-
-
-
-        #self.write(json.dumps(result))
-
-
-
-
+                self.write_message(json.dumps(change))
 
 
 
@@ -450,11 +362,11 @@ class TemplateList(BaseHandler):
          """
 
         # read from db
-        self.conn.repl()
-        table = r.db(opts.database).table('tmpls')
-        list = [x for x in table.run()]
+        with self.conn:
+            table = r.db(opts.database).table('tmpls')
+            list = [x for x in table.run()]
 
-        self.write(json.dumps(list))
+            self.write(json.dumps(list))
 
 class ISOList(BaseHandler):
     @auth_required
@@ -469,11 +381,11 @@ class ISOList(BaseHandler):
          """
 
         # read from db
-        self.conn.repl()
-        table = r.db(opts.database).table('isos')
-        list = [x for x in table.run()]
+        with self.conn:
+            table = r.db(opts.database).table('isos')
+            list = [x for x in table.run()]
 
-        self.write(json.dumps(list))
+            self.write(json.dumps(list))
 
 
 class CreateVM(BaseHandler):
@@ -523,76 +435,76 @@ class CreateVM(BaseHandler):
         except:
             self.write_error(status_code=404)
             return
+        with self.conn:
+            tmpls = r.table('tmpls').run()
+            for tmpl in tmpls:
+                if tmpl['uuid'] == tmpl_name or \
+                tmpl['name_label'] == tmpl_name:
+                    tmpl_uuid = tmpl['uuid']
+                    break
 
-        tmpls = r.db('vmemperor').table('tmpls').run()
-        for tmpl in tmpls:
-            if tmpl['uuid'] == tmpl_name or \
-            tmpl['name_label'] == tmpl_name:
-                tmpl_uuid = tmpl['uuid']
-                break
+            if not tmpl_uuid:
+                raise ValueError('Wrong template name: {0}'.format(tmpl_name))
 
-        if not tmpl_uuid:
-            raise ValueError('Wrong template name: {0}'.format(tmpl_name))
+            self.os_kind = self.get_argument('os_kind', None)
+            self.override_pv_args = self.get_argument('override_pv_args', None)
+            self.mode = self.get_argument('mode')
+            self.log.info("Creating VM: name_label %s; os_kind: %s" % (self.name_label, self.os_kind))
+            ip = self.get_argument('ip', '')
+            gw = self.get_argument('gateway', '')
+            netmask = self.get_argument('netmask', '')
+            dns0 = self.get_argument('dns0', '')
+            dns1 = self.get_argument('dns1', '')
+            if not ip or not gw or not netmask:
+                self.ip_tuple = None
+            else:
+                self.ip_tuple = [ip,gw,netmask]
 
-        self.os_kind = self.get_argument('os_kind', None)
-        self.override_pv_args = self.get_argument('override_pv_args', None)
-        self.mode = self.get_argument('mode')
-        self.log.info("Creating VM: name_label %s; os_kind: %s" % (self.name_label, self.os_kind))
-        ip = self.get_argument('ip', '')
-        gw = self.get_argument('gateway', '')
-        netmask = self.get_argument('netmask', '')
-        dns0 = self.get_argument('dns0', '')
-        dns1 = self.get_argument('dns1', '')
-        if not ip or not gw or not netmask:
-            self.ip_tuple = None
-        else:
-            self.ip_tuple = [ip,gw,netmask]
+            if dns0:
+                self.ip_tuple.append(dns0)
+            if dns1:
+                self.ip_tuple.append(dns1)
 
-        if dns0:
-            self.ip_tuple.append(dns0)
-        if dns1:
-            self.ip_tuple.append(dns1)
+            kwargs = {}
+            if 'ubuntu' in self.os_kind or 'centos' in self.os_kind or 'debian' in self.os_kind:
+                # see os_kind-ks.cfg
+                kwargs['hostname'] = self.get_argument('hostname', default='xen_vm')
+                kwargs['username'] = self.get_argument('username', default='')
+                kwargs['password'] = self.get_argument('password')
+                kwargs['mirror_url'] = self.mirror_url
+                kwargs['fullname'] = self.get_argument('fullname')
+                kwargs['ip'] = ip
+                kwargs['partition'] = self.get_argument('partition', default='auto')
 
-        kwargs = {}
-        if 'ubuntu' in self.os_kind or 'centos' in self.os_kind or 'debian' in self.os_kind:
-            # see os_kind-ks.cfg
-            kwargs['hostname'] = self.get_argument('hostname', default='xen_vm')
-            kwargs['username'] = self.get_argument('username', default='')
-            kwargs['password'] = self.get_argument('password')
-            kwargs['mirror_url'] = self.mirror_url
-            kwargs['fullname'] = self.get_argument('fullname')
-            kwargs['ip'] = ip
-            kwargs['partition'] = self.get_argument('partition', default='auto')
+                if ip:
+                    kwargs['gateway'] = gw
+                    kwargs['netmask'] = netmask
+                    if dns0:
+                        kwargs['dns0'] = dns0
+                    if dns1:
+                        kwargs['dns1'] = dns1
+            self.scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + self.os_kind.split()[0] + "?" + "&".join(
+                ('{0}={1}'.format(k, v) for k, v in kwargs.items()))
+            self.log.info("Scenario URL generated: %s", self.scenario_url)
 
-            if ip:
-                kwargs['gateway'] = gw
-                kwargs['netmask'] = netmask
-                if dns0:
-                    kwargs['dns0'] = dns0
-                if dns1:
-                    kwargs['dns1'] = dns1
-        self.scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + self.os_kind.split()[0] + "?" + "&".join(
-            ('{0}={1}'.format(k, v) for k, v in kwargs.items()))
-        self.log.info("Scenario URL generated: %s", self.scenario_url)
+            def clone_post_hook(return_value, auth):
+                vm =  VM.create(auth, return_value, self.sr_uuid, self.net_uuid, self.vdi_size, self.ram_size,
+                                         self.hostname, self.mode, self.os_kind, self.ip_tuple, self.mirror_url,
+                                         self.scenario_url, self.name_label, False, self.override_pv_args)
 
-        def clone_post_hook(return_value, auth):
-            vm =  VM.create(auth, return_value, self.sr_uuid, self.net_uuid, self.vdi_size, self.ram_size,
-                                     self.hostname, self.mode, self.os_kind, self.ip_tuple, self.mirror_url,
-                                     self.scenario_url, self.name_label, False, self.override_pv_args)
-
-            ioloop = tornado.ioloop.IOLoop.instance()
-            self.uuid = vm.uuid
-            ioloop.add_callback(self.do_finalize_install)
-
-
-
-        def do_clone(auth):
-            tmpl = Template(auth, uuid=tmpl_uuid)
-            vm = tmpl.clone(self.name_label)
-            return vm.uuid
+                ioloop = tornado.ioloop.IOLoop.instance()
+                self.uuid = vm.uuid
+                ioloop.add_callback(self.do_finalize_install)
 
 
-        self.try_xenadapter(do_clone, post_hook=clone_post_hook)
+
+            def do_clone(auth):
+                tmpl = Template(auth, uuid=tmpl_uuid)
+                vm = tmpl.clone(self.name_label)
+                return vm.uuid
+
+
+            self.try_xenadapter(do_clone, post_hook=clone_post_hook)
 
     @gen.coroutine
     def do_finalize_install(self):
@@ -608,25 +520,29 @@ class CreateVM(BaseHandler):
         auth = copy.copy(self.user_authenticator)
         auth.xen = XenAdapterPool().get()
 
-        conn = r.connect(opts.host, opts.port, opts.database).repl()
-        self.log.info("Finalizing installation of VM %s" % self.uuid)
-        db = r.db(opts.database)
-        state = db.table('vms').get(self.uuid).pluck('power_state').run(conn)['power_state']
-        if state != 'Running':
-            auth.xen.insert_log_entry(self.uuid, 'failed', "failed to start VM for installation (low resources?). State: %s" % state)
-            return
+        conn = ReDBConnection().get_connection()
+        with conn:
+            self.log.info("Finalizing installation of VM %s" % self.uuid)
+            db = r.db(opts.database)
+            state = db.table('vms').get(self.uuid).pluck('power_state').run()['power_state']
+            if state != 'Running':
+                auth.xen.insert_log_entry(self.uuid, 'failed', "failed to start VM for installation (low resources?). State: %s" % state)
+                return
 
-        cur = db.table('vms').get(self.uuid).changes().run()
-        for change in cur:
-            if change['new_val']['power_state'] == 'Halted':
-                try:
-                    vm = VM(auth, uuid=self.uuid)
-                    vm.start_stop_vm(True)
-                except XenAdapterAPIError as e:
-                    auth.xen.insert_log_entry(self.uuid, "failed", "failed to start after installation: %s" % e.message)
-                else:
-                    auth.xen.insert_log_entry(self.uuid, "installed", "OS successfully installed")
-                break
+            cur = db.table('vms').get(self.uuid).changes().run()
+            for change in cur:
+                if change['new_val']['power_state'] == 'Halted':
+                    try:
+                        vm = VM(auth, uuid=self.uuid)
+                        vm.start_stop_vm(True)
+                    except XenAdapterAPIError as e:
+                        auth.xen.insert_log_entry(self.uuid, "failed", "failed to start after installation: %s" % e.message)
+                    else:
+                        auth.xen.insert_log_entry(self.uuid, "installed", "OS successfully installed")
+                    break
+
+
+
 
 
 
@@ -682,16 +598,17 @@ class AttachDetachDisk(BaseHandler):
             vdi_uuid: VDI UUID
             enable: True if to attach disk, False if to detach.
         '''
-        vm_uuid = self.get_argument('vm_uuid')
-        vdi_uuid = self.get_argument('vdi_uuid')
-        enable = self.get_argument('enable')
-        def xen_call(auth):
-            if enable:
-                return auth.xen.attach_disk(vm_uuid, vdi_uuid)
-            else:
-                auth.xen.detach_disk(vm_uuid, vdi_uuid)
+        with self.conn:
+            vm_uuid = self.get_argument('vm_uuid')
+            vdi_uuid = self.get_argument('vdi_uuid')
+            enable = self.get_argument('enable')
+            def xen_call(auth):
+                if enable:
+                    return auth.xen.attach_disk(vm_uuid, vdi_uuid)
+                else:
+                    auth.xen.detach_disk(vm_uuid, vdi_uuid)
 
-        self.try_xenadapter(xen_call)
+            self.try_xenadapter(xen_call)
 
 
 
@@ -760,66 +677,69 @@ class VMAbstractHandler(BaseHandler):
 class SetAccessHandler(BaseHandler):
     @auth_required
     def post(self):
-        uuid = self.get_argument('uuid')
-        type = self.get_argument('type')
-        action = self.get_argument('action')
-        revoke = self.get_argument('revoke', False)
-        user = self.get_argument('user', default=None)
-        if not user:
-            group = self.get_argument('group')
-        else:
-            group = None
-        type_obj = None
-        for obj in objects:
-            if obj.__name__ == type:
-                type_obj = obj
-                break
-        else:
-            self.set_status(400)
-            self.write({'status' : 'bad request', 'message' : 'unsupported type %s' % type})
-            return
+        with self.conn:
+            uuid = self.get_argument('uuid')
+            type = self.get_argument('type')
+            action = self.get_argument('action')
+            revoke = self.get_argument('revoke', False)
+            user = self.get_argument('user', default=None)
+            if not user:
+                group = self.get_argument('group')
+            else:
+                group = None
+            type_obj = None
+            for obj in objects:
+                if obj.__name__ == type:
+                    type_obj = obj
+                    break
+            else:
+                self.set_status(400)
+                self.write({'status' : 'bad request', 'message' : 'unsupported type %s' % type})
+                return
 
-        try:
-            self.target = type_obj(self.user_authenticator, uuid=uuid)
-            self.target.check_access(action)
-            self.target.manage_actions(action, revoke, user, group)
-        except XenAdapterAPIError as e:
-            self.set_status(400)
-            self.write({'status': 'bad request', 'message': e.message})
-            return
-        except XenAdapterUnauthorizedActionException as e:
-            self.set_status(403)
-            self.write({'status': 'access denied', 'message': e.message})
-            return
+            try:
+                self.target = type_obj(self.user_authenticator, uuid=uuid)
+                self.target.check_access(action)
+                self.target.manage_actions(action, revoke, user, group)
+            except XenAdapterAPIError as e:
+                self.set_status(400)
+                self.write({'status': 'bad request', 'message': e.message})
+                return
+            except XenAdapterUnauthorizedActionException as e:
+                self.set_status(403)
+                self.write({'status': 'access denied', 'message': e.message})
+                return
 
 class GetAccessHandler(BaseHandler):
     @auth_required
     def post(self):
-        uuid = self.get_argument('uuid')
-        type = self.get_argument('type')
-        type_obj = None
-        for obj in objects:
-            if obj.__name__ == type:
-                type_obj = obj
-                break
-        else:
-            self.set_status(400)
-            self.write({'status': 'bad request', 'message': 'invalid type: %s' % type})
-            return
-        try:
-            type_obj(self.user_authenticator, uuid=uuid).check_access(None)
-        except XenAdapterAPIError as e:
-            self.set_status(400)
-            self.write({'status': 'bad request', 'message': e.message})
-            return
+        with self.conn:
 
-        except XenAdapterUnauthorizedActionException as e:
-            self.set_status(403)
-            self.write({'status': 'access denied', 'message': e.message})
-            return
+            uuid = self.get_argument('uuid')
+            type = self.get_argument('type')
+            type_obj = None
+            for obj in objects:
+                if obj.__name__ == type:
+                    type_obj = obj
+                    break
+            else:
+                self.set_status(400)
+                self.write({'status': 'bad request', 'message': 'invalid type: %s' % type})
+                return
+            try:
+                type_obj(self.user_authenticator, uuid=uuid).check_access(None)
+            except XenAdapterAPIError as e:
+                self.set_status(400)
+                self.write({'status': 'bad request', 'message': e.message})
+                return
 
-        db = r.db(opts.database)
-        self.write(db.table(type_obj.db_table_name).get(uuid).pluck('access').run())
+            except XenAdapterUnauthorizedActionException as e:
+                self.set_status(403)
+                self.write({'status': 'access denied', 'message': e.message})
+                return
+
+            db = r.db(opts.database)
+            self.write(db.table(type_obj.db_table_name).get(uuid).pluck('access').run())
 
 
 
@@ -965,150 +885,152 @@ class EventLoop(Loggable):
         except XenAdapterConnectionError as e:
             raise RuntimeError("XenServer not reached")
 
-        self.conn = r.connect(opts.host, opts.port, opts.database).repl()
-        if opts.database not in r.db_list().run():
-            r.db_create(opts.database).run()
-        self.db = r.db(opts.database)
-        tables = self.db.table_list().run()
-        self.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
-        # required = ['vms', 'tmpls', 'pools', 'nets']
-        if 'vms' in tables:
-            self.db.table('vms').delete().run()
-        if 'vms' not in tables:
-            self.db.table_create('vms', durability='soft', primary_key='uuid').run()
-            vms = VM.init_db(authenticator)
-            CHECK_ER(self.db.table('vms').insert(vms, conflict='error').run())
-            #self.db.table('vms').index_create('user').run()
-            #self.db.table('vms').index_wait('user').run()
-        else:
-            vms = VM.init_db(authenticator)
-            CHECK_ER(self.db.table('vms').insert(vms, conflict='update').run())
+        conn = ReDBConnection().get_connection()
+        with conn:
+            if opts.database not in r.db_list().run():
+                r.db_create(opts.database).run()
+            self.db = r.db(opts.database)
+            tables = self.db.table_list().run()
+            self.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
+            # required = ['vms', 'tmpls', 'pools', 'nets']
+            if 'vms' in tables:
+                self.db.table('vms').delete().run()
+            if 'vms' not in tables:
+                self.db.table_create('vms', durability='soft', primary_key='uuid').run()
+                vms = VM.init_db(authenticator)
+                CHECK_ER(self.db.table('vms').insert(vms, conflict='error').run())
+                #self.db.table('vms').index_create('user').run()
+                #self.db.table('vms').index_wait('user').run()
+            else:
+                vms = VM.init_db(authenticator)
+                CHECK_ER(self.db.table('vms').insert(vms, conflict='update').run())
 
 
 
-#        else:
-#            access_list = self.xen.access_list()
-#            CHECK_ER(self.db.table('access_list').insert(access_list, conflict='update').run())
+    #        else:
+    #            access_list = self.xen.access_list()
+    #            CHECK_ER(self.db.table('access_list').insert(access_list, conflict='update').run())
 
-        if 'isos' not in tables:
-            self.db.table_create('isos', durability='soft', primary_key='uuid').run()
-            isos = ISO.init_db(authenticator)
-            #isos = self.xen.list_isos()
-            CHECK_ER(self.db.table('isos').insert(isos, conflict='error').run())
-        else:
-            isos = ISO.init_db(authenticator)
-            #isos = self.xen.list_isos()
-            CHECK_ER(self.db.table('isos').insert(isos, conflict='update').run())
+            if 'isos' not in tables:
+                self.db.table_create('isos', durability='soft', primary_key='uuid').run()
+                isos = ISO.init_db(authenticator)
+                #isos = self.xen.list_isos()
+                CHECK_ER(self.db.table('isos').insert(isos, conflict='error').run())
+            else:
+                isos = ISO.init_db(authenticator)
+                #isos = self.xen.list_isos()
+                CHECK_ER(self.db.table('isos').insert(isos, conflict='update').run())
 
-        if 'tmpls' not in tables:
-            self.db.table_create('tmpls', durability='soft', primary_key='uuid').run()
-        #    tmpls = self.xen.list_templates().values()
-            tmpls = Template.init_db(authenticator)
-            CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='error').run())
-        else:
-         #   tmpls = self.xen.list_templates().values()
-            tmpls = Template.init_db(authenticator)
-            CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='update').run())
-      #  if 'pools' not in tables:
-      #      self.db.table_create('pools', durability='soft', primary_key='uuid').run()
-      #      pools = self.xen.list_pools().values()
-      #      CHECK_ER(self.db.table('pools').insert(list(pools), conflict='error').run())
-      #  else:
-      #      pools = self.xen.list_pools().values()
-      #      CHECK_ER(self.db.table('pools').insert(list(pools), conflict='update').run())
-        if 'nets' not in tables:
-            self.db.table_create('nets', durability='soft', primary_key='uuid').run()
-            nets = Network.init_db(authenticator)
-            CHECK_ER(self.db.table('nets').insert(list(nets), conflict='error').run())
-        else:
-            nets = Network.init_db(authenticator)
-            # nets = self.xen.list_networks().values()
-            CHECK_ER(self.db.table('nets').insert(list(nets), conflict='update').run())
+            if 'tmpls' not in tables:
+                self.db.table_create('tmpls', durability='soft', primary_key='uuid').run()
+            #    tmpls = self.xen.list_templates().values()
+                tmpls = Template.init_db(authenticator)
+                CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='error').run())
+            else:
+             #   tmpls = self.xen.list_templates().values()
+                tmpls = Template.init_db(authenticator)
+                CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='update').run())
+          #  if 'pools' not in tables:
+          #      self.db.table_create('pools', durability='soft', primary_key='uuid').run()
+          #      pools = self.xen.list_pools().values()
+          #      CHECK_ER(self.db.table('pools').insert(list(pools), conflict='error').run())
+          #  else:
+          #      pools = self.xen.list_pools().values()
+          #      CHECK_ER(self.db.table('pools').insert(list(pools), conflict='update').run())
+            if 'nets' not in tables:
+                self.db.table_create('nets', durability='soft', primary_key='uuid').run()
+                nets = Network.init_db(authenticator)
+                CHECK_ER(self.db.table('nets').insert(list(nets), conflict='error').run())
+            else:
+                nets = Network.init_db(authenticator)
+                # nets = self.xen.list_networks().values()
+                CHECK_ER(self.db.table('nets').insert(list(nets), conflict='update').run())
 
-        del authenticator.xen
+            del authenticator.xen
 
 
     @run_on_executor
     def do_access_monitor(self):
-        conn = r.connect(opts.host, opts.port, opts.database).repl()
-        query = self.db.table(objects[0].db_table_name).pluck('uuid', 'access')\
-            .merge({'table' : objects[0].db_table_name}).changes()
+        conn = ReDBConnection().get_connection()
+        with conn:
+            query = self.db.table(objects[0].db_table_name).pluck('uuid', 'access')\
+                .merge({'table' : objects[0].db_table_name}).changes()
 
-        table_list = self.db.table_list().run()
-        def initial_merge(table):
-            nonlocal table_list
-            table_user = table + '_user'
-            if table_user in table_list:
-                self.db.table_drop(table_user).run()
-
-
-            self.db.table_create(table_user, durability='soft').run()
-            self.db.table(table_user).index_create('uuid_and_userid', [r.row['uuid'], r.row['userid']]).run()
-            self.db.table(table_user).index_wait('uuid_and_userid').run()
-            self.db.table(table_user).index_create('userid', r.row['userid']).run()
-            self.db.table(table_user).index_wait('userid').run()
-            # no need yet
-            #self.db.table(table_user).index_create('uuid', r.row['uuid']).run()
-            #self.db.table(table_user).index_wait('uuid').run()
-
-            CHECK_ER(self.db.table(table_user).insert(
-                self.db.table(table).pluck('access', 'uuid').filter(r.row['access'] != []).\
-                concat_map(lambda acc: acc['access'].merge({'uuid':acc['uuid']}))).run())
-
-
-        i = 0
-        while i < len(objects):
-            initial_merge(objects[i].db_table_name)
-
-            if i > 0:
-                query.union(self.db.table(objects[i].db_table_name).pluck('uuid', 'access')\
-                                .merge({'table': objects[i].db_table_name}).changes())
-            i += 1
-
-
-        user_table_ready.set()
-        cur = query.run()
-
-        def uuid_delete(table_user, uuid):
-            self.db.table(table_user).filter({'uuid' : uuid}).delete().run()
-
-
-        for record in cur:
-
-            if record['new_val']: #edit
-                uuid = record['new_val']['uuid']
-                table = record['new_val']['table']
-                access = record['new_val']['access']
+            table_list = self.db.table_list().run()
+            def initial_merge(table):
+                nonlocal table_list
                 table_user = table + '_user'
+                if table_user in table_list:
+                    self.db.table_drop(table_user).run()
 
 
-                if record['old_val']:
-                    access_to_remove = \
-                        set((frozendict(x) for x in record['old_val']['access'])) -\
-                         set((frozendict(x) for x in access))
-                    for item in access_to_remove:
-                        CHECK_ER(self.db.table(table_user).get([record['old_val']['uuid'], item['userid']], index='uuid_and_userid').delete().run())
-                self.log.info("Modifying access rights for %s (table %s): %s" % (uuid, table, json.dumps(access)))
-                if not record['old_val']:
-                    for item in access:
-                        CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid' : uuid})).run())
+                self.db.table_create(table_user, durability='soft').run()
+                self.db.table(table_user).index_create('uuid_and_userid', [r.row['uuid'], r.row['userid']]).run()
+                self.db.table(table_user).index_wait('uuid_and_userid').run()
+                self.db.table(table_user).index_create('userid', r.row['userid']).run()
+                self.db.table(table_user).index_wait('userid').run()
+                # no need yet
+                #self.db.table(table_user).index_create('uuid', r.row['uuid']).run()
+                #self.db.table(table_user).index_wait('uuid').run()
+
+                CHECK_ER(self.db.table(table_user).insert(
+                    self.db.table(table).pluck('access', 'uuid').filter(r.row['access'] != []).\
+                    concat_map(lambda acc: acc['access'].merge({'uuid':acc['uuid']}))).run())
+
+
+            i = 0
+            while i < len(objects):
+                initial_merge(objects[i].db_table_name)
+
+                if i > 0:
+                    query.union(self.db.table(objects[i].db_table_name).pluck('uuid', 'access')\
+                                    .merge({'table': objects[i].db_table_name}).changes())
+                i += 1
+
+
+            user_table_ready.set()
+            cur = query.run()
+
+            def uuid_delete(table_user, uuid):
+                self.db.table(table_user).filter({'uuid' : uuid}).delete().run()
+
+
+            for record in cur:
+
+                if record['new_val']: #edit
+                    uuid = record['new_val']['uuid']
+                    table = record['new_val']['table']
+                    access = record['new_val']['access']
+                    table_user = table + '_user'
+
+
+                    if record['old_val']:
+                        access_to_remove = \
+                            set((frozendict(x) for x in record['old_val']['access'])) -\
+                             set((frozendict(x) for x in access))
+                        for item in access_to_remove:
+                            CHECK_ER(self.db.table(table_user).get([record['old_val']['uuid'], item['userid']], index='uuid_and_userid').delete().run())
+                    self.log.info("Modifying access rights for %s (table %s): %s" % (uuid, table, json.dumps(access)))
+                    if not record['old_val']:
+                        for item in access:
+                            CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid' : uuid})).run())
+                    else:
+                        access_diff = set((frozendict(x) for x in access)) -\
+                                      set((frozendict(x) for x in record['old_val']['access']))
+
+                        for item in access_diff:
+                            CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid' : uuid} )).run())
+
+
+
                 else:
-                    access_diff = set((frozendict(x) for x in access)) -\
-                                  set((frozendict(x) for x in record['old_val']['access']))
+                    uuid = record['old_val']['uuid']
+                    table = record['old_val']['table']
+                    table_user = table + '_user'
+                    self.log.info("Deleting access rights for %s (table %s)" % (uuid, table))
+                    uuid_delete(table_user, uuid)
 
-                    for item in access_diff:
-                        CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid' : uuid} )).run())
-
-
-
-            else:
-                uuid = record['old_val']['uuid']
-                table = record['old_val']['table']
-                table_user = table + '_user'
-                self.log.info("Deleting access rights for %s (table %s)" % (uuid, table))
-                uuid_delete(table_user, uuid)
-
-        return
+            return
 
     @gen.coroutine
     def access_monitor(self):
@@ -1122,30 +1044,32 @@ class EventLoop(Loggable):
         self.authenticator.xen = XenAdapterPool().get()
         xen = self.authenticator.xen
         xen.api.event.register(["*"])
-        while True:
-            #pass
-            try:
-                for event in xen.api.event.next():
-                    if (opts.log_events and event['class'] in opts.log_events.split(',')) or not opts.log_events:
-                        self.log.info("Event: %s" % json.dumps(event, cls=DateTimeEncoder))
-                    #similarly to list_vms -> process
-                    if event['class'] == 'vm':
-                        ev_class = VM # use methods filter_record, process_record (classmethods)
-                    else: # Implement ev_classes for all types of events
-                        continue
+        conn = ReDBConnection().get_connection()
+        with conn:
+            while True:
+                #pass
+                try:
+                    for event in xen.api.event.next():
+                        if (opts.log_events and event['class'] in opts.log_events.split(',')) or not opts.log_events:
+                            self.log.info("Event: %s" % json.dumps(event, cls=DateTimeEncoder))
+                        #similarly to list_vms -> process
+                        if event['class'] == 'vm':
+                            ev_class = VM # use methods filter_record, process_record (classmethods)
+                        else: # Implement ev_classes for all types of events
+                            continue
 
 
 
-                    ev_class.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
+                        ev_class.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
 
 
 
 
 
-            except Failure as f:
-                if f.details == [ "EVENTS_LOST" ]:
-                   self.log.warning("Reregistering for events")
-                   xen.api.event.register(["*"])
+                except Failure as f:
+                    if f.details == [ "EVENTS_LOST" ]:
+                       self.log.warning("Reregistering for events")
+                       xen.api.event.register(["*"])
 
 
 
@@ -1373,6 +1297,7 @@ def read_settings():
 
     file_path = path.join(path.dirname(path.realpath(__file__)), 'login.ini')
     parse_config_file(file_path)
+    ReDBConnection().set_options(opts.host, opts.port, opts.database)
 
 def main():
     """ reads settings in ini configures and starts system"""
