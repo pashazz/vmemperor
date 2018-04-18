@@ -5,8 +5,8 @@ const RENDER_TICK = 500;
 const TTR = 3000;
 const TTL = 8000;
 
-function computeClass({ type, timestamp }, rednerStamp) {
-  const lived = (rednerStamp - timestamp) / TTR;
+function computeClass({ type, timestamp }, renderStamp) {
+  const lived = (renderStamp - timestamp) / TTR;
   const baseClass = ['alert', lived > 1 ? styles.alertFade : ''];
   switch (type) {
     case 'suc':
@@ -38,9 +38,9 @@ class Snackbar extends React.Component {
   }
 
   render() {
-    const rednerStamp = +new Date();
+    const renderStamp = +new Date();
     const alerts = this.props.logs
-      .filter(alert => rednerStamp - alert.timestamp < TTL)
+      .filter(alert => renderStamp - alert.timestamp < TTL)
       .slice(0, 10);
 
     return (
@@ -49,7 +49,7 @@ class Snackbar extends React.Component {
           <span className={styles.snackbarOpened}>
             {
               alerts.map(alert =>
-                <div key={alert.timestamp} className={computeClass(alert, rednerStamp)} role="alert">{alert.text}</div>)
+                <div key={alert.timestamp} className={computeClass(alert, renderStamp)} role="alert">{alert.text}</div>)
             }
           </span>
         </div>
