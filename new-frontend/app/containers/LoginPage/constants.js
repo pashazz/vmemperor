@@ -4,4 +4,4 @@
  *
  */
 
-export const DEFAULT_ACTION = 'app/LoginPage/DEFAULT_ACTION';
+export const SET_POOLS = 'emperor/LoginPage/SET_POOLS';

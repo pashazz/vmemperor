@@ -7,6 +7,7 @@ import { fromJS } from 'immutable';
 import { routerMiddleware } from 'react-router-redux';
 import createSagaMiddleware from 'redux-saga';
 import createReducer from './reducers';
+import logger from 'redux-log-diff';
 
 const sagaMiddleware = createSagaMiddleware();
 
@@ -15,6 +16,7 @@ export default function configureStore(initialState = {}, history) {
   // 1. sagaMiddleware: Makes redux-sagas work
   // 2. routerMiddleware: Syncs the location/URL path to the state
   const middlewares = [
+    logger,
     sagaMiddleware,
     routerMiddleware(history),
   ];

@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import PropTypes from 'prop-types';
+import T  from 'prop-types';
 import { connect } from 'react-redux';
 import { FormattedMessage } from 'react-intl';
 import { createStructuredSelector } from 'reselect';
@@ -15,10 +15,12 @@ import { Button, Modal, ModalHeader, ModalBody, ModalFooter, Form } from 'reacts
 
 import injectSaga from 'utils/injectSaga';
 import injectReducer from 'utils/injectReducer';
-import makeSelectLoginPage from './selectors';
+import { makeSelectPools } from './selectors';
 import reducer from './reducer';
 import saga from './saga';
 import messages from './messages';
+import { authAgent } from 'containers/PrivateRoute'
+import {auth} from 'containers/App/actions';
 
 export class LoginPage extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
 
@@ -33,7 +35,7 @@ export class LoginPage extends React.PureComponent { // eslint-disable-line reac
 
   handleSubmit(e) {
     e.preventDefault();
-    this.props.auth(this.state.login);
+    authAgent.auth(this.state.login).then(data => console.log(data))
   }
 
   handleChange(e) {
@@ -69,19 +71,17 @@ export class LoginPage extends React.PureComponent { // eslint-disable-line reac
 }
 
 LoginPage.propTypes = {
-  dispatch: PropTypes.func.isRequired,
-  auth: PropTypes.func.isRequired,
+  pools: T.array.isRequired,
+  auth: T.func.isRequired,
 };
 
 const mapStateToProps = createStructuredSelector({
-  loginpage: makeSelectLoginPage(),
+  pools: makeSelectPools(),
 });
 
-function mapDispatchToProps(dispatch) {
-  return {
-    dispatch,
-  };
-}
+const mapDispatchToProps = {
+  auth,
+};
 
 const withConnect = connect(mapStateToProps, mapDispatchToProps);
 

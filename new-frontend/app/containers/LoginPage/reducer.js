@@ -6,15 +6,17 @@
 
 import { fromJS } from 'immutable';
 import {
-  DEFAULT_ACTION,
+  SET_POOLS,
 } from './constants';
 
-const initialState = fromJS({});
+const initialState = fromJS({
+  pools: [],
+});
 
 function loginPageReducer(state = initialState, action) {
   switch (action.type) {
-    case DEFAULT_ACTION:
-      return state;
+    case SET_POOLS:
+      return state.set('pools', action.pools);
     default:
       return state;
   }

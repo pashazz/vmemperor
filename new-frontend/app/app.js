@@ -46,6 +46,9 @@ import { translationMessages } from './i18n';
 // Import CSS reset and Global Styles
 import './global-styles';
 
+//Import application-level sagas (login flow)
+import appSaga from 'containers/App/saga'
+
 // Create redux store with history
 const initialState = {};
 const history = createHistory();
@@ -64,6 +67,9 @@ const render = (messages) => {
     MOUNT_NODE
   );
 };
+
+//run login flow saga
+store.runSaga(appSaga);
 
 if (module.hot) {
   // Hot reloadable React components and translation json files

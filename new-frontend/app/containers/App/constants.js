@@ -10,3 +10,8 @@
  */
 
 export const DEFAULT_LOCALE = 'en';
+
+export const NEW_MESSAGE = 'emperor/global/NEW_MESSAGE';
+export const AUTH = 'emperor/global/AUTH';
+export const LOGOUT = 'emperor/global/LOGOUT';
+export const SET_SESSION = 'emperor/global/SET_SESSION';

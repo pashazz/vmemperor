@@ -15,16 +15,39 @@ import {
 
 export const authAgent = {
   session: null,
-  auth(login, password, callback) {
-    axios.post('api/login', {username: login, pasword}).
-    then(data => callback(data));
+  async auth(login, password) {
+    response = await axios.post('api/login',
+      {username: login, password});
+
+    console.log("Auth: ", response);
+    //Set up cookies?
+
   },
 
+  loadFromCookie() {
+    let session = null;
+    const cookies = document.cookie ? document.cookie.split('; ') : [];
+    for (let i = cookies.length - 1; i >= 0; i--) {
+      const parts = cookies[i].split('=');
+      const name = parts.shift();
 
+      if (name === 'user') {
+        session = parts.join('=');
+        break;
+      }
 
+    }
+    return session;
+},
+  getSession() {
+    return (this.session !== null) ? this.session : this.loadFromCookie();
+  },
 
-
-
+  async logout()
+  {
+    await axios.get('api/logout');
+    this.session = null;
+  }
 
 };
 
@@ -33,7 +56,7 @@ const PrivateRoute = ({ component: Component, ...rest }) => (
   <Route
     {...rest}
     render={props =>
-      authAgent.session !== null ? (
+      authAgent.getSession() !== null ? (
         <Component {...props} />
       ) : (
         <Redirect

@@ -19,7 +19,12 @@ const makeSelectLoginPage = () => createSelector(
   (substate) => substate.toJS()
 );
 
+const makeSelectPools = () => createSelector(
+  makeSelectLoginPage(),
+  (substate) => substate.pools
+);
 export default makeSelectLoginPage;
 export {
   selectLoginPageDomain,
+  makeSelectPools
 };

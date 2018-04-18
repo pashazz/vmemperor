@@ -5,11 +5,12 @@
  */
 
 import {
-  DEFAULT_ACTION,
+  SET_POOLS,
 } from './constants';
 
-export function defaultAction() {
+export function setPools(pools) {
   return {
-    type: DEFAULT_ACTION,
+    type: SET_POOLS,
+    pools,
   };
 }
