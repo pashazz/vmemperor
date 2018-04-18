@@ -11,7 +11,7 @@ import { FormattedMessage } from 'react-intl';
 import { createStructuredSelector } from 'reselect';
 import { compose } from 'redux';
 import { Button, Modal, ModalHeader, ModalBody, ModalFooter, Form } from 'reactstrap';
-
+import SinglePoolLogin from "components/SinglePoolLogin";
 
 import injectSaga from 'utils/injectSaga';
 import injectReducer from 'utils/injectReducer';
@@ -21,6 +21,7 @@ import saga from './saga';
 import messages from './messages';
 import { authAgent } from 'containers/PrivateRoute'
 import {auth} from 'containers/App/actions';
+
 
 export class LoginPage extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
 

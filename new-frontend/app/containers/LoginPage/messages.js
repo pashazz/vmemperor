@@ -6,5 +6,8 @@
 import { defineMessages } from 'react-intl';
 
 export default defineMessages({
-
+  noPools: {
+    id: 'app.containers.LoginPage.noPools',
+    defaultMessage: 'No pools provided',
+  },
 });
