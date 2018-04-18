@@ -6,7 +6,7 @@ class ReDBConnection(Loggable, metaclass=singleton.Singleton):
     def __init__(self):
         self.init_log()
 
-    def set_options(self, host, port, db, user='admin', password=None):
+    def set_options(self, host, port, db=None, user='admin', password=None):
         self.conn_queue = queue.Queue()
         self.host = host
         self.port = port

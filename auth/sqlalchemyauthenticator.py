@@ -47,6 +47,7 @@ class SqlAlchemyMeta(type):
             config.read(['sqlalchemyauthenticator.ini'])
             url = config['db']['url']
         except:
+            self.fileName = '/tmp/vmemperor-auth.db'
             url = "sqlite:////tmp/vmemperor-auth.db"
 
 
@@ -76,6 +77,12 @@ class SqlAlchemyAuthenticator(BasicAuthenticator, metaclass=SqlAlchemyMeta):
     def get_group_name_by_id(cls, id, log=logging):
         return cls.session.query(Group.name).filter(Group.id == id).first()
 
+    @classmethod
+    def clear(cls):
+        cls.session.close()
+
+
+
     def check_credentials(self, password, username, log=logging):
         query = self.session.query(User.id, User.name, User.password).filter(User.name == username).first()
 
@@ -98,6 +105,8 @@ class SqlAlchemyAuthenticator(BasicAuthenticator, metaclass=SqlAlchemyMeta):
     def get_user_groups(self):
         user = self.session.query(User).filter(User.id == self.id).first()
         return {group.id : group.name for group in user.groups}
+
+
 
 
 

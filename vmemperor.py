@@ -36,6 +36,7 @@ from tornado.options import define, options as opts, parse_config_file
 import queue
 import threading
 import datetime
+
 from xmlrpc.client import DateTime as xmldt
 from frozendict import frozendict
 from authentication import AdministratorAuthenticator
@@ -307,6 +308,7 @@ class VMList(BaseWSHandler):
                 cur = self.changes_query.run()
 
             create_cursor()
+            self.cur = cur
             for change in cur:
 
 
@@ -331,6 +333,22 @@ class VMList(BaseWSHandler):
 
                 self.write_message(json.dumps(change))
 
+            return
+
+    def on_close(self):
+        if hasattr(self, 'cur'):
+            self.log.info("Closing websocket connection: {0}".format(self.ws_connection))
+
+            self.cur.close()
+
+
+class PoolListPublic(BaseHandler):
+    def get(self):
+        '''
+
+        :return: list of pools available for login (ids only)
+        '''
+        self.write(json.dumps([{'id': 1}]))
 
 
 class PoolList(BaseHandler):
@@ -848,7 +866,8 @@ class AttachDetachIso(VMAbstractHandler):
                                                        '"attach", "detach", got %s' % action })
             return
 
-        res = r.db('vmemperor').table('isos').get(iso_uuid).run()
+        db = r.db(opts.database)
+        res = db.table('isos').get(iso_uuid).run()
         if res:
             self.log.info("UUID %s valid, attaching/detaching..." % iso_uuid)
             def attach(auth : BasicAuthenticator):
@@ -962,6 +981,7 @@ class EventLoop(Loggable):
                 table_user = table + '_user'
                 if table_user in table_list:
                     self.db.table_drop(table_user).run()
+
 
 
                 self.db.table_create(table_user, durability='soft').run()
@@ -1255,6 +1275,7 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/startstopvm', StartStopVM, dict(executor=executor)),
         (r'/vmlist', VMList, dict(executor=executor)),
         (r'/poollist', PoolList, dict(executor=executor)),
+        (r'/list_pools', PoolListPublic, dict(executor=executor)),
         (r'/tmpllist', TemplateList, dict(executor=executor)),
         (r'/netlist', NetworkList, dict(executor=executor)),
         (r'/enabledisabletmpl', EnableDisableTemplate, dict(executor=executor)),
@@ -1274,6 +1295,8 @@ def make_app(executor, auth_class=None, debug = False):
     ], **settings)
 
     app.auth_class = auth_class
+    if debug:
+        opts.database = opts.database + '_debug_{0}'.format(datetime.datetime.now().strftime("%b_%d_%Y_%H_%M_%S"))
     return app
 
 def read_settings():
@@ -1297,13 +1320,13 @@ def read_settings():
 
     file_path = path.join(path.dirname(path.realpath(__file__)), 'login.ini')
     parse_config_file(file_path)
-    ReDBConnection().set_options(opts.host, opts.port, opts.database)
+    ReDBConnection().set_options(opts.host, opts.port)
 
 def main():
     """ reads settings in ini configures and starts system"""
     read_settings()
-    executor = ThreadPoolExecutor(max_workers = opts.max_workers)
-    app = make_app(executor, debug= opts.debug)
+    executor = ThreadPoolExecutor(max_workers = 1024)
+    app = make_app(executor)
     server = tornado.httpserver.HTTPServer(app)
     server.listen(opts.vmemperor_port, address="0.0.0.0")
     ioloop = event_loop(executor, opts.delay, authenticator=app.auth_class)

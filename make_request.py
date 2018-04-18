@@ -4,6 +4,10 @@ import argparse
 import sys
 import json
 import pprint
+import websockets
+import asyncio
+import urllib.parse
+from configparser import ConfigParser
 
 def login(method):
     def decorator(self, *args, **kwargs):
@@ -16,9 +20,17 @@ def login(method):
 class Main():
 
     url = 'http://localhost:8889'
+    ws_url = url.replace('http://', 'ws://')
 
     def __init__(self):
+
         self.jar = None
+        config = ConfigParser()
+        self.login_opts = {}
+        with open("make_request.ini") as f:
+            config.read_file(f)
+            self.login_opts = config._sections['login']
+
         p = argparse.ArgumentParser(description="VMEmperor CLI Utility", usage="%s <API call> <args>" % sys.argv[0])
         p.add_argument("api_call", help="API call to request")
         args = p.parse_args(sys.argv[1:2])
@@ -30,8 +42,10 @@ class Main():
 
 
     def _login(self):
-        r = requests.post("%s/login" % self.url)
+        r = requests.post("%s/login" % self.url, data=self.login_opts)
         self.jar = r.cookies
+        self.headers={}
+        self.headers['Cookie'] = r.headers['Set-Cookie']
 
     @login
     def createvm(self):
@@ -115,12 +129,17 @@ class Main():
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
+    async def _vmlist_async(self):
+        async with websockets.connect(self.ws_url + "/vmlist", extra_headers=self.headers) as socket:
+            while True:
+                msg = await socket.recv()
+                print(msg)
+
+
     @login
     def vmlist(self):
-        r = requests.get("%s/vmlist" % self.url, cookies=self.jar)
-        js = json.loads(r.text)
-        pprint.pprint(js)
-        print(r.status_code, file=sys.stderr)
+        asyncio.get_event_loop().run_until_complete(self._vmlist_async())
+
 
     @login
     def isolist(self):
