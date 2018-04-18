@@ -8,7 +8,7 @@ from base64 import decodebytes
 import pickle
 from tornado.web import create_signed_value
 import pprint
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import InvalidRequestError
 from authentication import DebugAuthenticator
 from time import sleep
 settings_read = False
@@ -45,8 +45,8 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
             SqlAlchemyAuthenticator.session.add(User(name='eva', password='eva', groups=[]))
             try:
                 SqlAlchemyAuthenticator.session.commit()
-            except IntegrityError: # Users have already been added
-                pass
+            except: # Users have already been added
+                SqlAlchemyAuthenticator.session.rollback()
 
 
 
@@ -54,13 +54,19 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
 
     def get_new_ioloop(self):
         self.get_app()
-        return event_loop(self.executor, opts.delay, self.app.auth_class)
+        if not hasattr(self, 'event_loop'):
+            self.event_loop = event_loop(self.executor, opts.delay, self.app.auth_class)
+
+        return self.event_loop
 
     @classmethod
     def tearDownClass(cls):
         from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator
         ioloop.IOLoop.instance().stop()
         SqlAlchemyAuthenticator.session.close()
+        if hasattr(SqlAlchemyAuthenticator, 'fileName'):
+            os.remove(SqlAlchemyAuthenticator.fileName)
+
 
 
 
@@ -78,6 +84,10 @@ class VmEmperorNoLoginTest(VmEmperorTest):
         body = dict(username='olololo', password='alalala')
         res = self.fetch(r'/adminauth', method='POST', body=urlencode(body))
         self.assertEqual(401, res.code)
+
+    def test_list_pools(self):
+        res = self.fetch(r'/list_pools', method='GET')
+        self.assertEqual(json.dumps([{'id': 1}]), res.body.decode())
 
 
 class VmEmperorAfterAdminLoginTest(VmEmperorTest):
@@ -104,8 +114,6 @@ class VmEmperorAfterAdminLoginTest(VmEmperorTest):
 
 
 class VmEmperorAfterLoginTest(VmEmperorTest):
-
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
