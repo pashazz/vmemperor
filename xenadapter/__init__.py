@@ -76,7 +76,7 @@ class XenAdapter(Loggable, metaclass=Singleton):
 
         self.conn = r.connect(settings['host'], settings['port'], db=settings['database']).repl()
         if not settings['database'] in r.db_list().run():
-            r.db_create('vmemperor').run()
+            r.db_create(settings['database']).run()
 
         self.db  = r.db(settings['database'])
 
