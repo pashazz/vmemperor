@@ -13,6 +13,7 @@ import { compose } from 'redux';
 import { Button, Modal, ModalHeader, ModalBody, ModalFooter, Form } from 'reactstrap';
 import SinglePoolLogin from "components/SinglePoolLogin";
 
+import { withRouter } from 'react-router-dom';
 import injectSaga from 'utils/injectSaga';
 import injectReducer from 'utils/injectReducer';
 import { makeSelectPools } from './selectors';
@@ -36,7 +37,9 @@ export class LoginPage extends React.PureComponent { // eslint-disable-line reac
 
   handleSubmit(e) {
     e.preventDefault();
-    authAgent.auth(this.state.login).then(data => console.log(data))
+    const {login,password} = this.state.login;
+    this.props.auth(login, password);
+    this.props.history.goBack();
   }
 
   handleChange(e) {
@@ -53,7 +56,7 @@ export class LoginPage extends React.PureComponent { // eslint-disable-line reac
           <ModalBody>
             {
               this.props.pools.map((pool, index) =>
-                <SinglePoolLogin key={pool.id} description={pool.description} index={index} />)
+                <SinglePoolLogin key={pool.id} description={pool.id} index={pool.id} />)
             }
           </ModalBody>
           <ModalFooter>
@@ -90,6 +93,7 @@ const withReducer = injectReducer({ key: 'loginPage', reducer });
 const withSaga = injectSaga({ key: 'loginPage', saga });
 
 export default compose(
+  withRouter,
   withReducer,
   withSaga,
   withConnect,

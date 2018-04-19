@@ -34,19 +34,10 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
 
     def get_app(self):
 
-        from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator, User, Group
-        if not hasattr(self, 'app'):
 
+        if not hasattr(self, 'app'):
+            from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator
             self.app = make_app(self.executor, debug=True, auth_class=SqlAlchemyAuthenticator)
-            john_group = Group(name='John friends')
-            SqlAlchemyAuthenticator.session.add(john_group)
-            SqlAlchemyAuthenticator.session.add(User(name='john', password='john', groups=[john_group]))
-            SqlAlchemyAuthenticator.session.add(User(name='mike', password='mike', groups=[john_group]))
-            SqlAlchemyAuthenticator.session.add(User(name='eva', password='eva', groups=[]))
-            try:
-                SqlAlchemyAuthenticator.session.commit()
-            except: # Users have already been added
-                SqlAlchemyAuthenticator.session.rollback()
 
 
 
@@ -64,8 +55,7 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
         from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator
         ioloop.IOLoop.instance().stop()
         SqlAlchemyAuthenticator.session.close()
-        if hasattr(SqlAlchemyAuthenticator, 'fileName'):
-            os.remove(SqlAlchemyAuthenticator.fileName)
+
 
 
 

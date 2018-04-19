@@ -16,11 +16,20 @@ import {
 export const authAgent = {
   session: null,
   async auth(login, password) {
-    response = await axios.post('api/login',
-      {username: login, password});
+    try {
+      const response = await axios.post('api/login',
+        {username: login, password});
+      console.log("Auth: ", response);
 
-    console.log("Auth: ", response);
-    //Set up cookies?
+      //Set up cookies?
+
+
+    }
+    catch(e)
+    {
+      console.log('auth agent: error', e);
+      return Promise.reject(e);
+    }
 
   },
 

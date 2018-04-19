@@ -9,10 +9,11 @@ function timestamp() {
   return +new Date();
 }
 
-export function auth(payload) {
+export function auth(login, password) {
   return {
     type: AUTH,
-    payload,
+    login,
+    password
   };
 }
 

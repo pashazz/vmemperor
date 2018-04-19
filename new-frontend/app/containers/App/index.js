@@ -20,6 +20,7 @@ import Navbar from "../../components/Navbar";
 import PrivateRoute from 'containers/PrivateRoute';
 import VMs from 'containers/Vms/Loadable';
 import LoginPage from 'containers/LoginPage/Loadable';
+import Logout from 'containers/Logout/Loadable';
 
 export default function App() {
   return (
@@ -29,7 +30,7 @@ export default function App() {
         <Route exact path="/" component={HomePage} />
         <Route path="/login" component={LoginPage} />
         <PrivateRoute  path="/vms" component={VMs} />
-
+        <PrivateRoute path="/logout" component={Logout} />
         <Route component={NotFoundPage} />
       </Switch>
     </div>

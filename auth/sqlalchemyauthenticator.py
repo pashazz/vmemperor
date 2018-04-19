@@ -84,15 +84,18 @@ class SqlAlchemyAuthenticator(BasicAuthenticator, metaclass=SqlAlchemyMeta):
 
 
     def check_credentials(self, password, username, log=logging):
+        self.username = username
+        self.password = password
         query = self.session.query(User.id, User.name, User.password).filter(User.name == username).first()
 
+
         if not password:
-            raise AuthenticationWithEmptyPasswordException(log, username)
+            raise AuthenticationWithEmptyPasswordException(log, self)
         if not query:
-            raise AuthenticationUserNotFoundException(log, username)
+            raise AuthenticationUserNotFoundException(log, self)
 
         if query.password != password:
-            raise AuthenticationPasswordException(log, username)
+            raise AuthenticationPasswordException(log, self)
 
         self.id = query.id
 

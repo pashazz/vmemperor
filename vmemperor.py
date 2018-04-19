@@ -116,6 +116,21 @@ class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
         self.init_executor(executor)
         super().initialize()
 
+    def prepare(self):
+        super().prepare()
+        if not 'Content-Type' in self.request.headers:
+            return
+        content_type = self.request.headers['Content-Type'].split(';')
+        if content_type[0] == 'application/json':
+            encoding = 'utf-8'
+            try:
+                encoding = content_type[1].split('=')[1]
+            except:
+                pass
+
+            json_data = json.loads(self.request.body.decode(encoding=encoding))
+            json_data_lists = {k : [v] for k, v in json_data.items()}
+            self.request.arguments.update(json_data_lists)
 
     def get_current_user(self):
         return self.get_secure_cookie("user")
@@ -186,6 +201,7 @@ class AuthHandler(BaseHandler):
         :param password
         :return:
         '''
+
         username = self.get_argument("username", "")
         password = self.get_argument("password", "")
         try:
@@ -248,10 +264,10 @@ class AdminAuth(BaseHandler):
 
 
 class LogOut(BaseHandler):
-
     def get(self):
         self.clear_cookie('user')
-        self.redirect(self.get_argument("next", "/login"))
+        #self.redirect(self.get_argument("next", "/login"))
+        self.write({'status': 'ok'})
 
 
 class VMList(BaseWSHandler):
@@ -1297,6 +1313,21 @@ def make_app(executor, auth_class=None, debug = False):
     app.auth_class = auth_class
     if debug:
         opts.database = opts.database + '_debug_{0}'.format(datetime.datetime.now().strftime("%b_%d_%Y_%H_%M_%S"))
+
+    from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator, User, Group
+    if opts.debug and app.auth_class.__name__ == SqlAlchemyAuthenticator.__name__:
+        #create test users
+
+        john_group = Group(name='John friends')
+        SqlAlchemyAuthenticator.session.add(john_group)
+        SqlAlchemyAuthenticator.session.add(User(name='john', password='john', groups=[john_group]))
+        SqlAlchemyAuthenticator.session.add(User(name='mike', password='mike', groups=[john_group]))
+        SqlAlchemyAuthenticator.session.add(User(name='eva', password='eva', groups=[]))
+        try:
+            SqlAlchemyAuthenticator.session.commit()
+        except:  # Users have already been added
+            SqlAlchemyAuthenticator.session.rollback()
+
     return app
 
 def read_settings():

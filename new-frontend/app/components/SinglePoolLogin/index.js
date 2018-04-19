@@ -5,13 +5,16 @@
 */
 
 import React from 'react';
-// import styled from 'styled-components';
-import {Input, InputGroup, InputGroupAddon, InputGroupText, Form, FormGroup} from 'reactstrap';
+import styled from 'styled-components';
+import {Input, InputGroup, InputGroupAddon, InputGroupText, Form, FormGroup, Label} from 'reactstrap';
 
 import T from 'prop-types';
 import { injectIntl, intlShape } from 'react-intl';
 import messages from './messages';
 
+const MarginedInputGroup = styled(InputGroup)`
+margin-bottom:10px
+`;
 
 class SinglePoolLogin extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
   render()
@@ -19,13 +22,11 @@ class SinglePoolLogin extends React.PureComponent { // eslint-disable-line react
     const { description } = this.props;
     const { formatMessage } = this.props.intl;
     return (
-      <Form inline>
-        <InputGroup>
-          <InputGroupAddon addonType="prepend">{description}</InputGroupAddon>
+        <InputGroup id="pool1">
+          <InputGroupAddon addonType="prepend">Test</InputGroupAddon>
           <Input type="text" name="login" id="singlePoolLogin" placeholder={formatMessage(messages.loginPlaceholder)} />
           <Input type="password" name="password" id="singlePoolPassword" placeholder={formatMessage(messages.passwordPlaceholder)} />
-        </InputGroup>
-      </Form>
+          </InputGroup>
     );
   }
 }

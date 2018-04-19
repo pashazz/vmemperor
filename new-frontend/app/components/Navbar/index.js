@@ -18,7 +18,7 @@ import {
   DropdownItem
 } from "reactstrap";
 
-import { FormattedMessage, withIntl } from 'react-intl';
+import { FormattedMessage } from 'react-intl';
 import messages from "./messages";
 class MyNavbar extends React.Component {
   constructor(props) {
@@ -53,7 +53,7 @@ class MyNavbar extends React.Component {
             <Nav className="mr-auto" navbar>
               {this.state.leftLinks.map(({ to, text }) => {
                 return (
-                  <NavItem>
+                  <NavItem key={to}>
                     <NavLink href={to}><FormattedMessage {...text}/></NavLink>
                   </NavItem>
                 );
@@ -62,7 +62,7 @@ class MyNavbar extends React.Component {
             <Nav navbar>
               {this.state.rightLinks.map(({ to, text }) => {
                 return (
-                  <NavItem>
+                  <NavItem key={to}>
                     <NavLink href={to}><FormattedMessage {...text}/></NavLink>
                   </NavItem>
                 );
