@@ -26,14 +26,14 @@ class Logout extends React.Component{
         <Modal isOpen>
           <ModalHeader><FormattedMessage {...messages.header} /></ModalHeader>
           <ModalBody>
-            Are you sure you want to log out?
+           <FormattedMessage {...messages.body}/>
           </ModalBody>
           <ModalFooter>
             <Button color="primary" onClick={this.props.logout}>
-              OK
+              <FormattedMessage {...messages.ok}/>
             </Button>
             <Button color="secondary" onClick={this.props.history.goBack}>
-              Cancel
+              <FormattedMessage {...messages.cancel}/>
             </Button>
           </ModalFooter>
         </Modal>

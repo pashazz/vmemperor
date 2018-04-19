@@ -56,7 +56,7 @@ export class LoginPage extends React.PureComponent { // eslint-disable-line reac
           <ModalBody>
             {
               this.props.pools.map((pool, index) =>
-                <SinglePoolLogin key={pool.id} description={pool.id} index={pool.id} />)
+                <SinglePoolLogin key={pool.id} description="Pool" index={pool.id} />)
             }
           </ModalBody>
           <ModalFooter>
