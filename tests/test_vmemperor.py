@@ -23,8 +23,6 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
             read_settings()
             settings_read = True
         cls.executor = ThreadPoolExecutor(max_workers=opts.max_workers)
-        if os.path.exists('/tmp/vmemperor-auth.db'):
-            os.remove('/tmp/vmemperor-auth.db')
 
     def setUp(self):
         super().setUp()
