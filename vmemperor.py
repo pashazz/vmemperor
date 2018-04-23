@@ -79,7 +79,7 @@ def auth_required(method):
     def decorator(self, *args, **kwargs):
         user = HandlerMethods.get_current_user(self)
         if not user:
-            self.redirect(r'/login')
+            self.write({'status': 'error', 'message': 'not authorized'});
         else:
             self.user_authenticator  = pickle.loads(user)
             self.user_authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
