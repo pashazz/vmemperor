@@ -7,13 +7,43 @@ const argv = require('minimist')(process.argv.slice(2));
 const setup = require('./middlewares/frontendMiddleware');
 const resolve = require('path').resolve;
 const app = express();
+const proxy = require('express-http-proxy');
 const requestProxy = require('express-request-proxy');
 
+
 // If you need a backend, e.g. an API, add your custom backend-specific middleware here
+
+/*
 app.use('/api/*', requestProxy({
   url: 'http://localhost:5000/*',
   timeout: 99999,
+  },
+  intercept: (rsp, data, req, res, callback) => {
+    // rsp - original response from the target
+    console.log('set-cookie', rsp.headers['set-cookie']);
+    callback(null, data);
+  },
 }));
+*/
+
+app.use('/api', proxy('localhost:5000',
+  {
+    proxyReqOptDecorator: (opts, proxyReq) => {
+      console.log('request path:', opts.path);
+      if (opts.headers.cookie) {
+        console.log('Cookie', opts.headers.cookie);
+      }
+      else
+        {
+        console.log('no cookie');
+      }
+      return opts;
+    },
+  }));
+
+
+
+
 
 app.use('/static/*', requestProxy({
   url: 'http://localhost:5000/static/*',
