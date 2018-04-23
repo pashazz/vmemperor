@@ -97,7 +97,7 @@ class VmEmperorAfterAdminLoginTest(VmEmperorTest):
         ws_client = yield websocket_connect(HTTPRequest(url=ws_url, headers=self.headers), on_message_callback=msg_callback)
 
         yield ws_client.read_message()
-
+        self.wait()
 
 
 
