@@ -283,11 +283,17 @@ class VMList(BaseWSHandler):
             else:
                 user_table_ready.wait()
                 userid = str(self.user_authenticator.get_id())
+                # Get all changes from VMS table (only changes, not removals) and mark them as 'state' changes
+                # Plus get all initial values and changes from vms_user table and mark them as 'access' changes
+                #
                 self.changes_query = self.db.table('vms').changes(include_types=True).filter({'type' : 'change'}).merge({'changed':'state'}).union(
                 self.db.table('vms_user').get_all('users/%s' % userid, index='userid').without('id').
                     changes(include_types=True, include_initial=True).merge(r.branch(r.row['type'].eq(r.expr('initial')).or_(r.row['type'].eq(r.expr('add'))),
                                                                                      self.db.table('vms').get(r.row['new_val']['uuid']),
-                                                                                     {'changed': 'access'})))
+                                                                                     r.branch(
+                                                                                         r.row['type'].eq(r.expr('remove')),
+                                                                                         {},
+                                                                                         {'changed': 'access'}))))
 
                 for group in self.user_authenticator.get_user_groups():
                     group = str(group)
@@ -295,10 +301,10 @@ class VMList(BaseWSHandler):
                     self.changes_query.union(self.db.table('vms_user').get_all( 'groups/%s' % group, index='userid').without('id')
                                              .changes(include_types=True, include_initial=True).merge(r.branch(r.row['type'].eq(r.expr('initial')).or_(r.row['type']).eq(r.expr('add')),
                                                                                      self.db.table('vms').get(r.row['new_val']['uuid']),
-                                                                                     {'changed': 'access'})))
-
-
-
+                                                                                     r.branch(
+                                                                                     r.row['type'].eq(r.expr('remove')),
+                                                                                     {},
+                                                                                     {'changed': 'access'}))))
 
             ioloop = tornado.ioloop.IOLoop.instance()
             ioloop.add_callback(self.do_items_changes)
@@ -337,9 +343,15 @@ class VMList(BaseWSHandler):
 
                         initials.add(change['uuid'])
                         del change['new_val']
+                        if 'old_val' in change:
+                            del change['old_val']
 
                     elif change['type'] == 'remove':
                         initials.remove(change['old_val']['uuid'])
+                        del change['new_val']
+                        change['uuid'] = change['old_val']['uuid']
+                        del change['old_val']
+
 
                     elif change['type'] == 'change' and  change['changed'] == 'state':
                         if change['old_val']['uuid'] not in initials:
@@ -470,7 +482,8 @@ class CreateVM(BaseHandler):
             self.write_error(status_code=404)
             return
         with self.conn:
-            tmpls = r.table('tmpls').run()
+            db = r.db(opts.database)
+            tmpls = db.table('tmpls').run()
             for tmpl in tmpls:
                 if tmpl['uuid'] == tmpl_name or \
                 tmpl['name_label'] == tmpl_name:
@@ -941,10 +954,6 @@ class EventLoop(Loggable):
                 CHECK_ER(self.db.table('vms').insert(vms, conflict='update').run())
 
 
-
-    #        else:
-    #            access_list = self.xen.access_list()
-    #            CHECK_ER(self.db.table('access_list').insert(access_list, conflict='update').run())
 
             if 'isos' not in tables:
                 self.db.table_create('isos', durability='soft', primary_key='uuid').run()

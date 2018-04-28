@@ -51,8 +51,8 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
     @classmethod
     def tearDownClass(cls):
         from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator
-        ioloop.IOLoop.instance().stop()
         SqlAlchemyAuthenticator.session.close()
+
 
 
 
@@ -93,7 +93,9 @@ class VmEmperorAfterAdminLoginTest(VmEmperorTest):
     def test_vmlist(self):
         ws_url =  self.ws_url + "/vmlist"
         def msg_callback(text):
-            print(text)
+            with open('file.txt', 'a') as obj:
+                obj.write(text)
+
         ws_client = yield websocket_connect(HTTPRequest(url=ws_url, headers=self.headers), on_message_callback=msg_callback)
 
         yield ws_client.read_message()
@@ -108,13 +110,20 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
         config = configparser.ConfigParser()
         config.read('tests/secret.ini')
-        cls.body = {'username' : 'john', 'password' : 'john' }
+        cls.login_body = {'username' : 'john', 'password' : 'john' }
         cls.uuid = config[opts.authenticator]['uuid']
 
         cls.xen_options = {**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')}
         cls.xen_options['debug'] = True
 
         cls.vms_created = []
+
+        config = configparser.ConfigParser()
+        config.read('tests/createvm.ini')
+        # for body in config._sections.values():
+        #    res = self.fetch(r'/createvm', method='POST', body=urlencode(body))
+        #    self.assertEqual(res.code, 200)
+        cls.body = config._sections['ubuntu']
 
 
     def setUp(self):
@@ -124,7 +133,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         #auth_pickled = pickle.dumps(self.auth)
         #secure_cookie = create_signed_value(self.app.settings['cookie_secret'], 'user', auth_pickled)
         #self.headers = {'Cookie' : b'='.join((b'user', secure_cookie))}
-        res_login = self.fetch(r'/login', method='POST', body=urlencode(self.body))
+        res_login = self.fetch(r'/login', method='POST', body=urlencode(self.login_body))
         self.assertEqual(res_login.code, 200, "Failed to login")
         self.headers = {'Cookie': res_login.headers['Set-Cookie']}
         print(res_login)
@@ -139,17 +148,13 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
                 vm.destroy_vm()
             except:
                 continue
+        super().tearDownClass()
 
 
 
 
     def createvm(self):
-        config = configparser.ConfigParser()
-        config.read('tests/createvm.ini')
-        #for body in config._sections.values():
-        #    res = self.fetch(r'/createvm', method='POST', body=urlencode(body))
-        #    self.assertEqual(res.code, 200)
-        body  = config._sections['ubuntu']
+        body = self.body
         res = self.fetch(r'/createvm', method='POST', body=urlencode(body), headers=self.headers)
         self.assertEqual(res.code, 200)
         uuid = res.body.decode()
@@ -175,12 +180,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
     @gen.coroutine
     def createvm_gen(self):
-        config = configparser.ConfigParser()
-        config.read('tests/createvm.ini')
-        #for body in config._sections.values():
-        #    res = self.fetch(r'/createvm', method='POST', body=urlencode(body))
-        #    self.assertEqual(res.code, 200)
-        body  = config._sections['ubuntu']
+        body = self.body
         res = yield self.http_client.fetch(self.get_url(r'/createvm'), method='POST', body=urlencode(body), headers=self.headers)
         self.assertEqual(res.code, 200)
         uuid = res.body.decode()
@@ -210,19 +210,86 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
     @tornado.testing.gen_test()
     def test_vmlist(self):
+        '''
+        This test opens a connection to vmlist, creates a new VM and tests if the
+        behaviour of this method during createVM, access rights changing and destroying
+        is valid
+
+        TODO: determine which disk is attached in an independent way
+        '''
+
+
         ws_url =  self.ws_url + "/vmlist"
 
         ws_client = yield websocket_connect(HTTPRequest(url=ws_url, headers=self.headers))
 
 
-        uuid = yield self.createvm_gen()
-        #new_message = yield websocket_connect(HTTPRequest(url=ws_url, headers=self.headers))
-#        print(new_message)
+
+        step = 0
+        descriptions = [
+            'we will create a new vm',
+            'creating vm',
+            'attaching disk',
+            'attaching network',
+            'turning vm on'
+        ]
+        expected = {
+                      'name_label' : self.body['name_label'],
+                      'disks' : [],
+                      'network' : [],
+                      'power_state' : 'Halted',
+                      'type': 'add',
+                      'access' :
+                      [
+                          {
+                              'access' : ['all'],
+                              'userid' : 'users/1' # todo переделать
+                          }
+                      ]
+
+                  }
+        # step 0 is performed before the loop
+        print(descriptions[step])
+        expected['uuid'] = yield self.createvm_gen()
+        step += 1
+
         while True:
             new_message = yield ws_client.read_message()
-            if not new_message:
+            obj = json.loads(new_message)
+            if not obj:
+                self.fail("JSON parsing error: " + new_message)
+
+
+            if obj['type'] == 'initial':
+                continue
+
+            print(descriptions[step])
+
+            if step == 1:
+                self.assertEqual(expected, obj, "failed to create vm")
+                del expected['type'] # from now on we will compare expected with obj['new_val'] and 'new_val' does not have 'type' field
+                #type field is always on outermost level
+
+            elif step == 2: ## attaching disk
+                if len(obj['new_val']['disks']) != 1:
+                    self.fail("Failed to attach disk: field 'disks' has {0} entries, expected: 1 entry".format(len(obj['disks'])))
+                expected['disks'] = obj['new_val']['disks']
+
+
+            elif step == 3: ## attaching network
+                expected['network'] = [ self.body['network'] ]
+                self.assertEqual(expected, obj['new_val'], "failed to attach network")
+            elif step == 4: #turning vm on
+                expected['power_state'] = 'Running'
+                self.assertEqual(expected, obj['new_val'], 'Failed to launch VM')
+
+            if step in range(2, 5):
+                self.assertEqual('change', obj['type'], 'Message type must be change')
+                self.assertEqual('state', obj['changed'], 'This should be a state change')
+
+            step += 1
+            if step == len(descriptions):
                 break
-            print(json.loads(new_message))
 
 
 
