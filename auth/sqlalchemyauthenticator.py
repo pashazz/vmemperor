@@ -9,6 +9,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, Table, ForeignKey
 import logging
 import atexit
+import threading
 
 Base = declarative_base()
 
@@ -54,13 +55,32 @@ class SqlAlchemyMeta(type):
         engine = create_engine(url)
 
         self.Session = sessionmaker(bind=engine)
-        self.session = self.Session()
-        dct['session'] = self.session
+        session = self.Session()
+
+        self.sessions = dict()
+        self.sessions[threading.get_ident()] = session
+        #dct['session'] = self.sessions
+        dct['__getattr__'] = self.__getattr__
 
         Base.metadata.create_all(engine)
-        self.session.commit()
+        session.commit()
         atexit.register(self.sqlalchemy_atexit)
         super(SqlAlchemyMeta, self).__init__(name, bases, dct)
+
+    def make_session(self):
+        threadid = threading.get_ident()
+        if threadid not in self.sessions:
+            self.sessions[threadid] = self.Session()
+
+        return self.sessions[threadid]
+
+    def __getattr__(self, item):
+        if item == 'session':
+            return self.make_session()
+        else:
+            return super().__getattr__()
+
+
 
 
     def sqlalchemy_atexit(self):
@@ -81,6 +101,8 @@ class SqlAlchemyAuthenticator(BasicAuthenticator, metaclass=SqlAlchemyMeta):
     def clear(cls):
         cls.session.close()
 
+    def __getattr__(self, item):
+        return getattr(type(self), item)
 
 
     def check_credentials(self, password, username, log=logging):
@@ -98,6 +120,8 @@ class SqlAlchemyAuthenticator(BasicAuthenticator, metaclass=SqlAlchemyMeta):
             raise AuthenticationPasswordException(log, self)
 
         self.id = query.id
+
+
 
     def get_id(self):
         return str(self.id)

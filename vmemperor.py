@@ -286,25 +286,21 @@ class VMList(BaseWSHandler):
                 # Get all changes from VMS table (only changes, not removals) and mark them as 'state' changes
                 # Plus get all initial values and changes from vms_user table and mark them as 'access' changes
                 #
-                self.changes_query = self.db.table('vms').changes(include_types=True).filter({'type' : 'change'}).merge({'changed':'state'}).union(
-                self.db.table('vms_user').get_all('users/%s' % userid, index='userid').without('id').
+                self.changes_query = self.db.table('vms').changes(include_types=True).filter(
+                    r.row['type'].eq(r.expr('change')).or_(r.row['type'].eq('remove')))\
+                    .merge({'changed':'state'}).union(
+                    self.db.table('vms_user').get_all('users/%s' % userid, index='userid').without('id').
                     changes(include_types=True, include_initial=True).merge(r.branch(r.row['type'].eq(r.expr('initial')).or_(r.row['type'].eq(r.expr('add'))),
                                                                                      self.db.table('vms').get(r.row['new_val']['uuid']),
-                                                                                     r.branch(
-                                                                                         r.row['type'].eq(r.expr('remove')),
-                                                                                         {},
-                                                                                         {'changed': 'access'}))))
+                                                                                     {'changed': 'access'})))
 
                 for group in self.user_authenticator.get_user_groups():
                     group = str(group)
 
-                    self.changes_query.union(self.db.table('vms_user').get_all( 'groups/%s' % group, index='userid').without('id')
+                    self.changes_query = self.changes_query.union(self.db.table('vms_user').get_all( 'groups/%s' % group, index='userid').without('id')
                                              .changes(include_types=True, include_initial=True).merge(r.branch(r.row['type'].eq(r.expr('initial')).or_(r.row['type']).eq(r.expr('add')),
                                                                                      self.db.table('vms').get(r.row['new_val']['uuid']),
-                                                                                     r.branch(
-                                                                                     r.row['type'].eq(r.expr('remove')),
-                                                                                     {},
-                                                                                     {'changed': 'access'}))))
+                                                                                     {'changed': 'access'})))
 
             ioloop = tornado.ioloop.IOLoop.instance()
             ioloop.add_callback(self.do_items_changes)
@@ -317,45 +313,67 @@ class VMList(BaseWSHandler):
 
     @run_on_executor
     def items_changes(self):
+        '''
+        Monitor for User table (access rules) items' changes with the following considerations:
+        - We only monitor for changes in vms table. We need to filter them manually, as there's no way for such
+        complicated filter in ReQL. These have 'changed' == 'state' and only 'type' == 'change'
+        - We know about new entries in vms table because vms_user table provides that for us. Every addition to vms_user
+        gets merged with the corresponding record from vms
+        - All entries from vms_user table have 'changed' == 'access'
+        - When
+        '''
         conn = ReDBConnection().get_connection()
         with conn:
-
-            initials = set()
-
-
-
+            invalid_uuids = set()
             cur = None
             def create_cursor():
                 nonlocal cur
                 cur = self.changes_query.run()
 
+            def check_access_entry(access_entry):
+                if access_entry['userid'] == 'users/{0}'.format(self.user_authenticator.get_id()):
+                    return True
+
+                for group in self.user_authenticator.get_user_groups():
+                    if access_entry['userid'] == 'groups/{0}'.format(group):
+                        return True
+
+                return False
+
+            self.log.debug('Changes query: {0}'.format(self.changes_query))
             create_cursor()
             self.cur = cur
             for change in cur:
-
-
                 if not self.ws_connection:
                     return
                 if not isinstance(self.user_authenticator, AdministratorAuthenticator):
-                    if change['type'] == 'initial' or change['type'] == 'add':
-                        if change['uuid'] in initials:
-                            continue
+                    if 'changed' in change and change['changed'] == 'state': #Here we may have entries that we have to filter by user/group
+                        if change['new_val']:
+                            record = change['new_val']
+                        elif change['type'] == 'remove':
+                            invalid_uuids.add(change['old_val']['uuid'])
+                            record = change['old_val']
+                        else:
+                            record = change
 
-                        initials.add(change['uuid'])
-                        del change['new_val']
+                        for access_entry in record['access']:
+                            if check_access_entry(access_entry):
+                                break
+                        else: #Normal quit, not via break
+                            continue #filter this entry
+
+
+                    if change['type'] in ('initial', 'add'): #these are access only
+                        del change['new_val'] # we merge them with entries from vms, we don't need new_val
                         if 'old_val' in change:
                             del change['old_val']
 
                     elif change['type'] == 'remove':
-                        initials.remove(change['old_val']['uuid'])
-                        del change['new_val']
-                        change['uuid'] = change['old_val']['uuid']
-                        del change['old_val']
+                        del change['new_val'] #always null
 
+                        if change['old_val']['uuid'] in invalid_uuids:
+                            continue #filter out these 'junk' messages as the entry has already been removed from vms
 
-                    elif change['type'] == 'change' and  change['changed'] == 'state':
-                        if change['old_val']['uuid'] not in initials:
-                            continue
 
 
 
@@ -996,6 +1014,7 @@ class EventLoop(Loggable):
     @run_on_executor
     def do_access_monitor(self):
         conn = ReDBConnection().get_connection()
+        log = self.create_additional_log('AccessMonitor')
         with conn:
             query = self.db.table(objects[0].db_table_name).pluck('uuid', 'access')\
                 .merge({'table' : objects[0].db_table_name}).changes()
@@ -1032,7 +1051,7 @@ class EventLoop(Loggable):
                                     .merge({'table': objects[i].db_table_name}).changes())
                 i += 1
 
-
+            #indicate that vms_user table is ready
             user_table_ready.set()
             cur = query.run()
 
@@ -1055,7 +1074,7 @@ class EventLoop(Loggable):
                              set((frozendict(x) for x in access))
                         for item in access_to_remove:
                             CHECK_ER(self.db.table(table_user).get([record['old_val']['uuid'], item['userid']], index='uuid_and_userid').delete().run())
-                    self.log.info("Modifying access rights for %s (table %s): %s" % (uuid, table, json.dumps(access)))
+                    log.info("Modifying access rights for %s (table %s): %s" % (uuid, table, json.dumps(access)))
                     if not record['old_val']:
                         for item in access:
                             CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid' : uuid})).run())
@@ -1072,7 +1091,7 @@ class EventLoop(Loggable):
                     uuid = record['old_val']['uuid']
                     table = record['old_val']['table']
                     table_user = table + '_user'
-                    self.log.info("Deleting access rights for %s (table %s)" % (uuid, table))
+                    log.info("Deleting access rights for %s (table %s)" % (uuid, table))
                     uuid_delete(table_user, uuid)
 
             return
@@ -1322,6 +1341,7 @@ def make_app(executor, auth_class=None, debug = False):
     app.auth_class = auth_class
     if debug:
         opts.database = opts.database + '_debug_{0}'.format(datetime.datetime.now().strftime("%b_%d_%Y_%H_%M_%S"))
+        print("VMEmperor is launched in DEBUG mode. Using database {0}".format(opts.database))
 
     from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator, User, Group
     if opts.debug and app.auth_class.__name__ == SqlAlchemyAuthenticator.__name__:

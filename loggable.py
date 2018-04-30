@@ -26,7 +26,31 @@ class Loggable:
             debugHandler.setLevel(logging.ERROR)
             if not hasattr(self, 'debug_log_format'):
                 debug_log_format = "%(filename)s:%(lineno)d: %(message)s"
+            else:
+                debug_log_format = self.debug_log_format
+
             debugFormatter = logging.Formatter(debug_log_format)
             debugHandler.setFormatter(debugFormatter)
             self.log.addHandler(debugHandler)
             # self.log.error("Running in debug mode: all errors are in stderr, for further info check log file")
+
+    def create_additional_log(self, name):
+        log = logging.getLogger(name)
+        log.propagate = False
+        log.setLevel(logging.DEBUG)
+        fileHandler = logging.FileHandler("{0}.log".format(name))
+        log_format = "%(levelname)-10s [%(asctime)s] {0}: %(message)s".format(name)
+        formatter = logging.Formatter(log_format)
+        fileHandler.setLevel(logging.DEBUG)
+        fileHandler.setFormatter(formatter)
+        log.addHandler(fileHandler)
+        if hasattr(self, 'debug') and self.debug:
+            debugHandler = logging.StreamHandler(sys.stderr)
+            debugHandler.setLevel(logging.ERROR)
+            if not hasattr(self, 'debug_log_format'):
+                debug_log_format = "%(filename)s:%(lineno)d: %(message)s"
+            debugFormatter = logging.Formatter(debug_log_format)
+            debugHandler.setFormatter(debugFormatter)
+            log.addHandler(debugHandler)
+
+        return log
