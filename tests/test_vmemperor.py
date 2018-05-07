@@ -11,11 +11,27 @@ import pprint
 from sqlalchemy.exc import InvalidRequestError
 from authentication import DebugAuthenticator
 from time import sleep
+from utils import lists_to_sets
+
 settings_read = False
 '''
 This test uses SQLAlchemy-based authenticator
 '''
 class VmEmperorTest(testing.AsyncHTTPTestCase):
+
+    def check_lists_equality(self, first, second, msg=None):
+        '''
+        Return true if lists are equal as if they were unordered
+        '''
+        return self.assertEqual(set(first), set(second), msg)
+
+
+
+    def __init__(self, methodName):
+        super().__init__(methodName)
+
+        self.addTypeEqualityFunc(list, self.check_lists_equality)
+
     @classmethod
     def setUpClass(cls):
         global  settings_read
@@ -24,6 +40,7 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
             settings_read = True
         cls.executor = ThreadPoolExecutor(max_workers=opts.max_workers)
 
+
     def setUp(self):
         super().setUp()
         self.ws_url = "ws://localhost:" + str(self.get_http_port())
@@ -31,7 +48,6 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
 
 
     def get_app(self):
-
 
         if not hasattr(self, 'app'):
             from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator
@@ -52,7 +68,6 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
     def tearDownClass(cls):
         from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator
         SqlAlchemyAuthenticator.session.close()
-
 
 
 
@@ -269,47 +284,49 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
             print(descriptions[step])
 
             if step == 1:
-                #self.assertEqual(expected, obj, "failed to create vm")
+                self.assertEqual(expected, obj, "failed to create vm")
                 del expected['type'] # from now on we will compare expected with obj['new_val'] and 'new_val' does not have 'type' field
                 #type field is always on outermost level
 
             elif step == 2: ## attaching disk
-                #if len(obj['new_val']['disks']) != 1:
-                #    self.fail("Failed to attach disk: field 'disks' has {0} entries, expected: 1 entry".format(len(obj['disks'])))
+                if len(obj['new_val']['disks']) != 1:
+                    self.fail("Failed to attach disk: field 'disks' has {0} entries, expected: 1 entry".format(len(obj['disks'])))
                 expected['disks'] = obj['new_val']['disks']
 
 
             elif step == 3: ## attaching network
                 expected['network'] = [ self.body['network'] ]
-                #self.assertEqual(expected, obj['new_val'], "failed to attach network")
+                self.assertEqual(expected, obj['new_val'], "failed to attach network")
             elif step == 4: #turning vm on
                 expected['power_state'] = 'Running'
-                #self.assertEqual(expected, obj['new_val'], 'Failed to launch VM')
+                self.assertEqual(expected, obj['new_val'], 'Failed to launch VM')
                 ## grant launch access to group 1 & move to step 5
                 body_set = {'uuid': expected['uuid'], 'type': 'VM', 'group': '1', 'action': 'launch'}
-                client = AsyncHTTPClient()
+
 
                 #this line is influenced by http://www.tornadoweb.org/en/stable/testing.html#tornado.testing.gen_test
                 # regular self.fetch doesn't support a coroutine yield
                 res = yield self.http_client.fetch(self.get_url(r'/setaccess'), method='POST', body=urlencode(body_set), headers=self.headers)
                 self.assertEqual(res.code, 200, "John is unable to grant launch rights to his group")
-            elif step == 5: #checking access
-                pass
-                #print(obj)
-
-            print(obj)
-
-
+            elif step == 5: #checking state change
+                expected['access'].append({'userid' : 'groups/1', 'access' : ['launch']})
+                self.assertEqual(expected, obj['new_val'], "Failed to inspect VM state change after setting lauch rights to the group 1")
+            elif step == 6:
+                print(obj)
 
 
 
-            #if step in range(2, 5):
-            #    self.assertEqual('change', obj['type'], 'Message type must be change')
-            #    self.assertEqual('state', obj['changed'], 'This should be a state change')
+
+
+
+
+            if step in range(2, 5):
+                self.assertEqual('change', obj['type'], 'Message type must be change')
+                self.assertEqual('state', obj['changed'], 'This should be a state change')
 
             step += 1
-#            if step == len(descriptions):
- #               break
+            if step == len(descriptions):
+                break
 
 
 
