@@ -7,11 +7,12 @@ from urllib.parse import urlencode
 from base64 import decodebytes
 import pickle
 from tornado.web import create_signed_value
+import tornado.ioloop
 import pprint
 from sqlalchemy.exc import InvalidRequestError
 from authentication import DebugAuthenticator
 from time import sleep
-from utils import lists_to_sets
+from frozendict import frozendict
 
 settings_read = False
 '''
@@ -19,11 +20,28 @@ This test uses SQLAlchemy-based authenticator
 '''
 class VmEmperorTest(testing.AsyncHTTPTestCase):
 
+    def to_hashable(self, x):
+        if type(x) == dict:
+            return frozendict(x)
+        elif type(x) == list:
+            #return set((self.to_hashable(i) for i in x))
+            return frozenset(x)
+        else:
+            return x
+
+
+
+
     def check_lists_equality(self, first, second, msg=None):
         '''
         Return true if lists are equal as if they were unordered
         '''
-        return self.assertEqual(set(first), set(second), msg)
+
+        return self.assertEqual(self.to_hashable(first), self.to_hashable(second), msg)
+
+
+
+
 
 
 
@@ -31,6 +49,7 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
         super().__init__(methodName)
 
         self.addTypeEqualityFunc(list, self.check_lists_equality)
+        self.addTypeEqualityFunc(dict, self.check_lists_equality)
 
     @classmethod
     def setUpClass(cls):
@@ -39,6 +58,11 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
             read_settings()
             settings_read = True
         cls.executor = ThreadPoolExecutor(max_workers=opts.max_workers)
+
+        asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
+        from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator
+        cls.app = make_app(cls.executor, debug=True, auth_class=SqlAlchemyAuthenticator)
+        cls.event_loop = event_loop(cls.executor, opts.delay, cls.app.auth_class)
 
 
     def setUp(self):
@@ -49,25 +73,19 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
 
     def get_app(self):
 
-        if not hasattr(self, 'app'):
-            from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator
-            self.app = make_app(self.executor, debug=True, auth_class=SqlAlchemyAuthenticator)
-
-
-
         return self.app
 
     def get_new_ioloop(self):
-        self.get_app()
-        if not hasattr(self, 'event_loop'):
-            self.event_loop = event_loop(self.executor, opts.delay, self.app.auth_class)
-
         return self.event_loop
 
     @classmethod
     def tearDownClass(cls):
         from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator
         SqlAlchemyAuthenticator.session.close()
+        cls.event_loop.stop()
+        super().tearDownClass()
+
+
 
 
 
@@ -225,6 +243,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
     @tornado.testing.gen_test()
     def test_vmlist(self):
+
         '''
         This test opens a connection to vmlist, creates a new VM and tests if the
         behaviour of this method during createVM, access rights changing and destroying
@@ -232,7 +251,6 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
         TODO: determine which disk is attached in an independent way
         '''
-
 
         ws_url =  self.ws_url + "/vmlist"
 
@@ -248,7 +266,8 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
             'attaching network',
             'turning vm on',
             'granting rights to group 1',
-            'waiting for state change'
+            'waiting for VM to get added to group 1',
+            #'deleting VM',
         ]
         expected = {
                       'name_label' : self.body['name_label'],
@@ -309,14 +328,18 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
                 res = yield self.http_client.fetch(self.get_url(r'/setaccess'), method='POST', body=urlencode(body_set), headers=self.headers)
                 self.assertEqual(res.code, 200, "John is unable to grant launch rights to his group")
             elif step == 5: #checking state change
-                expected['access'].append({'userid' : 'groups/1', 'access' : ['launch']})
+                expected['access'].append( {'userid' : 'groups/1', 'access' : ['launch']})
+
                 self.assertEqual(expected, obj['new_val'], "Failed to inspect VM state change after setting lauch rights to the group 1")
             elif step == 6:
-                print(obj)
+                yield gen.sleep(2)
+                expected['type'] = 'add'
+                self.assertEqual(expected, obj, "Failed to inspect that VM is added as 'new' to the group 1's list")
 
-
-
-
+                body_set = {'uuid': expected['uuid']}
+                res = yield self.http_client.fetch(self.get_url(r'/destroyvm'), method='POST', body=urlencode(body_set),
+                                                   headers=self.headers)
+                self.assertEqual(res.code, 200, "John is unable to destroy machine")
 
 
 
@@ -327,6 +350,12 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
             step += 1
             if step == len(descriptions):
                 break
+
+        yield gen.sleep(2)
+        ws_client.close()
+        return
+
+
 
 
 

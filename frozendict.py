@@ -9,8 +9,11 @@ class frozendict(collections.UserDict):
         def list_to_frozenset(x):
             if issubclass(type(x), list) or issubclass(type(x), set):
                 return frozenset((list_to_frozenset(i) for i in x))
+            elif issubclass(type(x), dict):
+                return frozendict(x)
             else:
                 return x
+
 
         if d:
             d = d.copy()

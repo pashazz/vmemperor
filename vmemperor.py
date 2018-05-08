@@ -1,3 +1,4 @@
+import atexit
 from connman import ReDBConnection
 from auth import dummy
 from xenadapter import XenAdapter, XenAdapterPool
@@ -42,6 +43,7 @@ from frozendict import frozendict
 from authentication import AdministratorAuthenticator
 from tornado.websocket import *
 import asyncio
+from tornado.platform.asyncio import AnyThreadEventLoopPolicy
 #Objects with ACL enabled
 objects = [VM]
 
@@ -303,15 +305,18 @@ class VMList(BaseWSHandler):
                                                                                      {'changed': 'access'})))
 
             ioloop = tornado.ioloop.IOLoop.instance()
-            ioloop.add_callback(self.do_items_changes)
+            ioloop.run_in_executor(self.executor, self.items_changes)
+
 
 
     @gen.coroutine
     def do_items_changes(self):
-        yield self.items_changes()
+        #asyncio.set_event_loop(asyncio.new_event_loop())
+        #yield self.items_changes()
+        pass
 
 
-    @run_on_executor
+    #@run_on_executor
     def items_changes(self):
         '''
         Monitor for User table (access rules) items' changes with the following considerations:
@@ -557,9 +562,10 @@ class CreateVM(BaseHandler):
                                          self.hostname, self.mode, self.os_kind, self.ip_tuple, self.mirror_url,
                                          self.scenario_url, self.name_label, False, self.override_pv_args)
 
-                ioloop = tornado.ioloop.IOLoop.instance()
+                ioloop = tornado.ioloop.IOLoop.current()
                 self.uuid = vm.uuid
-                ioloop.add_callback(self.do_finalize_install)
+                #ioloop.add_callback(self.do_finalize_install)
+                ioloop.run_in_executor(self.executor, self.finalize_install)
 
 
 
@@ -575,7 +581,7 @@ class CreateVM(BaseHandler):
     def do_finalize_install(self):
         yield self.finalize_install()
 
-    @run_on_executor
+    #@run_on_executor
     def finalize_install(self):
         '''
         Watch if VM is halted and boot it once again. Update status accordingly
@@ -1143,6 +1149,7 @@ class EventLoop(Loggable):
         yield self.process_xen_events()
 
 
+
 def event_loop(executor, delay = 1000, authenticator=None, ioloop = None):
     if not ioloop:
         ioloop = tornado.ioloop.IOLoop.instance()
@@ -1150,7 +1157,8 @@ def event_loop(executor, delay = 1000, authenticator=None, ioloop = None):
     loop_object = EventLoop(executor, authenticator)
     #tornado.ioloop.PeriodicCallback(loop_object.vm_list_update, delay).start()  # read delay from ini
     ioloop.add_callback(loop_object.run_xen_queue)
-    ioloop.add_callback(loop_object.access_monitor)
+    future = ioloop.run_in_executor(executor, loop_object.do_access_monitor)
+
     return ioloop
 
 
@@ -1384,6 +1392,8 @@ def read_settings():
 
 def main():
     """ reads settings in ini configures and starts system"""
+    asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
+
     read_settings()
     executor = ThreadPoolExecutor(max_workers = 1024)
     app = make_app(executor)
