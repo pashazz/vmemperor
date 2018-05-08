@@ -22,15 +22,20 @@ class VM (AbstractVM):
 
         if event['class'] != 'vm':
             raise XenAdapterArgumentError(auth.xen.log, "this method accepts only 'vm' events")
+
+        if event['operation'] == 'del':
+            CHECK_ER(db.table('vms').get(event['ref']).delete().run())
+            return
+
         record = event['snapshot']
         if not cls.filter_record(record):
             return
         try:
             if event['operation'] in ('mod', 'add'):
                 new_rec = cls.process_record(auth, record)
+                new_rec['ref'] = event['ref']
                 CHECK_ER(db.table('vms').insert(new_rec, conflict='update').run())
-            elif event['operation'] == 'del':
-                CHECK_ER(db.table('vms').get(record['uuid']).delete().run())
+
         except XenAPI.Failure as f:
             if f.details == ["EVENTS_LOST"]:
                 auth.xen.log.warning("VM: Reregistering for events")
@@ -76,28 +81,26 @@ class VM (AbstractVM):
         new_rec['network'] = []
         for vif in record['VIFs']:
             net_ref = auth.xen.api.VIF.get_network(vif)
-            net_uuid = auth.xen.api.network.get_uuid(net_ref)
-            new_rec['network'].append(net_uuid)
+            new_rec['network'].append(net_ref)
 
         new_rec['disks'] = []
         for vbd in record['VBDs']:
             vdi_ref = auth.xen.api.VBD.get_VDI(vbd)
             try:
-                vdi_uuid = auth.xen.api.VDI.get_uuid(vdi_ref)
-                new_rec['disks'].append(vdi_uuid)
+                new_rec['disks'].append(vdi_ref)
             except XenAPI.Failure as f:
                 if f.details[1] != 'VDI':
                     raise f
         return new_rec
 
     @classmethod
-    def create(self, auth, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, scenario_url=None, name_label = '', start=True, override_pv_args=None):
+    def create(self, auth, new_vm_ref, sr_ref, net_ref, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, scenario_url=None, name_label = '', start=True, override_pv_args=None):
         '''
         Creates a virtual machine and installs an OS
 
-        :param new_vm_uuid: Cloned template UUID (use clone_templ)
-        :param sr_uuid: Storage Repository UUID
-        :param net_uuid: Network UUID
+        :param new_vm_ref: Cloned template ref (use clone_templ)
+        :param sr_ref: Storage Repository ref
+        :param net_ref: Network ref
         :param vdi_size: Size of disk
         :param hostname: Host name
         :param os_kind: OS kind (used for automatic installation. Default: manual installation)
@@ -109,11 +112,11 @@ class VM (AbstractVM):
         :param name_label: Name for created VM
         :param start: if True, start VM immediately
         :param override_pv_args: if specified, overrides all pv_args for Linux kernel
-        :return: VM UUID
+        :return: VM ref
         '''
-        #new_vm_uuid = self.clone_tmpl(tmpl_uuid, name_label, os_kind)
+        #new_vm_ref = self.clone_tmpl(tmpl_ref, name_label, os_kind)
 
-        vm = VM(auth, uuid=new_vm_uuid)
+        vm = VM(auth, ref=new_vm_ref)
         vm.install = True
         if isinstance(auth, BasicAuthenticator):
             vm.manage_actions('all',  user=auth.get_id())

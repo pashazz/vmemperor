@@ -293,7 +293,7 @@ class VMList(BaseWSHandler):
                     .merge({'changed':'state'}).union(
                     self.db.table('vms_user').get_all('users/%s' % userid, index='userid').without('id').
                     changes(include_types=True, include_initial=True).merge(r.branch(r.row['type'].eq(r.expr('initial')).or_(r.row['type'].eq(r.expr('add'))),
-                                                                                     self.db.table('vms').get(r.row['new_val']['uuid']),
+                                                                                     self.db.table('vms').get(r.row['new_val']['ref']),
                                                                                      {'changed': 'access'})))
 
                 for group in self.user_authenticator.get_user_groups():
@@ -301,7 +301,7 @@ class VMList(BaseWSHandler):
 
                     self.changes_query = self.changes_query.union(self.db.table('vms_user').get_all( 'groups/%s' % group, index='userid').without('id')
                                              .changes(include_types=True, include_initial=True).merge(r.branch(r.row['type'].eq(r.expr('initial')).or_(r.row['type']).eq(r.expr('add')),
-                                                                                     self.db.table('vms').get(r.row['new_val']['uuid']),
+                                                                                     self.db.table('vms').get(r.row['new_val']['ref']),
                                                                                      {'changed': 'access'})))
 
             ioloop = tornado.ioloop.IOLoop.instance()
@@ -329,7 +329,7 @@ class VMList(BaseWSHandler):
         '''
         conn = ReDBConnection().get_connection()
         with conn:
-            invalid_uuids = set()
+            invalid_refs = set()
             cur = None
             def create_cursor():
                 nonlocal cur
@@ -356,7 +356,7 @@ class VMList(BaseWSHandler):
                         if change['new_val']:
                             record = change['new_val']
                         elif change['type'] == 'remove':
-                            invalid_uuids.add(change['old_val']['uuid'])
+                            invalid_refs.add(change['old_val']['ref'])
                             record = change['old_val']
                         else:
                             record = change
@@ -376,7 +376,7 @@ class VMList(BaseWSHandler):
                     elif change['type'] == 'remove':
                         del change['new_val'] #always null
 
-                        if change['old_val']['uuid'] in invalid_uuids:
+                        if change['old_val']['ref'] in invalid_refs:
                             continue #filter out these 'junk' messages as the entry has already been removed from vms
 
 
@@ -423,7 +423,7 @@ class TemplateList(BaseHandler):
         """
         List of available templates
         format:
-        [{'uuid': template UUID,
+        [{'ref': template ref,
           'name_label': template human-readable name,
           'hvm': True if this is an HVM template, False if PV template
           },...]
@@ -446,7 +446,7 @@ class ISOList(BaseHandler):
         [{'location': 'file name or device file path',
           'name_description': 'human readable description',
           'name_label': file name OR device name if it's a real CD device,
-          'uuid': 'db199908-f133-4c7f-b06c-10ac2784ad5d'}]
+          'ref': 'db199908-f133-4c7f-b06c-10ac2784ad5d'}]
          """
 
         # read from db
@@ -465,9 +465,9 @@ class CreateVM(BaseHandler):
         """
         Create a new VM. Current user gets full permissions of newly created VM
         Arguments:
-        template - template UUID or name_label
-        storage - SR UUID
-        network - network UUID
+        template - template ref or name_label
+        storage - SR ref
+        network - network ref
         vdi_size - size of Virtual Disk Image to install OS on, in megabytes
         ram_size - size of virtual RAM
         hostname - VM hostname
@@ -487,14 +487,14 @@ class CreateVM(BaseHandler):
         override_pv_args: override all kernel command-line arguments in PV mode with this line, if specified
 
 
-        :return: UUID of newly created VM
+        :return: ref of newly created VM
 
         """
 
         try:
             tmpl_name = self.get_argument('template')
-            self.sr_uuid = self.get_argument('storage')
-            self.net_uuid = self.get_argument('network')
+            self.sr_ref = self.get_argument('storage')
+            self.net_ref = self.get_argument('network')
             self.vdi_size = self.get_argument('vdi_size')
             self.ram_size = self.get_argument('ram_size')
             self.hostname = self.get_argument('hostname')
@@ -508,12 +508,12 @@ class CreateVM(BaseHandler):
             db = r.db(opts.database)
             tmpls = db.table('tmpls').run()
             for tmpl in tmpls:
-                if tmpl['uuid'] == tmpl_name or \
+                if tmpl['ref'] == tmpl_name or \
                 tmpl['name_label'] == tmpl_name:
-                    tmpl_uuid = tmpl['uuid']
+                    tmpl_ref = tmpl['ref']
                     break
 
-            if not tmpl_uuid:
+            if not tmpl_ref:
                 raise ValueError('Wrong template name: {0}'.format(tmpl_name))
 
             self.os_kind = self.get_argument('os_kind', None)
@@ -558,21 +558,21 @@ class CreateVM(BaseHandler):
             self.log.info("Scenario URL generated: %s", self.scenario_url)
 
             def clone_post_hook(return_value, auth):
-                vm =  VM.create(auth, return_value, self.sr_uuid, self.net_uuid, self.vdi_size, self.ram_size,
+                vm =  VM.create(auth, return_value, self.sr_ref, self.net_ref, self.vdi_size, self.ram_size,
                                          self.hostname, self.mode, self.os_kind, self.ip_tuple, self.mirror_url,
                                          self.scenario_url, self.name_label, False, self.override_pv_args)
 
                 ioloop = tornado.ioloop.IOLoop.current()
-                self.uuid = vm.uuid
+                self.ref = vm.ref
                 #ioloop.add_callback(self.do_finalize_install)
                 ioloop.run_in_executor(self.executor, self.finalize_install)
 
 
 
             def do_clone(auth):
-                tmpl = Template(auth, uuid=tmpl_uuid)
+                tmpl = Template(auth, ref=tmpl_ref)
                 vm = tmpl.clone(self.name_label)
-                return vm.uuid
+                return vm.ref
 
 
             self.try_xenadapter(do_clone, post_hook=clone_post_hook)
@@ -593,23 +593,23 @@ class CreateVM(BaseHandler):
 
         conn = ReDBConnection().get_connection()
         with conn:
-            self.log.info("Finalizing installation of VM %s" % self.uuid)
+            self.log.info("Finalizing installation of VM %s" % self.ref)
             db = r.db(opts.database)
-            state = db.table('vms').get(self.uuid).pluck('power_state').run()['power_state']
+            state = db.table('vms').get(self.ref).pluck('power_state').run()['power_state']
             if state != 'Running':
-                auth.xen.insert_log_entry(self.uuid, 'failed', "failed to start VM for installation (low resources?). State: %s" % state)
+                auth.xen.insert_log_entry(self.ref, 'failed', "failed to start VM for installation (low resources?). State: %s" % state)
                 return
 
-            cur = db.table('vms').get(self.uuid).changes().run()
+            cur = db.table('vms').get(self.ref).changes().run()
             for change in cur:
                 if change['new_val']['power_state'] == 'Halted':
                     try:
-                        vm = VM(auth, uuid=self.uuid)
+                        vm = VM(auth, ref=self.ref)
                         vm.start_stop_vm(True)
                     except XenAdapterAPIError as e:
-                        auth.xen.insert_log_entry(self.uuid, "failed", "failed to start after installation: %s" % e.message)
+                        auth.xen.insert_log_entry(self.ref, "failed", "failed to start after installation: %s" % e.message)
                     else:
-                        auth.xen.insert_log_entry(self.uuid, "installed", "OS successfully installed")
+                        auth.xen.insert_log_entry(self.ref, "installed", "OS successfully installed")
                     break
 
 
@@ -637,9 +637,9 @@ class NetworkList(BaseHandler):
 class ConvertVM(BaseHandler):
     @auth_required
     def post(self):
-        vm_uuid =self.get_argument('uuid')
+        vm_ref =self.get_argument('ref')
         mode = self.get_argument('mode')
-        self.try_xenadapter(lambda auth: VM(auth, uuid=vm_uuid).convert(mode))
+        self.try_xenadapter(lambda auth: VM(auth, ref=vm_ref).convert(mode))
 
 class EnableDisableTemplate(BaseHandler):
     @auth_required
@@ -647,14 +647,14 @@ class EnableDisableTemplate(BaseHandler):
         """
          Enable or disable template
          Arguments:
-             uuid: VM UUID
+             ref: VM ref
              enable: True if template needs to be enabled
          """
-        uuid = self.get_argument('uuid')
+        ref = self.get_argument('ref')
         enable = self.get_argument('enable')
 
 
-        self.try_xenadapter( lambda auth: Template(auth, uuid=uuid).enable_disable(bool(enable)))
+        self.try_xenadapter( lambda auth: Template(auth, ref=ref).enable_disable(bool(enable)))
 
 
 
@@ -665,19 +665,19 @@ class AttachDetachDisk(BaseHandler):
         '''
         Attach or detach VDI from/to VM
         Arguments:
-            vm_uuid: VM UUID
-            vdi_uuid: VDI UUID
+            vm_ref: VM ref
+            vdi_ref: VDI ref
             enable: True if to attach disk, False if to detach.
         '''
         with self.conn:
-            vm_uuid = self.get_argument('vm_uuid')
-            vdi_uuid = self.get_argument('vdi_uuid')
+            vm_ref = self.get_argument('vm_ref')
+            vdi_ref = self.get_argument('vdi_ref')
             enable = self.get_argument('enable')
             def xen_call(auth):
                 if enable:
-                    return auth.xen.attach_disk(vm_uuid, vdi_uuid)
+                    return auth.xen.attach_disk(vm_ref, vdi_ref)
                 else:
-                    auth.xen.detach_disk(vm_uuid, vdi_uuid)
+                    auth.xen.detach_disk(vm_ref, vdi_ref)
 
             self.try_xenadapter(xen_call)
 
@@ -694,16 +694,16 @@ class ConnectVM(BaseHandler):
         '''
         Connect a VM to a Network. Requires permission "attach"
         Arguments:
-        vm_uuid: VM UUID
-        net_uuid: Network UUID
+        vm_ref: VM ref
+        net_ref: Network ref
         ip: undocumented. Lera?
         :return:
         '''
 
-        vm_uuid = self.get_argument('vm_uuid')
-        net_uuid = self.get_argument('net_uuid')
+        vm_ref = self.get_argument('vm_ref')
+        net_ref = self.get_argument('net_ref')
         ip = self.get_argument('ip', default=None)
-        self.try_xenadapter(lambda : xen.connect_vm(vm_uuid, net_uuid, ip))
+        self.try_xenadapter(lambda : xen.connect_vm(vm_ref, net_ref, ip))
 
 
 class AnsibleHooks:
@@ -716,15 +716,15 @@ class VMAbstractHandler(BaseHandler):
     Abstact handler for VM requests
     requires: function self.get_data returning something we can write
               attribute self.access - access mode
-    provides: self.uuid <- vm_uuid
+    provides: self.ref <- vm_ref
 
     '''
     @auth_required
     def post(self):
-        vm_uuid = self.get_argument('uuid')
-        self.uuid = vm_uuid
+        vm_ref = self.get_argument('ref')
+        self.ref = vm_ref
         try:
-            self.vm = VM(self.user_authenticator, uuid=vm_uuid)
+            self.vm = VM(self.user_authenticator, ref=vm_ref)
         except XenAdapterAPIError as e:
             self.set_status(400)
             self.write({'status' : 'bad request', 'message' : e.message})
@@ -749,7 +749,7 @@ class SetAccessHandler(BaseHandler):
     @auth_required
     def post(self):
         with self.conn:
-            uuid = self.get_argument('uuid')
+            ref = self.get_argument('ref')
             type = self.get_argument('type')
             action = self.get_argument('action')
             revoke = self.get_argument('revoke', False)
@@ -769,7 +769,7 @@ class SetAccessHandler(BaseHandler):
                 return
 
             try:
-                self.target = type_obj(self.user_authenticator, uuid=uuid)
+                self.target = type_obj(self.user_authenticator, ref=ref)
                 self.target.check_access(action)
                 self.target.manage_actions(action, revoke, user, group)
             except XenAdapterAPIError as e:
@@ -786,7 +786,7 @@ class GetAccessHandler(BaseHandler):
     def post(self):
         with self.conn:
 
-            uuid = self.get_argument('uuid')
+            ref = self.get_argument('ref')
             type = self.get_argument('type')
             type_obj = None
             for obj in objects:
@@ -798,7 +798,7 @@ class GetAccessHandler(BaseHandler):
                 self.write({'status': 'bad request', 'message': 'invalid type: %s' % type})
                 return
             try:
-                type_obj(self.user_authenticator, uuid=uuid).check_access(None)
+                type_obj(self.user_authenticator, ref=ref).check_access(None)
             except XenAdapterAPIError as e:
                 self.set_status(400)
                 self.write({'status': 'bad request', 'message': e.message})
@@ -810,7 +810,7 @@ class GetAccessHandler(BaseHandler):
                 return
 
             db = r.db(opts.database)
-            self.write(db.table(type_obj.db_table_name).get(uuid).pluck('access').run())
+            self.write(db.table(type_obj.db_table_name).get(ref).pluck('access').run())
 
 
 
@@ -822,7 +822,7 @@ class InstallStatus(VMAbstractHandler):
     def get_data(self):
         db = r.db(opts.database)
         try:
-            d = db.table('vm_logs').filter({'uuid': self.uuid}).max('time').run()
+            d = db.table('vm_logs').filter({'ref': self.ref}).max('time').run()
             d['time'] = d['time'].isoformat()
             return d
         except:
@@ -837,7 +837,7 @@ class VMInfo(VMAbstractHandler):
     def get_data(self):
         db = r.db(opts.database)
         try:
-            d = db.table('vms').get(self.uuid).run()
+            d = db.table('vms').get(self.ref).run()
             return d
         except:
             self.set_status(500)
@@ -849,23 +849,23 @@ class DestroyVM(VMAbstractHandler):
     access = 'destroy'
 
     def get_data(self):
-        uuid = self.get_argument('uuid')
+        ref = self.get_argument('ref')
 
-        self.try_xenadapter(lambda auth: VM(auth, uuid=uuid).destroy_vm())
+        self.try_xenadapter(lambda auth: VM(auth, ref=ref).destroy_vm())
 
 class StartStopVM(VMAbstractHandler):
 
     access = 'launch'
 
     def get_data(self):
-        uuid = self.get_argument('uuid')
+        ref = self.get_argument('ref')
         enable = self.get_argument('enable')
         if enable not in ('True', 'False'):
             self.set_status(400)
             self.write({'status': 'invalid enable value: expected True/False'})
             return
 
-        self.try_xenadapter(lambda auth: VM(auth, uuid=uuid).start_stop_vm(enable == 'True'))
+        self.try_xenadapter(lambda auth: VM(auth, ref=ref).start_stop_vm(enable == 'True'))
 
 
 class VNC(VMAbstractHandler):
@@ -876,14 +876,14 @@ class VNC(VMAbstractHandler):
         '''
         Get VNC console url that supports HTTP CONNECT method. Requires permission 'launch'
         Arguments:
-            uuid: VM UUID
+            ref: VM ref
 
         '''
 
-        vm_uuid = self.get_argument('uuid')
+        vm_ref = self.get_argument('ref')
 
         def get_vnc(auth: BasicAuthenticator):
-            url = VM(auth, uuid=vm_uuid).get_vnc()
+            url = VM(auth, ref=vm_ref).get_vnc()
             url_splitted = list(urlsplit(url))
             url_splitted[0] = 'http'
             url_splitted[1] = opts.vmemperor_url + ":" + str(opts.vmemperor_port)
@@ -901,13 +901,13 @@ class AttachDetachIso(VMAbstractHandler):
         '''
         Attach/detach ISO from/to vm
         Arguments:
-            uuid: VM UUID
-            iso_uuid: ISO UUID
+            ref: VM ref
+            iso_ref: ISO ref
             action: 'attach' or 'detach'
         :return:
         '''
-        self.log.info("check if ISO UUID is valid")
-        iso_uuid = self.get_argument('iso_uuid')
+        self.log.info("check if ISO ref is valid")
+        iso_ref = self.get_argument('iso_ref')
         action = self.get_argument('action')
         if action == 'attach':
             is_attach = True
@@ -920,11 +920,11 @@ class AttachDetachIso(VMAbstractHandler):
             return
 
         db = r.db(opts.database)
-        res = db.table('isos').get(iso_uuid).run()
+        res = db.table('isos').get(iso_ref).run()
         if res:
-            self.log.info("UUID %s valid, attaching/detaching..." % iso_uuid)
+            self.log.info("ref %s valid, attaching/detaching..." % iso_ref)
             def attach(auth : BasicAuthenticator):
-                iso = ISO(uuid=iso_uuid, auth=auth)
+                iso = ISO(ref=iso_ref, auth=auth)
                 if is_attach:
                     iso.attach(self.vm)
                 else:
@@ -933,9 +933,9 @@ class AttachDetachIso(VMAbstractHandler):
 
             self.try_xenadapter(attach)
         else:
-            self.log.info("UUID %s invalid, not attaching..." % iso_uuid)
+            self.log.info("ref %s invalid, not attaching..." % iso_ref)
             self.set_status(400)
-            self.write({'status':'error', 'message': 'invalid UUID iso_uuid'})
+            self.write({'status':'error', 'message': 'invalid ref iso_ref'})
             return
 
 
@@ -968,7 +968,7 @@ class EventLoop(Loggable):
             if 'vms' in tables:
                 self.db.table('vms').delete().run()
             if 'vms' not in tables:
-                self.db.table_create('vms', durability='soft', primary_key='uuid').run()
+                self.db.table_create('vms', durability='soft', primary_key='ref').run()
                 vms = VM.init_db(authenticator)
                 CHECK_ER(self.db.table('vms').insert(vms, conflict='error').run())
                 #self.db.table('vms').index_create('user').run()
@@ -980,7 +980,7 @@ class EventLoop(Loggable):
 
 
             if 'isos' not in tables:
-                self.db.table_create('isos', durability='soft', primary_key='uuid').run()
+                self.db.table_create('isos', durability='soft', primary_key='ref').run()
                 isos = ISO.init_db(authenticator)
                 #isos = self.xen.list_isos()
                 CHECK_ER(self.db.table('isos').insert(isos, conflict='error').run())
@@ -990,7 +990,7 @@ class EventLoop(Loggable):
                 CHECK_ER(self.db.table('isos').insert(isos, conflict='update').run())
 
             if 'tmpls' not in tables:
-                self.db.table_create('tmpls', durability='soft', primary_key='uuid').run()
+                self.db.table_create('tmpls', durability='soft', primary_key='ref').run()
             #    tmpls = self.xen.list_templates().values()
                 tmpls = Template.init_db(authenticator)
                 CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='error').run())
@@ -999,14 +999,14 @@ class EventLoop(Loggable):
                 tmpls = Template.init_db(authenticator)
                 CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='update').run())
           #  if 'pools' not in tables:
-          #      self.db.table_create('pools', durability='soft', primary_key='uuid').run()
+          #      self.db.table_create('pools', durability='soft', primary_key='ref').run()
           #      pools = self.xen.list_pools().values()
           #      CHECK_ER(self.db.table('pools').insert(list(pools), conflict='error').run())
           #  else:
           #      pools = self.xen.list_pools().values()
           #      CHECK_ER(self.db.table('pools').insert(list(pools), conflict='update').run())
             if 'nets' not in tables:
-                self.db.table_create('nets', durability='soft', primary_key='uuid').run()
+                self.db.table_create('nets', durability='soft', primary_key='ref').run()
                 nets = Network.init_db(authenticator)
                 CHECK_ER(self.db.table('nets').insert(list(nets), conflict='error').run())
             else:
@@ -1022,7 +1022,7 @@ class EventLoop(Loggable):
         conn = ReDBConnection().get_connection()
         log = self.create_additional_log('AccessMonitor')
         with conn:
-            query = self.db.table(objects[0].db_table_name).pluck('uuid', 'access')\
+            query = self.db.table(objects[0].db_table_name).pluck('ref', 'access')\
                 .merge({'table' : objects[0].db_table_name}).changes()
 
             table_list = self.db.table_list().run()
@@ -1035,17 +1035,17 @@ class EventLoop(Loggable):
 
 
                 self.db.table_create(table_user, durability='soft').run()
-                self.db.table(table_user).index_create('uuid_and_userid', [r.row['uuid'], r.row['userid']]).run()
-                self.db.table(table_user).index_wait('uuid_and_userid').run()
+                self.db.table(table_user).index_create('ref_and_userid', [r.row['ref'], r.row['userid']]).run()
+                self.db.table(table_user).index_wait('ref_and_userid').run()
                 self.db.table(table_user).index_create('userid', r.row['userid']).run()
                 self.db.table(table_user).index_wait('userid').run()
                 # no need yet
-                #self.db.table(table_user).index_create('uuid', r.row['uuid']).run()
-                #self.db.table(table_user).index_wait('uuid').run()
+                #self.db.table(table_user).index_create('ref', r.row['ref']).run()
+                #self.db.table(table_user).index_wait('ref').run()
 
                 CHECK_ER(self.db.table(table_user).insert(
-                    self.db.table(table).pluck('access', 'uuid').filter(r.row['access'] != []).\
-                    concat_map(lambda acc: acc['access'].merge({'uuid':acc['uuid']}))).run())
+                    self.db.table(table).pluck('access', 'ref').filter(r.row['access'] != []).\
+                    concat_map(lambda acc: acc['access'].merge({'ref':acc['ref']}))).run())
 
 
             i = 0
@@ -1053,7 +1053,7 @@ class EventLoop(Loggable):
                 initial_merge(objects[i].db_table_name)
 
                 if i > 0:
-                    query.union(self.db.table(objects[i].db_table_name).pluck('uuid', 'access')\
+                    query.union(self.db.table(objects[i].db_table_name).pluck('ref', 'access')\
                                     .merge({'table': objects[i].db_table_name}).changes())
                 i += 1
 
@@ -1061,14 +1061,14 @@ class EventLoop(Loggable):
             user_table_ready.set()
             cur = query.run()
 
-            def uuid_delete(table_user, uuid):
-                self.db.table(table_user).filter({'uuid' : uuid}).delete().run()
+            def ref_delete(table_user, ref):
+                self.db.table(table_user).filter({'ref' : ref}).delete().run()
 
 
             for record in cur:
 
                 if record['new_val']: #edit
-                    uuid = record['new_val']['uuid']
+                    ref = record['new_val']['ref']
                     table = record['new_val']['table']
                     access = record['new_val']['access']
                     table_user = table + '_user'
@@ -1079,26 +1079,26 @@ class EventLoop(Loggable):
                             set((frozendict(x) for x in record['old_val']['access'])) -\
                              set((frozendict(x) for x in access))
                         for item in access_to_remove:
-                            CHECK_ER(self.db.table(table_user).get([record['old_val']['uuid'], item['userid']], index='uuid_and_userid').delete().run())
-                    log.info("Modifying access rights for %s (table %s): %s" % (uuid, table, json.dumps(access)))
+                            CHECK_ER(self.db.table(table_user).get([record['old_val']['ref'], item['userid']], index='ref_and_userid').delete().run())
+                    log.info("Modifying access rights for %s (table %s): %s" % (ref, table, json.dumps(access)))
                     if not record['old_val']:
                         for item in access:
-                            CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid' : uuid})).run())
+                            CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'ref' : ref})).run())
                     else:
                         access_diff = set((frozendict(x) for x in access)) -\
                                       set((frozendict(x) for x in record['old_val']['access']))
 
                         for item in access_diff:
-                            CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid' : uuid} )).run())
+                            CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'ref' : ref} )).run())
 
 
 
                 else:
-                    uuid = record['old_val']['uuid']
+                    ref = record['old_val']['ref']
                     table = record['old_val']['table']
                     table_user = table + '_user'
-                    log.info("Deleting access rights for %s (table %s)" % (uuid, table))
-                    uuid_delete(table_user, uuid)
+                    log.info("Deleting access rights for %s (table %s)" % (ref, table))
+                    ref_delete(table_user, ref)
 
             return
 
@@ -1113,13 +1113,23 @@ class EventLoop(Loggable):
 
         self.authenticator.xen = XenAdapterPool().get()
         xen = self.authenticator.xen
+        event_types = ["*"]
+        token_from = ''
+        timeout=1.0
+
         xen.api.event.register(["*"])
         conn = ReDBConnection().get_connection()
         with conn:
+
+
             while True:
                 #pass
                 try:
-                    for event in xen.api.event.next():
+                    event_from_ret = xen.api.event_from(event_types, token_from, timeout)
+                    events = event_from_ret['events']
+                    token_from = event_from_ret['token']
+
+                    for event in events:
                         if (opts.log_events and event['class'] in opts.log_events.split(',')) or not opts.log_events:
                             self.log.info("Event: %s" % json.dumps(event, cls=DateTimeEncoder))
                         #similarly to list_vms -> process
