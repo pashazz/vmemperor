@@ -384,7 +384,7 @@ class VMList(BaseWSHandler):
                     elif change['type'] == 'remove':
                         del change['new_val'] #always null
 
-                        if change['old_val']['uuid'] in invalid_uuids:
+                        if change['old_val']['uuid'] in invalid_uuids and change['changed'] == 'access':
                             continue #filter out these 'junk' messages as the entry has already been removed from vms
 
 
@@ -610,12 +610,15 @@ class CreateVM(BaseHandler):
             cur = db.table('vms').get(self.uuid).changes().run()
             while True:
                 try:
-                    change = cur.next(False)
+                    change = cur.next(wait=1)
                 except ReqlTimeoutError:
                     if need_exit.is_set():
                         return
                     else:
                         continue
+                except ReqlDriverError as e:
+                    self.log.error("ReQL error while trying to retreive VM {1} install status: {0}".format(e, self.uuid))
+                    return
 
                 if change['new_val']['power_state'] == 'Halted':
                     try:
@@ -840,8 +843,9 @@ class InstallStatus(VMAbstractHandler):
             d = db.table('vm_logs').filter({'uuid': self.uuid}).max('time').run()
             d['time'] = d['time'].isoformat()
             return d
-        except:
+        except Exception as e:
             self.set_status(500)
+            self.log.error("Unable to get VM installation logs: uuid: {0}, error: {1}".format(self.uuid, e))
             self.write({'status': 'database error/no info'})
             return
 
@@ -1078,7 +1082,7 @@ class EventLoop(Loggable):
             cur = query.run()
 
             def uuid_delete(table_user, uuid):
-                self.db.table(table_user).filter({'uuid' : uuid}).delete().run()
+                CHECK_ER(self.db.table(table_user).filter({'uuid' : uuid}).delete().run())
 
 
             while True:
@@ -1145,7 +1149,6 @@ class EventLoop(Loggable):
 
 
             while True:
-                # pass
                 try:
                     if need_exit.is_set():
                         return

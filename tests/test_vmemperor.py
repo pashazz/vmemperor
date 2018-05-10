@@ -255,7 +255,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         ws_url =  self.ws_url + "/vmlist"
 
         ws_client = yield websocket_connect(HTTPRequest(url=ws_url, headers=self.headers))
-
+        
 
 
         step = 0
@@ -267,7 +267,9 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
             'turning vm on',
             'granting rights to group 1',
             'waiting for VM to get added to group 1',
-            #'deleting VM',
+            'deleting VM... waiting for VM to be halted',
+            'deleting VM... waiting for VM to be deleted',
+
         ]
         expected = {
                       'name_label' : self.body['name_label'],
@@ -333,26 +335,44 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
                 self.assertEqual(expected, obj['new_val'], "Failed to inspect VM state change after setting lauch rights to the group 1")
             elif step == 6:
-                yield gen.sleep(2)
+
                 expected['type'] = 'add'
                 self.assertEqual(expected, obj, "Failed to inspect that VM is added as 'new' to the group 1's list")
-
+                yield gen.sleep(2)
                 body_set = {'uuid': expected['uuid']}
                 res = yield self.http_client.fetch(self.get_url(r'/destroyvm'), method='POST', body=urlencode(body_set),
                                                    headers=self.headers)
                 self.assertEqual(res.code, 200, "John is unable to destroy machine")
+            elif step == 7:
+                del expected['type']
+                expected['power_state'] = 'Halted'
+                self.assertEqual(expected, obj['new_val'], "Failed to inspect that VM is halted after destroyvm")
+            elif step == 8:
+                self.assertEqual(expected, obj['old_val'], "Failed to inspect VM is deleted")
+                self.assertEqual('state', obj['changed'])
+                self.assertEqual('remove', obj['type'])
+            elif step == 9:
+                print(obj)
 
 
 
-            if step in range(2, 5):
+
+
+
+            if step in range(2, 6) or step in range(7,8):
                 self.assertEqual('change', obj['type'], 'Message type must be change')
                 self.assertEqual('state', obj['changed'], 'This should be a state change')
+
+
+
+
+
 
             step += 1
             if step == len(descriptions):
                 break
 
-        yield gen.sleep(2)
+        yield gen.sleep(1)
         ws_client.close()
         return
 
