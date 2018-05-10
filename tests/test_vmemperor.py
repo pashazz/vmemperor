@@ -303,6 +303,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
             print(descriptions[step])
 
             if step == 1:
+                expected['ref'] = obj['ref'] # ref should be set on step one and be constant
                 self.assertEqual(expected, obj, "failed to create vm")
                 del expected['type'] # from now on we will compare expected with obj['new_val'] and 'new_val' does not have 'type' field
                 #type field is always on outermost level

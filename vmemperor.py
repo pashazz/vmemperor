@@ -24,7 +24,7 @@ from urllib.parse import urlparse
 import base64
 import pickle
 import rethinkdb as r
-from rethinkdb.errors import ReqlDriverError
+from rethinkdb.errors import ReqlDriverError, ReqlTimeoutError
 from authentication import BasicAuthenticator
 from loggable import Loggable
 from pathlib import Path
@@ -38,6 +38,7 @@ import queue
 import threading
 import datetime
 
+
 from xmlrpc.client import DateTime as xmldt
 from frozendict import frozendict
 from authentication import AdministratorAuthenticator
@@ -48,7 +49,7 @@ from tornado.platform.asyncio import AnyThreadEventLoopPolicy
 objects = [VM]
 
 user_table_ready = threading.Event()
-
+need_exit = threading.Event()
 def table_drop(db, table_name):
     try:
         db.table_drop(table_name).run()
@@ -309,14 +310,7 @@ class VMList(BaseWSHandler):
 
 
 
-    @gen.coroutine
-    def do_items_changes(self):
-        #asyncio.set_event_loop(asyncio.new_event_loop())
-        #yield self.items_changes()
-        pass
 
-
-    #@run_on_executor
     def items_changes(self):
         '''
         Monitor for User table (access rules) items' changes with the following considerations:
@@ -329,6 +323,7 @@ class VMList(BaseWSHandler):
         '''
         conn = ReDBConnection().get_connection()
         with conn:
+
             invalid_uuids = set()
             cur = None
             def create_cursor():
@@ -348,9 +343,22 @@ class VMList(BaseWSHandler):
             self.log.debug('Changes query: {0}'.format(self.changes_query))
             create_cursor()
             self.cur = cur
-            for change in cur:
-                if not self.ws_connection:
+
+
+            while True:
+                try:
+                    change = cur.next(False)
+                except ReqlTimeoutError as e: #Monitor if we need to exit
+                    if not self.ws_connection or need_exit.is_set():
+                        return
+                    else:
+                        continue
+
+
+                if not self.ws_connection or need_exit.is_set():
                     return
+
+
                 if not isinstance(self.user_authenticator, AdministratorAuthenticator):
                     if 'changed' in change and change['changed'] == 'state': #Here we may have entries that we have to filter by user/group
                         if change['new_val']:
@@ -384,7 +392,6 @@ class VMList(BaseWSHandler):
 
                 self.write_message(json.dumps(change))
 
-            return
 
     def on_close(self):
         if hasattr(self, 'cur'):
@@ -601,7 +608,15 @@ class CreateVM(BaseHandler):
                 return
 
             cur = db.table('vms').get(self.uuid).changes().run()
-            for change in cur:
+            while True:
+                try:
+                    change = cur.next(False)
+                except ReqlTimeoutError:
+                    if need_exit.is_set():
+                        return
+                    else:
+                        continue
+
                 if change['new_val']['power_state'] == 'Halted':
                     try:
                         vm = VM(auth, uuid=self.uuid)
@@ -1066,7 +1081,14 @@ class EventLoop(Loggable):
                 self.db.table(table_user).filter({'uuid' : uuid}).delete().run()
 
 
-            for record in cur:
+            while True:
+                try:
+                    record = cur.next(False)
+                except ReqlTimeoutError as e:
+                    if need_exit.is_set():
+                        return
+                    else:
+                        continue
 
                 if record['new_val']: #edit
                     uuid = record['new_val']['uuid']
@@ -1107,29 +1129,39 @@ class EventLoop(Loggable):
     def access_monitor(self):
         yield self.do_access_monitor()
 
-
     @run_on_executor
     def process_xen_events(self):
-        from XenAPI import  Failure
+        from XenAPI import Failure
 
         self.authenticator.xen = XenAdapterPool().get()
         xen = self.authenticator.xen
-        xen.api.event.register(["*"])
+        event_types = ["*"]
+        token_from = ''
+        timeout = 1.0
+
+        xen.api.event.register(event_types)
         conn = ReDBConnection().get_connection()
         with conn:
+
+
             while True:
-                #pass
+                # pass
                 try:
-                    for event in xen.api.event.next():
+                    if need_exit.is_set():
+                        return
+
+                    event_from_ret = xen.api.event_from(event_types, token_from, timeout)
+                    events = event_from_ret['events']
+                    token_from = event_from_ret['token']
+
+                    for event in events:
                         if (opts.log_events and event['class'] in opts.log_events.split(',')) or not opts.log_events:
                             self.log.info("Event: %s" % json.dumps(event, cls=DateTimeEncoder))
-                        #similarly to list_vms -> process
+                        # similarly to list_vms -> process
                         if event['class'] == 'vm':
-                            ev_class = VM # use methods filter_record, process_record (classmethods)
-                        else: # Implement ev_classes for all types of events
+                            ev_class = VM  # use methods filter_record, process_record (classmethods)
+                        else:  # Implement ev_classes for all types of events
                             continue
-
-
 
                         ev_class.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
 
@@ -1138,12 +1170,9 @@ class EventLoop(Loggable):
 
 
                 except Failure as f:
-                    if f.details == [ "EVENTS_LOST" ]:
-                       self.log.warning("Reregistering for events")
-                       xen.api.event.register(["*"])
-
-
-
+                    if f.details == ["EVENTS_LOST"]:
+                        self.log.warning("Reregistering for events")
+                        xen.api.event.register(event_types)
 
     @gen.coroutine
     def run_xen_queue(self):
@@ -1390,6 +1419,11 @@ def read_settings():
     file_path = path.join(path.dirname(path.realpath(__file__)), 'login.ini')
     parse_config_file(file_path)
     ReDBConnection().set_options(opts.host, opts.port)
+
+    def on_exit():
+        need_exit.set()
+
+    atexit.register(on_exit)
 
 def main():
     """ reads settings in ini configures and starts system"""
