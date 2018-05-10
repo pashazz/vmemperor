@@ -971,27 +971,27 @@ class EventLoop(Loggable):
                 self.db.table_create('vms', durability='soft', primary_key='uuid').run()
                 vms = VM.init_db(authenticator)
                 CHECK_ER(self.db.table('vms').insert(vms, conflict='error').run())
-                #self.db.table('vms').index_create('user').run()
-                #self.db.table('vms').index_wait('user').run()
+
             else:
                 vms = VM.init_db(authenticator)
                 CHECK_ER(self.db.table('vms').insert(vms, conflict='update').run())
 
-
+            self.db.table('vms').index_create('ref').run()
+            self.db.table('vms').index_wait('ref').run()
 
             if 'isos' not in tables:
                 self.db.table_create('isos', durability='soft', primary_key='uuid').run()
                 isos = ISO.init_db(authenticator)
-                #isos = self.xen.list_isos()
+
                 CHECK_ER(self.db.table('isos').insert(isos, conflict='error').run())
             else:
                 isos = ISO.init_db(authenticator)
-                #isos = self.xen.list_isos()
+
                 CHECK_ER(self.db.table('isos').insert(isos, conflict='update').run())
 
             if 'tmpls' not in tables:
                 self.db.table_create('tmpls', durability='soft', primary_key='uuid').run()
-            #    tmpls = self.xen.list_templates().values()
+
                 tmpls = Template.init_db(authenticator)
                 CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='error').run())
             else:
@@ -1031,6 +1031,7 @@ class EventLoop(Loggable):
                 table_user = table + '_user'
                 if table_user in table_list:
                     self.db.table_drop(table_user).run()
+
 
 
 

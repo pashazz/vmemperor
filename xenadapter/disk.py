@@ -121,8 +121,9 @@ class ISO(XenObject, Attachable):
         return iso_dict
 
     @classmethod
-    def process_record(cls, xen, record):
-        fields = {'uuid', 'name_label', 'name_description', 'location'}
+    def process_record(cls, auth, ref, record):
+        record = super().process_record(auth, ref, record)
+        fields = ['uuid', 'name_label', 'name_description', 'location', 'ref']
         return  {key: value for key, value in record.items() if key in fields}
 
     def attach(self, vm : VM) -> VBD:

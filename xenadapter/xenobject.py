@@ -77,14 +77,15 @@ class XenObject(metaclass=XenObjectMeta):
         pass
 
     @classmethod
-    def process_record(cls, auth, record):
+    def process_record(cls, auth, ref, record):
         '''
         Used by init_db. Should return dict with info that is supposed to be stored in DB
         :param auth: current authenticator
         :param record:
         :return: dict suitable for document-oriented DB
-        : default: return record as-is
+        : default: return record as-is, adding a 'ref' field with current opaque ref
         '''
+        record['ref'] = ref
         return record
 
     @classmethod
@@ -104,7 +105,7 @@ class XenObject(metaclass=XenObjectMeta):
 
     @classmethod
     def init_db(cls, auth):
-        return [cls.process_record(auth, record) for record in cls.get_all_records(auth.xen).values()]
+        return [cls.process_record(auth, ref, record) for ref, record in cls.get_all_records(auth.xen).items()]
 
 
 

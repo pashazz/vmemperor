@@ -13,8 +13,10 @@ class Template(AbstractVM):
         return record['is_a_template']
 
     @classmethod
-    def process_record(self, auth, record):
-        keys = ['hvm', 'name_label', 'uuid']
+    def process_record(self, auth, ref, record):
+        record = super().process_record(auth, ref, record)
+
+        keys = ['hvm', 'name_label', 'uuid', 'ref']
         new_rec = {k: v for k, v in record.items() if k in keys}
         if record['HVM_boot_policy'] == '':
             new_rec['hvm'] = False

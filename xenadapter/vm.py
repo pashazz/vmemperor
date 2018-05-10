@@ -22,15 +22,19 @@ class VM (AbstractVM):
 
         if event['class'] != 'vm':
             raise XenAdapterArgumentError(auth.xen.log, "this method accepts only 'vm' events")
+
+        if event['operation'] == 'del':
+            CHECK_ER(db.table('vms').get_all(event['ref'], index='ref').delete().run())
+            return
+
         record = event['snapshot']
         if not cls.filter_record(record):
             return
         try:
             if event['operation'] in ('mod', 'add'):
-                new_rec = cls.process_record(auth, record)
+                new_rec = cls.process_record(auth, event['ref'], record)
                 CHECK_ER(db.table('vms').insert(new_rec, conflict='update').run())
-            elif event['operation'] == 'del':
-                CHECK_ER(db.table('vms').get(record['uuid']).delete().run())
+
         except XenAPI.Failure as f:
             if f.details == ["EVENTS_LOST"]:
                 auth.xen.log.warning("VM: Reregistering for events")
@@ -62,15 +66,14 @@ class VM (AbstractVM):
         return not (record['is_a_template'] or record['is_control_domain'])
 
     @classmethod
-    def process_record(cls, auth,  record):
+    def process_record(cls, auth, ref, record):
         '''
         Creates a (shortened) dict record from long XenServer record. If no record could be created, return false
         :param record:
         :return:
         '''
-        if not cls.filter_record(record):
-            return False
-        keys = ['power_state', 'name_label', 'uuid']
+        record = super().process_record(auth, ref, record)
+        keys = ['power_state', 'name_label', 'uuid', 'ref']
         new_rec = {k: v for k, v in record.items() if k in keys}
         new_rec['access'] = cls.process_xenstore(record['xenstore_data'], auth.__name__)
         new_rec['network'] = []
