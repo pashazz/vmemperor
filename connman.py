@@ -22,7 +22,7 @@ class ReDBConnection(Loggable, metaclass=singleton.Singleton):
     def _get_new_connection(self):
         class Connection:
             def __enter__(myself):
-                if not hasattr(myself, 'conn') or not myself.conn.is_open():
+                if not hasattr(myself, 'conn') or not myself.conn  or not myself.conn.is_open():
                     myself.conn = r.connect(self.host, self.port,self.db, user=self.user, password=self.password)
                     self.log.info("Connecting using connection: {0}".format(myself))
 
@@ -48,6 +48,10 @@ class ReDBConnection(Loggable, metaclass=singleton.Singleton):
         try:
             conn =  self.conn_queue.get_nowait()
             self.log.info("Getting connection from Queue: {0}".format(conn))
+            if not conn.conn.is_open():
+                self.log.warn("Connection from queue is not opened, skipping")
+                return self._get_new_connection()
+
             return conn
         except queue.Empty:
             self.log.info("No connections in Queue, creating a new one...")

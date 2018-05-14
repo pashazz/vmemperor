@@ -157,6 +157,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         #    res = self.fetch(r'/createvm', method='POST', body=urlencode(body))
         #    self.assertEqual(res.code, 200)
         cls.body = config._sections['ubuntu']
+        cls.body['name_label'] = cls.body['name_label'] + ' ' + datetime.datetime.now().strftime('%D %H:%M:%S')
 
 
     def setUp(self):
@@ -255,18 +256,23 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         ws_url =  self.ws_url + "/vmlist"
 
         ws_client = yield websocket_connect(HTTPRequest(url=ws_url, headers=self.headers))
-        
+
 
 
         step = 0
         descriptions = [
-            'we will create a new vm',
-            'creating vm',
-            'attaching disk',
-            'attaching network',
-            'turning vm on',
-            'granting rights to group 1',
-            'waiting for VM to get added to group 1',
+            'we will create a new vm', #0
+            'creating vm', #1
+            'attaching disk', #2
+            'attaching network', #3
+            'turning vm on', #4
+            'granting launch rights to group 1', #5
+            'waiting for VM to get added to group 1', #6
+            'granting destroy rights to group 1', #7
+            'revoking destroy rights from group 1', #8
+            'revoking launch rights from group 1', #9
+            'checking that VM is removed from group 1', #10
+
             'deleting VM... waiting for VM to be halted',
             'deleting VM... waiting for VM to be deleted',
 
@@ -287,7 +293,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
                   }
         # step 0 is performed before the loop
-        if len(descriptions) < step:
+        if len(descriptions) > step:
             print(descriptions[step])
         expected['uuid'] = yield self.createvm_gen()
         step += 1
@@ -330,30 +336,70 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
                 # regular self.fetch doesn't support a coroutine yield
                 res = yield self.http_client.fetch(self.get_url(r'/setaccess'), method='POST', body=urlencode(body_set), headers=self.headers)
                 self.assertEqual(res.code, 200, "John is unable to grant launch rights to his group")
-            elif step == 5: #checking state change
+            elif step == 5: #launch to group 1
                 expected['access'].append( {'userid' : 'groups/1', 'access' : ['launch']})
-
                 self.assertEqual(expected, obj['new_val'], "Failed to inspect VM state change after setting lauch rights to the group 1")
-            elif step == 6:
+            elif step == 6: #new vm is added to group 1
 
                 expected['type'] = 'add'
                 self.assertEqual(expected, obj, "Failed to inspect that VM is added as 'new' to the group 1's list")
-                yield gen.sleep(2)
-                body_set = {'uuid': expected['uuid']}
-                res = yield self.http_client.fetch(self.get_url(r'/destroyvm'), method='POST', body=urlencode(body_set),
+                body_set = {'uuid': expected['uuid'], 'type': 'VM', 'group': 1, 'action' : 'destroy'}
+                res = yield self.http_client.fetch(self.get_url(r'/setaccess'), method='POST', body=urlencode(body_set),
                                                    headers=self.headers)
-                self.assertEqual(res.code, 200, "John is unable to destroy machine")
-            elif step == 7:
+                self.assertEqual(res.code, 200, "John is unable to give destroy rights to group 1")
+            elif step == 7: #destroy to group 1
                 del expected['type']
+                for access in expected['access']:
+                    if access['userid'] == 'groups/1':
+                        access['access'].append('destroy')
+                self.assertEqual(expected, obj['new_val'], 'Failed to inspect that destroy is added to group 1 ')
+
+                #yield gen.sleep(2)
+
+                body_set = {'uuid': expected['uuid'], 'type': 'VM', 'group': 1, 'action': 'destroy', 'revoke': True }
+                res = yield self.http_client.fetch(self.get_url(r'/setaccess'), method='POST', body=urlencode(body_set),
+                                                   headers=self.headers)
+                self.assertEqual(res.code, 200, "John is unable to revoke destroy rights from group 1")
+            elif step == 8:# revoke destroy from group 1
+                for access in expected['access']:
+                    if access['userid'] == 'groups/1':
+                        access['access'].remove('destroy')
+                self.assertEqual(expected, obj['new_val'], 'Failed to inspect that destroy is removed from group 1')
+
+                body_set = {'uuid': expected['uuid'], 'type': 'VM', 'group': 1, 'action': 'launch', 'revoke': True}
+                res = yield self.http_client.fetch(self.get_url(r'/setaccess'), method='POST', body=urlencode(body_set),
+                                                   headers=self.headers)
+                self.assertEqual(res.code, 200, "John is unable to revoke launch rights from group 1")
+
+            elif step == 9: # revoke launch from group 1
+                k = 0
+                for i, access in enumerate(expected['access']):
+                    if access['userid'] == 'groups/1':
+                        k = i
+                        break
+                else:
+                    self.fail()
+
+                del expected['access'][k]
+
+                self.assertEqual(expected, obj['new_val'], 'Failed to inspect that launch  is removed from group 1')
+            elif step == 10:
+                print(obj)
+     #           yield gen.sleep(1)
+   #             res = yield self.http_client.fetch(self.get_url(r'/destroyvm'), method='POST', body=urlencode(body_set),
+    #                                               headers=self.headers)
+               # self.assertEqual(res.code, 200, "John is unable to destroy machine")
+            '''elif step == 10:
+                print(obj)
                 expected['power_state'] = 'Halted'
                 self.assertEqual(expected, obj['new_val'], "Failed to inspect that VM is halted after destroyvm")
-            elif step == 8:
+            elif step == 11:
                 self.assertEqual(expected, obj['old_val'], "Failed to inspect VM is deleted")
                 self.assertEqual('state', obj['changed'])
                 self.assertEqual('remove', obj['type'])
-            elif step == 9:
+            elif step == 12:
                 print(obj)
-
+'''
 
 
 

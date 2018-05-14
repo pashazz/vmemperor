@@ -213,6 +213,7 @@ class ACLXenObject(XenObject):
 
 
 
+
         if user:
             real_name = self.get_access_path(user, False)
         elif group:
@@ -226,6 +227,18 @@ class ACLXenObject(XenObject):
             actionlist = xenstore_data[real_name].split(';')
         else:
             actionlist = []
+
+        if revoke and action == 'all':
+            for name in xenstore_data:
+                if name == real_name:
+                    continue
+
+                actionlist = xenstore_data[real_name].split(';')
+                if 'all' in actionlist:
+                    break
+            else:
+                raise XenAdapterArgumentError('I cannot revoke "all" from {0} because there are no other admins of the resource'.format(real_name))
+
 
         if revoke:
             if action in actionlist:

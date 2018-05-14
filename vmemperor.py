@@ -1,3 +1,4 @@
+import signal
 import atexit
 from connman import ReDBConnection
 from auth import dummy
@@ -50,6 +51,8 @@ objects = [VM]
 
 user_table_ready = threading.Event()
 need_exit = threading.Event()
+xen_events_run = threading.Event() # called by USR2 signal handler
+
 def table_drop(db, table_name):
     try:
         db.table_drop(table_name).run()
@@ -97,6 +100,7 @@ def auth_required(method):
 class HandlerMethods(Loggable):
     def init_executor(self, executor):
         self.executor = executor
+        self.debug = opts.debug
         self.init_log()
         self.conn = ReDBConnection().get_connection()
 
@@ -211,11 +215,13 @@ class AuthHandler(BaseHandler):
             self.authenticator.check_credentials(username=username, password=password, log=self.log)
         except AuthenticationException:
             self.write(json.dumps({"status": 'error', 'message' :  "wrong credentials"}))
+            self.log.info('User failed to login with credentials: {0} {1}'.format(username, password))
             self.set_status(401)
             return
 
 
-        self.write(json.dumps({}))
+        self.write(json.dumps({'status' : 'success', 'login' : username}))
+        self.log.info('Successful login with credentials: {0} {1}')
         self.set_secure_cookie("user", pickle.dumps(self.authenticator))
 
 
@@ -291,19 +297,22 @@ class VMList(BaseWSHandler):
                 #
                 self.changes_query = self.db.table('vms').changes(include_types=True).filter(
                     r.row['type'].eq(r.expr('change')).or_(r.row['type'].eq('remove')))\
-                    .merge({'changed':'state'}).union(
+                    .union(
                     self.db.table('vms_user').get_all('users/%s' % userid, index='userid').without('id').
-                    changes(include_types=True, include_initial=True).merge(r.branch(r.row['type'].eq(r.expr('initial')).or_(r.row['type'].eq(r.expr('add'))),
-                                                                                     self.db.table('vms').get(r.row['new_val']['uuid']),
-                                                                                     {'changed': 'access'})))
+                    changes(include_types=True, include_initial=True).
+                        merge(r.branch((r.row['type'] == 'initial') | (r.row['type'] == 'add'),
+                        self.db.table('vms').get(r.row['new_val']['uuid']),
+                        {})))
 
                 for group in self.user_authenticator.get_user_groups():
                     group = str(group)
 
-                    self.changes_query = self.changes_query.union(self.db.table('vms_user').get_all( 'groups/%s' % group, index='userid').without('id')
-                                             .changes(include_types=True, include_initial=True).merge(r.branch(r.row['type'].eq(r.expr('initial')).or_(r.row['type']).eq(r.expr('add')),
-                                                                                     self.db.table('vms').get(r.row['new_val']['uuid']),
-                                                                                     {'changed': 'access'})))
+                    self.changes_query = self.changes_query.union(self.db.table('vms_user').get_all( 'groups/%s' % group, index='userid')
+                                                                  .without('id').changes(include_types=True, include_initial=True)
+                                                                  .merge(r.branch((r.row['type'] == 'initial') | (r.row['type'] == 'add'),
+                                                                  self.db.table('vms').get(r.row['new_val']['uuid']),
+                                                                  {})))
+
 
             ioloop = tornado.ioloop.IOLoop.instance()
             ioloop.run_in_executor(self.executor, self.items_changes)
@@ -315,82 +324,98 @@ class VMList(BaseWSHandler):
         '''
         Monitor for User table (access rules) items' changes with the following considerations:
         - We only monitor for changes in vms table. We need to filter them manually, as there's no way for such
-        complicated filter in ReQL. These have 'changed' == 'state' and only 'type' == 'change'
+        complicated filter in ReQL. These have 'type' == 'change'
         - We know about new entries in vms table because vms_user table provides that for us. Every addition to vms_user
         gets merged with the corresponding record from vms
-        - All entries from vms_user table have 'changed' == 'access'
+        - All entries from vms_user table have 'type' in ('initial', 'add', 'remove') because do_access_monitor only operates
+        with 'insert' and 'remove'
         - When
         '''
-        conn = ReDBConnection().get_connection()
-        with conn:
+        try:
+            conn = ReDBConnection().get_connection()
+            with conn:
+                valid_uuids = set()
+                cur = None
+                def create_cursor():
+                    nonlocal cur
+                    cur = self.changes_query.run()
 
-            invalid_uuids = set()
-            cur = None
-            def create_cursor():
-                nonlocal cur
-                cur = self.changes_query.run()
-
-            def check_access_entry(access_entry):
-                if access_entry['userid'] == 'users/{0}'.format(self.user_authenticator.get_id()):
-                    return True
-
-                for group in self.user_authenticator.get_user_groups():
-                    if access_entry['userid'] == 'groups/{0}'.format(group):
+                def check_access_entry(access_entry):
+                    if access_entry['userid'] == 'users/{0}'.format(self.user_authenticator.get_id()):
                         return True
 
-                return False
+                    for group in self.user_authenticator.get_user_groups():
+                        if access_entry['userid'] == 'groups/{0}'.format(group):
+                            return True
 
-            self.log.debug('Changes query: {0}'.format(self.changes_query))
-            create_cursor()
-            self.cur = cur
+                    return False
+
+                self.log.debug('Changes query: {0}'.format(self.changes_query))
+                create_cursor()
+                self.cur = cur
 
 
-            while True:
-                try:
-                    change = cur.next(False)
-                except ReqlTimeoutError as e: #Monitor if we need to exit
+                while True:
+                    try:
+                        change = cur.next(False)
+                    except ReqlTimeoutError as e: #Monitor if we need to exit
+                        if not self.ws_connection or need_exit.is_set():
+                            return
+                        else:
+                            continue
+
+
                     if not self.ws_connection or need_exit.is_set():
                         return
-                    else:
-                        continue
 
 
-                if not self.ws_connection or need_exit.is_set():
-                    return
+                    if not isinstance(self.user_authenticator, AdministratorAuthenticator):
+                        if change['type'] == 'change': #these are sent from vms
+                            if change['new_val']:
+                                record = change['new_val']
+                            elif change['type'] == 'remove':
+                                record = change['old_val']
+                            else:
+                                record = change
+
+                            #for access_entry in record['access']:
+                            #    if check_access_enSacceetry(access_entry):
+                            #        break
+                            #else: #Normal quit, not via break
+                            #    continue #filter this entry
+                            if record['uuid'] not in valid_uuids:
+                                continue
 
 
-                if not isinstance(self.user_authenticator, AdministratorAuthenticator):
-                    if 'changed' in change and change['changed'] == 'state': #Here we may have entries that we have to filter by user/group
-                        if change['new_val']:
-                            record = change['new_val']
+                        elif change['type'] in ('initial', 'add'): #these are access only
+                            del change['new_val'] # we merge them with entries from vms, we don't need new_val
+                            if 'old_val' in change:
+                                del change['old_val']
+
+                            if change['uuid'] not in valid_uuids:
+                                valid_uuids.add(change['uuid'])
+                            else:
+                                continue # we will get this change as we're subscribed anyway
+
+
                         elif change['type'] == 'remove':
-                            invalid_uuids.add(change['old_val']['uuid'])
-                            record = change['old_val']
-                        else:
-                            record = change
+                            del change['new_val'] #always null
 
-                        for access_entry in record['access']:
-                            if check_access_entry(access_entry):
-                                break
-                        else: #Normal quit, not via break
-                            continue #filter this entry
+                            if change['old_val']['uuid'] not in valid_uuids:
+                                continue
 
-
-                    if change['type'] in ('initial', 'add'): #these are access only
-                        del change['new_val'] # we merge them with entries from vms, we don't need new_val
-                        if 'old_val' in change:
-                            del change['old_val']
-
-                    elif change['type'] == 'remove':
-                        del change['new_val'] #always null
-
-                        if change['old_val']['uuid'] in invalid_uuids and change['changed'] == 'access':
-                            continue #filter out these 'junk' messages as the entry has already been removed from vms
+                            valid_uuids.remove(change['old_val']['uuid'])
 
 
 
+                    self.write_message(json.dumps(change))
 
-                self.write_message(json.dumps(change))
+        except Exception as e:
+            self.log.error("Exception in items_changes', user: {0}: {1}, restarting..."
+                           .format(self.user_authenticator.get_id(), e))
+            ioloop = tornado.ioloop.IOLoop.instance()
+            ioloop.run_in_executor(self.executor, self.items_changes)
+
 
 
     def on_close(self):
@@ -739,25 +764,27 @@ class VMAbstractHandler(BaseHandler):
     '''
     @auth_required
     def post(self):
+
         vm_uuid = self.get_argument('uuid')
         self.uuid = vm_uuid
-        try:
-            self.vm = VM(self.user_authenticator, uuid=vm_uuid)
-        except XenAdapterAPIError as e:
-            self.set_status(400)
-            self.write({'status' : 'bad request', 'message' : e.message})
-            return
-        try:
-            self.vm.check_access(self.access)
-        except XenAdapterUnauthorizedActionException as e:
-            self.set_status(403)
-            self.write({'status':'access denied', 'message' : e.message})
-            return
+        with self.conn:
+            try:
+                self.vm = VM(self.user_authenticator, uuid=vm_uuid)
+            except XenAdapterAPIError as e:
+                self.set_status(400)
+                self.write({'status' : 'bad request', 'message' : e.message})
+                return
+            try:
+                self.vm.check_access(self.access)
+            except XenAdapterUnauthorizedActionException as e:
+                self.set_status(403)
+                self.write({'status':'access denied', 'message' : e.message})
+                return
 
 
-        ret = self.get_data()
-        if ret:
-            self.write(ret)
+            ret = self.get_data()
+            if ret:
+                self.write(ret)
 
     def get_data(self):
         '''return answer information (if everything is OK). Else use set_status and write'''
@@ -771,6 +798,8 @@ class SetAccessHandler(BaseHandler):
             type = self.get_argument('type')
             action = self.get_argument('action')
             revoke = self.get_argument('revoke', False)
+            if revoke.lower() == 'false':
+                revoke = False
             user = self.get_argument('user', default=None)
             if not user:
                 group = self.get_argument('group')
@@ -870,6 +899,7 @@ class DestroyVM(VMAbstractHandler):
     def get_data(self):
         uuid = self.get_argument('uuid')
 
+
         self.try_xenadapter(lambda auth: VM(auth, uuid=uuid).destroy_vm())
 
 class StartStopVM(VMAbstractHandler):
@@ -966,6 +996,7 @@ class EventLoop(Loggable):
 
 
     def __init__(self, executor, authenticator):
+        self.debug = opts.debug
 
         self.init_log()
 
@@ -978,25 +1009,27 @@ class EventLoop(Loggable):
 
         conn = ReDBConnection().get_connection()
         with conn:
-            if opts.database not in r.db_list().run():
-                r.db_create(opts.database).run()
+            print("Creating databases", end='...')
+            if opts.database in r.db_list().run():
+                r.db_drop(opts.database).run()
+
+            r.db_create(opts.database).run()
             self.db = r.db(opts.database)
             tables = self.db.table_list().run()
             self.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
             # required = ['vms', 'tmpls', 'pools', 'nets']
-            if 'vms' in tables:
-                self.db.table('vms').delete().run()
-            if 'vms' not in tables:
-                self.db.table_create('vms', durability='soft', primary_key='uuid').run()
-                vms = VM.init_db(authenticator)
-                CHECK_ER(self.db.table('vms').insert(vms, conflict='error').run())
 
-            else:
-                vms = VM.init_db(authenticator)
-                CHECK_ER(self.db.table('vms').insert(vms, conflict='update').run())
 
-            self.db.table('vms').index_create('ref').run()
+            self.db.table_create('vms', durability='soft', primary_key='uuid').run()
+            self.db.table('vms').index_create('ref', r.row['ref']).run()
             self.db.table('vms').index_wait('ref').run()
+
+            vms = VM.init_db(authenticator)
+            CHECK_ER(self.db.table('vms').insert(vms, conflict='error').run())
+
+
+
+
 
             if 'isos' not in tables:
                 self.db.table_create('isos', durability='soft', primary_key='uuid').run()
@@ -1034,106 +1067,104 @@ class EventLoop(Loggable):
                 CHECK_ER(self.db.table('nets').insert(list(nets), conflict='update').run())
 
             del authenticator.xen
+            print("created")
 
 
-    @run_on_executor
     def do_access_monitor(self):
-        conn = ReDBConnection().get_connection()
-        log = self.create_additional_log('AccessMonitor')
-        with conn:
-            query = self.db.table(objects[0].db_table_name).pluck('uuid', 'access')\
-                .merge({'table' : objects[0].db_table_name}).changes()
+        try:
+            conn = ReDBConnection().get_connection()
+            log = self.create_additional_log('AccessMonitor')
+            with conn:
+                query = self.db.table(objects[0].db_table_name).pluck('uuid', 'access')\
+                    .merge({'table' : objects[0].db_table_name}).changes()
 
-            table_list = self.db.table_list().run()
-            def initial_merge(table):
-                nonlocal table_list
-                table_user = table + '_user'
-                if table_user in table_list:
-                    self.db.table_drop(table_user).run()
-
-
-
-
-                self.db.table_create(table_user, durability='soft').run()
-                self.db.table(table_user).index_create('uuid_and_userid', [r.row['uuid'], r.row['userid']]).run()
-                self.db.table(table_user).index_wait('uuid_and_userid').run()
-                self.db.table(table_user).index_create('userid', r.row['userid']).run()
-                self.db.table(table_user).index_wait('userid').run()
-                # no need yet
-                #self.db.table(table_user).index_create('uuid', r.row['uuid']).run()
-                #self.db.table(table_user).index_wait('uuid').run()
-
-                CHECK_ER(self.db.table(table_user).insert(
-                    self.db.table(table).pluck('access', 'uuid').filter(r.row['access'] != []).\
-                    concat_map(lambda acc: acc['access'].merge({'uuid':acc['uuid']}))).run())
-
-
-            i = 0
-            while i < len(objects):
-                initial_merge(objects[i].db_table_name)
-
-                if i > 0:
-                    query.union(self.db.table(objects[i].db_table_name).pluck('uuid', 'access')\
-                                    .merge({'table': objects[i].db_table_name}).changes())
-                i += 1
-
-            #indicate that vms_user table is ready
-            user_table_ready.set()
-            cur = query.run()
-
-            def uuid_delete(table_user, uuid):
-                CHECK_ER(self.db.table(table_user).filter({'uuid' : uuid}).delete().run())
-
-
-            while True:
-                try:
-                    record = cur.next(False)
-                except ReqlTimeoutError as e:
-                    if need_exit.is_set():
-                        return
-                    else:
-                        continue
-
-                if record['new_val']: #edit
-                    uuid = record['new_val']['uuid']
-                    table = record['new_val']['table']
-                    access = record['new_val']['access']
+                table_list = self.db.table_list().run()
+                def initial_merge(table):
+                    nonlocal table_list
                     table_user = table + '_user'
+                    if table_user in table_list:
+                        self.db.table_drop(table_user).run()
 
 
-                    if record['old_val']:
-                        access_to_remove = \
-                            set((frozendict(x) for x in record['old_val']['access'])) -\
-                             set((frozendict(x) for x in access))
-                        for item in access_to_remove:
-                            CHECK_ER(self.db.table(table_user).get([record['old_val']['uuid'], item['userid']], index='uuid_and_userid').delete().run())
-                    log.info("Modifying access rights for %s (table %s): %s" % (uuid, table, json.dumps(access)))
-                    if not record['old_val']:
-                        for item in access:
-                            CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid' : uuid})).run())
+
+
+                    self.db.table_create(table_user, durability='soft').run()
+                    self.db.table(table_user).index_create('uuid_and_userid', [r.row['uuid'], r.row['userid']]).run()
+                    self.db.table(table_user).index_wait('uuid_and_userid').run()
+                    self.db.table(table_user).index_create('userid', r.row['userid']).run()
+                    self.db.table(table_user).index_wait('userid').run()
+                    # no need yet
+                    #self.db.table(table_user).index_create('uuid', r.row['uuid']).run()
+                    #self.db.table(table_user).index_wait('uuid').run()
+
+                    CHECK_ER(self.db.table(table_user).insert(
+                        self.db.table(table).pluck('access', 'uuid').filter(r.row['access'] != []).\
+                        concat_map(lambda acc: acc['access'].merge({'uuid':acc['uuid']}))).run())
+
+
+                i = 0
+                while i < len(objects):
+                    initial_merge(objects[i].db_table_name)
+
+                    if i > 0:
+                        query.union(self.db.table(objects[i].db_table_name).pluck('uuid', 'access')\
+                                        .merge({'table': objects[i].db_table_name}).changes())
+                    i += 1
+
+                #indicate that vms_user table is ready
+                user_table_ready.set()
+                cur = query.run()
+
+                def uuid_delete(table_user, uuid):
+                    CHECK_ER(self.db.table(table_user).filter({'uuid' : uuid}).delete().run())
+
+
+                while True:
+                    try:
+                        record = cur.next(False)
+                    except ReqlTimeoutError as e:
+                        if need_exit.is_set():
+                            return
+                        else:
+                            continue
+
+                    if record['new_val']: #edit
+                        uuid = record['new_val']['uuid']
+                        table = record['new_val']['table']
+                        access = record['new_val']['access']
+                        table_user = table + '_user'
+
+
+                        if record['old_val']:
+                            access_to_remove = \
+                                set((frozendict(x) for x in record['old_val']['access'])) -\
+                                 set((frozendict(x) for x in access))
+                            for item in access_to_remove:
+                                CHECK_ER(self.db.table(table_user).get_all([record['old_val']['uuid'], item['userid']], index='uuid_and_userid').delete().run())
+                        log.info("Modifying access rights for %s (table %s): %s" % (uuid, table, json.dumps(access)))
+                        if not record['old_val']:
+                            for item in access:
+                                CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid' : uuid})).run())
+                        else:
+                            access_diff = set((frozendict(x) for x in access)) -\
+                                          set((frozendict(x) for x in record['old_val']['access']))
+
+                            for item in access_diff:
+                                CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid' : uuid} )).run())
+
+
+
                     else:
-                        access_diff = set((frozendict(x) for x in access)) -\
-                                      set((frozendict(x) for x in record['old_val']['access']))
+                        uuid = record['old_val']['uuid']
+                        table = record['old_val']['table']
+                        table_user = table + '_user'
+                        log.info("Deleting access rights for %s (table %s)" % (uuid, table))
+                        uuid_delete(table_user, uuid)
+        except Exception as e:
+            self.log.error("Exception in access_monitor: {0}, restarting...".format(e))
+            tornado.ioloop.IOLoop.current().run_in_executor(self.executor, self.do_access_monitor)
 
-                        for item in access_diff:
-                            CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid' : uuid} )).run())
 
-
-
-                else:
-                    uuid = record['old_val']['uuid']
-                    table = record['old_val']['table']
-                    table_user = table + '_user'
-                    log.info("Deleting access rights for %s (table %s)" % (uuid, table))
-                    uuid_delete(table_user, uuid)
-
-            return
-
-    @gen.coroutine
-    def access_monitor(self):
-        yield self.do_access_monitor()
-
-    @run_on_executor
     def process_xen_events(self):
         from XenAPI import Failure
 
@@ -1146,10 +1177,15 @@ class EventLoop(Loggable):
         xen.api.event.register(event_types)
         conn = ReDBConnection().get_connection()
         with conn:
-
+            self.log.debug("Started process_xen_events. You can kill this thread and 'freeze'"
+                           " cache databases (except for access) by sending signal USR2")
 
             while True:
                 try:
+                    if not xen_events_run.is_set():
+                        print("Freezing process_xen_events")
+                        xen_events_run.wait()
+                        print("Unfreezing process_xen_events")
                     if need_exit.is_set():
                         return
 
@@ -1177,10 +1213,6 @@ class EventLoop(Loggable):
                         self.log.warning("Reregistering for events")
                         xen.api.event.register(event_types)
 
-    @gen.coroutine
-    def run_xen_queue(self):
-        yield self.process_xen_events()
-
 
 
 def event_loop(executor, delay = 1000, authenticator=None, ioloop = None):
@@ -1188,9 +1220,22 @@ def event_loop(executor, delay = 1000, authenticator=None, ioloop = None):
         ioloop = tornado.ioloop.IOLoop.instance()
 
     loop_object = EventLoop(executor, authenticator)
+
     #tornado.ioloop.PeriodicCallback(loop_object.vm_list_update, delay).start()  # read delay from ini
-    ioloop.add_callback(loop_object.run_xen_queue)
-    future = ioloop.run_in_executor(executor, loop_object.do_access_monitor)
+
+    ioloop.run_in_executor(executor, loop_object.do_access_monitor)
+
+    xen_events_run.set()
+    ioloop.run_in_executor(executor, loop_object.process_xen_events)
+
+    def usr2_signal_handler(num, stackframe):
+        if xen_events_run.is_set():
+            xen_events_run.clear()
+        else:
+            xen_events_run.set()
+
+    signal.signal(signal.SIGUSR2, usr2_signal_handler)
+
 
     return ioloop
 
@@ -1424,6 +1469,7 @@ def read_settings():
     ReDBConnection().set_options(opts.host, opts.port)
 
     def on_exit():
+        xen_events_run.set()
         need_exit.set()
 
     atexit.register(on_exit)
@@ -1438,7 +1484,9 @@ def main():
     server = tornado.httpserver.HTTPServer(app)
     server.listen(opts.vmemperor_port, address="0.0.0.0")
     ioloop = event_loop(executor, opts.delay, authenticator=app.auth_class)
+    print("Using authentication: {0}".format(app.auth_class.__name__))
     ioloop.start()
+
     return
 
 if __name__ == '__main__':
