@@ -13,12 +13,13 @@ from sqlalchemy.exc import InvalidRequestError
 from authentication import DebugAuthenticator
 from time import sleep
 from frozendict import frozendict
+from loggable import Loggable
 
 settings_read = False
 '''
 This test uses SQLAlchemy-based authenticator
 '''
-class VmEmperorTest(testing.AsyncHTTPTestCase):
+class VmEmperorTest(testing.AsyncHTTPTestCase, Loggable):
 
     def to_hashable(self, x):
         if type(x) == dict:
@@ -48,6 +49,7 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
     def __init__(self, methodName):
         super().__init__(methodName)
 
+
         self.addTypeEqualityFunc(list, self.check_lists_equality)
         self.addTypeEqualityFunc(dict, self.check_lists_equality)
 
@@ -62,13 +64,15 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
         asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
         from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator
         cls.app = make_app(cls.executor, debug=True, auth_class=SqlAlchemyAuthenticator)
-        cls.event_loop = event_loop(cls.executor, opts.delay, cls.app.auth_class)
+        cls.event_loop = event_loop(cls.executor, cls.app.auth_class)
 
 
     def setUp(self):
         super().setUp()
+        self.init_log()
+        self.log.info("setUp {0}".format(self.id()))
         self.ws_url = "ws://localhost:" + str(self.get_http_port())
-        print("WebSocket url: %s" % self.ws_url)
+        print("\nWebSocket url: %s" % self.ws_url)
 
 
     def get_app(self):
@@ -85,8 +89,8 @@ class VmEmperorTest(testing.AsyncHTTPTestCase):
         cls.event_loop.stop()
         super().tearDownClass()
 
-
-
+    def tearDown(self):
+        self.log.info("tearDown {0}".format(self.id()))
 
 
 
@@ -170,7 +174,6 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         res_login = self.fetch(r'/login', method='POST', body=urlencode(self.login_body))
         self.assertEqual(res_login.code, 200, "Failed to login")
         self.headers = {'Cookie': res_login.headers['Set-Cookie']}
-        print(res_login)
 
     @classmethod
     def tearDownClass(cls):
@@ -215,7 +218,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
     @gen.coroutine
     def createvm_gen(self):
         body = self.body
-        res = yield self.http_client.fetch(self.get_url(r'/createvm'), method='POST', body=urlencode(body), headers=self.headers)
+        res = yield self.http_client.fetch(self.get_url(r'/createvm'), method='POST', body=urlencode(body), headers=self.headers, request_timeout=9999)
         self.assertEqual(res.code, 200)
         uuid = res.body.decode()
 
@@ -257,26 +260,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
         ws_client = yield websocket_connect(HTTPRequest(url=ws_url, headers=self.headers))
 
-
-
         step = 0
-        descriptions = [
-            'we will create a new vm', #0
-            'creating vm', #1
-            'attaching disk', #2
-            'attaching network', #3
-            'turning vm on', #4
-            'granting launch rights to group 1', #5
-            'waiting for VM to get added to group 1', #6
-            'granting destroy rights to group 1', #7
-            'revoking destroy rights from group 1', #8
-            'revoking launch rights from group 1', #9
-            'checking that VM is removed from group 1', #10
-
-            'deleting VM... waiting for VM to be halted',
-            'deleting VM... waiting for VM to be deleted',
-
-        ]
         expected = {
                       'name_label' : self.body['name_label'],
                       'disks' : [],
@@ -293,9 +277,8 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
                   }
         # step 0 is performed before the loop
-        if len(descriptions) > step:
-            print(descriptions[step])
         expected['uuid'] = yield self.createvm_gen()
+        self.log.info("creating test VM {0}".format(expected['uuid']))
         step += 1
 
         while True:
@@ -305,27 +288,32 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
                 self.fail("JSON parsing error: " + new_message)
 
 
+
             if obj['type'] == 'initial':
                 continue
 
-            print(descriptions[step])
+            self.log.debug(new_message)
 
             if step == 1:
+                self.log.info("checking that VM is created")
                 expected['ref'] = obj['ref'] # ref should be set on step one and be constant
                 self.assertEqual(expected, obj, "failed to create vm")
                 del expected['type'] # from now on we will compare expected with obj['new_val'] and 'new_val' does not have 'type' field
                 #type field is always on outermost level
 
             elif step == 2: ## attaching disk
+                self.log.info("checking that disk is attached")
                 if len(obj['new_val']['disks']) != 1:
                     self.fail("Failed to attach disk: field 'disks' has {0} entries, expected: 1 entry".format(len(obj['disks'])))
                 expected['disks'] = obj['new_val']['disks']
 
 
             elif step == 3: ## attaching network
+                self.log.info("checking that network is connected")
                 expected['network'] = [ self.body['network'] ]
                 self.assertEqual(expected, obj['new_val'], "failed to attach network")
             elif step == 4: #turning vm on
+                self.log.info("checking that VM is turned on and granting launch rights to group 1")
                 expected['power_state'] = 'Running'
                 self.assertEqual(expected, obj['new_val'], 'Failed to launch VM')
                 ## grant launch access to group 1 & move to step 5
@@ -334,21 +322,19 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
                 #this line is influenced by http://www.tornadoweb.org/en/stable/testing.html#tornado.testing.gen_test
                 # regular self.fetch doesn't support a coroutine yield
-                res = yield self.http_client.fetch(self.get_url(r'/setaccess'), method='POST', body=urlencode(body_set), headers=self.headers)
+                res = yield self.http_client.fetch(self.get_url(r'/setaccess'), method='POST', body=urlencode(body_set), headers=self.headers,
+                                                   request_timeout=9999)
                 self.assertEqual(res.code, 200, "John is unable to grant launch rights to his group")
             elif step == 5: #launch to group 1
+                self.log.info("checking that launch rights are granted and granting destroy rights to group 1")
                 expected['access'].append( {'userid' : 'groups/1', 'access' : ['launch']})
-                self.assertEqual(expected, obj['new_val'], "Failed to inspect VM state change after setting lauch rights to the group 1")
-            elif step == 6: #new vm is added to group 1
-
-                expected['type'] = 'add'
-                self.assertEqual(expected, obj, "Failed to inspect that VM is added as 'new' to the group 1's list")
-                body_set = {'uuid': expected['uuid'], 'type': 'VM', 'group': 1, 'action' : 'destroy'}
+                self.assertEqual(expected, obj['new_val'], "Failed to inspect VM state change after setting launch rights to the group 1")
+                body_set['action'] = 'destroy'
                 res = yield self.http_client.fetch(self.get_url(r'/setaccess'), method='POST', body=urlencode(body_set),
-                                                   headers=self.headers)
+                                                   headers = self.headers, request_timeout=9999)
                 self.assertEqual(res.code, 200, "John is unable to give destroy rights to group 1")
-            elif step == 7: #destroy to group 1
-                del expected['type']
+            elif step == 6:
+                self.log.info("checking that destroy rights are granted and revoking destroy rights from group 1")
                 for access in expected['access']:
                     if access['userid'] == 'groups/1':
                         access['access'].append('destroy')
@@ -358,9 +344,10 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
                 body_set = {'uuid': expected['uuid'], 'type': 'VM', 'group': 1, 'action': 'destroy', 'revoke': True }
                 res = yield self.http_client.fetch(self.get_url(r'/setaccess'), method='POST', body=urlencode(body_set),
-                                                   headers=self.headers)
+                                                   headers=self.headers, request_timeout=9999)
                 self.assertEqual(res.code, 200, "John is unable to revoke destroy rights from group 1")
-            elif step == 8:# revoke destroy from group 1
+            elif step == 7:# revoke destroy from group 1
+                self.log.info("checking that destroy rights are revoked and revoking launch rights from group 1")
                 for access in expected['access']:
                     if access['userid'] == 'groups/1':
                         access['access'].remove('destroy')
@@ -371,7 +358,8 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
                                                    headers=self.headers)
                 self.assertEqual(res.code, 200, "John is unable to revoke launch rights from group 1")
 
-            elif step == 9: # revoke launch from group 1
+            elif step == 8:
+                self.log.info("checking that launch rights are revoked and request to destroy VM")
                 k = 0
                 for i, access in enumerate(expected['access']):
                     if access['userid'] == 'groups/1':
@@ -383,41 +371,27 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
                 del expected['access'][k]
 
                 self.assertEqual(expected, obj['new_val'], 'Failed to inspect that launch  is removed from group 1')
-            elif step == 10:
-                print(obj)
-     #           yield gen.sleep(1)
-   #             res = yield self.http_client.fetch(self.get_url(r'/destroyvm'), method='POST', body=urlencode(body_set),
-    #                                               headers=self.headers)
-               # self.assertEqual(res.code, 200, "John is unable to destroy machine")
-            '''elif step == 10:
-                print(obj)
+
+                yield gen.sleep(1)
+                res = yield self.http_client.fetch(self.get_url(r'/destroyvm'), method='POST', body=urlencode(body_set),
+                                                   headers=self.headers)
+                self.assertEqual(200, res.code, "John is unable to destroy machine")
+
+            elif step == 9:
+                self.log.info("checking that VM is halted")
                 expected['power_state'] = 'Halted'
                 self.assertEqual(expected, obj['new_val'], "Failed to inspect that VM is halted after destroyvm")
-            elif step == 11:
+            elif step == 10:
+                self.log.info("checking that VM is deleted")
                 self.assertEqual(expected, obj['old_val'], "Failed to inspect VM is deleted")
-                self.assertEqual('state', obj['changed'])
                 self.assertEqual('remove', obj['type'])
-            elif step == 12:
-                print(obj)
-'''
-
-
-
-
-
-            if step in range(2, 6) or step in range(7,8):
-                self.assertEqual('change', obj['type'], 'Message type must be change')
-                self.assertEqual('state', obj['changed'], 'This should be a state change')
-
-
-
-
-
-
-            step += 1
-            if step == len(descriptions):
                 break
 
+            step += 1
+
+
+
+        self.vms_created.clear()
         yield gen.sleep(1)
         ws_client.close()
         return
@@ -519,23 +493,13 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
                 return
 
     def test_destroy_vm(self):
-        if not os.path.isfile('destroy.txt'):
-            self.createvm()
-
-        with open('destroy.txt',mode='r') as file:
-            uuid = file.readline().rstrip('\n')
-            rest = file.read()
-
-        if not rest.strip():
-            os.remove('destroy.txt')
-        else:
-            with open('destroy.txt', mode='w') as file:
-                file.write(rest)
+        uuid = self.createvm()
 
 
         body=dict(uuid=uuid)
         res = self.fetch(r'/destroyvm', method='POST', body=urlencode(body), headers=self.headers)
         self.assertEqual(res.code, 200)
+        self.vms_created.clear()
 
 
 
@@ -568,7 +532,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         res = self.fetch(r'/setaccess', method='POST', body=urlencode(body_set), headers=self.headers)
         self.assertEqual(res.code, 200, "John is unable to grant launch rights to his group")
         res = self.fetch(r'/getaccess', method='POST', body=urlencode(body), headers=headers_mike)
-        self.assertEqual(res.code, 200, "Mike should get access rights cause he's in john's group")
+        self.assertEqual(200, res.code, "Mike should get access rights cause he's in john's group")
         res = self.fetch(r'/getaccess', method='POST', body=urlencode(body), headers=headers_eva)
         self.assertEqual(res.code, 403, "Eva still shouldn't have  obtained access rights")
         res = self.fetch(r'/vminfo', method='POST', body=urlencode(body), headers=headers_eva)
@@ -583,6 +547,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         res = self.fetch(r'/destroyvm', method='POST', body=urlencode(body), headers=self.headers)
         self.assertEqual(res.code, 200, "John should destroy test VM")
 
+        self.vms_created.clear()
 
 
 

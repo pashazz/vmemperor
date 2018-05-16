@@ -22,8 +22,6 @@ def login(method):
 
 class Main():
 
-    url = 'http://localhost:8889'
-    ws_url = url.replace('http://', 'ws://')
 
 
     def _async_call(self, method, *args, **kwargs):
@@ -50,6 +48,8 @@ class Main():
 
         p = argparse.ArgumentParser(description="VMEmperor CLI Utility")
         p.add_argument('--login', help='login as user (see sections in make_request.ini)')
+        p.add_argument('--host', help='VMEmperor host', default='localhost')
+        p.add_argument('-p','--port', help='VMEmperor port', default=8889, type=int, choices=range(1, 65536))
         p.set_defaults(login='login')
 
         self.subparsers = p.add_subparsers()
@@ -105,10 +105,14 @@ class Main():
             p.set_defaults(func=method[1])
 
         args = self.parser.parse_args(sys.argv[1:])
+        self.url = 'http://{0}:{1}'.format(args.host, args.port)
+        self.ws_url = self.url.replace('http://', 'ws://')
+
         if 'func' not in dir(args):
             print('Wrong API call, choose from {0}'.format(tuple(self.subparsers.choices.keys())), file=sys.stderr)
             return
         self.login_opts = config._sections[args.login]
+
         args.func(args)
 
 
@@ -134,6 +138,13 @@ class Main():
     def setaccess(self, args):
         print("Send data: ", dict(args._get_kwargs()))
         r = requests.post("%s/setaccess" % self.url, cookies=self.jar, data=dict(args._get_kwargs()))
+        print(r.text)
+        print(r.status_code, file=sys.stderr)
+
+    @login
+    def getaccess(self, args):
+        print("Send data: ", dict(args._get_kwargs()))
+        r = requests.post("%s/getaccess" % self.url, cookies=self.jar, data=dict(args._get_kwargs()))
         print(r.text)
         print(r.status_code, file=sys.stderr)
 

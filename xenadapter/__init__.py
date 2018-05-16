@@ -4,14 +4,14 @@ from .singleton import Singleton
 from exc import *
 import logging
 import rethinkdb as r
-
+import threading
 
 def use_logger(method):
     def decorator(self, *args, **kwargs):
         oldFormatter = self.xen.fileHandler.formatter
         self.xen.fileHandler.setFormatter(
             logging.Formatter(
-                "%(levelname)-10s [%(asctime)s] (type: {0}; uuid: {1}) : %(message)s".format(self.__class__.__name__,
+                "%(levelname)-10s [%(asctime)s] {0} (uuid: {1}): %(message)s".format(self.__class__.__name__,
                                                                                              self.uuid))
         )
         ret = method(self, *args, **kwargs)
@@ -66,7 +66,7 @@ class XenAdapter(Loggable, metaclass=Singleton):
         try:
             self.session = XenAPI.Session(url)
             self.session.xenapi.login_with_password(username, password)
-            self.log.info ('Authentication is successful. XenAdapter object created')
+            self.log.info ('Authentication is successful. XenAdapter object created in thread {0}'.format(threading.get_ident()))
             self.api = self.session.xenapi
         except OSError as e:
             raise XenAdapterConnectionError(self.log, "Unable to reach XenServer at {0}: {1}".format(url, str(e)))
@@ -79,13 +79,9 @@ class XenAdapter(Loggable, metaclass=Singleton):
             r.db_create(settings['database']).run()
 
         self.db  = r.db(settings['database'])
-
-        if  'vm_logs' not in self.db.table_list().run():
-            self.db.table_create('vm_logs', durability='soft').run()
-            self.db.table('vm_logs').index_create('uuid').run()
-            self.db.table('vm_logs').index_wait('uuid').run()
-
         self.table = self.db.table('vm_logs')
+
+
 
 
 
@@ -154,10 +150,19 @@ class XenAdapter(Loggable, metaclass=Singleton):
         return final_list
 
 
+    log_entry_init = False
     def insert_log_entry(self, uuid, state, message):
 
+        if not self.log_entry_init:
+            if 'vm_logs' not in self.db.table_list().run():
+                self.db.table_create('vm_logs').run()
+
+            self.log_entry_init = True
+
+
+        self.table.wait().run()
         #r.now() is rethink-compatible datetime.datetime.now()
-        self.table.insert(dict(uuid=uuid, state=state, message=message, time=r.now()), durability='soft').run(self.conn)
+        self.table.insert(dict(uuid=uuid, state=state, message=message, time=r.now()), durability='soft').run()
 
 
 

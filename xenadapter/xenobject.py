@@ -4,6 +4,7 @@ from authentication import BasicAuthenticator, AdministratorAuthenticator
 from tornado.concurrent import run_on_executor
 import traceback
 import rethinkdb as r
+from . import use_logger
 
 class XenObjectMeta(type):
     def __getattr__(cls, item):
@@ -138,11 +139,11 @@ class ACLXenObject(XenObject):
     ALLOW_EMPTY_XENSTORE = False # Empty xenstore for some objects might treat them as for-all-by-default
     db_table_name = '' # every subclass should override it
 
-
+    @use_logger
     def check_access(self,  action):
         '''
         Check if it's possible to do 'action' with specified VM
-        :param action: action to perform
+        :param action: action to perform. If action is None, check for the fact that user can see this VM
         for 'VM'  these are
 
         - launch: can start/stop vm
@@ -175,27 +176,17 @@ class ACLXenObject(XenObject):
             if ((action in item['access'] or 'all' in item['access'])\
                     or (action is None and len(item['access']) > 0))and\
                     (username == item['userid'] or (item['userid'].startswith('groups/') and item['userid'] in groupnames)):
-                self.log.info('User %s is allowed to perform action %s on %s %s' % (self.auth.get_id(), action, self.__class__.__name__,  self.__uuid__))
+                self.log.info('User %s is allowed to perform action %s on %s %s' % (self.auth.get_id(), action, self.__class__.__name__,  self.uuid))
                 return True
 
 
-        # This is unsafe due to updating _user tables in another thread.
-        #table_user = self.db_table_name + '_user'
-        #def user_and_groups():
-        #    yield 'users/%s' % self.auth.get_id()
+        if action:
+            raise XenAdapterUnauthorizedActionException(self.log,\
+                        "Unauthorized attempt by {0}: requested action '{1}'".format(self.auth.get_id(), action))
+        else:
+            raise XenAdapterUnauthorizedActionException(self.log,
+                        "Unauthorized attempt by {0}".format(self.auth.get_id()))
 
-        #    for group in self.auth.get_user_groups():
-        #        yield 'groups/%s' % group
-
-        #db.table(table_user).index_wait('uuid_and_userid').run()
-        #access_rights = db.table(table_user).get_all(r.args(r.expr(([self.uuid, id] for id in user_and_groups()))), index='uuid_and_userid').pluck('access')['access'].\
-        #    fold([], lambda acc, row: acc.set_union(row)).run()
-
-        #if 'all' not in access_rights or action not in access_rights:
-
-        raise XenAdapterUnauthorizedActionException(self.log,\
-                                                           "Unauthorized attempt: needs privilege '%s', call stack: %s"
-                                                            % (action, traceback.format_stack()))
 
     def manage_actions(self, action,  revoke=False, user=None, group=None):
         '''

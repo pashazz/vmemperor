@@ -1,3 +1,4 @@
+import pathlib
 import signal
 import atexit
 from connman import ReDBConnection
@@ -41,7 +42,7 @@ import datetime
 
 
 from xmlrpc.client import DateTime as xmldt
-from frozendict import frozendict
+from frozendict import frozendict, FrozenDictEncoder
 from authentication import AdministratorAuthenticator
 from tornado.websocket import *
 import asyncio
@@ -221,7 +222,6 @@ class AuthHandler(BaseHandler):
 
 
         self.write(json.dumps({'status' : 'success', 'login' : username}))
-        self.log.info('Successful login with credentials: {0} {1}')
         self.set_secure_cookie("user", pickle.dumps(self.authenticator))
 
 
@@ -795,11 +795,14 @@ class SetAccessHandler(BaseHandler):
     def post(self):
         with self.conn:
             uuid = self.get_argument('uuid')
-            type = self.get_argument('type')
+            _type = self.get_argument('type')
             action = self.get_argument('action')
             revoke = self.get_argument('revoke', False)
-            if revoke.lower() == 'false':
+            if  type(revoke) == str and revoke.lower() == 'false':
                 revoke = False
+
+            if revoke:
+                revoke = True
             user = self.get_argument('user', default=None)
             if not user:
                 group = self.get_argument('group')
@@ -807,12 +810,12 @@ class SetAccessHandler(BaseHandler):
                 group = None
             type_obj = None
             for obj in objects:
-                if obj.__name__ == type:
+                if obj.__name__ == _type:
                     type_obj = obj
                     break
             else:
                 self.set_status(400)
-                self.write({'status' : 'bad request', 'message' : 'unsupported type %s' % type})
+                self.write({'status' : 'bad request', 'message' : 'unsupported type %s' % _type})
                 return
 
             try:
@@ -1002,10 +1005,7 @@ class EventLoop(Loggable):
 
         self.executor = executor
         self.authenticator = authenticator
-        try:
-            authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
-        except XenAdapterConnectionError as e:
-            raise RuntimeError("XenServer not reached")
+
 
         conn = ReDBConnection().get_connection()
         with conn:
@@ -1016,6 +1016,15 @@ class EventLoop(Loggable):
             r.db_create(opts.database).run()
             self.db = r.db(opts.database)
             tables = self.db.table_list().run()
+
+            self.db.table_create('vm_logs', durability='soft').run()
+            self.db.table('vm_logs').wait()
+
+            try:
+                authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
+            except XenAdapterConnectionError as e:
+                raise RuntimeError("XenServer not reached")
+
             self.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
             # required = ['vms', 'tmpls', 'pools', 'nets']
 
@@ -1072,8 +1081,10 @@ class EventLoop(Loggable):
 
     def do_access_monitor(self):
         try:
+            self.log.debug("started access_monitor in thread {0}".format(threading.get_ident()))
             conn = ReDBConnection().get_connection()
-            log = self.create_additional_log('AccessMonitor')
+            #log = self.create_additional_log('AccessMonitor')
+            log = self.log
             with conn:
                 query = self.db.table(objects[0].db_table_name).pluck('uuid', 'access')\
                     .merge({'table' : objects[0].db_table_name}).changes()
@@ -1124,6 +1135,7 @@ class EventLoop(Loggable):
                         record = cur.next(False)
                     except ReqlTimeoutError as e:
                         if need_exit.is_set():
+                            self.log.debug("Exiting access_monitor")
                             return
                         else:
                             continue
@@ -1135,20 +1147,33 @@ class EventLoop(Loggable):
                         table_user = table + '_user'
 
 
-                        if record['old_val']:
-                            access_to_remove = \
-                                set((frozendict(x) for x in record['old_val']['access'])) -\
-                                 set((frozendict(x) for x in access))
-                            for item in access_to_remove:
-                                CHECK_ER(self.db.table(table_user).get_all([record['old_val']['uuid'], item['userid']], index='uuid_and_userid').delete().run())
-                        log.info("Modifying access rights for %s (table %s): %s" % (uuid, table, json.dumps(access)))
+                        #if record['old_val']:
+                        #    access_to_remove = \
+                        #        set((frozendict(x) for x in record['old_val']['access'])) -\
+                        #         set((frozendict(x) for x in access))
+                        #    if access_to_remove:
+                        #        log.info("Removing access rights for {0} (table {1}): {2}"
+                        #        .format(uuid, table, json.dumps(access_to_remove, cls=FrozenDictEncoder)))
+
+                        #    for item in access_to_remove:
+                        #        CHECK_ER(self.db.table(table_user).get_all([record['old_val']['uuid'], item['userid']], index='uuid_and_userid').delete().run())
+
+
+
                         if not record['old_val']:
+                            if access:
+                                log.info("Adding access rights for %s (table %s): %s" %
+                                         (uuid, table, json.dumps(access)))
                             for item in access:
                                 CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid' : uuid})).run())
                         else:
+
                             access_diff = set((frozendict(x) for x in access)) -\
                                           set((frozendict(x) for x in record['old_val']['access']))
 
+                            if access_diff:
+                                log.info("Adding access rights for %s (table %s): %s" %
+                                         (uuid, table, json.dumps(access_diff, cls=FrozenDictEncoder)))
                             for item in access_diff:
                                 CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid' : uuid} )).run())
 
@@ -1166,6 +1191,7 @@ class EventLoop(Loggable):
 
 
     def process_xen_events(self):
+        self.log.debug("Started process_xen_events in thread {0}".format(threading.get_ident()))
         from XenAPI import Failure
 
         self.authenticator.xen = XenAdapterPool().get()
@@ -1183,10 +1209,11 @@ class EventLoop(Loggable):
             while True:
                 try:
                     if not xen_events_run.is_set():
-                        print("Freezing process_xen_events")
+                        self.log.debug("Freezing process_xen_events")
                         xen_events_run.wait()
-                        print("Unfreezing process_xen_events")
+                        self.log.debug("Unfreezing process_xen_events")
                     if need_exit.is_set():
+                        self.log.debug("Exiting process_xen_events")
                         return
 
                     event_from_ret = xen.api.event_from(event_types, token_from, timeout)
@@ -1194,13 +1221,20 @@ class EventLoop(Loggable):
                     token_from = event_from_ret['token']
 
                     for event in events:
-                        if (opts.log_events and event['class'] in opts.log_events.split(',')) or not opts.log_events:
-                            self.log.info("Event: %s" % json.dumps(event, cls=DateTimeEncoder))
+                        log_this = opts.log_events and event['class'] in opts.log_events.split(',')\
+                                   or not opts.log_events
+
+
                         # similarly to list_vms -> process
                         if event['class'] == 'vm':
                             ev_class = VM  # use methods filter_record, process_record (classmethods)
                         else:  # Implement ev_classes for all types of events
+                            if log_this:
+                                self.log.debug("Ignored Event: %s" % json.dumps(event, cls=DateTimeEncoder))
                             continue
+
+                        if log_this:
+                            self.log.debug("Event: %s" % json.dumps(event, cls=DateTimeEncoder))
 
                         ev_class.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
 
@@ -1215,7 +1249,7 @@ class EventLoop(Loggable):
 
 
 
-def event_loop(executor, delay = 1000, authenticator=None, ioloop = None):
+def event_loop(executor, authenticator=None, ioloop = None):
     if not ioloop:
         ioloop = tornado.ioloop.IOLoop.instance()
 
@@ -1425,9 +1459,6 @@ def make_app(executor, auth_class=None, debug = False):
     ], **settings)
 
     app.auth_class = auth_class
-    if debug:
-        opts.database = opts.database + '_debug_{0}'.format(datetime.datetime.now().strftime("%b_%d_%Y_%H_%M_%S"))
-        print("VMEmperor is launched in DEBUG mode. Using database {0}".format(opts.database))
 
     from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator, User, Group
     if opts.debug and app.auth_class.__name__ == SqlAlchemyAuthenticator.__name__:
@@ -1460,6 +1491,7 @@ def read_settings():
     define('vmemperor_port', group = 'vmemperor', type = int, default = 8888)
     define('authenticator', group='vmemperor', default='')
     define('log_events', group='ioloop', default='')
+    define('log_file_name', group='log',default='vmemperor.log')
 
 
     from os import path
@@ -1472,13 +1504,41 @@ def read_settings():
         xen_events_run.set()
         need_exit.set()
 
+
+
+
     atexit.register(on_exit)
+    # do log rotation
+    log_path = pathlib.Path(opts.log_file_name)
+    if log_path.exists():
+        number = 0
+        for file in log_path.parent.glob(opts.log_file_name + ".*"):
+            try:
+                next_number = int(file.suffix[1:])
+                if next_number > number:
+                    number = next_number
+            except ValueError:
+                continue
+
+        for current in range(number, -1, -1):
+            file = pathlib.Path(opts.log_file_name + '.{0}'.format(current))
+            if file.exists():
+                file.rename(opts.log_file_name + '.{0}'.format(current + 1))
+
+        log_path.rename(opts.log_file_name + '.0')
+
 
 def main():
     """ reads settings in ini configures and starts system"""
     asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
 
     read_settings()
+
+
+
+
+
+
     executor = ThreadPoolExecutor(max_workers = 1024)
     app = make_app(executor)
     server = tornado.httpserver.HTTPServer(app)

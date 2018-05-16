@@ -1,5 +1,6 @@
 import collections
 import types
+import json
 
 class frozendict(collections.UserDict):
     '''
@@ -31,3 +32,13 @@ class frozendict(collections.UserDict):
 
     def __repr__(self):
         return "frozendict(%s)" % repr(dict(self))
+
+class FrozenDictEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, set) or isinstance(obj, frozenset):
+            return list(obj)
+        elif isinstance(obj, frozendict):
+            return dict(obj)
+
+
+        return json.JSONEncoder.default(self, obj)

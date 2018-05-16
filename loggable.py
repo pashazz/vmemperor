@@ -1,5 +1,6 @@
 import logging
 import sys
+from tornado.options import options as opts
 
 class Loggable:
 
@@ -14,7 +15,7 @@ class Loggable:
                     self.fileHandler = handler
             return
 
-        self.fileHandler = logging.FileHandler("{0}.log".format(self.__class__.__name__))
+        self.fileHandler = logging.FileHandler(opts.log_file_name)
         if not hasattr(self, 'log_format'):
             self.log_format = "%(levelname)-10s [%(asctime)s] {0}: %(message)s".format(self.__class__.__name__)
         self.formatter = logging.Formatter(self.log_format)

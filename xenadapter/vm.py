@@ -284,6 +284,7 @@ class VM (AbstractVM):
                 raise e
             except XenAPI.Failure as f:
                 self.insert_log_entry('failed', 'Failed to start OS installation:  %s' % f.details)
+                raise XenAdapterAPIError(self.log, 'Failed to start OS installation: %s' % f.details)
 
 
     def convert(self,  mode):
