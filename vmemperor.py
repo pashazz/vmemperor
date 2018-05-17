@@ -1006,7 +1006,7 @@ class EventLoop(Loggable):
         self.executor = executor
         self.authenticator = authenticator
 
-
+        self.log.info("Using database {0}".format(opts.database))
         conn = ReDBConnection().get_connection()
         with conn:
             print("Creating databases", end='...')
@@ -1100,6 +1100,7 @@ class EventLoop(Loggable):
 
 
                     self.db.table_create(table_user, durability='soft').run()
+                    self.db.table(table_user).wait().run()
                     self.db.table(table_user).index_create('uuid_and_userid', [r.row['uuid'], r.row['userid']]).run()
                     self.db.table(table_user).index_wait('uuid_and_userid').run()
                     self.db.table(table_user).index_create('userid', r.row['userid']).run()
@@ -1186,9 +1187,10 @@ class EventLoop(Loggable):
                         log.info("Deleting access rights for %s (table %s)" % (uuid, table))
                         uuid_delete(table_user, uuid)
         except Exception as e:
-            self.log.error("Exception in access_monitor: {0}, restarting...".format(e))
-            tornado.ioloop.IOLoop.current().run_in_executor(self.executor, self.do_access_monitor)
-
+            self.log.error("Exception in access_monitor: {0}"
+                           .format(e))
+            #tornado.ioloop.IOLoop.current().run_in_executor(self.executor, self.do_access_monitor)
+            raise e
 
     def process_xen_events(self):
         self.log.debug("Started process_xen_events in thread {0}".format(threading.get_ident()))

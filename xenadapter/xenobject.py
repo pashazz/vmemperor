@@ -159,6 +159,7 @@ class ACLXenObject(XenObject):
 
         self.log.info("Checking %s %s rights for user %s: action %s" % (self.__class__.__name__, self.uuid, self.auth.get_id(), action))
 
+
         db = self.auth.xen.db
         access_info = db.table(self.db_table_name).get(self.uuid).pluck('access').run()
         access_info = access_info['access'] if access_info else None

@@ -62,9 +62,14 @@ class VmEmperorTest(testing.AsyncHTTPTestCase, Loggable):
         cls.executor = ThreadPoolExecutor(max_workers=opts.max_workers)
 
         asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
-        from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator
-        cls.app = make_app(cls.executor, debug=True, auth_class=SqlAlchemyAuthenticator)
+
+        if not hasattr(cls, 'auth_class'):
+            from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator
+            cls.auth_class = SqlAlchemyAuthenticator
+        cls.app = make_app(cls.executor, debug=True, auth_class=cls.auth_class)
+        opts.database = opts.database + '_debug_{0}_{1}'.format(cls.__name__, datetime.datetime.now().strftime("%b_%d_%Y_%H_%M_%S"))
         cls.event_loop = event_loop(cls.executor, cls.app.auth_class)
+
 
 
     def setUp(self):
@@ -126,17 +131,17 @@ class VmEmperorAfterAdminLoginTest(VmEmperorTest):
         self.headers = {'Cookie' : res.headers['Set-Cookie']}
 
 
-    @tornado.testing.gen_test()
-    def test_vmlist(self):
-        ws_url =  self.ws_url + "/vmlist"
-        def msg_callback(text):
-            with open('file.txt', 'a') as obj:
-                obj.write(text)
+    #@tornado.testing.gen_test()
+    #def test_vmlist(self):
+    #    ws_url =  self.ws_url + "/vmlist"
+    #    def msg_callback(text):
+    #        with open('file.txt', 'a') as obj:
+    #            obj.write(text)
 
-        ws_client = yield websocket_connect(HTTPRequest(url=ws_url, headers=self.headers), on_message_callback=msg_callback)
+    #    ws_client = yield websocket_connect(HTTPRequest(url=ws_url, headers=self.headers), on_message_callback=msg_callback)
 
-        yield ws_client.read_message()
-        self.wait()
+    #    yield ws_client.read_message()
+    #    self.wait()
 
 
 
@@ -161,7 +166,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         #    res = self.fetch(r'/createvm', method='POST', body=urlencode(body))
         #    self.assertEqual(res.code, 200)
         cls.body = config._sections['ubuntu']
-        cls.body['name_label'] = cls.body['name_label'] + ' ' + datetime.datetime.now().strftime('%D %H:%M:%S')
+
 
 
     def setUp(self):
@@ -190,8 +195,10 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
 
 
-    def createvm(self):
-        body = self.body
+    def createvm(self, return_name_label=False):
+        body = self.body.copy()
+        body['name_label'] = body['name_label'] + ' ' + self.id() + ' ' +  datetime.datetime.now().strftime('%D %H:%M:%S')
+        name_label = body['name_label']
         res = self.fetch(r'/createvm', method='POST', body=urlencode(body), headers=self.headers)
         self.assertEqual(res.code, 200)
         uuid = res.body.decode()
@@ -210,14 +217,19 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         #    self.assertTrue(xen.check_rights(action, uuid))
 
         print(uuid)
-        with open('destroy.txt', 'a') as file:
-            print(uuid, file=file)
+
         self.vms_created.append(uuid)
-        return uuid
+        if return_name_label:
+            return uuid, name_label
+        else:
+            return uuid
 
     @gen.coroutine
-    def createvm_gen(self):
-        body = self.body
+    def createvm_gen(self, return_name_label=False):
+        body = self.body.copy()
+        body['name_label'] = body['name_label'] + ' ' + self.id() + datetime.datetime.now().strftime(
+            '%D %H:%M:%S')
+        name_label = body['name_label']
         res = yield self.http_client.fetch(self.get_url(r'/createvm'), method='POST', body=urlencode(body), headers=self.headers, request_timeout=9999)
         self.assertEqual(res.code, 200)
         uuid = res.body.decode()
@@ -236,10 +248,11 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         #    self.assertTrue(xen.check_rights(action, uuid))
 
         print(uuid)
-        with open('destroy.txt', 'a') as file:
-            print(uuid, file=file)
         self.vms_created.append(uuid)
-        return uuid
+        if return_name_label:
+            return uuid, name_label
+        else:
+            return uuid
 
 
     def test_createvm(self):
@@ -262,7 +275,6 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
         step = 0
         expected = {
-                      'name_label' : self.body['name_label'],
                       'disks' : [],
                       'network' : [],
                       'power_state' : 'Halted',
@@ -277,7 +289,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
                   }
         # step 0 is performed before the loop
-        expected['uuid'] = yield self.createvm_gen()
+        expected['uuid'], expected['name_label'] = yield self.createvm_gen(return_name_label=True)
         self.log.info("creating test VM {0}".format(expected['uuid']))
         step += 1
 
@@ -289,7 +301,10 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
 
 
-            if obj['type'] == 'initial':
+            if  ('uuid' in obj and obj['uuid'] != expected['uuid']) or\
+                ('new_val'in obj and obj['new_val']['uuid'] != expected['uuid']) or\
+                ('old_val' in obj and obj['old_val']['uuid'] != expected['uuid']):
+                self.log.debug("dropped object (my uuid is {1}): {0}".format(new_message, expected['uuid']))
                 continue
 
             self.log.debug(new_message)
@@ -396,16 +411,9 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         ws_client.close()
         return
 
-
-
-
-
-
-
-
-    def test_startvm(self): #The Great Testing Machine of Dummy Acc.
+    @skip
+    def test_startvm(self):
         # 1. Get VM Info
-        print("Entering test_startvm")
         res = self.fetch(r'/vminfo', method='POST', body=urlencode({'uuid':self.uuid}), headers=self.headers)
         res_dict = json.loads(res.body.decode())
 
@@ -466,16 +474,14 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         self.assertEqual(res.code, 200)
 
 
-
-
-
-
+    @skip
     def test_isolist(self):
         res = self.fetch(r'/isolist', method='GET', headers=self.headers)
         self.assertEqual(res.code, 200)
         isos = json.loads(res.body.decode())
         pprint.pprint(isos)
 
+    @skip
     def test_attach_iso(self):
         res = self.fetch(r'/isolist', method='GET', headers=self.headers)
         self.assertEqual(res.code, 200)
@@ -531,6 +537,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         self.assertEqual(res.code, 403, "Access system hijacked by eva")
         res = self.fetch(r'/setaccess', method='POST', body=urlencode(body_set), headers=self.headers)
         self.assertEqual(res.code, 200, "John is unable to grant launch rights to his group")
+        sleep(1)
         res = self.fetch(r'/getaccess', method='POST', body=urlencode(body), headers=headers_mike)
         self.assertEqual(200, res.code, "Mike should get access rights cause he's in john's group")
         res = self.fetch(r'/getaccess', method='POST', body=urlencode(body), headers=headers_eva)
@@ -539,7 +546,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         self.assertEqual(res.code, 403, "Eva shouldn't have got an access info")
         res = self.fetch(r'/vminfo', method='POST', body=urlencode(body), headers=headers_mike)
         self.assertEqual(res.code, 200, "Mike has Launch rights, he must have an ability to get VM info")
-        sleep(2)
+        sleep(1)
         res = self.fetch(r'/destroyvm', method='POST', body=urlencode(body), headers=headers_mike)
         self.assertEqual(res.code, 403, "Mike shouldn't have destroyed a VM")
         res = self.fetch(r'/destroyvm', method='POST', body=urlencode(body), headers=headers_eva)
