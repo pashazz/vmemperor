@@ -33,6 +33,8 @@ export function* loginFlow() {
       console.log('Session:', session);
       if (location === '/login')
       {
+        if (window.beforeLogin === '/login' || window.beforeLogin === '/logout')
+          window.beforeLogin = '/';
         yield put(push(window.beforeLogin))
       }
       else
@@ -83,6 +85,7 @@ function socketToChannel(socket) {
       emit({ message : msg, error : null });
     };
     socket.onclose = (event) => {
+      console.log('event channel closed');
       emit(END); //close channel
     };
     socket.onerror = (event) => {
@@ -92,7 +95,10 @@ function socketToChannel(socket) {
     }
     //Subscriber returns an unsubscribe function
     return () => {
+      if (socket.readyState === socket.CONNECTING ||
+          socket.readyState === socket.CONNECTED)
       socket.close();
+      console.log('websocket closed');
     };
   });
 }
@@ -111,14 +117,6 @@ function* channelToListenerVmlist(channel)
   }
   finally
   {
-    if (yield cancelled())
-    {
-      channel.close();
-      console.log('channel cancelled');
-    }
-    else {
-      console.log('channel terminated');
-    }
   }
 
 }
@@ -127,35 +125,48 @@ async function connectToWebsocket() {
   const server = new Server('ws://localhost:9999');
   const res = await axios.get("vmlist-example.json");
   const jsons = res.data.split('\n');
+  let connCount = 0;
   server.on('connection', _server => {
+    connCount++;
+
     jsons.map(json => {
       server.send(json);
     });
+  });
+
+  server.on('close', _server =>
+  {
+    connCount--;
+    if (connCount <= 0) {
+
+      server.stop();
+      console.log("stopping server");
+    }
   });
 
 }
 
 
 export function* websocketFlow() {
-  while (true) {
-    console.log('waiting for authentication');
-    console.log('authenticated');
+    let socketChannel = null;
     yield connectToWebsocket();
     console.log('starting websocket flow...');
     const sock = new WebSocket('ws://localhost:9999');
-    const socketChannel = yield call(socketToChannel, sock);
+    socketChannel = yield call(socketToChannel, sock);
 
     const {cancel} = yield race({ //run two effects simultaneously
         task: call(channelToListenerVmlist, socketChannel),
         cancel: take(LOGGED_OUT),
-      }
+        }
     );
-    if (cancel)
+    if (cancel) {
       socketChannel.close();
-    //TODO: Bidirectional
+      socketChannel = null;
+    }
+      //TODO: Bidirectional
 
 
-  }
+
 }
 
 
