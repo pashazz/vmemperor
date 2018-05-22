@@ -108,16 +108,23 @@ function* channelToListenerVmlist(channel)
   /**
    * this function listens for VMList messages and puts an action
    */
-  try {
+
     while (true) {
       const {message, error} = yield take(channel);
-      yield put(msgVmlist(message));
+      if (error)
+      {
+        console.error("Error while getting VMList", error);
 
+      }
+      try {
+        if (message.trim() !== "")
+          yield put(msgVmlist(JSON.parse(message)));
+      }
+      catch (e)
+      {
+        console.warn("Error while parsing JSON: ", message);
+      }
     }
-  }
-  finally
-  {
-  }
 
 }
 

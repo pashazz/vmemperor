@@ -22,7 +22,10 @@ import VMs from 'containers/Vms/Loadable';
 import LoginPage from 'containers/LoginPage/Loadable';
 import Logout from 'containers/Logout/Loadable';
 
-export default function App() {
+import { compose } from 'redux';
+import injectReducer from 'utils/injectReducer';
+import reducer from 'containers/Vms/reducer';
+function App() {
   return (
     <div>
       <Navbar/>
@@ -36,3 +39,9 @@ export default function App() {
     </div>
   );
 }
+
+const withReducer = injectReducer({ key: 'app', reducer });
+
+export default compose(
+  withReducer,
+)(App);

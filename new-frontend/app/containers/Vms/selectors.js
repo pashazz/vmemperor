@@ -16,10 +16,17 @@ const selectVmsDomain = (state) => state.get('vms');
 
 const makeSelectVms = () => createSelector(
   selectVmsDomain,
-  (substate) => substate.toJS()
+  (substate) => substate.vm_data
 );
 
+/*
+const makeSelectVmDataForTable = () => createSelector(
+  makeSelectVms(),
+  (substate) => substate.vm_data
+);
+*/
 export default makeSelectVms;
 export {
   selectVmsDomain,
+  //makeSelectVmDataForTable
 };

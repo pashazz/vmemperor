@@ -4,6 +4,7 @@
  *
  */
 
+import NextTable from 'react-bootstrap-table-next';
 import React from 'react';
 import PropTypes from 'prop-types';
 import { connect } from 'react-redux';
@@ -13,7 +14,7 @@ import { compose } from 'redux';
 
 import injectSaga from 'utils/injectSaga';
 import injectReducer from 'utils/injectReducer';
-import makeSelectVms from './selectors';
+import { makeSelectVmDataForTable} from "../App/selectors";
 import reducer from './reducer';
 import saga from './saga';
 import messages from './messages';
@@ -21,16 +22,31 @@ import { Server } from 'mock-socket';
 import axios from 'axios';
 
 export class Vms extends React.Component { // eslint-disable-line react/prefer-stateless-function
+
+
+
   render() {
-    return (
-      <div>
-        <FormattedMessage {...messages.header} />
-      </div>
-    );
+    const columns = [
+      {
+        dataField: 'name_label',
+        text: 'Name',
+
+      },
+      {
+        dataField: "power_state",
+        text: "Power"
+      }
+    ];
+    return (<NextTable
+    columns={columns}
+    data = {this.props.vm_data} />);
+
+
   }
 
-  componentDidMount(){
 
+
+  componentDidMount(){
   }
 
   componentWillUnmount()
@@ -44,7 +60,7 @@ Vms.propTypes = {
 };
 
 const mapStateToProps = createStructuredSelector({
-  vms: makeSelectVms(),
+  vm_data: makeSelectVmDataForTable(),
 });
 
 function mapDispatchToProps(dispatch) {
@@ -55,11 +71,10 @@ function mapDispatchToProps(dispatch) {
 
 const withConnect = connect(mapStateToProps, mapDispatchToProps);
 
-const withReducer = injectReducer({ key: 'vms', reducer });
-const withSaga = injectSaga({ key: 'vms', saga });
+//const withSaga = injectSaga({ key: 'vms', saga });
 
 export default compose(
-  withReducer,
-  withSaga,
+//  withReducer, /* dont need a reducer here, it's in app component */
+  // withSaga,
   withConnect,
 )(Vms);
