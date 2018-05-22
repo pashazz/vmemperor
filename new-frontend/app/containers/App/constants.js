@@ -15,3 +15,6 @@ export const NEW_MESSAGE = 'emperor/global/NEW_MESSAGE';
 export const AUTH = 'emperor/global/AUTH';
 export const LOGOUT = 'emperor/global/LOGOUT';
 export const SET_SESSION = 'emperor/global/SET_SESSION';
+export const VMLIST_MESSAGE = 'emperor/global/VMLIST_MESSAGE';
+export const AUTHENTICATED = 'emperor/global/authenticated';
+export const LOGGED_OUT = 'emperor/global/logged_out';

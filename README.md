@@ -4,7 +4,7 @@
 
 File: `login.ini`
 
-## Example
+### Example
     debug = True
     username = 'root' # Xen username
     password = 'password' # Xen password
@@ -14,6 +14,10 @@ File: `login.ini`
     delay = 5000 # Delay before Xen events update, in ms
     max_workers = 16
     vmemperor_port = 8889 # My port, specify it in URL of VMEmperor CLI
+    log_
+
+## Logging
+
 
 # CLI
     make_request.py <action> <options>

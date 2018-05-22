@@ -17,6 +17,8 @@ import makeSelectVms from './selectors';
 import reducer from './reducer';
 import saga from './saga';
 import messages from './messages';
+import { Server } from 'mock-socket';
+import axios from 'axios';
 
 export class Vms extends React.Component { // eslint-disable-line react/prefer-stateless-function
   render() {
@@ -26,7 +28,16 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
       </div>
     );
   }
+
+  componentDidMount(){
+
+  }
+
+  componentWillUnmount()
+  {
+  }
 }
+
 
 Vms.propTypes = {
   dispatch: PropTypes.func.isRequired,

@@ -11,7 +11,7 @@ def use_logger(method):
         oldFormatter = self.xen.fileHandler.formatter
         self.xen.fileHandler.setFormatter(
             logging.Formatter(
-                "%(levelname)-10s [%(asctime)s] {0} (uuid: {1}): %(message)s".format(self.__class__.__name__,
+                "%(levelname)-10s [%(asctime)s] {0}: {1}: %(message)s".format(self.__class__.__name__,
                                                                                              self.uuid))
         )
         ret = method(self, *args, **kwargs)

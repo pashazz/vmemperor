@@ -11,12 +11,13 @@ import {
   NavbarBrand,
   Nav,
   NavItem,
-  NavLink,
   UncontrolledDropdown,
   DropdownToggle,
   DropdownMenu,
   DropdownItem
 } from "reactstrap";
+
+import NavLink from "components/NavLink";
 
 import { FormattedMessage } from 'react-intl';
 import messages from "./messages";
@@ -54,7 +55,7 @@ class MyNavbar extends React.Component {
               {this.state.leftLinks.map(({ to, text }) => {
                 return (
                   <NavItem key={to}>
-                    <NavLink href={to}><FormattedMessage {...text}/></NavLink>
+                    <NavLink to={to}><FormattedMessage {...text}/></NavLink>
                   </NavItem>
                 );
               })}
@@ -63,7 +64,7 @@ class MyNavbar extends React.Component {
               {this.state.rightLinks.map(({ to, text }) => {
                 return (
                   <NavItem key={to}>
-                    <NavLink href={to}><FormattedMessage {...text}/></NavLink>
+                    <NavLink to={to}><FormattedMessage {...text}/></NavLink>
                   </NavItem>
                 );
               })}

@@ -3,6 +3,7 @@ import {
   AUTH,
   LOGOUT,
   SET_SESSION,
+  VMLIST_MESSAGE
 } from './constants';
 
 function timestamp() {
@@ -15,6 +16,13 @@ export function auth(login, password) {
     login,
     password
   };
+}
+
+export function msgVmlist(message){
+  return {
+    type: VMLIST_MESSAGE,
+    message
+  }
 }
 
 export function logout() {

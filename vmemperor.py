@@ -1545,7 +1545,7 @@ def main():
     app = make_app(executor)
     server = tornado.httpserver.HTTPServer(app)
     server.listen(opts.vmemperor_port, address="0.0.0.0")
-    ioloop = event_loop(executor, opts.delay, authenticator=app.auth_class)
+    ioloop = event_loop(executor, authenticator=app.auth_class)
     print("Using authentication: {0}".format(app.auth_class.__name__))
     ioloop.start()
 
