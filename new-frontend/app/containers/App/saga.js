@@ -1,6 +1,6 @@
 import { take, call, put, select, all, takeEvery, takeLatest, apply, race} from 'redux-saga/effects';
 import { eventChannel, END } from 'redux-saga';
-import { AUTH, LOGOUT, AUTHENTICATED, LOGGED_OUT } from './constants';
+import {AUTH, LOGOUT, AUTHENTICATED, LOGGED_OUT, VMLIST_URL} from './constants';
 import { push, LOCATION_CHANGE} from 'react-router-redux';
 import { makeSelectLocation } from './selectors';
 import {authAgent} from "../PrivateRoute";
@@ -127,7 +127,7 @@ function* channelToListenerVmlist(channel)
     }
 
 }
-
+/*
 async function connectToWebsocket() {
   const server = new Server('ws://localhost:9999');
   const res = await axios.get("vmlist-example.json");
@@ -152,13 +152,15 @@ async function connectToWebsocket() {
   });
 
 }
-
+*/
 
 export function* websocketFlow() {
     let socketChannel = null;
-    yield connectToWebsocket();
+    //yield connectToWebsocket();
     console.log('starting websocket flow...');
-    const sock = new WebSocket('ws://localhost:9999');
+    const sock = new WebSocket(
+      ((window.location.protocol === "https:") ? "wss://" : "ws://")
+      + window.location.host + VMLIST_URL);
     socketChannel = yield call(socketToChannel, sock);
 
     const {cancel} = yield race({ //run two effects simultaneously

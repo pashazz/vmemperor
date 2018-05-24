@@ -3,7 +3,7 @@ from . import use_logger
 import XenAPI
 from authentication import BasicAuthenticator
 import provision
-import pprint
+from .xenobjectdict import XenObjectDict
 
 from .os import *
 
@@ -15,30 +15,76 @@ class VM (AbstractVM):
     def __init__(self, auth, uuid=None, ref=None):
         super().__init__(auth, uuid, ref)
 
+
+    @classmethod
+    def init_db(cls, auth):
+        '''
+        Use default implementation and additionally insert information from
+        vm_metrics
+        :param auth:
+        :return:
+        '''
+
+        def insert_metrics(record):
+            '''
+            Insert metics information in a record
+            :param record: VM record
+            :return: updated dictionary
+            '''
+            if record['metrics'] == cls.REF_NULL:
+                auth.xen.log.warning('VM {0} does not have metrics, skipping it while initializing DB...'.format(record['uuid']))
+                return record # this record doesn't have a metrics field (yet)
+
+            metrics = XenObjectDict(auth.xen.api.VM_metrics.get_record(record['metrics']))
+            return  {**record, **cls.process_metrics_record(auth, metrics)}
+
+        return [insert_metrics(record) for record in super().init_db(auth)]
+
+
+
+
     @classmethod
     def process_event(cls,  auth, event, db, authenticator_name):
 
         from vmemperor import CHECK_ER
 
-        if event['class'] != 'vm':
-            raise XenAdapterArgumentError(auth.xen.log, "this method accepts only 'vm' events")
+        if event['class'] == 'vm':
 
-        if event['operation'] == 'del':
-            CHECK_ER(db.table('vms').get_all(event['ref'], index='ref').delete().run())
-            return
 
-        record = event['snapshot']
-        if not cls.filter_record(record):
-            return
-        try:
+            if event['operation'] == 'del':
+                CHECK_ER(db.table('vms').get_all(event['ref'], index='ref').delete().run())
+                return
+
+            record = event['snapshot']
+            if not cls.filter_record(record):
+                return
+
             if event['operation'] in ('mod', 'add'):
                 new_rec = cls.process_record(auth, event['ref'], record)
                 CHECK_ER(db.table('vms').insert(new_rec, conflict='update').run())
 
-        except XenAPI.Failure as f:
-            if f.details == ["EVENTS_LOST"]:
-                auth.xen.log.warning("VM: Reregistering for events")
-                auth.xen.api.event.register(["*"])
+
+        elif event['class'] == 'vm_metrics':
+            if event['operation'] == 'del':
+                return #vm_metrics is removed when  VM has already been removed
+
+            new_rec = cls.process_metrics_record(auth, event['snapshot'])
+            # get VM by metrics ref
+            metrics_query = db.table('vms').get_all(event['ref'], index='metrics')
+            rec_len = len(metrics_query.run().items)
+            if rec_len == 0:
+                auth.xen.log.warning("VM: Cannot find a VM for metrics {0}".format(event['ref']))
+                return
+            elif rec_len > 1:
+                auth.xen.log.warning("VM: More than one ({1}) VM for metrics {0}: DB broken?".format(event['ref'], rec_len))
+                return
+
+
+            CHECK_ER(metrics_query.update(new_rec).run())
+
+        else:
+            raise XenAdapterArgumentError(auth.xen.log, "this method accepts only 'vm' and 'vm_metrics' events")
+
 
 
     @classmethod
@@ -70,10 +116,10 @@ class VM (AbstractVM):
         '''
         Creates a (shortened) dict record from long XenServer record. If no record could be created, return false
         :param record:
-        :return:
+        :return: record for DB
         '''
         record = super().process_record(auth, ref, record)
-        keys = ['power_state', 'name_label', 'uuid', 'ref']
+        keys = ['power_state', 'name_label', 'uuid', 'ref', 'metrics']
         new_rec = {k: v for k, v in record.items() if k in keys}
         new_rec['access'] = cls.process_xenstore(record['xenstore_data'], auth.__name__)
         new_rec['network'] = []
@@ -92,6 +138,19 @@ class VM (AbstractVM):
                 if f.details[1] != 'VDI':
                     raise f
         return new_rec
+
+    @classmethod
+    def process_metrics_record(cls, auth, record):
+        '''
+        Process a record from VM_metrics. Used by init_db and process_event when
+        processing a vm_metrics event
+        :param auth:
+        :param record:
+        :return: record for DB
+        '''
+        # NB: ensure that keys and process_record.keys have no intersection
+        keys = ['start_time', 'install_time', 'memory_actual']
+        return XenObjectDict({k: v for k, v in record.items() if k in keys})
 
     @classmethod
     def create(self, auth, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, scenario_url=None, name_label = '', start=True, override_pv_args=None):

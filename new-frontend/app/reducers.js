@@ -4,7 +4,7 @@
 
 import { combineReducers } from 'redux-immutable';
 import { fromJS } from 'immutable';
-import { routerReducer } from 'react-router-redux';
+import { LOCATION_CHANGE, routerReducer } from 'react-router-redux';
 
 import languageProviderReducer from 'containers/LanguageProvider/reducer';
 
@@ -20,8 +20,15 @@ import languageProviderReducer from 'containers/LanguageProvider/reducer';
 const routeInitialState = fromJS({
   location: null,
 });
+/*
+const routerReducer =  (state = routeInitialState, action) => {
+  if (action.type === LOCATION_CHANGE) {
+    return state.set('location', action.payload);
+  }
 
-
+  return state;
+};
+*/
 /**
  * Creates the main reducer with the dynamically injected ones
  */

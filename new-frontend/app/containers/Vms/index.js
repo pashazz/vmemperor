@@ -35,11 +35,18 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
       {
         dataField: "power_state",
         text: "Power"
+      },
+      {
+        dataField: "start_time",
+        text: "Started at..."
       }
     ];
     return (<NextTable
     columns={columns}
-    data = {this.props.vm_data} />);
+    data = {this.props.vm_data}
+    keyField='uuid'
+    striped
+    hover/>);
 
 
   }

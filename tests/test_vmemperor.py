@@ -171,11 +171,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
     def setUp(self):
         super().setUp()
-        #self.auth = self.app.auth_class()
-        #self.auth.check_credentials(self.body['password'], self.body['username'])
-        #auth_pickled = pickle.dumps(self.auth)
-        #secure_cookie = create_signed_value(self.app.settings['cookie_secret'], 'user', auth_pickled)
-        #self.headers = {'Cookie' : b'='.join((b'user', secure_cookie))}
+
         res_login = self.fetch(r'/login', method='POST', body=urlencode(self.login_body))
         self.assertEqual(res_login.code, 200, "Failed to login")
         self.headers = {'Cookie': res_login.headers['Set-Cookie']}
@@ -210,11 +206,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         self.assertNotEqual(json_res['state'],'failed', msg=json_res['message'])
 
 
-        #xen = XenAdapter(self.xen_options, authenticator=self.auth)
-
         actions = ['launch', 'destroy', 'attach']
-        #for action in actions:
-        #    self.assertTrue(xen.check_rights(action, uuid))
 
         print(uuid)
 
@@ -241,11 +233,9 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         self.assertNotEqual(json_res['state'],'failed', msg=json_res['message'])
 
 
-        #xen = XenAdapter(self.xen_options, authenticator=self.auth)
 
         actions = ['launch', 'destroy', 'attach']
-        #for action in actions:
-        #    self.assertTrue(xen.check_rights(action, uuid))
+
 
         print(uuid)
         self.vms_created.append(uuid)
@@ -271,7 +261,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
         ws_url =  self.ws_url + "/vmlist"
 
-        ws_client = yield websocket_connect(HTTPRequest(url=ws_url, headers=self.headers))
+        ws_client = yield websocket_connect(HTTPRequest(url=ws_url, headers=self.headers, request_timeout=9999, connect_timeout=9999))
 
         step = 0
         expected = {
@@ -301,6 +291,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
 
 
+
             if  ('uuid' in obj and obj['uuid'] != expected['uuid']) or\
                 ('new_val'in obj and obj['new_val']['uuid'] != expected['uuid']) or\
                 ('old_val' in obj and obj['old_val']['uuid'] != expected['uuid']):
@@ -309,38 +300,76 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
             self.log.debug(new_message)
 
+
+            try:
+                if  obj['new_val']['memory_actual'] != obj['old_val']['memory_actual']:
+                    self.log.info("checking that RAM size is reported right")
+                    self.assertEqual(str(int(self.body['ram_size'])*1024*1024),
+                                     obj['new_val']['memory_actual'],
+                                     "check that RAM size is real")
+
+            except KeyError:
+                pass
+
+            if 'new_val' in obj and  'memory_actual' in obj['new_val']:
+                del obj['new_val']['memory_actual']
+
+            if 'old_val' in obj and 'memory_actual' in obj['old_val']:
+                del obj['old_val']['memory_actual']
+
+            if 'new_val' in obj and 'old_val' in obj and\
+                self.to_hashable(obj['new_val']) == self.to_hashable(obj['old_val']):
+                continue
+
+
+
+
             if step == 1:
                 self.log.info("checking that VM is created")
                 expected['ref'] = obj['ref'] # ref should be set on step one and be constant
-                self.assertEqual(expected, obj, "failed to create vm")
+                expected['metrics'] = obj['metrics'] # metrics too
                 del expected['type'] # from now on we will compare expected with obj['new_val'] and 'new_val' does not have 'type' field
                 #type field is always on outermost level
+            elif step == 2: ## Checking if installation is started
+                self.log.info("checking if installation is started")
+                self.assertTrue('install_time' in obj['new_val'])
+                self.assertTrue('start_time' in obj['new_val'])
+                expected['install_time'] = obj['new_val']['install_time']
+                expected['start_time'] = obj['new_val']['start_time']
 
-            elif step == 2: ## attaching disk
+
+
+            elif step == 3: ## attaching disk
                 self.log.info("checking that disk is attached")
                 if len(obj['new_val']['disks']) != 1:
                     self.fail("Failed to attach disk: field 'disks' has {0} entries, expected: 1 entry".format(len(obj['disks'])))
                 expected['disks'] = obj['new_val']['disks']
 
 
-            elif step == 3: ## attaching network
+            elif step == 4: ## attaching network
                 self.log.info("checking that network is connected")
                 expected['network'] = [ self.body['network'] ]
                 self.assertEqual(expected, obj['new_val'], "failed to attach network")
-            elif step == 4: #turning vm on
-                self.log.info("checking that VM is turned on and granting launch rights to group 1")
+
+            elif step == 5: #turning vm on
+                self.log.info("checking that VM is turning on")
                 expected['power_state'] = 'Running'
                 self.assertEqual(expected, obj['new_val'], 'Failed to launch VM')
                 ## grant launch access to group 1 & move to step 5
                 body_set = {'uuid': expected['uuid'], 'type': 'VM', 'group': '1', 'action': 'launch'}
 
+            elif step == 6: #checking start_time
+                self.log.info("checking that VM is turned on and granting launch rights to group 1")
+                self.assertNotEqual(expected['start_time'], obj['new_val']['start_time'])
+                expected['start_time'] = obj['new_val']['start_time']
 
-                #this line is influenced by http://www.tornadoweb.org/en/stable/testing.html#tornado.testing.gen_test
+                # this line is influenced by http://www.tornadoweb.org/en/stable/testing.html#tornado.testing.gen_test
                 # regular self.fetch doesn't support a coroutine yield
-                res = yield self.http_client.fetch(self.get_url(r'/setaccess'), method='POST', body=urlencode(body_set), headers=self.headers,
+                res = yield self.http_client.fetch(self.get_url(r'/setaccess'), method='POST', body=urlencode(body_set),
+                                                   headers=self.headers,
                                                    request_timeout=9999)
                 self.assertEqual(res.code, 200, "John is unable to grant launch rights to his group")
-            elif step == 5: #launch to group 1
+            elif step == 7: #launch to group 1
                 self.log.info("checking that launch rights are granted and granting destroy rights to group 1")
                 expected['access'].append( {'userid' : 'groups/1', 'access' : ['launch']})
                 self.assertEqual(expected, obj['new_val'], "Failed to inspect VM state change after setting launch rights to the group 1")
@@ -348,20 +377,19 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
                 res = yield self.http_client.fetch(self.get_url(r'/setaccess'), method='POST', body=urlencode(body_set),
                                                    headers = self.headers, request_timeout=9999)
                 self.assertEqual(res.code, 200, "John is unable to give destroy rights to group 1")
-            elif step == 6:
+            elif step == 8:
                 self.log.info("checking that destroy rights are granted and revoking destroy rights from group 1")
                 for access in expected['access']:
                     if access['userid'] == 'groups/1':
                         access['access'].append('destroy')
                 self.assertEqual(expected, obj['new_val'], 'Failed to inspect that destroy is added to group 1 ')
 
-                #yield gen.sleep(2)
-
+                yield gen.sleep(1)
                 body_set = {'uuid': expected['uuid'], 'type': 'VM', 'group': 1, 'action': 'destroy', 'revoke': True }
                 res = yield self.http_client.fetch(self.get_url(r'/setaccess'), method='POST', body=urlencode(body_set),
                                                    headers=self.headers, request_timeout=9999)
                 self.assertEqual(res.code, 200, "John is unable to revoke destroy rights from group 1")
-            elif step == 7:# revoke destroy from group 1
+            elif step == 9:# revoke destroy from group 1
                 self.log.info("checking that destroy rights are revoked and revoking launch rights from group 1")
                 for access in expected['access']:
                     if access['userid'] == 'groups/1':
@@ -373,7 +401,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
                                                    headers=self.headers)
                 self.assertEqual(res.code, 200, "John is unable to revoke launch rights from group 1")
 
-            elif step == 8:
+            elif step == 10:
                 self.log.info("checking that launch rights are revoked and request to destroy VM")
                 k = 0
                 for i, access in enumerate(expected['access']):
@@ -392,11 +420,17 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
                                                    headers=self.headers)
                 self.assertEqual(200, res.code, "John is unable to destroy machine")
 
-            elif step == 9:
+
+            elif step == 11:
                 self.log.info("checking that VM is halted")
                 expected['power_state'] = 'Halted'
                 self.assertEqual(expected, obj['new_val'], "Failed to inspect that VM is halted after destroyvm")
-            elif step == 10:
+            elif step == 12:
+                self.log.info('checking that start_time is set to 0 UNIX')
+                expected['start_time'] = "01.01.1970, 00:00:00"
+                self.assertEqual(expected, obj['new_val'], "Failed to inspect that start_time is 0 UNIX")
+
+            elif step == 13:
                 self.log.info("checking that VM is deleted")
                 self.assertEqual(expected, obj['old_val'], "Failed to inspect VM is deleted")
                 self.assertEqual('remove', obj['type'])

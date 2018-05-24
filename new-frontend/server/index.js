@@ -15,7 +15,7 @@ const morgan = require('morgan');
 const fs = require('fs');
 
 
-const requestProxy = require('express-request-proxy');
+const requestProxy = require('http-proxy-middleware');
 
 // If you need a backend, e.g. an API, add your custom backend-specific middleware here
 // app.use('/api', myApi);
@@ -30,11 +30,20 @@ app.use(morgan('combined', {stream: accessLogStream}));
 
 
 
-app.use('/api/*', requestProxy({
+/*app.use('/api/*', requestProxy({
   url: 'http://localhost:8889/*',
   timeout: 99999,
 }));
-
+*/
+const options = {
+  target: 'http://localhost:8889',
+  ws: true,
+  pathRewrite : {
+    '^/api': '/'
+  }
+};
+const proxy = requestProxy(options);
+app.use('/api',proxy);
 
 
 // In production we need to pass these values in instead of relying on webpack

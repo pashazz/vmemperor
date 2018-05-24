@@ -5,6 +5,7 @@ from tornado.concurrent import run_on_executor
 import traceback
 import rethinkdb as r
 from . import use_logger
+from .xenobjectdict import XenObjectDict
 
 class XenObjectMeta(type):
     def __getattr__(cls, item):
@@ -29,6 +30,9 @@ class XenObjectMeta(type):
 
 
 class XenObject(metaclass=XenObjectMeta):
+
+    REF_NULL = "OpaqueRef:NULL"
+
 
     def __init__(self, auth : BasicAuthenticator,  uuid=None, ref=None):
         '''Set  self.auth.xen_api_class to xen.api.something before calling this'''

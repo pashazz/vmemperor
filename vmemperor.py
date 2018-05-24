@@ -65,10 +65,14 @@ def table_drop(db, table_name):
 
 
 class DateTimeEncoder(json.JSONEncoder):
+    MY_TIME_FORMAT = "%d.%m.%Y, %H:%M:%S"
     def default(self, o):
         if isinstance(o, xmldt):
             t =  datetime.datetime.strptime(o.value, "%Y%m%dT%H:%M:%SZ")
-            return t.strftime("%d.%m.%Y, %H:%M:%S")
+            return t.strftime(self.MY_TIME_FORMAT)
+        elif isinstance(o, datetime.datetime):
+            return o.strftime(self.MY_TIME_FORMAT)
+
         
 
         return super().default(o)
@@ -408,7 +412,7 @@ class VMList(BaseWSHandler):
 
 
 
-                    self.write_message(json.dumps(change))
+                    self.write_message(json.dumps(change, cls=DateTimeEncoder))
 
         except Exception as e:
             self.log.error("Exception in items_changes', user: {0}: {1}, restarting..."
@@ -1032,6 +1036,9 @@ class EventLoop(Loggable):
             self.db.table_create('vms', durability='soft', primary_key='uuid').run()
             self.db.table('vms').index_create('ref', r.row['ref']).run()
             self.db.table('vms').index_wait('ref').run()
+            self.db.table('vms').index_create('metrics').run()
+            self.db.table('vms').index_wait('metrics').run()
+
 
             vms = VM.init_db(authenticator)
             CHECK_ER(self.db.table('vms').insert(vms, conflict='error').run())
@@ -1228,7 +1235,7 @@ class EventLoop(Loggable):
 
 
                         # similarly to list_vms -> process
-                        if event['class'] == 'vm':
+                        if event['class'] == 'vm' or event['class'] == 'vm_metrics':
                             ev_class = VM  # use methods filter_record, process_record (classmethods)
                         else:  # Implement ev_classes for all types of events
                             if log_this:
