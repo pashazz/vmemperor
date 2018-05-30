@@ -24,7 +24,7 @@ import Logout from 'containers/Logout/Loadable';
 
 import { compose } from 'redux';
 import injectReducer from 'utils/injectReducer';
-import reducer from 'containers/Vms/reducer';
+import reducer from './reducer';
 function App() {
   return (
     <div>

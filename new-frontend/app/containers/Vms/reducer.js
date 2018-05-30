@@ -5,40 +5,25 @@
  */
 
 import { combineReducers } from 'redux-immutable';
-import { fromJS } from 'immutable';
+import { fromJS, Set} from 'immutable';
 import {
-  DEFAULT_ACTION,
+  VM_SELECT, VM_DESELECT, VM_SELECT_ALL, VM_DESELECT_ALL
 } from './constants';
 
-import {
-  VMLIST_MESSAGE
-} from "../App/constants";
 
-const initialState = fromJS(
-{}
-);
-
-
-
-const vm_data = (state = initialState, action) => {
+const selected = (state = Set(), action) =>
+{
   switch (action.type)
   {
-    case VMLIST_MESSAGE:
-      const {type, ...message} = action.message;
-      switch (type)
-      {
-        case 'initial':
-        case 'add':
-          return state.set(message.uuid, message);
-        case 'change':
-          return state.set(message.new_val.uuid, message.new_val);
-        case 'remove':
-          return state.delete(message.old_val.uuid);
-        default:
-          console.error('Unexpected message type: ', type);
-      }
 
-      return state;
+    case VM_SELECT:
+      return state.add(action.uuid);
+    case VM_DESELECT:
+      return state.delete(action.uuid);
+    case VM_SELECT_ALL:
+      return Set(action.uuids);
+    case VM_DESELECT_ALL:
+      return Set();
     default:
       return state;
   }
@@ -46,5 +31,5 @@ const vm_data = (state = initialState, action) => {
 };
 
 export default combineReducers(
-  {vm_data}
+  {selected}
 );

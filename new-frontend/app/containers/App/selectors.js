@@ -10,16 +10,13 @@ const makeSelectLocation = () => createSelector(
 
 const selectAppData = (state) => state.get('app');
 const selectVmData = (state) => selectAppData(state).get('vm_data');
-const makeSelectVmDataForTable = () => createSelector( //Only choose what is needed for table
+
+const makeSelectVmData = () => createSelector(
   selectVmData,
-  (substate) => {
-    return  substate.map(item => {
-      const {power_state, name_label, start_time, uuid} = item;
-      return {power_state, name_label, start_time,uuid};
-    }).toIndexedSeq().toArray();
-  }
+  (substate) => { return substate}
 );
+
 export {
   makeSelectLocation,
-  makeSelectVmDataForTable,
+  makeSelectVmData,
 };
