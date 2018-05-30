@@ -144,6 +144,13 @@ class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
             json_data_lists = {k : [v] for k, v in json_data.items()}
             self.request.arguments.update(json_data_lists)
 
+            #monkey-patch decode argument
+            self.decode_argument = lambda value, name: value
+
+            #monkey-patch _get_arguments
+            old_get_arguments = self._get_arguments
+            self._get_arguments = lambda name, source, strip: old_get_arguments(name, source, False)
+
     def get_current_user(self):
         return self.get_secure_cookie("user")
 
@@ -916,12 +923,9 @@ class StartStopVM(VMAbstractHandler):
     def get_data(self):
         uuid = self.get_argument('uuid')
         enable = self.get_argument('enable')
-        if enable not in ('True', 'False'):
-            self.set_status(400)
-            self.write({'status': 'invalid enable value: expected True/False'})
-            return
 
-        self.try_xenadapter(lambda auth: VM(auth, uuid=uuid).start_stop_vm(enable == 'True'))
+
+        self.try_xenadapter(lambda auth: VM(auth, uuid=uuid).start_stop_vm(enable))
 
 
 class VNC(VMAbstractHandler):

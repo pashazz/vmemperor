@@ -1,6 +1,21 @@
-// import { take, call, put, select } from 'redux-saga/effects';
+import { take, call, put, select, takeEvery } from 'redux-saga/effects';
+import {startStopVm } from 'api/vm';
+import {VM_RUN} from "./constants";
 
-// Individual exports for testing
-export default function* defaultSaga() {
-  // See example in containers/HomePage/saga.js
+function* vmRun (action){
+  try {
+    const data = yield  call(startStopVm, action.uuid, true);
+    console.log('vmRun: data:', data);
+  }
+  catch (e)
+  {
+    console.log("vmRun: exception: ", e);
+  }
+
+
+
 }
+
+export default function* rootSaga() {
+  yield takeEvery(VM_RUN, vmRun);
+};
