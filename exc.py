@@ -1,3 +1,4 @@
+import json
 class EmperorException(Exception):
     def __init__(self, log, message):
         log.error("{0}: {1}".format(type(self).__name__, message))
@@ -18,7 +19,8 @@ class XenAdapterUnauthorizedActionException(XenAdapterException):
     pass
 
 class XenAdapterAPIError(XenAdapterException):
-    pass
+    def __init__(self, log, message, details=None):
+        super().__init__(log, message=json.dumps({'message' : message, 'details' : details }))
 
 
 class XenAdapterArgumentError(XenAdapterException):

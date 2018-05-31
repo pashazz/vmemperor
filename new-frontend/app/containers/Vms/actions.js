@@ -6,7 +6,8 @@
  */
 
 import {
-  VM_DELETE, VM_DESELECT, VM_HALT, VM_RUN, VM_SELECT, VM_DESELECT_ALL, VM_SELECT_ALL
+  VM_DELETE, VM_DESELECT, VM_HALT, VM_RUN, VM_SELECT, VM_DESELECT_ALL, VM_SELECT_ALL,
+  VM_RUN_ERROR
 } from './constants';
 
 export function run(uuid)
@@ -59,5 +60,19 @@ export function vm_deselect_all()
 {
   return {
     type: VM_DESELECT_ALL,
+  }
+}
+
+//TODO May we use it for another types of errors in the future?
+export function vm_run_error(payload, date)
+{
+  const {message, details} = JSON.parse(payload);
+  return {
+    type: VM_RUN_ERROR,
+    errorText: message,
+    errorType: details[0],
+    ref: details[1],
+    errorDetailedText: details[2].trim(),
+    date: date,
   }
 }

@@ -379,7 +379,7 @@ class VM (AbstractVM):
                 self.shutdown()
                 self.xen.log.info("Shutted down".format(self.uuid))
         except XenAPI.Failure as f:
-            raise XenAdapterAPIError(self.log, "Failed to start/stop VM: {0}".format(f.details))
+            raise XenAdapterAPIError(self.log, "Failed to start/stop VM", f.details)
 
     @use_logger
     def get_vnc(self):
