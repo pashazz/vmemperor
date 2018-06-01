@@ -1,7 +1,11 @@
 import { take, call, put, select, takeEvery } from 'redux-saga/effects';
 import {startStopVm } from 'api/vm';
-import {VM_RUN} from "./constants";
+import {VM_RUN, VM_RUN_ERROR} from "./constants";
 import {vm_run_error} from "./actions";
+import React from 'react';
+
+import ErrorCard from '../../components/ErrorCard';
+import { actions } from 'react-redux-toastr';
 
 function* vmRun (action){
   try {
@@ -32,6 +36,38 @@ function* vmRun (action){
 
 }
 
+function* handleErrors(action)
+{
+  let errorHeader = null;
+  if (action.type === VM_RUN_ERROR)
+  {
+    // select VM name from store by ref
+    const selector = (state) => state.get('app').get('vm_data');
+    const vm_data_map = yield select(selector);
+    const vm_array = vm_data_map.valueSeq().toArray();
+    let vmName = null;
+    for (let value of vm_array)
+    {
+      console.log(value);
+      if (value.ref === action.ref)
+      {
+        vmName = value.name_label;
+        break;
+      }
+    }
+    errorHeader = "Sorry, we couldn't launch VM " + vmName;
+  }
+  const {errorType, errorDetailedText} = action;
+  yield put(actions.add(
+    {
+      type: 'error',
+      title: errorHeader,
+      message: errorType + ": " + errorDetailedText
+    }));
+}
+
 export default function* rootSaga() {
   yield takeEvery(VM_RUN, vmRun);
+  yield takeEvery(VM_RUN_ERROR, handleErrors);
+
 };

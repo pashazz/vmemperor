@@ -49,6 +49,10 @@ import './global-styles';
 //Import application-level sagas (login flow)
 import appSaga from 'containers/App/saga'
 
+//import toastr
+import 'react-redux-toastr/lib/css/react-redux-toastr.min.css'
+import ReduxToastr from 'react-redux-toastr';
+
 // Create redux store with history
 const initialState = {};
 const history = createHistory();
@@ -58,11 +62,15 @@ const MOUNT_NODE = document.getElementById('app');
 const render = (messages) => {
   ReactDOM.render(
     <Provider store={store}>
+      <div>
       <LanguageProvider messages={messages}>
         <ConnectedRouter history={history}>
           <App />
         </ConnectedRouter>
       </LanguageProvider>
+      <ReduxToastr
+      progressBar/>
+      </div>
     </Provider>,
     MOUNT_NODE
   );

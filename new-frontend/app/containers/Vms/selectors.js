@@ -14,7 +14,7 @@ const makeSelectVmDataForTable = () => createSelector( //Only choose what is nee
   selectVmData,
   (substate) => { //Immutable map
     return  substate.map(item => {
-      const {power_state, name_label, start_time, uuid} = item;
+      const {power_state, name_label, start_time, uuid,  ref} = item;
       return {power_state, name_label, start_time,uuid};
     }).toIndexedSeq().toArray();
   }

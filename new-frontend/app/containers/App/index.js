@@ -11,8 +11,10 @@
  * the linting exception.
  */
 
+
 import React from 'react';
 import { Switch, Route } from 'react-router-dom';
+//import { ToastContainer } from 'react-toastify';
 
 import HomePage from 'containers/HomePage/Loadable';
 import NotFoundPage from 'containers/NotFoundPage/Loadable';
@@ -21,6 +23,7 @@ import PrivateRoute from 'containers/PrivateRoute';
 import VMs from 'containers/Vms/Loadable';
 import LoginPage from 'containers/LoginPage/Loadable';
 import Logout from 'containers/Logout/Loadable';
+
 
 import { compose } from 'redux';
 import injectReducer from 'utils/injectReducer';

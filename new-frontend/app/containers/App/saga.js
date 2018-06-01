@@ -6,8 +6,12 @@ import { makeSelectLocation } from './selectors';
 import {authAgent} from "../PrivateRoute";
 import { msgVmlist } from "./actions";
 import { Server } from 'mock-socket';
+import ErrorCard from '../../components/ErrorCard';
 import axios  from 'axios';
+import {VM_RUN_ERROR} from "../Vms/constants";
 
+
+import { toast } from 'react-toastify'
 
 export function* loginFlow() {
   window.beforeLogin = '/';
@@ -191,11 +195,13 @@ function* watchLoginFlow() {
 function* watchWebsocketFlow(){
   yield takeEvery(AUTHENTICATED, websocketFlow);
 }
+
+
 // All sagas to be loaded
 export default function* rootSaga () {
   yield all([ watchLoginFlow(),
     watchWebsocketFlow() ]);
-
+  yield takeEvery(VM_RUN_ERROR, handleErrors);
   //yield all[loginFlow()];
   //yield takeEvery(AUTH, authenticate);
   //yield takeEvery(LOGOUT, logout);
