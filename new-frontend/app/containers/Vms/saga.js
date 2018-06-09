@@ -3,14 +3,25 @@ import {startStopVm } from 'api/vm';
 import {VM_RUN, VM_RUN_ERROR} from "./constants";
 import {vm_run_error} from "./actions";
 import React from 'react';
+import { Map } from 'immutable';
 
 import ErrorCard from '../../components/ErrorCard';
 import { actions } from 'react-redux-toastr';
 
-function* vmRun (action){
+const actionHandlers = Map({
+    [VM_RUN]: {
+      onError: vm_run_error,
+      handler: function* (action) {
+        const data = yield  call(startStopVm, action.uuid, true);
+        console.log('vmRun: data:', data);
+      }
+    },
+  });
+
+function* handleActions (action){
+  const handler = actionHandlers.get(action.type);
   try {
-    const data = yield  call(startStopVm, action.uuid, true);
-    console.log('vmRun: data:', data);
+    yield handler.handler(action);
   }
   catch (e)
   {
@@ -22,7 +33,7 @@ function* vmRun (action){
         //Handle error
         if (e.response.data.details)
         {
-          yield put(vm_run_error(e.response.data.details));
+          yield put(handler.onError(e.response.data.details));
         }
         else {
           console.error("Unhandled Response Error: ", e.response)
@@ -60,6 +71,7 @@ function* handleErrors(action)
   const {errorType, errorDetailedText} = action;
   yield put(actions.add(
     {
+      id: action.ref,
       type: 'error',
       title: errorHeader,
       message: errorType + ": " + errorDetailedText
@@ -67,7 +79,7 @@ function* handleErrors(action)
 }
 
 export default function* rootSaga() {
-  yield takeEvery(VM_RUN, vmRun);
+  yield takeEvery(VM_RUN, handleActions);
   yield takeEvery(VM_RUN_ERROR, handleErrors);
 
 };
