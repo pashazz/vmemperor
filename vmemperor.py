@@ -30,7 +30,7 @@ from rethinkdb.errors import ReqlDriverError, ReqlTimeoutError
 from authentication import BasicAuthenticator
 from loggable import Loggable
 from pathlib import Path
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit, urlunsplit, urlencode
 from exc import *
 import logging
 from netifaces import ifaddresses, AF_INET
@@ -48,7 +48,7 @@ from tornado.websocket import *
 import asyncio
 from tornado.platform.asyncio import AnyThreadEventLoopPolicy
 #Objects with ACL enabled
-objects = [VM]
+objects = [VM, Network]
 
 user_table_ready = threading.Event()
 need_exit = threading.Event()
@@ -596,8 +596,8 @@ class CreateVM(BaseHandler):
                         kwargs['dns0'] = dns0
                     if dns1:
                         kwargs['dns1'] = dns1
-            self.scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + self.os_kind.split()[0] + "?" + "&".join(
-                ('{0}={1}'.format(k, v) for k, v in kwargs.items()))
+            self.scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + self.os_kind.split()[0] + "?" +\
+                urlencode(kwargs, doseq=True )
             self.log.info("Scenario URL generated: %s", self.scenario_url)
 
             def clone_post_hook(return_value, auth):
@@ -677,15 +677,11 @@ class CreateVM(BaseHandler):
 class NetworkList(BaseHandler):
     @auth_required
     def get(self):
-        """
-        Format: list of fields of http://xapi-project.github.io/xen-api/classes/network.html
-        """
-        # read from db
-        self.conn.repl()
-        table = r.db(opts.database).table('nets')
-        list = [x for x in table.run()]
+        with self.conn:
+            db = r.db(opts.database)
+            if isinstance(self.user_authenticator, AdministratorAuthenticator):
+                self.query = db.table('nets')
 
-        self.write(json.dumps(list))
 
 
 class ConvertVM(BaseHandler):
@@ -1087,7 +1083,6 @@ class EventLoop(Loggable):
                 CHECK_ER(self.db.table('nets').insert(list(nets), conflict='update').run())
 
             del authenticator.xen
-            print("created")
 
 
     def do_access_monitor(self):
@@ -1106,8 +1101,6 @@ class EventLoop(Loggable):
                     table_user = table + '_user'
                     if table_user in table_list:
                         self.db.table_drop(table_user).run()
-
-
 
 
                     self.db.table_create(table_user, durability='soft').run()

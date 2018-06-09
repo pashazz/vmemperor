@@ -32,6 +32,7 @@ class XenObjectMeta(type):
 class XenObject(metaclass=XenObjectMeta):
 
     REF_NULL = "OpaqueRef:NULL"
+    db_table_name = ''
 
 
     def __init__(self, auth : BasicAuthenticator,  uuid=None, ref=None):
@@ -141,7 +142,6 @@ class ACLXenObject(XenObject):
                                                         username, self.access_prefix)
 
     ALLOW_EMPTY_XENSTORE = False # Empty xenstore for some objects might treat them as for-all-by-default
-    db_table_name = '' # every subclass should override it
 
     @use_logger
     def check_access(self,  action):

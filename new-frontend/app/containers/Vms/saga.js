@@ -1,6 +1,6 @@
 import { take, call, put, select, takeEvery } from 'redux-saga/effects';
 import {startStopVm } from 'api/vm';
-import {VM_RUN, VM_RUN_ERROR} from "./constants";
+import {VM_HALT, VM_RUN, VM_RUN_ERROR} from "./constants";
 import {vm_run_error} from "./actions";
 import React from 'react';
 import { Map } from 'immutable';
@@ -16,6 +16,13 @@ const actionHandlers = Map({
         console.log('vmRun: data:', data);
       }
     },
+  [VM_HALT]: {
+      onError: vm_run_error,
+    handler: function* (action) {
+      const data = yield  call(startStopVm, action.uuid, false);
+      console.log('vmHalt: data:', data);
+    }
+  }
   });
 
 function* handleActions (action){
@@ -80,6 +87,8 @@ function* handleErrors(action)
 
 export default function* rootSaga() {
   yield takeEvery(VM_RUN, handleActions);
+  yield takeEvery(VM_HALT, handleActions);
   yield takeEvery(VM_RUN_ERROR, handleErrors);
+  //VM_HALT_ERROR: todo!
 
 };

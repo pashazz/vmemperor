@@ -22,12 +22,14 @@ import Navbar from "../../components/Navbar";
 import PrivateRoute from 'containers/PrivateRoute';
 import VMs from 'containers/Vms/Loadable';
 import LoginPage from 'containers/LoginPage/Loadable';
+import CreateVm from "../CreateVm/Loadable";
 import Logout from 'containers/Logout/Loadable';
 
 
 import { compose } from 'redux';
 import injectReducer from 'utils/injectReducer';
 import reducer from './reducer';
+
 function App() {
   return (
     <div>
@@ -36,6 +38,7 @@ function App() {
         <Route exact path="/" component={HomePage} />
         <Route path="/login" component={LoginPage} />
         <PrivateRoute  path="/vms" component={VMs} />
+        <PrivateRoute path="/create-vm" component={CreateVm}/>
         <PrivateRoute path="/logout" component={Logout} />
         <Route component={NotFoundPage} />
       </Switch>

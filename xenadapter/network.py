@@ -11,9 +11,12 @@ class VIF(XenObject, metaclass=XenObjectMeta):
 
 
 
-class Network(XenObject):
+class Network(ACLXenObject):
     from .vm import VM
     api_class = "network"
+    ALLOW_EMPTY_XENSTORE = True
+    db_table_name = 'nets'
+
     def __init__(self, auth, uuid):
         super().__init__(auth, uuid)
 
