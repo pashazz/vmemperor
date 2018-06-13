@@ -212,6 +212,13 @@ class Main():
     def vmlist(self, args):
         self._async_call(self._vmlist_async)
 
+    @login
+    def networklist(self, args):
+        r = requests.get("%s/netlist" % self.url, cookies=self.jar)
+        js = json.loads(r.text)
+        pprint.pprint(js)
+        print(r.status_code, file=sys.stderr)
+
 
 
     @login
