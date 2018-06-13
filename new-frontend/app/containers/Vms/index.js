@@ -4,21 +4,21 @@
  *
  */
 
-
 import NextTable from 'react-bootstrap-table-next';
 import filterFactory, { textFilter } from 'react-bootstrap-table2-filter'
 import React from 'react';
+import uuid from 'uuid/v4';
 import PropTypes from 'prop-types';
 import { connect } from 'react-redux';
 import { FormattedMessage } from 'react-intl';
 import { createStructuredSelector } from 'reselect';
 import { compose } from 'redux';
-
+import { actions as toastrActions} from 'react-redux-toastr';
 import injectSaga from 'utils/injectSaga';
 import injectReducer from 'utils/injectReducer';
 import {
   makeSelectVmDataForTable, makeSelectSelection, makeSelectSelectionRunning, makeSelectSelectionHalted,
-  makeStartButtonDisabled, makeStopButtonDisabled, makeTrashButtonDisabled
+  makeStartButtonDisabled, makeStopButtonDisabled, makeTrashButtonDisabled, makeSelectVmDataNames
 } from "./selectors";
 import reducer from './reducer';
 import saga from './saga';
@@ -50,6 +50,8 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
     this.onSelectAll = this.onSelectAll.bind(this);
     this.onTableRun = this.onTableRun.bind(this);
     this.onTableHalt = this.onTableHalt.bind(this);
+
+
   }
 
 
@@ -132,16 +134,32 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
     }
   }
 
-
+  notificationOptions(title, names)
+  {
+    return {
+      id: uuid(),
+      type: 'info',
+      timeOut: 0,
+      title,
+      message: names.join('\n')
+    }
+  }
   onTableRun()
   {
+    const names = this.props.table_selection_halted.map(uuid => this.props.vm_data_names.get(uuid));
   //  this.doTableAction(this.state.selectedHalted, run);
-    this.props.table_selection_halted.forEach(uuid => this.props.run(uuid));
+    const options = this.notificationOptions('Starting VMs', names);
+    this.props.addToastr(options);
+    this.props.table_selection_halted.forEach(uuid => this.props.run(uuid, options.id));
+
   }
 
   onTableHalt()
   {
-    this.props.table_selection_running.forEach(uuid => this.props.halt(uuid));
+    const names = this.props.table_selection_running.map(uuid => this.props.vm_data_names.get(uuid));
+    const options = this.notificationOptions('Stopping VMs', names);
+    this.props.addToastr(options);
+    this.props.table_selection_running.forEach(uuid => this.props.halt(uuid, options.id));
   }
 
 
@@ -194,10 +212,11 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
 
 Vms.propTypes = {
   vm_data_table: PropTypes.array.isRequired, //Data for VM table
-  /*vm_data: ITypes.mapOf( //Key-valued data about VMs taken directly from store
-    VMRecord,
+  vm_data_names: ITypes.mapOf( //Key-valued data about VMs taken directly from store
     PropTypes.string,
-  ),*/
+    PropTypes.string,
+  ),
+  dispatch: PropTypes.func.isRequired,
   table_selection: PropTypes.array.isRequired,
   table_selection_halted: PropTypes.array.isRequired,
   table_selection_running: PropTypes.array.isRequired,
@@ -211,10 +230,13 @@ Vms.propTypes = {
   start_button_disabled: PropTypes.bool.isRequired,
   stop_button_disabled: PropTypes.bool.isRequired,
   trash_button_disabled: PropTypes.bool.isRequired,
+  addToastr: PropTypes.func.isRequired,
+  removeToastr: PropTypes.func.isRequired,
 };
 
 const mapStateToProps = createStructuredSelector({
   vm_data_table: makeSelectVmDataForTable(),
+  vm_data_names: makeSelectVmDataNames(),
   table_selection: makeSelectSelection(),
   table_selection_running: makeSelectSelectionRunning(),
   table_selection_halted: makeSelectSelectionHalted(),
@@ -232,8 +254,8 @@ const mapDispatchToProps = {
   vm_deselect,
   vm_select_all,
   vm_deselect_all,
-
-
+  addToastr: toastrActions.add,
+  removeToastr: toastrActions.remove,
 };
 
 const withConnect = connect(mapStateToProps, mapDispatchToProps);

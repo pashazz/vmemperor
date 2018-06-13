@@ -7,24 +7,41 @@
 
 import {
   VM_DELETE, VM_DESELECT, VM_HALT, VM_RUN, VM_SELECT, VM_DESELECT_ALL, VM_SELECT_ALL,
-  VM_RUN_ERROR
+  VM_RUN_ERROR, VM_NOTIFICATION_INCREASE, VM_NOTIFICATION_DECREASE
 } from './constants';
 
-export function run(uuid)
+export function run(uuid, notifyId)
 {
   return {
     type: VM_RUN,
-    uuid
+    uuid,
+    notifyId,
   }
 }
 
-export function halt(uuid) {
+export function halt(uuid, notifyId) {
   return {
     type: VM_HALT,
-    uuid
+    uuid,
+    notifyId
   }
 
 }
+
+export function vmNotificationIncrease(notifyId) {
+  return {
+    type: VM_NOTIFICATION_INCREASE,
+    notifyId
+  }
+}
+
+export function vmNotificationDecrease (notifyId) {
+  return {
+    type: VM_NOTIFICATION_DECREASE,
+    notifyId
+  }
+}
+
 
 export function vm_delete(uuid) {
   return {

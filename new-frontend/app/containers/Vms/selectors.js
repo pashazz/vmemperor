@@ -20,6 +20,19 @@ const makeSelectVmDataForTable = () => createSelector( //Only choose what is nee
   }
 );
 
+/**
+ *
+ * @returns a map with uuid as key and name_label as value
+ */
+const makeSelectVmDataNames = () => createSelector(
+  selectVmData,
+  (substate) => {
+    return substate.map(item => {
+      return item.name_label;
+    });
+  }
+);
+
 
 const makeSelectSelection = () => createSelector( //Table selection
   selectSelectionData,
@@ -59,6 +72,7 @@ const makeTrashButtonDisabled = () => createSelector(
 
 export {
   makeSelectVmDataForTable,
+  makeSelectVmDataNames,
   makeSelectSelection,
   makeSelectSelectionRunning,
   makeSelectSelectionHalted,
