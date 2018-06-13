@@ -791,7 +791,7 @@ class VMAbstractHandler(BaseHandler):
 
             ret = self.get_data()
             if ret:
-                self.write(ret)
+                self.write(json.dumps(ret, cls=DateTimeEncoder))
 
     def get_data(self):
         '''return answer information (if everything is OK). Else use set_status and write'''
@@ -897,7 +897,8 @@ class VMInfo(VMAbstractHandler):
         try:
             d = db.table('vms').get(self.uuid).run()
             return d
-        except:
+        except Exception as e:
+            self.log.error("Exception: {0}".format(e))
             self.set_status(500)
             self.write({'status' : 'database error/no info'})
             return

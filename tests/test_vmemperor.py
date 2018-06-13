@@ -196,7 +196,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         body['name_label'] = body['name_label'] + ' ' + self.id() + ' ' +  datetime.datetime.now().strftime('%D %H:%M:%S')
         name_label = body['name_label']
         res = self.fetch(r'/createvm', method='POST', body=urlencode(body), headers=self.headers)
-        self.assertEqual(res.code, 200)
+        self.assertEqual(200, res.code)
         uuid = res.body.decode()
 
         body = {'uuid': uuid}
@@ -578,8 +578,8 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         self.assertEqual(res.code, 403, "Eva still shouldn't have  obtained access rights")
         res = self.fetch(r'/vminfo', method='POST', body=urlencode(body), headers=headers_eva)
         self.assertEqual(res.code, 403, "Eva shouldn't have got an access info")
-        res = self.fetch(r'/vminfo', method='POST', body=urlencode(body), headers=headers_mike)
-        self.assertEqual(res.code, 200, "Mike has Launch rights, he must have an ability to get VM info")
+        res = self.fetch(r'/vminfo', method='POST', body=urlencode(body), headers=headers_mike, request_timeout=9999)
+        self.assertEqual(200, res.code, "Mike has Launch rights, he must have an ability to get VM info")
         sleep(1)
         res = self.fetch(r'/destroyvm', method='POST', body=urlencode(body), headers=headers_mike)
         self.assertEqual(res.code, 403, "Mike shouldn't have destroyed a VM")
