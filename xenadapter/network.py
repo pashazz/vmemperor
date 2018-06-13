@@ -37,3 +37,17 @@ class Network(ACLXenObject):
             raise XenAdapterAPIError(self.auth.xen.log, "Failed to create VIF: {0}".format(f.details))
 
         return vif
+
+    @classmethod
+    def filter_record(cls, record):
+        return record['bridge'] != 'xenapi'
+
+    @classmethod
+    def process_record(cls, auth, ref, record):
+        record = super().process_record(auth, ref, record)
+        keys = ['name_label', 'name_description', 'PIFs', 'VIFs', 'uuid', 'ref', 'other_config']
+        new_rec = {k: v for k, v in record.items() if k in keys}
+        return new_rec
+
+
+

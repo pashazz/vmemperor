@@ -679,8 +679,13 @@ class NetworkList(BaseHandler):
     def get(self):
         with self.conn:
             db = r.db(opts.database)
-            if isinstance(self.user_authenticator, AdministratorAuthenticator):
-                self.query = db.table('nets')
+            try:
+                self.write(json.dumps(db.table('nets').coerce_to('array').run()))
+            except Exception as e:
+                self.set_status(500)
+                self.log.error("Exception: {0}".format(e))
+
+
 
 
 
