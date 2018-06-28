@@ -453,15 +453,65 @@ class PoolList(BaseHandler):
     @auth_required
     def get(self):
         """
-        List of XenServer pools
-         Format: list of http://xapi-project.github.io/xen-api/classes/pool.html ('fields')
+        XenServer pool list
+        TODO: Rewrite it using RethinkDB cache
          """
-        # read from db
-        with self.conn:
-            table = r.db(opts.database).table('pools')
-            list = [x for x in table.run()]
+        
+        pool_info = {}
+        api = self.user_authenticator.xen.api
+        networks = api.network.get_all_records()
+        # TODO: implement filtering by tags some time
+        pool_info["networks"] = []
+        for net in networks.values():
+            if net["name_label"] == "Host internal management network":
+                continue
+            pool_info["networks"].append({"uuid": net["uuid"], "name_label": net["name_label"]})
 
-            self.write(json.dumps(list))
+        pool_info["storage_resources"] = []
+        storage_resources = api.SR.get_all_records()
+        for sr in storage_resources.values():
+            if sr["type"] == "lvmoiscsi" or sr["type"] == "lvm":
+                label = ''.join((sr["name_label"], " (Available %d GB)" % (
+                            (int(sr['physical_size']) - int(sr['virtual_allocation'])) / (1024 * 1024 * 1024))))
+                if sr["shared"]:
+                    label = ''.join(("Shared storage: ", label))
+                    pool_info["storage_resources"].insert(0, {"uuid": sr["uuid"], "name_label": label})
+                else:
+                    pool_info["storage_resources"].append({"uuid": sr["uuid"], "name_label": label})
+
+        pools = api.pool.get_all_records()
+        default_sr = None
+        pool_description = None
+        for pool in pools.values():
+            default_sr = pool['default_SR']
+            pool_description = pool['name_description']
+        if default_sr != 'OpaqueRef:NULL':
+            sr_info = api.SR.get_record(default_sr)
+            pool_info['hdd_available'] = (int(sr_info['physical_size']) - int(sr_info['virtual_allocation'])) / (
+                        1024 * 1024 * 1024)
+        else:
+            pool_info['hdd_available'] = None
+        pool_info['host_list'] = []
+
+        records = api.host.get_all_records()
+        for host_ref, record in records.items():
+            metrics = api.host_metrics.get_record(record['metrics'])
+            host_entry = dict()
+            for i in ['name_label', 'resident_VMs', 'software_version', 'cpu_info']:
+                host_entry[i] = record[i]
+            host_entry['memory_total'] = int(metrics['memory_total']) / (1024 * 1024)
+            host_entry['memory_free'] = int(metrics['memory_free']) / (1024 * 1024)
+            host_entry['live'] = metrics['live']
+            host_entry['memory_available'] = int(api.host.compute_free_memory(host_ref)) / (1024 * 1024)
+            pool_info['host_list'].append(host_entry)
+
+        # For now we have a single endpoint
+        pool_info['url'] = opts.url
+        pool_info['description'] = pool_description
+
+        self.write(json.dumps([pool_info]))
+
+
 
 
 class TemplateList(BaseHandler):
