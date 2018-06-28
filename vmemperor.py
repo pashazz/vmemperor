@@ -8,6 +8,7 @@ from xenadapter.template import Template
 from xenadapter.vm import VM
 from xenadapter.network import Network
 from xenadapter.disk import ISO
+from xenadapter.pool import Pool
 import copy
 import traceback
 import inspect
@@ -90,7 +91,8 @@ def auth_required(method):
     def decorator(self, *args, **kwargs):
         user = HandlerMethods.get_current_user(self)
         if not user:
-            self.write({'status': 'error', 'message': 'not authorized'});
+            self.set_status(401)
+            self.write({'status': 'error', 'message': 'not authorized'})
         else:
             self.user_authenticator  = pickle.loads(user)
             self.user_authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
@@ -140,16 +142,18 @@ class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
             except:
                 pass
 
-            json_data = json.loads(self.request.body.decode(encoding=encoding))
-            json_data_lists = {k : [v] for k, v in json_data.items()}
-            self.request.arguments.update(json_data_lists)
+            body = self.request.body.decode(encoding=encoding).strip()
+            if body:
+                json_data = json.loads(body)
+                json_data_lists = {k : [v] for k, v in json_data.items()}
+                self.request.arguments.update(json_data_lists)
 
-            #monkey-patch decode argument
-            self.decode_argument = lambda value, name: value
+                #monkey-patch decode argument
+                self.decode_argument = lambda value, name: value
 
-            #monkey-patch _get_arguments
-            old_get_arguments = self._get_arguments
-            self._get_arguments = lambda name, source, strip: old_get_arguments(name, source, False)
+                #monkey-patch _get_arguments
+                old_get_arguments = self._get_arguments
+                self._get_arguments = lambda name, source, strip: old_get_arguments(name, source, False)
 
     def get_current_user(self):
         return self.get_secure_cookie("user")
@@ -453,11 +457,11 @@ class PoolList(BaseHandler):
          Format: list of http://xapi-project.github.io/xen-api/classes/pool.html ('fields')
          """
         # read from db
-        self.conn.repl()
-        table = r.db(opts.database).table('pools')
-        list = [x for x in table.run()]
+        with self.conn:
+            table = r.db(opts.database).table('pools')
+            list = [x for x in table.run()]
 
-        self.write(json.dumps(list))
+            self.write(json.dumps(list))
 
 
 class TemplateList(BaseHandler):
@@ -1072,13 +1076,13 @@ class EventLoop(Loggable):
              #   tmpls = self.xen.list_templates().values()
                 tmpls = Template.init_db(authenticator)
                 CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='update').run())
-          #  if 'pools' not in tables:
-          #      self.db.table_create('pools', durability='soft', primary_key='uuid').run()
-          #      pools = self.xen.list_pools().values()
-          #      CHECK_ER(self.db.table('pools').insert(list(pools), conflict='error').run())
-          #  else:
-          #      pools = self.xen.list_pools().values()
-          #      CHECK_ER(self.db.table('pools').insert(list(pools), conflict='update').run())
+            if 'pools' not in tables:
+                self.db.table_create('pools', durability='soft', primary_key='uuid').run()
+                pools = Pool.init_db(authenticator)
+                CHECK_ER(self.db.table('pools').insert(list(pools), conflict='error').run())
+            else:
+                pools = Pool.init_db(authenticator)
+                CHECK_ER(self.db.table('pools').insert(list(pools), conflict='update').run())
             if 'nets' not in tables:
                 self.db.table_create('nets', durability='soft', primary_key='uuid').run()
                 nets = Network.init_db(authenticator)

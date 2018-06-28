@@ -154,7 +154,7 @@ class VM (AbstractVM):
 
     @classmethod
     def create(self, auth, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, scenario_url=None, name_label = '', start=True, override_pv_args=None):
-        '''
+        '''1
         Creates a virtual machine and installs an OS
 
         :param new_vm_uuid: Cloned template UUID (use clone_templ)

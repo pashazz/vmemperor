@@ -219,6 +219,13 @@ class Main():
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
 
+    @login
+    def poollist(self, args):
+        r = requests.get("%s/poollist" % self.url, cookies=self.jar)
+        js = json.loads(r.text)
+        pprint.pprint(js)
+        print(r.status_code, file=sys.stderr)
+
 
 
     @login
