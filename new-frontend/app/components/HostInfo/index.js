@@ -8,7 +8,7 @@ import React from 'react';
 import styled from 'styled-components';
 import T from 'prop-types';
 
-import { FormattedMessage } from 'react-intl';
+import { FormattedMessage, FormattedNumber } from 'react-intl';
 import messages from './messages';
 
 const Break = styled.hr`

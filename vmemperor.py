@@ -456,9 +456,21 @@ class PoolList(BaseHandler):
         XenServer pool list
         TODO: Rewrite it using RethinkDB cache
          """
-        
+
         pool_info = {}
         api = self.user_authenticator.xen.api
+
+        pools = api.pool.get_all_records()
+        default_sr = None
+        pool_description = None
+        for pool in pools.values():
+            default_sr = pool['default_SR']
+            pool_description = pool['name_description']
+
+        if default_sr == 'OpaqueRef:NULL':
+            default_sr = None
+
+
         networks = api.network.get_all_records()
         # TODO: implement filtering by tags some time
         pool_info["networks"] = []
@@ -469,8 +481,14 @@ class PoolList(BaseHandler):
 
         pool_info["storage_resources"] = []
         storage_resources = api.SR.get_all_records()
-        for sr in storage_resources.values():
+
+
+        for key, sr in storage_resources.items():
             if sr["type"] == "lvmoiscsi" or sr["type"] == "lvm":
+                if default_sr is None and sr["name_label"] == "Local storage":
+                    default_sr = key
+
+
                 label = ''.join((sr["name_label"], " (Available %d GB)" % (
                             (int(sr['physical_size']) - int(sr['virtual_allocation'])) / (1024 * 1024 * 1024))))
                 if sr["shared"]:
@@ -479,18 +497,13 @@ class PoolList(BaseHandler):
                 else:
                     pool_info["storage_resources"].append({"uuid": sr["uuid"], "name_label": label})
 
-        pools = api.pool.get_all_records()
-        default_sr = None
-        pool_description = None
-        for pool in pools.values():
-            default_sr = pool['default_SR']
-            pool_description = pool['name_description']
-        if default_sr != 'OpaqueRef:NULL':
-            sr_info = api.SR.get_record(default_sr)
-            pool_info['hdd_available'] = (int(sr_info['physical_size']) - int(sr_info['virtual_allocation'])) / (
-                        1024 * 1024 * 1024)
-        else:
-            pool_info['hdd_available'] = None
+
+
+
+        sr_info = api.SR.get_record(default_sr)
+        pool_info['hdd_available'] = (int(sr_info['physical_size']) - int(sr_info['virtual_allocation'])) / (
+                    1024 * 1024 * 1024)
+
         pool_info['host_list'] = []
 
         records = api.host.get_all_records()

@@ -4,7 +4,7 @@ import { List, Map } from 'immutable';
 /**
  * Direct selector to the createVm state domain
  */
-const makeSelectCreateVmDomain = () => state => state.get('create', new Map());
+const makeSelectCreateVmDomain = () => state => state.get('createvm', new Map());
 
 /**
  * Other specific selectors

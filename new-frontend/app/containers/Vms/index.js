@@ -216,7 +216,6 @@ Vms.propTypes = {
     PropTypes.string,
     PropTypes.string,
   ),
-  dispatch: PropTypes.func.isRequired,
   table_selection: PropTypes.array.isRequired,
   table_selection_halted: PropTypes.array.isRequired,
   table_selection_running: PropTypes.array.isRequired,

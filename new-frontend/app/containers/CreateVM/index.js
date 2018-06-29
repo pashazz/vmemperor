@@ -25,10 +25,11 @@ import PoolInfo from 'components/PoolInfo';
 import { Modal } from  'reactstrap';
 import VMForm from 'components/VMForm';
 import Loader from 'components/Loader';
+import IPT from 'react-immutable-proptypes';
 
 export class CreateVm extends React.Component { // eslint-disable-line react/prefer-stateless-function
   static propTypes = {
-    pools: T.any.isRequired,
+    pools: IPT.listOf(IPT.record).isRequired,
     modal: T.bool.isRequired,
     toggleModal: T.func.isRequired,
     createVM: T.func.isRequired,
@@ -45,7 +46,7 @@ export class CreateVm extends React.Component { // eslint-disable-line react/pre
         <div className={styles.poolsContainer}>
           {
             this.props.pools.size > 0 ?
-              this.props.pools.map(pool => <PoolInfo key={pool.key()} pool={pool} />) :
+              this.props.pools.map(pool => <PoolInfo key={pool.key()} pool={pool.toJS()} />) :
               <div style={{ textAlign: 'center' }}><Loader /></div>
           }
         </div>
@@ -69,8 +70,8 @@ const mapDispatchToProps = {
 
 const withConnect = connect(mapStateToProps, mapDispatchToProps);
 
-const withReducer = injectReducer({ key: 'CreateVM', reducer });
-const withSaga = injectSaga({ key: 'CreateVM', saga });
+const withReducer = injectReducer({ key: 'createvm', reducer });
+const withSaga = injectSaga({ key: 'createvm', saga });
 
 export default compose(
   withRouter,
