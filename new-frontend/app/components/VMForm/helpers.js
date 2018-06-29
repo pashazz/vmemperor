@@ -1,4 +1,6 @@
-import React, { PropTypes as T } from 'react';
+import React from 'react';
+import T from 'prop-types';
+
 
 import Template from './subforms/Template';
 import Storage from './subforms/Storage';

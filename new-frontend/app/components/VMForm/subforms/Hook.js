@@ -1,5 +1,6 @@
 import 'react-toggle-switch/dist/css/switch.min.css';
-import React, { PropTypes as T } from 'react';
+import React from 'react';
+import T from 'prop-types';
 import Switch from 'react-toggle-switch';
 
 class Hook extends React.Component {

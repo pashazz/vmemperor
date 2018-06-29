@@ -4,7 +4,8 @@
 *
 */
 
-import React, { PropTypes as T } from 'react';
+import React from 'react';
+import T from 'prop-types';
 import { FormattedMessage, FormattedNumber } from 'react-intl';
 import messages from './messages';
 import HostInfo from 'components/HostInfo';

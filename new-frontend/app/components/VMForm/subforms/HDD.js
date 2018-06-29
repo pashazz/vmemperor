@@ -1,4 +1,7 @@
-import React, { PropTypes as T } from 'react';
+import React from 'react';
+import T from 'prop-types';
+
+
 import classNames from 'classnames';
 
 function validate(hdd) {

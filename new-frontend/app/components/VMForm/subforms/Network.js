@@ -1,4 +1,6 @@
-import React, { PropTypes as T } from 'react';
+import React from 'react';
+import T from 'prop-types';
+
 
 function Network({ networks = [], selected, onChange }) {
   if (networks.length === 0) {

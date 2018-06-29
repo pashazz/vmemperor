@@ -1,4 +1,5 @@
-import React, { PropTypes as T } from 'react';
+import React from 'react';
+import T from 'prop-types';
 
 const Pool = ({ pools, selected, onChange }) =>
   <div className="input-group" style={{ paddingBottom: '10px' }}>

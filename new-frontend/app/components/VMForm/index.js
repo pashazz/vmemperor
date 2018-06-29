@@ -3,7 +3,9 @@
 * Vmform
 *
 */
-import React, { PropTypes as T } from 'react';
+import React from 'react';
+import T from 'prop-types';
+
 
 import { FormattedMessage } from 'react-intl';
 import messages from './messages';
