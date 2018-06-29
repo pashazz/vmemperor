@@ -7,13 +7,22 @@
 import React from 'react';
 import T from 'prop-types';
 import { connect } from 'react-redux';
-import { selectPools, getModal } from './selectors';
+import { compose } from 'redux';
+import { withRouter } from 'react-router-dom';
+import injectSaga from 'utils/injectSaga';
+import injectReducer from 'utils/injectReducer';
+
+import { createStructuredSelector } from 'reselect';
+import { makeSelectPools, makeGetModal } from './selectors';
 import { FormattedMessage } from 'react-intl';
 import messages from './messages';
 import { toggleModal, createVM } from './actions';
 import styles from './styles.css';
+import saga from './saga';
+import reducer from './reducer';
+
 import PoolInfo from 'components/PoolInfo';
-import Modal from 'components/Modal';
+import { Modal } from  'reactstrap';
 import VMForm from 'components/VMForm';
 import Loader from 'components/Loader';
 
@@ -40,7 +49,7 @@ export class CreateVm extends React.Component { // eslint-disable-line react/pre
               <div style={{ textAlign: 'center' }}><Loader /></div>
           }
         </div>
-        <Modal title="VM form" lg close={this.props.toggleModal} show={this.props.modal}>
+        <Modal title="VM form" lg toggle={this.props.toggleModal} isOpen={this.props.modal}>
           <VMForm pools={this.props.pools} onSubmit={this.props.createVM} />
         </Modal>
       </div>
@@ -58,4 +67,16 @@ const mapDispatchToProps = {
   createVM,
 };
 
-export default connect(mapStateToProps, mapDispatchToProps)(CreateVm);
+const withConnect = connect(mapStateToProps, mapDispatchToProps);
+
+const withReducer = injectReducer({ key: 'CreateVM', reducer });
+const withSaga = injectSaga({ key: 'CreateVM', saga });
+
+export default compose(
+  withRouter,
+  withReducer,
+  withSaga,
+  withConnect,
+)(CreateVm);
+
+

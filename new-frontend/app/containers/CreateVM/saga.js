@@ -1,16 +1,17 @@
-import { actionChannel, call, put, select, spawn, fork, take, cancel } from 'redux-saga/effects';
+import { all, call, put, select, spawn, fork, takeEvery, cancel } from 'redux-saga/effects';
 import { LOCATION_CHANGE } from 'react-router-redux';
 import { CREATE_VM } from './constants';
 import { setPools } from './actions';
 import { makeSelectPools } from './selectors';
 import { info, suc, err } from 'containers/App/actions';
 import localStorage from 'store';
-import list_pools from 'api/list_pools';
+import poollist from 'api/poollist';
+import createvm from 'api/createvm';
 
 export function* getPoolList() {
   const currentPools = yield select(makeSelectPools());
   if (currentPools.size === 0) {
-    const response = yield call(list_pools);
+    const response = yield call(poollist);
     if (response.data) {
       yield put(setPools(response.data));
     }
@@ -24,11 +25,12 @@ function updateStorage({ uuid = false }) {
   }
 }
 
-export function* runCreatinon(form) {
-  yield put(info(`Trying to create ${form.hostname}`));
-  const response = yield call(vmempAPI.vm.create, form);
+export function* runCreateVM(action) {
+  const { form } =  action;
+  console.log(`Trying to create ${form.hostname}`);
+  const response = yield call(createvm, form);
   if (response.data) {
-    yield put(suc(`For ${form.hostname}: ${response.data.details}`));
+    console.log(`For ${form.hostname}: ${response.data.details}`);
     updateStorage(response.data);
   }
   if (response.err) {
@@ -37,22 +39,9 @@ export function* runCreatinon(form) {
   yield spawn(getPoolList);
 }
 
-export function* actionsFlow() {
-  const chan = yield actionChannel(CREATE_VM);
-  while (true) { // eslint-disable-line no-constant-condition
-    const { form } = yield take(chan);
-    yield spawn(runCreatinon, form);
-  }
+export default function* rootSaga() {
+  yield all ([getPoolList()]);
+  yield takeEvery(CREATE_VM, runCreateVM);
+
 }
 
-export function* mainFlow() {
-  yield spawn(getPoolList);
-  const watcher = yield fork(actionsFlow);
-  yield take(LOCATION_CHANGE);
-  yield cancel(watcher);
-}
-
-// All sagas to be loaded
-export default [
-  mainFlow,
-];
