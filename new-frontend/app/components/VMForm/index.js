@@ -154,20 +154,20 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
 
     return (
       <form role="form" className={styles.vmForm} onSubmit={this.handleSubmit}>
-        <h4><FormattedMessage {...messages.infrastructure} /></h4>
+        <h4 style={{ margin: '20px'}}><FormattedMessage {...messages.infrastructure} /></h4>
         <VMInput.Pool pools={this.props.pools} selected={form['pool-select']} onChange={this.onInputTextChange} />
         <VMInput.Template templates={getTemplates(currentPool)} selected={form['template-select']} onChange={this.onInputTextChange} />
         <VMInput.Storage storages={getStorageResources(currentPool)} selected={form['storage-select']} onChange={this.onInputTextChange} />
         <VMInput.Network networks={getNetworks(currentPool)} selected={form['network-select']} onChange={this.onInputTextChange} />
 
-        <h4><FormattedMessage {...messages.account} /></h4>
+        <h4 style={{margin: '20px'}}><FormattedMessage {...messages.account} /></h4>
         <VMInput.Fullname fullname={form.fullname} onChange={this.onInputTextChange} />
         <VMInput.Link username={form.username} hostname={form.hostname} onChange={this.onInputTextChange} />
         <VMInput.Passwords password={form.password} password2={form.password2} onChange={this.onInputTextChange} />
         <VMInput.Description description={form['vm-description']} onChange={this.onInputTextChange} />
 
         <h4><FormattedMessage {...messages.resources} /></h4>
-        <div className="row" style={{ paddingBottom: '10px' }}>
+        <div className="row" style={{ paddingLeft: '20px' }}>
           <VMInput.CPU className="col-sm-4 col-lg-4" vcpus={form.vcpus} onChange={this.onInputNumberChange} />
           <VMInput.RAM className="col-sm-4 col-lg-4" ram={form.ram} onChange={this.onInputNumberChange} />
           <VMInput.HDD className="col-sm-4 col-lg-4" hdd={form.hdd} onChange={this.onInputNumberChange} />

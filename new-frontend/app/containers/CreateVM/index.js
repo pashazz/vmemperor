@@ -51,7 +51,7 @@ export class CreateVm extends React.Component { // eslint-disable-line react/pre
           }
         </div>
         <Modal title="VM form" lg toggle={this.props.toggleModal} isOpen={this.props.modal}>
-          <VMForm pools={this.props.pools} onSubmit={this.props.createVM} />
+          <VMForm  pools={this.props.pools} onSubmit={this.props.createVM} />
         </Modal>
       </div>
     );
