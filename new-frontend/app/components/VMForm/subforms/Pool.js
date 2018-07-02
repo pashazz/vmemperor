@@ -14,7 +14,7 @@ const Pool = ({ pools, selected, onChange }) =>
       <option value="">Select where to deploy instance</option>
       {
         pools.map(pool =>
-          <option key={pool.id} value={pool.id}>{pool.description}</option>)
+          <option key={pool.uuid} value={pool.uuid}>{pool.description}</option>)
       }
     </select>
   </div>;

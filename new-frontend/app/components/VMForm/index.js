@@ -36,10 +36,12 @@ function getNetworks(pool = null) {
     })) : [];
 }
 
+/*
 function getHooks(template = null) {
   if (!template) {
     return {};
   }
+
   const meta = template.other_config.vmemperor_hooks_meta;
 
   return Object.keys(meta)
@@ -55,12 +57,13 @@ function getHooks(template = null) {
     {}
   );
 }
+*/
 
 class VMForm extends React.Component { // eslint-disable-line react/prefer-stateless-function
   static propTypes = {
     pools: T.any.isRequired,
     onSubmit: T.func.isRequired,
-  }
+  };
 
   constructor(props) {
     super(props);
@@ -70,7 +73,7 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
     this.getTemplate = this.getTemplate.bind(this);
     this.onInputTextChange = this.onInputTextChange.bind(this);
     this.onInputNumberChange = this.onInputNumberChange.bind(this);
-    this.onHookChange = this.onHookChange.bind(this);
+ //   this.onHookChange = this.onHookChange.bind(this);
 
     this.state = {
       'pool-select': '',
@@ -102,6 +105,7 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
     form[e.target.name] = newVal !== '' ? parseInt(newVal, 10) : '';
     this.setState(form);
   }
+/*
 
   onHookChange(name, option) {
     return event => {
@@ -123,9 +127,9 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
       this.setState({ hooks });
     };
   }
-
+*/
   getPool() {
-    return this.props.pools.find(pool => pool.id === this.state['pool-select']);
+    return this.props.pools.find(pool => pool.uuid === this.state['pool-select']);
   }
 
   getTemplate() {
@@ -146,7 +150,7 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
 
     const currentPool = this.getPool();
     const currentTemplate = this.getTemplate();
-    const currentHooks = getHooks(currentTemplate);
+  //  const currentHooks = getHooks(currentTemplate);
 
     return (
       <form role="form" className={styles.vmForm} onSubmit={this.handleSubmit}>
@@ -168,7 +172,7 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
           <VMInput.RAM className="col-sm-4 col-lg-4" ram={form.ram} onChange={this.onInputNumberChange} />
           <VMInput.HDD className="col-sm-4 col-lg-4" hdd={form.hdd} onChange={this.onInputNumberChange} />
         </div>
-
+        {/*
         <h4><FormattedMessage {...messages.hooks} /></h4>
         {
           Object.keys(currentHooks)
@@ -177,6 +181,7 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
               <VMInput.Hook key={hook.hookName} {...hook} selected={form.hooks[hook.hookName]} onChange={this.onHookChange} />)
         }
         <br />
+         */}
         <input type="submit" className="btn btn-lg btn-primary btn-block" />
       </form>
     );

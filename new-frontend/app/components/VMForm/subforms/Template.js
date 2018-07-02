@@ -1,5 +1,6 @@
 import React from 'react';
 import T from 'prop-types';
+import { InputGroup, InputGroupAddon, Input, InputGroupText } from 'reactstrap';
 
 
 function Template({ templates = [], onChange }) {

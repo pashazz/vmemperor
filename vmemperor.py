@@ -457,70 +457,80 @@ class PoolList(BaseHandler):
         TODO: Rewrite it using RethinkDB cache
          """
 
-        pool_info = {}
-        api = self.user_authenticator.xen.api
+        with self.conn:
 
-        pools = api.pool.get_all_records()
-        default_sr = None
-        pool_description = None
-        for pool in pools.values():
-            default_sr = pool['default_SR']
-            pool_description = pool['name_description']
+            pool_info = {}
+            api = self.user_authenticator.xen.api
 
-        if default_sr == 'OpaqueRef:NULL':
+            pools = api.pool.get_all_records()
             default_sr = None
+            pool_description = None
+            for pool in pools.values():
+                default_sr = pool['default_SR']
+                pool_description = pool['name_description']
+                pool_id = pool['uuid']
+
+            if default_sr == 'OpaqueRef:NULL':
+                default_sr = None
 
 
-        networks = api.network.get_all_records()
-        # TODO: implement filtering by tags some time
-        pool_info["networks"] = []
-        for net in networks.values():
-            if net["name_label"] == "Host internal management network":
-                continue
-            pool_info["networks"].append({"uuid": net["uuid"], "name_label": net["name_label"]})
+            networks = api.network.get_all_records()
+            # TODO: implement filtering by tags some time
+            pool_info["networks"] = []
+            for net in networks.values():
+                if net["name_label"] == "Host internal management network":
+                    continue
+                pool_info["networks"].append({"uuid": net["uuid"], "name_label": net["name_label"]})
 
-        pool_info["storage_resources"] = []
-        storage_resources = api.SR.get_all_records()
-
-
-        for key, sr in storage_resources.items():
-            if sr["type"] == "lvmoiscsi" or sr["type"] == "lvm":
-                if default_sr is None and sr["name_label"] == "Local storage":
-                    default_sr = key
+            pool_info["storage_resources"] = []
+            storage_resources = api.SR.get_all_records()
 
 
-                label = ''.join((sr["name_label"], " (Available %d GB)" % (
-                            (int(sr['physical_size']) - int(sr['virtual_allocation'])) / (1024 * 1024 * 1024))))
-                if sr["shared"]:
-                    label = ''.join(("Shared storage: ", label))
-                    pool_info["storage_resources"].insert(0, {"uuid": sr["uuid"], "name_label": label})
-                else:
-                    pool_info["storage_resources"].append({"uuid": sr["uuid"], "name_label": label})
+            for key, sr in storage_resources.items():
+                if sr["type"] == "lvmoiscsi" or sr["type"] == "lvm":
+                    if default_sr is None and sr["name_label"] == "Local storage":
+                        default_sr = key
+
+
+                    label = ''.join((sr["name_label"], " (Available %d GB)" % (
+                                (int(sr['physical_size']) - int(sr['virtual_allocation'])) / (1024 * 1024 * 1024))))
+                    if sr["shared"]:
+                        label = ''.join(("Shared storage: ", label))
+                        pool_info["storage_resources"].insert(0, {"uuid": sr["uuid"], "name_label": label})
+                    else:
+                        pool_info["storage_resources"].append({"uuid": sr["uuid"], "name_label": label})
 
 
 
 
-        sr_info = api.SR.get_record(default_sr)
-        pool_info['hdd_available'] = (int(sr_info['physical_size']) - int(sr_info['virtual_allocation'])) / (
-                    1024 * 1024 * 1024)
+            sr_info = api.SR.get_record(default_sr)
+            pool_info['hdd_available'] = (int(sr_info['physical_size']) - int(sr_info['virtual_allocation'])) / (
+                        1024 * 1024 * 1024)
 
-        pool_info['host_list'] = []
+            pool_info['host_list'] = []
 
-        records = api.host.get_all_records()
-        for host_ref, record in records.items():
-            metrics = api.host_metrics.get_record(record['metrics'])
-            host_entry = dict()
-            for i in ['name_label', 'resident_VMs', 'software_version', 'cpu_info']:
-                host_entry[i] = record[i]
-            host_entry['memory_total'] = int(metrics['memory_total']) / (1024 * 1024)
-            host_entry['memory_free'] = int(metrics['memory_free']) / (1024 * 1024)
-            host_entry['live'] = metrics['live']
-            host_entry['memory_available'] = int(api.host.compute_free_memory(host_ref)) / (1024 * 1024)
-            pool_info['host_list'].append(host_entry)
+            records = api.host.get_all_records()
+            for host_ref, record in records.items():
+                metrics = api.host_metrics.get_record(record['metrics'])
+                host_entry = dict()
+                for i in ['name_label', 'resident_VMs', 'software_version', 'cpu_info']:
+                    host_entry[i] = record[i]
+                host_entry['memory_total'] = int(metrics['memory_total']) / (1024 * 1024)
+                host_entry['memory_free'] = int(metrics['memory_free']) / (1024 * 1024)
+                host_entry['live'] = metrics['live']
+                host_entry['memory_available'] = int(api.host.compute_free_memory(host_ref)) / (1024 * 1024)
+                pool_info['host_list'].append(host_entry)
 
-        # For now we have a single endpoint
-        pool_info['url'] = opts.url
-        pool_info['description'] = pool_description
+            # For now we have a single endpoint
+            pool_info['url'] = opts.url
+            pool_info['description'] = pool_description
+            pool_info['uuid'] = pool_id
+
+            #TODO filter templates by tag??
+
+            tmpls_table = r.db(opts.database).table('tmpls')
+            pool_info['templates_enabled'] = [x for x in tmpls_table.run()]
+
 
         self.write(json.dumps([pool_info]))
 
