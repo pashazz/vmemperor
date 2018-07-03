@@ -619,10 +619,13 @@ class CreateVM(BaseHandler):
             self.ram_size = self.get_argument('ram_size')
             self.hostname = self.get_argument('hostname')
             self.name_label = self.get_argument('name_label')
-            self.mirror_url = self.get_argument('mirror_url')
+            self.mirror_url = self.get_argument('mirror_url', None)
 
-        except:
-            self.write_error(status_code=404)
+        except Exception as e:
+            self.set_status(400)
+            self.log.error("Exception: {0}".format(e))
+            self.write({'status': 'error', 'message': 'bad request'})
+            self.finish()
             return
         with self.conn:
             db = r.db(opts.database)

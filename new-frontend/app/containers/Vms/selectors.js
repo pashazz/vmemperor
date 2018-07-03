@@ -47,7 +47,8 @@ const makeSelectSelectionPowerState = (power) => createSelector(
   selectSelectionData, //Set of uuids
   (vmSubstate, selectionSubstate) => {
     return selectionSubstate.filter(
-      id => vmSubstate.get(id).power_state === power).toSeq().toArray();
+      id => vmSubstate.has(id) &&
+        vmSubstate.get(id).power_state === power).toSeq().toArray();
   });
 
 const makeSelectSelectionRunning = () =>

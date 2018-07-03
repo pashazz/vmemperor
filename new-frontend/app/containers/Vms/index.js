@@ -50,8 +50,7 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
     this.onSelectAll = this.onSelectAll.bind(this);
     this.onTableRun = this.onTableRun.bind(this);
     this.onTableHalt = this.onTableHalt.bind(this);
-
-
+    this.onTableDelete = this.onTableDelete.bind(this);
   }
 
 
@@ -141,7 +140,11 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
       type: 'info',
       timeOut: 0,
       title,
-      message: names.join('\n')
+      message: names.join('\n'),
+      options : {
+        showCloseButton: true,
+        
+      }
     }
   }
   onTableRun()
@@ -160,6 +163,14 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
     const options = this.notificationOptions('Stopping VMs', names);
     this.props.addToastr(options);
     this.props.table_selection_running.forEach(uuid => this.props.halt(uuid, options.id));
+  }
+
+  onTableDelete()
+  {
+    const names = this.props.table_selection.map(uuid => this.props.vm_data_names.get(uuid));
+    const options = this.notificationOptions('Deleting VMs', names);
+    this.props.addToastr(options);
+    this.props.table_selection.forEach(uuid => this.props.vm_delete(uuid, options.id));
   }
 
 
@@ -188,6 +199,7 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
         </ButtonGroup>
           <ButtonGroup className="ml-auto">
             <RecycleBinButton
+              onClick={this.onTableDelete}
               disabled={this.props.trash_button_disabled}/>
           </ButtonGroup>
         </ButtonToolbar>

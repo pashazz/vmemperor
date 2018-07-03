@@ -216,6 +216,10 @@ class VM (AbstractVM):
         try:
             bs = str(1048576 * int(mbs))
             #vm_ref = self.api.VM.get_by_uuid(vm_uuid)
+            static_min = self.get_memory_static_min()
+            print(static_min)
+#            if bs <= static_min:
+#                self.set_memory_static_min(bs)
             self.set_memory(bs)
         except Exception as e:
             #self.destroy_vm(vm_uuid, force=True)
@@ -223,7 +227,7 @@ class VM (AbstractVM):
                 raise e
             except XenAPI.Failure as f:
                 self.insert_log_entry('failed', 'Failed to assign %s Mb of memory: %s' % (self.uuid, f.details))
-                raise XenAdapterAPIError(self.log, "Failed to set ram size: {0}".format(f.details))
+                raise XenAdapterAPIError(self.log, "Failed to set ram size: {0} bytes".format(bs), f.details)
 
 
 
@@ -343,7 +347,7 @@ class VM (AbstractVM):
                 raise e
             except XenAPI.Failure as f:
                 self.insert_log_entry('failed', 'Failed to start OS installation:  %s' % f.details)
-                raise XenAdapterAPIError(self.log, 'Failed to start OS installation: %s' % f.details)
+                raise XenAdapterAPIError(self.log, 'Failed to start OS installation', f.details)
 
 
     def convert(self,  mode):

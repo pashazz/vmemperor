@@ -28,14 +28,35 @@ function updateStorage({ uuid = false }) {
 export function* runCreateVM(action) {
   const { form } =  action;
   console.log(`Trying to create ${form.hostname}`);
-  const response = yield call(createvm, form);
-  if (response.data) {
-    console.log(`For ${form.hostname}: ${response.data.details}`);
-    updateStorage(response.data);
+  try {
+    let req_data = {};
+    req_data['template'] = form['template-select'];
+    req_data['storage'] = form['storage-select'];
+    req_data['network'] = form['network-select'];
+    req_data['hostname'] = form['hostname'];
+    req_data['username'] = form['username'];
+    req_data['password'] = form['password'];
+    req_data['fullname'] = form['fullname'];
+    req_data['os_kind'] = 'ubuntu xenial'; //Temporary
+    req_data['mode'] = 'pv'; //ORLY
+    req_data['vdi_size'] = form['hdd'] * 1024; //Disk size in megabytes
+    req_data['partition'] = "/-" +  req_data['vdi_size'] + "-";
+    req_data['name_label'] = form['vm-description'];
+    req_data['ram_size'] = form['ram'];
+    req_data['mirror_url'] = 'http://mirror.corbina.net/ubuntu';
+
+
+    const response = yield call(createvm, req_data);
+    if (response.data) {
+      console.log(`For ${form.hostname}: ${response.data.details}`);
+      updateStorage(response.data);
+    }
   }
-  if (response.err) {
-    yield put(err(`Creation failed for ${form.hostname}`));
+  catch (e)
+  {
+    console.log("CreateVM error: ", e)
   }
+
   yield spawn(getPoolList);
 }
 

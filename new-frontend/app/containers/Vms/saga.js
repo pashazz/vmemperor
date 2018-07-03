@@ -1,9 +1,10 @@
 import { take, call, put, select, takeEvery } from 'redux-saga/effects';
-import {startStopVm } from 'api/vm';
-import {VM_HALT, VM_NOTIFICATION_DECREASE, VM_RUN, VM_RUN_ERROR} from "./constants";
-import {vm_run_error, vmNotificationDecrease, vmNotificationIncrease} from "./actions";
+import {startStopVm, destroyVm } from 'api/vm';
+import {VM_DELETE, VM_HALT, VM_NOTIFICATION_DECREASE, VM_RUN, VM_RUN_ERROR} from "./constants";
+import {vm_run_error, vmNotificationDecrease, vmNotificationIncrease, vm_deselect} from "./actions";
 import React from 'react';
 import { Map } from 'immutable';
+import {VMLIST_MESSAGE} from "../App/constants";
 
 import ErrorCard from '../../components/ErrorCard';
 import { actions } from 'react-redux-toastr';
@@ -24,6 +25,13 @@ const actionHandlers = Map({
       const data = yield  call(startStopVm, action.uuid, false);
       console.log('vmHalt: data:', data);
 
+    }
+  },
+  [VM_DELETE]: {
+      onError: vm_run_error,
+    handler: function* (action) {
+      const data = yield  call(destroyVm, action.uuid);
+      console.log('vmHalt: data:', data);
     }
   }
   });
@@ -92,7 +100,6 @@ function* handleErrors(action)
       message: errorType + ": " + errorDetailedText,
       options :
         {
-          showCloseButton: true,
           timeOut: 5000,
         }
     }));
@@ -107,12 +114,23 @@ function* handleDecrease(action) {
   }
 }
 
+function* handleVMRemoval(action) {
+  if (action.message.type !== 'remove')
+    return;
+
+  yield put(vm_deselect(action.message.old_val.uuid));
+
+
+}
+
 
 export default function* rootSaga() {
   yield takeEvery(VM_RUN, handleActions);
   yield takeEvery(VM_HALT, handleActions);
+  yield takeEvery(VM_DELETE, handleActions);
   yield takeEvery(VM_RUN_ERROR, handleErrors);
   yield takeEvery(VM_NOTIFICATION_DECREASE, handleDecrease);
+  yield takeEvery(VMLIST_MESSAGE, handleVMRemoval);
   //VM_HALT_ERROR: todo!
 
 };

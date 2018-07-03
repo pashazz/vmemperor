@@ -167,10 +167,12 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
         <VMInput.Description description={form['vm-description']} onChange={this.onInputTextChange} />
 
         <h4><FormattedMessage {...messages.resources} /></h4>
-        <div className="row" style={{ paddingLeft: '20px' }}>
+        <div className="form-inline" style={{ paddingLeft: '20px' }}>
+          <div className="col-sm-12 form-group">
           <VMInput.CPU className="col-sm-4 col-lg-4" vcpus={form.vcpus} onChange={this.onInputNumberChange} />
           <VMInput.RAM className="col-sm-4 col-lg-4" ram={form.ram} onChange={this.onInputNumberChange} />
           <VMInput.HDD className="col-sm-4 col-lg-4" hdd={form.hdd} onChange={this.onInputNumberChange} />
+          </div>
         </div>
         {/*
         <h4><FormattedMessage {...messages.hooks} /></h4>
