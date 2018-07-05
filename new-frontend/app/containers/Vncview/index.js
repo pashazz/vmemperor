@@ -11,7 +11,7 @@ import { FormattedMessage } from 'react-intl';
 import { createStructuredSelector } from 'reselect';
 import { compose } from 'redux';
 
-import { VncDisplay } from 'react-vnc-display';
+import  VncDisplay from 'components/VncDisplay';
 
 import injectSaga from 'utils/injectSaga';
 import injectReducer from 'utils/injectReducer';
@@ -23,7 +23,7 @@ import messages from './messages';
 import { vncRequest } from "./actions";
 
 
-export class Vncview extends React.Component { // eslint-disable-line react/prefer-stateless-function
+export class Vncview extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
   constructor(props){
     super(props);
   }
