@@ -1,2 +1,5 @@
-Flask
+tornado
 six
+requests
+rethinkdb
+netifaces

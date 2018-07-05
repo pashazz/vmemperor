@@ -10,6 +10,7 @@ export function* loginFlow() {
     const session = yield call(vmempAPI.user.session);
     const location = yield select(selectCurrentLocation());
     if (session !== null) {
+      console.log('Session:', session);
       if (location === '/login') {
         yield put(push(window.beforeLogin));
       } else {

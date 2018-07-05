@@ -1,3 +1,4 @@
+
 # Copyright (c) Citrix Systems, Inc.
 # All rights reserved.
 #
@@ -59,7 +60,7 @@ import six.moves.xmlrpc_client as xmlrpclib
 import six.moves.http_client as httplib
 import socket
 import sys
-
+import threading
 translation = gettext.translation('xen-xm', fallback = True)
 
 API_VERSION_1_1 = '1.1'
@@ -143,31 +144,37 @@ class Session(xmlrpclib.ServerProxy):
         self.last_login_method = None
         self.last_login_params = None
         self.API_version = API_VERSION_1_1
-
+        self.req_lock = threading.RLock()
+        self.locked = False
 
     def xenapi_request(self, methodname, params):
-        if methodname.startswith('login'):
-            self._login(methodname, params)
-            return None
-        elif methodname == 'logout' or methodname == 'session.logout':
-            self._logout()
-            return None
-        else:
-            retry_count = 0
-            while retry_count < 3:
-                full_params = (self._session,) + params
-                result = _parse_result(getattr(self, methodname)(*full_params))
-                if result is _RECONNECT_AND_RETRY:
-                    retry_count += 1
-                    if self.last_login_method:
-                        self._login(self.last_login_method,
-                                    self.last_login_params)
-                    else:
-                        raise xmlrpclib.Fault(401, 'You must log in')
+        with self.req_lock:
+            try:
+                self.locked = True
+                if methodname.startswith('login'):
+                    self._login(methodname, params)
+                    return None
+                elif methodname == 'logout' or methodname == 'session.logout':
+                    self._logout()
+                    return None
                 else:
-                    return result
-            raise xmlrpclib.Fault(
-                500, 'Tried 3 times to get a valid session, but failed')
+                    retry_count = 0
+                    while retry_count < 3:
+                        full_params = (self._session,) + params
+                        result = _parse_result(getattr(self, methodname)(*full_params))
+                        if result is _RECONNECT_AND_RETRY:
+                            retry_count += 1
+                            if self.last_login_method:
+                                self._login(self.last_login_method,
+                                            self.last_login_params)
+                            else:
+                                raise xmlrpclib.Fault(401, 'You must log in')
+                        else:
+                            return result
+                    raise xmlrpclib.Fault(
+                        500, 'Tried 3 times to get a valid session, but failed')
+            finally:
+                self.locked = False
 
     def _login(self, method, params):
         try:
