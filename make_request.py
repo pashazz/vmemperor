@@ -49,7 +49,7 @@ class Main():
         p = argparse.ArgumentParser(description="VMEmperor CLI Utility")
         p.add_argument('--login', help='login as user (see sections in make_request.ini)')
         p.add_argument('--host', help='VMEmperor host', default='localhost')
-        p.add_argument('-p','--port', help='VMEmperor port', default=8889, type=int, choices=range(1, 65536))
+        p.add_argument('-p','--port', help='VMEmperor port', default=8889, type=int)
         p.set_defaults(login='login')
 
         self.subparsers = p.add_subparsers()
@@ -95,6 +95,16 @@ class Main():
         p = self.subparsers.add_parser('destroy', description="Destroy VM")
         p.add_argument('uuid', help='VM UUID')
         p.set_defaults(func=self.destroy)
+
+        #add parser for vnc
+        p = self.subparsers.add_parser('vnc', description="Get VNC url (CONNECT method)")
+        p.add_argument('uuid', help='VM UUID')
+        p.set_defaults(func=self.vnc)
+
+        #add parser for console
+        p = self.subparsers.add_parser('console', description="Read data from WebSocket console")
+        p.add_argument('url', help='VNC URL')
+        p.set_defaults(func=self.console)
 
         #add parser for everything else
         for method in inspect.getmembers(self, predicate=inspect.ismethod):
@@ -193,9 +203,6 @@ class Main():
 
     @login
     def vnc(self, args):
-        p = argparse.ArgumentParser(description="Get VNC URL (use HTTP CONNECT method)")
-        p.add_argument('uuid', help='VM UUID')
-        args = p.parse_args(sys.argv[2:])
         r = requests.post("%s/vnc" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
         print(r.text)
         print(r.status_code, file=sys.stderr)
@@ -206,11 +213,20 @@ class Main():
                     msg = await socket.recv()
                     print(msg, end='\n\n')
 
-
+    async def _console_async(self, args):
+        async with websockets.connect(args.url, extra_headers=self.headers) as socket:
+            while not ev.is_set():
+                msg = await socket.recv()
+                print(msg, end='\n\n')
 
     @login
     def vmlist(self, args):
         self._async_call(self._vmlist_async)
+
+    @login
+    def console(self, args):
+        self._async_call(self._console_async, args)
+
 
     @login
     def networklist(self, args):

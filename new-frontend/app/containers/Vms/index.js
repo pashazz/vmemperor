@@ -8,12 +8,16 @@ import NextTable from 'react-bootstrap-table-next';
 import filterFactory, { textFilter } from 'react-bootstrap-table2-filter'
 import React from 'react';
 import uuid from 'uuid/v4';
-import PropTypes from 'prop-types';
+import T from 'prop-types';
 import { connect } from 'react-redux';
 import { FormattedMessage } from 'react-intl';
 import { createStructuredSelector } from 'reselect';
 import { compose } from 'redux';
 import { actions as toastrActions} from 'react-redux-toastr';
+import { withRouter } from 'react-router-dom';
+
+
+
 import injectSaga from 'utils/injectSaga';
 import injectReducer from 'utils/injectReducer';
 import {
@@ -36,6 +40,7 @@ import tableStyle from "./table.css";
 import {VMRecord} from "./type";
 
 
+
 import {vm_delete, run, halt, vm_select, vm_deselect, vm_select_all, vm_deselect_all} from "./actions";
 
 
@@ -51,6 +56,7 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
     this.onTableRun = this.onTableRun.bind(this);
     this.onTableHalt = this.onTableHalt.bind(this);
     this.onTableDelete = this.onTableDelete.bind(this);
+    this.onDoubleClick = this.onDoubleClick.bind(this);
   }
 
 
@@ -143,7 +149,7 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
       message: names.join('\n'),
       options : {
         showCloseButton: true,
-        
+
       }
     }
   }
@@ -173,6 +179,12 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
     this.props.table_selection.forEach(uuid => this.props.vm_delete(uuid, options.id));
   }
 
+  onDoubleClick(e, row, rowIndex)
+  {
+    const { history } = this.props;
+    const { uuid } = this.props.vm_data_table[rowIndex];
+    history.push('/desktop/' + uuid);
+  }
 
   render() {
     const selectRow = {
@@ -183,6 +195,10 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
       onSelect: this.onSelect,
       onSelectAll: this.onSelectAll
 
+    };
+
+    const rowEvents = {
+      onDoubleClick: this.onDoubleClick,
     };
     return (
       <React.Fragment>
@@ -210,6 +226,7 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
           keyField='uuid'
           selectRow={selectRow}
           rowClasses={this.rowClasses}
+          rowEvents={rowEvents}
           style={tableStyle}
           striped
           hover/>
@@ -223,26 +240,31 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
 
 
 Vms.propTypes = {
-  vm_data_table: PropTypes.array.isRequired, //Data for VM table
+  vm_data_table: T.array.isRequired, //Data for VM table
   vm_data_names: ITypes.mapOf( //Key-valued data about VMs taken directly from store
-    PropTypes.string,
-    PropTypes.string,
+    T.string,
+    T.string,
   ),
-  table_selection: PropTypes.array.isRequired,
-  table_selection_halted: PropTypes.array.isRequired,
-  table_selection_running: PropTypes.array.isRequired,
-  run: PropTypes.func.isRequired,
-  halt: PropTypes.func.isRequired,
-  vm_delete: PropTypes.func.isRequired,
-  vm_select: PropTypes.func.isRequired,
-  vm_deselect: PropTypes.func.isRequired,
-  vm_select_all: PropTypes.func.isRequired,
-  vm_deselect_all: PropTypes.func.isRequired,
-  start_button_disabled: PropTypes.bool.isRequired,
-  stop_button_disabled: PropTypes.bool.isRequired,
-  trash_button_disabled: PropTypes.bool.isRequired,
-  addToastr: PropTypes.func.isRequired,
-  removeToastr: PropTypes.func.isRequired,
+  table_selection: T.array.isRequired,
+  table_selection_halted: T.array.isRequired,
+  table_selection_running: T.array.isRequired,
+  run: T.func.isRequired,
+  halt: T.func.isRequired,
+  vm_delete: T.func.isRequired,
+  vm_select: T.func.isRequired,
+  vm_deselect: T.func.isRequired,
+  vm_select_all: T.func.isRequired,
+  vm_deselect_all: T.func.isRequired,
+  start_button_disabled: T.bool.isRequired,
+  stop_button_disabled: T.bool.isRequired,
+  trash_button_disabled: T.bool.isRequired,
+  addToastr: T.func.isRequired,
+  removeToastr: T.func.isRequired,
+  history: T.shape(
+    {
+      push : T.func.isRequired,
+    }).isRequired,
+
 };
 
 const mapStateToProps = createStructuredSelector({
@@ -275,6 +297,7 @@ const withSaga = injectSaga({ key: 'vms', saga });
 const withReducer = injectReducer({key: 'vms', reducer});
 
 export default compose(
+   withRouter,
    withReducer,
    withSaga,
   withConnect,

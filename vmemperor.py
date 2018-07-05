@@ -11,6 +11,7 @@ from xenadapter.disk import ISO
 from xenadapter.pool import Pool
 import copy
 import traceback
+import select
 import inspect
 import tornado.web
 from tornado.escape import json_encode, json_decode
@@ -97,7 +98,7 @@ def auth_required(method):
             self.user_authenticator  = pickle.loads(user)
             self.user_authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
             self.xen = self.user_authenticator.xen
-            return method(self, *args, **kwargs)
+            return method(self)
 
     return decorator
 
@@ -1027,7 +1028,7 @@ class VNC(VMAbstractHandler):
         def get_vnc(auth: BasicAuthenticator):
             url = VM(auth, uuid=vm_uuid).get_vnc()
             url_splitted = list(urlsplit(url))
-            url_splitted[0] = 'http'
+            url_splitted[0] = 'ws'
             url_splitted[1] = opts.vmemperor_url + ":" + str(opts.vmemperor_port)
             url = urlunsplit(url_splitted)
             return url
@@ -1434,8 +1435,9 @@ class AutoInstall(BaseHandler):
         self.render("templates/installation-scenarios/{0}".format(filename), hostname = hostname, username = username,
                     fullname=fullname, password = password, mirror_url=mirror_url, mirror_path=mirror_path, ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, partition=partition)
 
-class ConsoleHandler(BaseHandler):
-    SUPPORTED_METHODS = {"CONNECT"}
+class ConsoleHandler(BaseWSHandler):
+    def check_origin(self, origin):
+        return True
 
     def initialize(self,executor):
         super().initialize(executor)
@@ -1457,46 +1459,80 @@ class ConsoleHandler(BaseHandler):
 
 
 
-    @auth_required
-    def connect(self):
+
+    @tornado.web.asynchronous
+    def open(self):
         '''
-        This method proxies CONNECT calls to XenServer
+        This method proxies WebSocket calls to XenServer
         '''
-        client_stream = self.request.connection.stream
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_stream = tornado.iostream.IOStream(sock)
+        self.sock = socket.create_connection((self.host, self.port))
+        self.sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY,1)
+        self.sock.setblocking(0)
+        self.halt = False
+        self.translate = False
+        self.key=None
 
-        def connect_callback():
-            lines =[
-                'CONNECT {0} HTTP/1.1'.format(self.request.uri), #HTTP 1.1 creates Keep-alive connection
-                'Host: {0}'.format(self.host),
-             #   'Authorization: Basic {0}'.format(self.auth_token),
-            ]
-            server_stream.write('\r\n'.join(lines).encode())
-            server_stream.write(b'\r\nAuthorization: Basic ' + self.auth_token)
-            server_stream.write(b'\r\n\r\n')
-            server_stream.read_until_close(streaming_callback=server_read)
 
-        def server_read(data):
-            if not data:
-                client_stream.close()
+        uri = self.request.uri
+        lines =[
+            'CONNECT {0} HTTP/1.1'.format(uri), #HTTP 1.1 creates Keep-alive connection
+            'Host: {0}'.format(self.host),
+         #   'Authorization: Basic {0}'.format(self.auth_token),
+        ]
+        self.sock.send('\r\n'.join(lines).encode())
+        self.sock.send(b'\r\nAuthorization: Basic ' + self.auth_token)
+        self.sock.send(b'\r\n\r\n')
+        tornado.ioloop.IOLoop.current().run_in_executor(self.executor, self.server_reading)
+
+
+
+
+    def on_message(self, message):
+        assert(isinstance(message, bytes))
+        self.sock.send(message)
+
+    def select_subprotocol(self, subprotocols):
+        print("Select subprotocol!", subprotocols)
+        return subprotocols[0]
+
+
+
+    def server_reading(self):
+        try:
+            http_header_read = False
+            epoll = select.epoll()
+            epoll.register(self.sock.fileno(), select.EPOLLIN)
+
+            while self.halt is False:
+                events = epoll.poll()
+                for fileno, event in events:
+
+                    if fileno == self.sock.fileno() and event & select.EPOLLIN:
+                        #ready_to_read, ready_to_write, in_error = select.select([self.sock], [], [], 10)
+                        #print("after select")
+                        #if self.sock in ready_to_read:
+                        data = self.sock.recv(1024)
+                        if not http_header_read:
+                            http_header_read = True
+                            data = data[78:]
+
+                        self.write_message(data, binary=True)
+
+
+
+            print("halt", self.halt)
+        except:
+            if self.halt is False:
+                traceback.print_exc()
             else:
-                client_stream.write(data)
+                pass
+        self.sock.close()
 
 
-        def client_read(data):
-            if not data:
-                server_stream.close()
-            else:
-                server_stream.write(data)
-
-
-        server_stream.connect((self.host, self.port), callback=connect_callback)
-
-        client_stream.read_until_close(streaming_callback=client_read)
-        print("closed")
-
-
+    def on_close(self):
+        self.halt = True
+        self.sock.send(b'close\n')
+        self.sock.close()
 
 
 
@@ -1526,7 +1562,7 @@ def make_app(executor, auth_class=None, debug = False):
         (r"/logout", LogOut, dict(executor=executor)),
         (r'/test', Test, dict(executor=executor)),
         (XenAdapter.AUTOINSTALL_PREFIX + r'/([^/]+)', AutoInstall, dict(executor=executor)),
-        (r'/(console.*)', ConsoleHandler, dict(executor=executor)),
+        (r'/console.*', ConsoleHandler, dict(executor=executor)),
         (r'/createvm', CreateVM, dict(executor=executor)),
         (r'/startstopvm', StartStopVM, dict(executor=executor)),
         (r'/vmlist', VMList, dict(executor=executor)),

@@ -29,12 +29,12 @@ class MyNavbar extends React.Component {
     this.state = {
       isOpen: false,
       leftLinks: [
-        { to: "vms", text: {...messages.vms} },
-        { to: "templates", text: {...messages.templates} },
-        { to: "create-vm", text: {...messages.createvm} },
-        { to: "history", text: {...messages.history} }
+        { to: "/vms", text: {...messages.vms} },
+        { to: "/templates", text: {...messages.templates} },
+        { to: "/create-vm", text: {...messages.createvm} },
+        { to: "/history", text: {...messages.history} }
       ],
-      rightLinks: [{ to: "logout", text: {...messages.logout} }]
+      rightLinks: [{ to: "/logout", text: {...messages.logout} }]
     };
   }
 

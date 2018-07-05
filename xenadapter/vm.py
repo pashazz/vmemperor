@@ -393,12 +393,18 @@ class VM (AbstractVM):
             self.log.error('Failed to find console')
             return
         try:
-            cons_ref = consoles[0]
-            console = self.xen.api.console.get_record(cons_ref)
-            url = self.xen.api.console.get_location(cons_ref)
+            url = None
+            for console in consoles:
+                proto = self.xen.api.console.get_protocol(console)
+                if proto == 'rfb':
+                    url = self.xen.api.console.get_location(console)
+                    break
+            if not url:
+                raise XenAdapterAPIError(self.log, "No RFB console, VM UUID in details", self.uuid)
+
             self.xen.log.info("Console location: {0}".format(url))
         except XenAPI.Failure as f:
-            raise XenAdapterAPIError(self.log, "Failed to get console location: {0}".format(f.details))
+            raise XenAdapterAPIError(self.log, "Failed to get console location",f.details)
 
         return url
 

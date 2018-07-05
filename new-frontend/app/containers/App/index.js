@@ -24,6 +24,7 @@ import VMs from 'containers/Vms/Loadable';
 import LoginPage from 'containers/LoginPage/Loadable';
 import CreateVM from "../CreateVM";
 import Logout from 'containers/Logout/Loadable';
+import VncView from 'containers/Vncview/Loadable';
 
 
 import { compose } from 'redux';
@@ -40,6 +41,7 @@ function App() {
         <PrivateRoute  path="/vms" component={VMs} />
         <PrivateRoute path="/create-vm" component={CreateVM}/>
         <PrivateRoute path="/logout" component={Logout} />
+        <PrivateRoute path="/desktop/:uuid" component={VncView}/>
         <Route component={NotFoundPage} />
       </Switch>
     </div>
