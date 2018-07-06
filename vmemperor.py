@@ -632,18 +632,19 @@ class CreateVM(BaseHandler):
         with self.conn:
             db = r.db(opts.database)
             tmpls = db.table('tmpls').run()
+            self.template = None
             for tmpl in tmpls:
                 if tmpl['uuid'] == tmpl_name or \
                 tmpl['name_label'] == tmpl_name:
-                    tmpl_uuid = tmpl['uuid']
+                    self.template = tmpl
                     break
 
-            if not tmpl_uuid:
+            if not self.template:
                 raise ValueError('Wrong template name: {0}'.format(tmpl_name))
 
-            self.os_kind = self.get_argument('os_kind', None)
             self.override_pv_args = self.get_argument('override_pv_args', None)
-            self.mode = self.get_argument('mode')
+            self.mode = 'hvm' if self.template['hvm'] else 'pv'
+            self.os_kind = self.template['os_kind'] if self.template['os_kind'] else None
             self.log.info("Creating VM: name_label %s; os_kind: %s" % (self.name_label, self.os_kind))
             ip = self.get_argument('ip', '')
             gw = self.get_argument('gateway', '')
@@ -695,7 +696,7 @@ class CreateVM(BaseHandler):
 
 
             def do_clone(auth):
-                tmpl = Template(auth, uuid=tmpl_uuid)
+                tmpl = Template(auth, uuid=self.template['uuid'])
                 vm = tmpl.clone(self.name_label)
                 return vm.uuid
 
