@@ -43,34 +43,20 @@ class VM (AbstractVM):
 
 
 
+
     @classmethod
     def process_event(cls,  auth, event, db, authenticator_name):
 
         from vmemperor import CHECK_ER
 
-        if event['class'] == 'vm':
 
-
-            if event['operation'] == 'del':
-                CHECK_ER(db.table('vms').get_all(event['ref'], index='ref').delete().run())
-                return
-
-            record = event['snapshot']
-            if not cls.filter_record(record):
-                return
-
-            if event['operation'] in ('mod', 'add'):
-                new_rec = cls.process_record(auth, event['ref'], record)
-                CHECK_ER(db.table('vms').insert(new_rec, conflict='update').run())
-
-
-        elif event['class'] == 'vm_metrics':
+        if event['class'] == 'vm_metrics':
             if event['operation'] == 'del':
                 return #vm_metrics is removed when  VM has already been removed
 
             new_rec = cls.process_metrics_record(auth, event['snapshot'])
             # get VM by metrics ref
-            metrics_query = db.table('vms').get_all(event['ref'], index='metrics')
+            metrics_query = db.table(cls.db_table_name).get_all(event['ref'], index='metrics')
             rec_len = len(metrics_query.run().items)
             if rec_len == 0:
                 auth.xen.log.warning("VM: Cannot find a VM for metrics {0}".format(event['ref']))
@@ -188,7 +174,9 @@ class VM (AbstractVM):
 
 
         #self.connect_vm(new_vm_uuid, net_uuid, ip)
-        vm.convert('pv')
+        if mode == 'pv':
+            vm.convert('pv')
+
 
         try:
             from .network import Network

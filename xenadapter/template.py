@@ -7,7 +7,8 @@ from . import use_logger
 
 class Template(AbstractVM):
     ALLOW_EMPTY_XENSTORE = True
-    XENSTORE_TEMPLATE_KEY = "vmemperor_templates"
+    VMEMPEROR_TEMPLATE_PREFIX = 'vm/data/vmemperor/template'
+    db_table_name = 'tmpls'
 
     @classmethod
     def filter_record(cls, record):
@@ -33,9 +34,13 @@ class Template(AbstractVM):
             new_rec['hvm'] = True
 
         #read xenstore data
-        #xenstore_data = record['xenstore_data']
+        xenstore_data = record['xenstore_data']
+        if not self.VMEMPEROR_TEMPLATE_PREFIX in xenstore_data:
+            # TODO: Try to detect os_kind from other_config
+            return new_rec
 
-
+        template_settings = json.load(xenstore_data[self.VMEMPEROR_TEMPLATE_PREFIX])
+        new_rec['os_kind'] = template_settings['os_kind']
         return new_rec
 
     @use_logger

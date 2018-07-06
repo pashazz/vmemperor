@@ -6,6 +6,7 @@ from auth import dummy
 from xenadapter import XenAdapter, XenAdapterPool
 from xenadapter.template import Template
 from xenadapter.vm import VM
+
 from xenadapter.network import Network
 from xenadapter.disk import ISO
 from xenadapter.pool import Pool
@@ -1146,6 +1147,8 @@ class EventLoop(Loggable):
 
             if 'tmpls' not in tables:
                 self.db.table_create('tmpls', durability='soft', primary_key='uuid').run()
+                self.db.table('tmpls').index_create('ref', r.row['ref']).run()
+                self.db.table('tmpls').index_wait('ref').run()
 
                 tmpls = Template.init_db(authenticator)
                 CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='error').run())
@@ -1284,6 +1287,7 @@ class EventLoop(Loggable):
             raise e
 
     def process_xen_events(self):
+        from xenadapter.abstractvm import AbstractVM
         self.log.debug("Started process_xen_events in thread {0}".format(threading.get_ident()))
         from XenAPI import Failure
 
@@ -1319,8 +1323,10 @@ class EventLoop(Loggable):
 
 
                         # similarly to list_vms -> process
-                        if event['class'] == 'vm' or event['class'] == 'vm_metrics':
+                        if event['class'] == 'vm_metrics':
                             ev_class = VM  # use methods filter_record, process_record (classmethods)
+                        elif event['class'] == 'vm':
+                            ev_class = AbstractVM
                         else:  # Implement ev_classes for all types of events
                             if log_this:
                                 self.log.debug("Ignored Event: %s" % json.dumps(event, cls=DateTimeEncoder))
@@ -1491,8 +1497,7 @@ class ConsoleHandler(BaseWSHandler):
         self.sock.send(message)
 
     def select_subprotocol(self, subprotocols):
-        print("Select subprotocol!", subprotocols)
-        return subprotocols[0]
+        return 'binary'
 
 
     def server_reading(self):

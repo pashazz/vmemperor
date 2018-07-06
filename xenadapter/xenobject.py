@@ -71,10 +71,10 @@ class XenObject(metaclass=XenObjectMeta):
         pass
 
     @classmethod
-    def process_event(cls, xen, event, db, authenticator_name):
+    def process_event(cls, auth, event, db, authenticator_name):
         '''
         Make changes to a RethinkDB-based cache, processing a XenServer event
-        :param xen: XenAdapter which generated event
+        :param auth: auth object
         :param event: event dict
         :param db: rethinkdb DB
         :param authenticator_name: authenticator class name - used by access control
