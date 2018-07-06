@@ -106,6 +106,28 @@ class Main():
         p.add_argument('url', help='VNC URL')
         p.set_defaults(func=self.console)
 
+        #add parser for installstatus
+        p = self.subparsers.add_parser('installstatus', description="Check VM install status")
+        p.add_argument('uuid', help='VM UUID')
+        p.set_defaults(func=self.installstatus)
+
+        #add parser for vminfo
+        p = self.subparsers.add_parser('installstatus', description="Print VM info")
+        p.add_argument('uuid', help='VM UUID')
+        p.set_defaults(func=self.vminfo)
+
+        #add parser for start
+        p = self.subparsers.add_parser('start', description="Start VM")
+        p.add_argument('uuid', help='VM UUID')
+        p.set_defaults(func=self.vminfo)
+
+        #add parser for stop
+        p = self.subparsers.add_parser('start', description="Start VM")
+        p.add_argument('uuid', help='VM UUID')
+        p.set_defaults(func=self.vminfo)
+
+
+
         #add parser for everything else
         for method in inspect.getmembers(self, predicate=inspect.ismethod):
             if method[0].startswith('_') or method[0] in self.subparsers.choices:
@@ -137,10 +159,7 @@ class Main():
 
     @login
     def createvm(self, args):
-
-
         r = requests.post("%s/createvm" % self.url, cookies=self.jar, data=dict(args._get_kwargs()))
-
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
@@ -160,9 +179,6 @@ class Main():
 
     @login
     def installstatus(self, args):
-        p = argparse.ArgumentParser(description="Check installation status of a VM")
-        p.add_argument('uuid', help="VM UUID")
-        args = p.parse_args(sys.argv[2:])
         r = requests.post("%s/installstatus" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
         print(r.text)
         print(r.status_code, file=sys.stderr)
@@ -170,27 +186,18 @@ class Main():
 
     @login
     def vminfo(self, args):
-        p = argparse.ArgumentParser(description="Get VM state information")
-        p.add_argument('uuid', help="VM UUID")
-        args = p.parse_args(sys.argv[2:])
         r = requests.post("%s/vminfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
     @login
     def start(self, args):
-        p = argparse.ArgumentParser(description="Start VM")
-        p.add_argument('uuid', help='VM UUID')
-        args = p.parse_args(sys.argv[2:])
         r = requests.post("%s/startstopvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, enable=True))
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
     @login
     def stop(self, args):
-        p = argparse.ArgumentParser(description="Stop VM")
-        p.add_argument('uuid', help='VM UUID')
-        args = p.parse_args(sys.argv[2:])
         r = requests.post("%s/startstopvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, enable=False))
         print(r.text)
         print(r.status_code, file=sys.stderr)
@@ -205,6 +212,12 @@ class Main():
     def vnc(self, args):
         r = requests.post("%s/vnc" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
         print(r.text)
+        print(r.status_code, file=sys.stderr)
+
+    @login
+    def tmpllist(self, args):
+        r = requests.get("%s/tmpllist" % self.url, cookies=self.jar)
+        pprint.pprint(r.json())
         print(r.status_code, file=sys.stderr)
 
     async def _vmlist_async(self):
