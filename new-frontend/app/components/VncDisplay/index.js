@@ -29,32 +29,37 @@ export default class VncDisplay extends React.PureComponent {
     trueColor: true,
     localCursor: true,
     debug: true,
+    reloadOnError: true,
     connectTimeout: 5,
     disconnectTimeout: 5,
     width: 1280,
     height: 720,
   };
 
+
   componentDidMount() {
-    init_logging('debug');
+  /*  if (process.env.NODE_ENV && process.env.NODE_ENV !== 'production')
+      init_logging('debug');
+   */
     this.connect();
   }
 
   componentWillUnmount() {
     this.disconnect();
   }
-
+/*
   componentWillReceiveProps(nextProps) {
     if (!this.rfb) {
       return;
     }
-    /*
+
     if (nextProps.scale !== this.props.scale) {
       this.rfb.get_display().set_scale(nextProps.scale || 1);
       this.get_mouse().set_scale(nextProps.scale || 1);
     }
-    */
+
   }
+  */
 
   disconnect = () => {
     if (!this.rfb) {
@@ -65,6 +70,10 @@ export default class VncDisplay extends React.PureComponent {
     this.rfb = null;
   };
 
+  onDisconnected = (e) => {
+    if (this.props.reloadOnError)
+      window.location.reload();
+  };
   connect = () => {
     this.disconnect();
 
@@ -72,46 +81,32 @@ export default class VncDisplay extends React.PureComponent {
       return;
     }
 
+
+
+
     const options = Object.assign(omit(this.props, [
       'name',
       'connectTimeout',
       'url',
       'width',
       'height',
-      'debug'
+      'debug',
+      'reloadOnError'
     ]), {
       encrypt: this.props.url.startsWith('wss:') || this.props.encrypt,
       shared: true,
     });
 
     this.rfb = new RFB(this.canvas,this.props.url, {...options});
-    //this.rfb.connect(this.props.url);
+    this.rfb.focusOnClick = true;
+    this.rfb.addEventListener("disconnect", this.onDisconnected);
   };
 
   registerChild = (ref) => this.canvas = ref;
 
-  handleMouseEnter = () => {
-    if (!this.rfb) {
-      return;
-    }
-
-    document.activeElement && document.activeElement.blur();
-    //this.rfb.get_keyboard().grab();
-    //this.rfb.get_mouse().grab();
-  };
-
-  handleMouseLeave = () => {
-    if (!this.rfb) {
-      return;
-    }
-
-    //this.rfb.get_keyboard().ungrab();
-    //this.rfb.get_mouse().ungrab();
-  };
-
   render() {
     return (
-      <canvas
+      <div
         style={this.props.style}
         ref={this.registerChild}
         onMouseEnter={this.handleMouseEnter}

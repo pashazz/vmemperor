@@ -7,13 +7,22 @@ from . import use_logger
 
 class Template(AbstractVM):
     ALLOW_EMPTY_XENSTORE = True
+    XENSTORE_TEMPLATE_KEY = "vmemperor_templates"
 
     @classmethod
     def filter_record(cls, record):
-        return record['is_a_template']
+        return record['is_a_template'] and 'vmemperor' in record['tags']
 
     @classmethod
     def process_record(self, auth, ref, record):
+        '''
+        Contary to parent method, this method can return many records as one XenServer template may convert to many
+        VMEmperor templates
+        :param auth:
+        :param ref:
+        :param record:
+        :return:
+        '''
         record = super().process_record(auth, ref, record)
 
         keys = ['hvm', 'name_label', 'uuid', 'ref']
@@ -22,6 +31,11 @@ class Template(AbstractVM):
             new_rec['hvm'] = False
         else:
             new_rec['hvm'] = True
+
+        #read xenstore data
+        #xenstore_data = record['xenstore_data']
+
+
         return new_rec
 
     @use_logger

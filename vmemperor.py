@@ -1459,7 +1459,6 @@ class ConsoleHandler(BaseWSHandler):
 
 
 
-
     @tornado.web.asynchronous
     def open(self):
         '''
@@ -1496,31 +1495,20 @@ class ConsoleHandler(BaseWSHandler):
         return subprotocols[0]
 
 
-
     def server_reading(self):
         try:
             http_header_read = False
-            epoll = select.epoll()
-            epoll.register(self.sock.fileno(), select.EPOLLIN)
-
             while self.halt is False:
-                events = epoll.poll()
-                for fileno, event in events:
 
-                    if fileno == self.sock.fileno() and event & select.EPOLLIN:
-                        #ready_to_read, ready_to_write, in_error = select.select([self.sock], [], [], 10)
-                        #print("after select")
-                        #if self.sock in ready_to_read:
-                        data = self.sock.recv(1024)
-                        if not http_header_read:
-                            http_header_read = True
-                            data = data[78:]
+                ready_to_read, ready_to_write, in_error = select.select([self.sock], [], [])
+                if self.sock in ready_to_read:
+                    data = self.sock.recv(1024)
+                    if not http_header_read:
+                        http_header_read = True
+                        data = data[78:]
 
-                        self.write_message(data, binary=True)
+                    self.write_message(data, binary=True)
 
-
-
-            print("halt", self.halt)
         except:
             if self.halt is False:
                 traceback.print_exc()
@@ -1531,8 +1519,12 @@ class ConsoleHandler(BaseWSHandler):
 
     def on_close(self):
         self.halt = True
-        self.sock.send(b'close\n')
-        self.sock.close()
+        try:
+            self.sock.send(b'close\n')
+        except:
+            pass
+        finally:
+            self.sock.close()
 
 
 
