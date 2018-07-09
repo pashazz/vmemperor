@@ -89,7 +89,14 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
       vcpus: 1,
       ram: 256,
       hdd: 9,
+      networkType: 'dhcp',
+      ip: '',
+      netmask: '',
+      gateway: '',
+      dns0: '',
+      dns1: '',
       hooks: {},
+
     };
   }
 
@@ -174,6 +181,8 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
           <VMInput.HDD className="col-sm-4 col-lg-4" hdd={form.hdd} onChange={this.onInputNumberChange} />
           </div>
         </div>
+        <h4><FormattedMessage {...messages.network} /></h4>
+        <VMInput.Connection networkType={form.networkType} ip={form.ip} gateway={form.gateway} netmask={form.netmask} dns0={form.dns0} dns1={form.dns1} onChange={this.onInputTextChange} />
         {/*
         <h4><FormattedMessage {...messages.hooks} /></h4>
         {

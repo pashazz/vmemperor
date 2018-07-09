@@ -22,4 +22,8 @@ export default defineMessages({
     id: 'app.components.Vmform.hooks',
     defaultMessage: 'Post-creation hooks settings',
   },
+  network: {
+    id: 'app.components.Vmform.network',
+    defaultMessage: 'Network connection settings'
+  }
 });

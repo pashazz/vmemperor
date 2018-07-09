@@ -14,6 +14,7 @@ import CPU from './subforms/CPU';
 import RAM from './subforms/RAM';
 import HDD from './subforms/HDD';
 import Hook from './subforms/Hook';
+import Connection from './subforms/Connection';
 
 const firstTouchWrapper = (WrappedComponent) =>
   class InputWraper extends React.Component {
@@ -62,6 +63,7 @@ const exportObject = {
   RAM: firstTouchWrapper(RAM),
   HDD: firstTouchWrapper(HDD),
   Hook,
+  Connection: firstTouchWrapper(Connection),
 };
 
 export default exportObject;
