@@ -1488,8 +1488,7 @@ class ConsoleHandler(BaseWSHandler):
         self.sock.send('\r\n'.join(lines).encode())
         self.sock.send(b'\r\nAuthorization: Basic ' + self.auth_token)
         self.sock.send(b'\r\n\r\n')
-        tornado.ioloop.IOLoop.current().run_in_executor(self.executor, self.server_reading)
-
+        tornado.ioloop.IOLoop.current().spawn_callback(self.server_reading)
 
 
 
@@ -1500,27 +1499,28 @@ class ConsoleHandler(BaseWSHandler):
     def select_subprotocol(self, subprotocols):
         return 'binary'
 
-
+    @gen.coroutine
     def server_reading(self):
         try:
             http_header_read = False
+            stream = tornado.iostream.IOStream(self.sock)
             while self.halt is False:
-
-                ready_to_read, ready_to_write, in_error = select.select([self.sock], [], [])
-                if self.sock in ready_to_read:
-                    data = self.sock.recv(1024)
+                try:
+                    data = yield stream.read_bytes(1024, partial=True)
                     if not http_header_read:
                         http_header_read = True
                         data = data[78:]
-
-                    self.write_message(data, binary=True)
+                except StreamClosedError:
+                    self.halt = True
+                    self.close()
+                    break
+                self.write_message(data, binary=True)
 
         except:
             if self.halt is False:
                 traceback.print_exc()
             else:
                 pass
-        self.sock.close()
 
 
     def on_close(self):
