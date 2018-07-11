@@ -7,12 +7,15 @@
 import { combineReducers } from 'redux-immutable';
 import { List, fromJS } from 'immutable';
 import {
+  SET_ISOS,
   SET_POOLS,
   TOGGLE_MODAL,
 } from './constants';
 import Pool from 'models/Pool';
+import ISO from 'models/ISO';
 
 const poolsInitial = fromJS([]);
+
 
 function pools(state = poolsInitial, action) {
   switch (action.type) {
@@ -34,9 +37,21 @@ function modal(state = modalInitial, action) {
   }
 }
 
+const isos = (state = fromJS([]), action) =>
+{
+  switch (action.type)
+  {
+    case SET_ISOS:
+      return List.of(...action.isos.map(iso => new ISO(iso)));
+    default:
+      return state;
+  }
+};
+
 const createVMReducer = combineReducers({
   pools,
   modal,
+  isos
 });
 
 export default createVMReducer;

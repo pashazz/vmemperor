@@ -6,6 +6,7 @@
 
 import {
   SET_POOLS,
+  SET_ISOS,
   TOGGLE_MODAL,
   CREATE_VM,
 } from './constants';
@@ -16,6 +17,14 @@ export function setPools(pools) {
     pools,
   };
 }
+
+export const setIsos = (isos) => {
+  return {
+    type: SET_ISOS,
+    isos
+  }
+
+};
 
 export function createVM(form) {
   return {

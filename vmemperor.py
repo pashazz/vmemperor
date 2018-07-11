@@ -1,4 +1,5 @@
 import pathlib
+from collections import OrderedDict
 import signal
 import atexit
 from connman import ReDBConnection
@@ -8,7 +9,7 @@ from xenadapter.template import Template
 from xenadapter.vm import VM
 
 from xenadapter.network import Network
-from xenadapter.disk import ISO
+from xenadapter.disk import ISO, SR
 from xenadapter.pool import Pool
 import copy
 import traceback
@@ -644,49 +645,59 @@ class CreateVM(BaseHandler):
 
             self.override_pv_args = self.get_argument('override_pv_args', None)
             self.mode = 'hvm' if self.template['hvm'] else 'pv'
-            self.os_kind = self.template['os_kind'] if self.template['os_kind'] else None
+            self.os_kind = self.template['os_kind'] if 'os_kind' in self.template and self.template['os_kind'] else None
             self.log.info("Creating VM: name_label %s; os_kind: %s" % (self.name_label, self.os_kind))
-            ip = self.get_argument('ip', '')
-            gw = self.get_argument('gateway', '')
-            netmask = self.get_argument('netmask', '')
-            dns0 = self.get_argument('dns0', '')
-            dns1 = self.get_argument('dns1', '')
-            if not ip or not gw or not netmask:
+            if self.os_kind is None:
+                iso = self.get_argument('iso')
+                self.scenario_url = None
+                self.mirror_url = None
                 self.ip_tuple = None
+
             else:
-                self.ip_tuple = [ip,gw,netmask]
+                iso = None
 
-            if dns0:
-                self.ip_tuple.append(dns0)
-            if dns1:
-                self.ip_tuple.append(dns1)
+                ip = self.get_argument('ip', '')
+                gw = self.get_argument('gateway', '')
+                netmask = self.get_argument('netmask', '')
+                dns0 = self.get_argument('dns0', '')
+                dns1 = self.get_argument('dns1', '')
+                if not ip or not gw or not netmask:
+                    self.ip_tuple = None
+                else:
+                    self.ip_tuple = [ip,gw,netmask]
 
-            kwargs = {}
-            if 'ubuntu' in self.os_kind or 'centos' in self.os_kind or 'debian' in self.os_kind:
-                # see os_kind-ks.cfg
-                kwargs['hostname'] = self.get_argument('hostname', default='xen_vm')
-                kwargs['username'] = self.get_argument('username', default='')
-                kwargs['password'] = self.get_argument('password')
-                kwargs['mirror_url'] = self.mirror_url
-                kwargs['fullname'] = self.get_argument('fullname')
-                kwargs['ip'] = ip
-                kwargs['partition'] = self.get_argument('partition', default='auto')
+                if dns0:
+                    self.ip_tuple.append(dns0)
+                if dns1:
+                    self.ip_tuple.append(dns1)
 
-                if ip:
-                    kwargs['gateway'] = gw
-                    kwargs['netmask'] = netmask
-                    if dns0:
-                        kwargs['dns0'] = dns0
-                    if dns1:
-                        kwargs['dns1'] = dns1
-            self.scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + self.os_kind.split()[0] + "?" +\
-                urlencode(kwargs, doseq=True )
-            self.log.info("Scenario URL generated: %s", self.scenario_url)
+                kwargs = {}
+                if 'ubuntu' in self.os_kind or 'centos' in self.os_kind or 'debian' in self.os_kind:
+                    # see os_kind-ks.cfg
+                    kwargs['hostname'] = self.get_argument('hostname', default='xen_vm')
+                    kwargs['username'] = self.get_argument('username', default='')
+                    kwargs['password'] = self.get_argument('password')
+                    kwargs['mirror_url'] = self.mirror_url
+                    kwargs['fullname'] = self.get_argument('fullname')
+                    kwargs['ip'] = ip
+                    kwargs['partition'] = self.get_argument('partition', default='auto')
+
+                    if ip:
+                        kwargs['gateway'] = gw
+                        kwargs['netmask'] = netmask
+                        if dns0:
+                            kwargs['dns0'] = dns0
+                        if dns1:
+                            kwargs['dns1'] = dns1
+                self.scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + self.os_kind.split()[0] + "?" +\
+                    urlencode(kwargs, doseq=True )
+                self.log.info("Scenario URL generated: %s", self.scenario_url)
 
             def clone_post_hook(return_value, auth):
                 vm =  VM.create(auth, return_value, self.sr_uuid, self.net_uuid, self.vdi_size, self.ram_size,
                                          self.hostname, self.mode, self.os_kind, self.ip_tuple, self.mirror_url,
-                                         self.scenario_url, self.name_label, False, self.override_pv_args)
+                                         self.scenario_url, self.name_label, False, self.override_pv_args,
+                                         iso=iso)
 
                 ioloop = tornado.ioloop.IOLoop.current()
                 self.uuid = vm.uuid
@@ -811,13 +822,7 @@ class AttachDetachDisk(BaseHandler):
             vm_uuid = self.get_argument('vm_uuid')
             vdi_uuid = self.get_argument('vdi_uuid')
             enable = self.get_argument('enable')
-            def xen_call(auth):
-                if enable:
-                    return auth.xen.attach_disk(vm_uuid, vdi_uuid)
-                else:
-                    auth.xen.detach_disk(vm_uuid, vdi_uuid)
 
-            self.try_xenadapter(xen_call)
 
 
 
@@ -1108,7 +1113,8 @@ class EventLoop(Loggable):
 
             r.db_create(opts.database).run()
             self.db = r.db(opts.database)
-            tables = self.db.table_list().run()
+
+
 
             self.db.table_create('vm_logs', durability='soft').run()
             self.db.table('vm_logs').wait()
@@ -1116,83 +1122,34 @@ class EventLoop(Loggable):
             try:
                 authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
             except XenAdapterConnectionError as e:
-                raise RuntimeError("XenServer not reached")
+                raise XenAdapterAPIError("XenServer not reached", e.message)
 
             self.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
-            # required = ['vms', 'tmpls', 'pools', 'nets']
 
-
-            self.db.table_create('vms', durability='soft', primary_key='uuid').run()
-            self.db.table('vms').index_create('ref', r.row['ref']).run()
-            self.db.table('vms').index_wait('ref').run()
-            self.db.table('vms').index_create('metrics').run()
-            self.db.table('vms').index_wait('metrics').run()
-
-
-            vms = VM.init_db(authenticator)
-            CHECK_ER(self.db.table('vms').insert(vms, conflict='error').run())
-
-
-
-
-
-            if 'isos' not in tables:
-                self.db.table_create('isos', durability='soft', primary_key='uuid').run()
-                isos = ISO.init_db(authenticator)
-
-                CHECK_ER(self.db.table('isos').insert(isos, conflict='error').run())
-            else:
-                isos = ISO.init_db(authenticator)
-
-                CHECK_ER(self.db.table('isos').insert(isos, conflict='update').run())
-
-            if 'tmpls' not in tables:
-                self.db.table_create('tmpls', durability='soft', primary_key='uuid').run()
-                self.db.table('tmpls').index_create('ref', r.row['ref']).run()
-                self.db.table('tmpls').index_wait('ref').run()
-
-                tmpls = Template.init_db(authenticator)
-                CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='error').run())
-            else:
-             #   tmpls = self.xen.list_templates().values()
-                tmpls = Template.init_db(authenticator)
-                CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='update').run())
-            if 'pools' not in tables:
-                self.db.table_create('pools', durability='soft', primary_key='uuid').run()
-                pools = Pool.init_db(authenticator)
-                CHECK_ER(self.db.table('pools').insert(list(pools), conflict='error').run())
-            else:
-                pools = Pool.init_db(authenticator)
-                CHECK_ER(self.db.table('pools').insert(list(pools), conflict='update').run())
-            if 'nets' not in tables:
-                self.db.table_create('nets', durability='soft', primary_key='uuid').run()
-                nets = Network.init_db(authenticator)
-                CHECK_ER(self.db.table('nets').insert(list(nets), conflict='error').run())
-            else:
-                nets = Network.init_db(authenticator)
-                # nets = self.xen.list_networks().values()
-                CHECK_ER(self.db.table('nets').insert(list(nets), conflict='update').run())
-
+            for obj in objects:  # for ACL objects we create DB before processing initial events
+                obj.create_db(self.db)
+                self.db.table(obj.db_table_name).insert(obj.init_db(authenticator)).run()
             del authenticator.xen
 
 
     def do_access_monitor(self):
         try:
-            self.log.debug("started access_monitor in thread {0}".format(threading.get_ident()))
             conn = ReDBConnection().get_connection()
             #log = self.create_additional_log('AccessMonitor')
             log = self.log
             with conn:
+                table_list = self.db.table_list().run()
+
                 query = self.db.table(objects[0].db_table_name).pluck('uuid', 'access')\
                     .merge({'table' : objects[0].db_table_name}).changes()
 
-                table_list = self.db.table_list().run()
+
                 def initial_merge(table):
                     nonlocal table_list
+                    self.db.table(table).wait().run()
                     table_user = table + '_user'
                     if table_user in table_list:
                         self.db.table_drop(table_user).run()
-
 
                     self.db.table_create(table_user, durability='soft').run()
                     self.db.table(table_user).wait().run()
@@ -1221,6 +1178,7 @@ class EventLoop(Loggable):
                 #indicate that vms_user table is ready
                 user_table_ready.set()
                 cur = query.run()
+                self.log.debug("Started access_monitor in thread {0}".format(threading.get_ident()))
 
                 def uuid_delete(table_user, uuid):
                     CHECK_ER(self.db.table(table_user).filter({'uuid' : uuid}).delete().run())
@@ -1300,6 +1258,12 @@ class EventLoop(Loggable):
 
         xen.api.event.register(event_types)
         conn = ReDBConnection().get_connection()
+        def print_event(event):
+            ordered = OrderedDict(event)
+            ordered.move_to_end("operation", last=False)
+            ordered.move_to_end("class", last=False)
+            return ordered
+
         with conn:
             self.log.debug("Started process_xen_events. You can kill this thread and 'freeze'"
                            " cache databases (except for access) by sending signal USR2")
@@ -1323,20 +1287,36 @@ class EventLoop(Loggable):
                                    or not opts.log_events
 
 
+
                         # similarly to list_vms -> process
                         if event['class'] == 'vm_metrics':
                             ev_class = VM  # use methods filter_record, process_record (classmethods)
                         elif event['class'] == 'vm':
-                            ev_class = AbstractVM
+                            ev_class = [VM, Template]
+
+                        elif event['class'] == 'network':
+                            ev_class = Network
+                        elif event['class'] == 'sr':
+                            ev_class = SR
+
+                        elif event['class'] == 'vdi':
+                            ev_class = ISO
                         else:  # Implement ev_classes for all types of events
                             if log_this:
-                                self.log.debug("Ignored Event: %s" % json.dumps(event, cls=DateTimeEncoder))
+                                self.log.debug("Ignored Event: %s" % json.dumps(print_event(event), cls=DateTimeEncoder))
                             continue
 
                         if log_this:
-                            self.log.debug("Event: %s" % json.dumps(event, cls=DateTimeEncoder))
+                            self.log.debug("Event: %s" % json.dumps(print_event(event), cls=DateTimeEncoder))
 
-                        ev_class.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
+                        try:
+                            if isinstance(ev_class, list):
+                                for cl in ev_class:
+                                    cl.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
+                            else:
+                                ev_class.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
+                        except Exception as e:
+                            self.log.error("Failed to process event: class %s, error: %s" % (ev_class, e.message))
 
 
 

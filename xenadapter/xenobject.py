@@ -6,6 +6,7 @@ import traceback
 import rethinkdb as r
 from . import use_logger
 from .xenobjectdict import XenObjectDict
+import threading
 
 class XenObjectMeta(type):
     def __getattr__(cls, item):
@@ -33,7 +34,11 @@ class XenObject(metaclass=XenObjectMeta):
 
     REF_NULL = "OpaqueRef:NULL"
     db_table_name = ''
-
+    EVENT_CLASSES=[]
+    PROCESS_KEYS=[]
+    _db_created = False
+    db = None
+    db_ready = threading.Event()
 
     def __init__(self, auth : BasicAuthenticator,  uuid=None, ref=None):
         '''Set  self.auth.xen_api_class to xen.api.something before calling this'''
@@ -62,6 +67,13 @@ class XenObject(metaclass=XenObjectMeta):
 
         self.access_prefix = 'vm-data/vmemperor/access'
 
+    @classmethod
+    def is_hidden(self, record):
+        '''
+        Return true if this object is not supposed to be cached to a DB even if filter_record returns true
+        :return:
+        '''
+        return False
 
 
     def check_access(self,  action):
@@ -80,7 +92,38 @@ class XenObject(metaclass=XenObjectMeta):
         :param authenticator_name: authenticator class name - used by access control
         :return: nothing
         '''
-        pass
+        from vmemperor import CHECK_ER
+
+        cls.create_db(db)
+
+        if event['class'] in cls.EVENT_CLASSES:
+            if event['operation'] == 'del':
+                CHECK_ER(db.table(cls.db_table_name).get_all(event['ref'], index='ref').delete().run())
+                return
+
+            record = event['snapshot']
+            if not cls.filter_record(record):
+                return
+            if cls.is_hidden(record):
+                CHECK_ER(db.table(cls.db_table_name).get_all(event['ref'], index='ref').delete().run())
+                return
+
+            if event['operation'] in ('mod', 'add'):
+                new_rec = cls.process_record(auth, event['ref'], record)
+                CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
+
+    @classmethod
+    def create_db(cls, db):
+        if not cls.db:
+
+            table_list = db.table_list().run()
+            if cls.db_table_name not in table_list:
+                db.table_create(cls.db_table_name, durability='soft', primary_key='uuid').run()
+                db.table(cls.db_table_name).index_create('ref').run()
+                db.table(cls.db_table_name).index_wait('ref').run()
+                db.table(cls.db_table_name).wait().run()
+
+            cls.db = db
 
     @classmethod
     def process_record(cls, auth, ref, record):
@@ -91,6 +134,8 @@ class XenObject(metaclass=XenObjectMeta):
         :return: dict suitable for document-oriented DB
         : default: return record as-is, adding a 'ref' field with current opaque ref
         '''
+        if cls.PROCESS_KEYS:
+            record = {k:v for k,v in record.items() if k in cls.PROCESS_KEYS}
         record['ref'] = ref
         return record
 

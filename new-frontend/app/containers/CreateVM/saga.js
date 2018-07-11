@@ -1,11 +1,12 @@
 import { all, call, put, select, spawn, fork, takeEvery, cancel } from 'redux-saga/effects';
 import { LOCATION_CHANGE } from 'react-router-redux';
 import { CREATE_VM } from './constants';
-import { setPools } from './actions';
-import { makeSelectPools } from './selectors';
+import { setPools, setIsos } from './actions';
+import { makeSelectPools, makeSelectIsos} from './selectors';
 import { info, suc, err } from 'containers/App/actions';
 import localStorage from 'store';
 import poollist from 'api/poollist';
+import isolist from 'api/isolist';
 import createvm from 'api/createvm';
 
 export function* getPoolList() {
@@ -14,6 +15,16 @@ export function* getPoolList() {
     const response = yield call(poollist);
     if (response.data) {
       yield put(setPools(response.data));
+    }
+  }
+}
+
+export function* getIsoList() {
+  const currentIsos = yield select(makeSelectIsos());
+  if (currentIsos.size === 0) {
+    const response = yield call(isolist);
+    if (response.data) {
+      yield put(setIsos(response.data));
     }
   }
 }
@@ -37,13 +48,13 @@ export function* runCreateVM(action) {
     req_data['username'] = form['username'];
     req_data['password'] = form['password'];
     req_data['fullname'] = form['fullname'];
-    req_data['os_kind'] = 'ubuntu xenial'; //Temporary
-    req_data['mode'] = 'pv'; //ORLY
+    req_data['iso'] = form['iso'];
     req_data['vdi_size'] = form['hdd'] * 1024; //Disk size in megabytes
     req_data['partition'] = "/-" +  req_data['vdi_size'] + "-";
     req_data['name_label'] = form['vm-description'];
     req_data['ram_size'] = form['ram'];
     req_data['mirror_url'] = 'http://mirror.corbina.net/ubuntu';
+
 
 
     const response = yield call(createvm, req_data);
@@ -61,7 +72,7 @@ export function* runCreateVM(action) {
 }
 
 export default function* rootSaga() {
-  yield all ([getPoolList()]);
+  yield all ([getPoolList(), getIsoList()]);
   yield takeEvery(CREATE_VM, runCreateVM);
 
 }

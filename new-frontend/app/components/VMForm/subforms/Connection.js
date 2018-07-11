@@ -26,10 +26,10 @@ function Connection({networkType, ip, gateway, netmask, dns0, dns1, onChange}) {
         </Col>
       </FormGroup>
       {
-        networkType !== 'dhcp' ? (
+        networkType !== 'dhcp' && (
           <React.Fragment>
             <FormGroup row ml-auto>
-              <Label for="connection-ip">IP</Label>
+              <Label for="ip">IP</Label>
               <Col>
                 <IPInput
                   id="ip"
@@ -82,8 +82,6 @@ function Connection({networkType, ip, gateway, netmask, dns0, dns1, onChange}) {
 
 
 
-        ) : (
-          <Label>IP address to be automatically assigned</Label>
         )
       }
     </div>

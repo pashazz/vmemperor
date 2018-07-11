@@ -13,7 +13,7 @@ import injectSaga from 'utils/injectSaga';
 import injectReducer from 'utils/injectReducer';
 
 import { createStructuredSelector } from 'reselect';
-import { makeSelectPools, makeGetModal } from './selectors';
+import { makeSelectPools, makeGetModal, makeSelectIsos } from './selectors';
 import { FormattedMessage } from 'react-intl';
 import messages from './messages';
 import { toggleModal, createVM } from './actions';
@@ -30,6 +30,7 @@ import IPT from 'react-immutable-proptypes';
 export class CreateVm extends React.Component { // eslint-disable-line react/prefer-stateless-function
   static propTypes = {
     pools: IPT.listOf(IPT.record).isRequired,
+    isos: IPT.listOf(IPT.record).isRequired,
     modal: T.bool.isRequired,
     toggleModal: T.func.isRequired,
     createVM: T.func.isRequired,
@@ -51,7 +52,9 @@ export class CreateVm extends React.Component { // eslint-disable-line react/pre
           }
         </div>
         <Modal title="VM form" lg toggle={this.props.toggleModal} isOpen={this.props.modal}>
-          <VMForm  pools={this.props.pools} onSubmit={this.props.createVM} />
+          <VMForm  pools={this.props.pools}
+                   isos={this.props.isos}
+                   onSubmit={this.props.createVM} />
         </Modal>
       </div>
     );
@@ -61,6 +64,7 @@ export class CreateVm extends React.Component { // eslint-disable-line react/pre
 const mapStateToProps = createStructuredSelector({
   pools: makeSelectPools(),
   modal: makeGetModal(),
+  isos: makeSelectIsos(),
 });
 
 const mapDispatchToProps = {

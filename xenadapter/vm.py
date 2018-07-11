@@ -48,9 +48,10 @@ class VM (AbstractVM):
     def process_event(cls,  auth, event, db, authenticator_name):
 
         from vmemperor import CHECK_ER
-
-
-        if event['class'] == 'vm_metrics':
+        super(cls, VM).process_event(auth, event, db, authenticator_name)
+        if event['class'] == 'vm':
+            return # handled by supermethod
+        elif event['class'] == 'vm_metrics':
             if event['operation'] == 'del':
                 return #vm_metrics is removed when  VM has already been removed
 
@@ -97,6 +98,15 @@ class VM (AbstractVM):
     def filter_record(cls, record):
         return not (record['is_a_template'] or record['is_control_domain'])
 
+
+    @classmethod
+    def create_db(cls, db):
+        if not cls.db:
+            super(VM, cls).create_db(db)
+            db.table('vms').index_create('metrics').run()
+            db.table('vms').index_wait('metrics').run()
+
+
     @classmethod
     def process_record(cls, auth, ref, record):
         '''
@@ -139,7 +149,7 @@ class VM (AbstractVM):
         return XenObjectDict({k: v for k, v in record.items() if k in keys})
 
     @classmethod
-    def create(self, auth, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, scenario_url=None, name_label = '', start=True, override_pv_args=None):
+    def create(self, auth, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, scenario_url=None, name_label = '', start=True, override_pv_args=None, iso=None):
         '''1
         Creates a virtual machine and installs an OS
 
@@ -157,6 +167,7 @@ class VM (AbstractVM):
         :param name_label: Name for created VM
         :param start: if True, start VM immediately
         :param override_pv_args: if specified, overrides all pv_args for Linux kernel
+        :param iso: ISO Image UUID. If specified, will be mounted
         :return: VM UUID
         '''
         #new_vm_uuid = self.clone_tmpl(tmpl_uuid, name_label, os_kind)
@@ -168,9 +179,6 @@ class VM (AbstractVM):
 
         vm.set_ram_size(ram_size)
         vm.set_disks(sr_uuid, vdi_size)
-
-
-
 
 
         #self.connect_vm(new_vm_uuid, net_uuid, ip)
@@ -187,8 +195,20 @@ class VM (AbstractVM):
 
         net.attach(vm)
         #self.convert_vm(new_vm_uuid, 'pv')
+        if os_kind:
+            vm.os_detect(os_kind, ip, hostname, scenario_url, override_pv_args)
 
-        vm.os_detect(os_kind, ip, hostname, scenario_url, override_pv_args)
+        if iso:
+            try:
+                from .disk import ISO
+                _iso = ISO(auth, uuid=iso)
+                _iso.attach(vm)
+            except XenAdapterAPIError as e:
+                auth.xen.insert_log_entry(new_vm_uuid, state="failed",
+                                          message="Failed to mount ISO for VM: %s" % e.message)
+                return
+
+
         vm.os_install(install_url)
         vm.convert(mode)
         #self.convert_vm(new_vm_uuid, mode)

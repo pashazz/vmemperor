@@ -16,6 +16,8 @@ class Network(ACLXenObject):
     api_class = "network"
     ALLOW_EMPTY_XENSTORE = True
     db_table_name = 'nets'
+    EVENT_CLASSES = ['network']
+    PROCESS_KEYS =  ['name_label', 'name_description', 'PIFs', 'VIFs', 'uuid', 'ref', 'other_config']
 
     def __init__(self, auth, uuid):
         super().__init__(auth, uuid)
@@ -41,13 +43,6 @@ class Network(ACLXenObject):
     @classmethod
     def filter_record(cls, record):
         return record['bridge'] != 'xenapi'
-
-    @classmethod
-    def process_record(cls, auth, ref, record):
-        record = super().process_record(auth, ref, record)
-        keys = ['name_label', 'name_description', 'PIFs', 'VIFs', 'uuid', 'ref', 'other_config']
-        new_rec = {k: v for k, v in record.items() if k in keys}
-        return new_rec
 
 
 

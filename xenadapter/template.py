@@ -12,7 +12,11 @@ class Template(AbstractVM):
 
     @classmethod
     def filter_record(cls, record):
-        return record['is_a_template'] and 'vmemperor' in record['tags']
+        return record['is_a_template']
+
+    @classmethod
+    def is_hidden(self, record):
+        return 'vmemperor' not in record['tags']
 
     @classmethod
     def process_record(self, auth, ref, record):
