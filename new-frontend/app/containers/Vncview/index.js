@@ -21,6 +21,7 @@ import reducer from './reducer';
 import saga from './saga';
 import messages from './messages';
 import { vncRequest } from "./actions";
+import NavLink from "../../components/NavLink";
 
 
 export class Vncview extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
@@ -37,6 +38,9 @@ export class Vncview extends React.PureComponent { // eslint-disable-line react/
           : (
             <Loader/>
           )}
+          <NavLink to={"/vmsettings/" + this.props.match.params.uuid}>
+            Settings
+          </NavLink>
       </div>
     );
   }

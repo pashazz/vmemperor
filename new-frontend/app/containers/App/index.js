@@ -30,6 +30,7 @@ import VncView from 'containers/Vncview/Loadable';
 import { compose } from 'redux';
 import injectReducer from 'utils/injectReducer';
 import reducer from './reducer';
+import {VMSettings} from "../Vmsettings";
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
         <Route exact path="/" component={HomePage} />
         <Route path="/login" component={LoginPage} />
         <PrivateRoute  path="/vms" component={VMs} />
+        <PrivateRoute path="/vmsettings/:uuid" component={VMSettings}/>
         <PrivateRoute path="/create-vm" component={CreateVM}/>
         <PrivateRoute path="/logout" component={Logout} />
         <PrivateRoute path="/desktop/:uuid" component={VncView}/>
