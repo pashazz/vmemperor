@@ -112,7 +112,7 @@ class Main():
         p.set_defaults(func=self.installstatus)
 
         #add parser for vminfo
-        p = self.subparsers.add_parser('installstatus', description="Print VM info")
+        p = self.subparsers.add_parser('vminfo', description="Print VM info")
         p.add_argument('uuid', help='VM UUID')
         p.set_defaults(func=self.vminfo)
 
@@ -187,7 +187,9 @@ class Main():
     @login
     def vminfo(self, args):
         r = requests.post("%s/vminfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
-        print(r.text)
+
+        js = json.loads(r.text)
+        pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
 
     @login
