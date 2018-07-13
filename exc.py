@@ -6,6 +6,9 @@ class EmperorException(Exception):
         self.message = message
         self.log = log
 
+    def __str__(self):
+        return "<{0}>: {1}".format(self.__class__.__name__, self.message)
+
 
 class XenAdapterException(EmperorException):
     pass

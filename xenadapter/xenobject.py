@@ -27,7 +27,10 @@ class XenObjectMeta(type):
                                          % (api_class, item, f.details ))
         return method
 
-
+    def __init__(cls, what, bases=None, dict=None):
+        super().__init__(what, bases, dict)
+        cls.db_ready = threading.Event()
+        cls.db_ready.clear()
 
 
 class XenObject(metaclass=XenObjectMeta):
@@ -38,7 +41,8 @@ class XenObject(metaclass=XenObjectMeta):
     PROCESS_KEYS=[]
     _db_created = False
     db = None
-    db_ready = threading.Event()
+
+
 
     def __init__(self, auth : BasicAuthenticator,  uuid=None, ref=None):
         '''Set  self.auth.xen_api_class to xen.api.something before calling this'''
@@ -113,17 +117,31 @@ class XenObject(metaclass=XenObjectMeta):
                 CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
 
     @classmethod
-    def create_db(cls, db):
+    def create_db(cls, db, indexes=None):
+        def index_yielder():
+            yield 'ref'
+            if hasattr(indexes, '__iter__'):
+                for y in indexes:
+                    yield y
+
+
         if not cls.db:
 
             table_list = db.table_list().run()
             if cls.db_table_name not in table_list:
                 db.table_create(cls.db_table_name, durability='soft', primary_key='uuid').run()
-                db.table(cls.db_table_name).index_create('ref').run()
-                db.table(cls.db_table_name).index_wait('ref').run()
-                db.table(cls.db_table_name).wait().run()
+            index_list = db.table(cls.db_table_name).index_list().coerce_to('array').run()
+            for index in index_yielder():
+                if not index in index_list:
+                    db.table(cls.db_table_name).index_create(index).run()
+                    db.table(cls.db_table_name).index_wait(index).run()
+                    db.table(cls.db_table_name).wait().run()
 
             cls.db = db
+            cls.db_ready.set()
+
+
+
 
     @classmethod
     def process_record(cls, auth, ref, record):
@@ -182,12 +200,55 @@ class ACLXenObject(XenObject):
     VMEMPEROR_ACCESS_PREFIX = 'vm-data/vmemperor/access'
 
     def get_access_path(self, username=None, is_group=False):
-        return '{3}/{0}/{1}/{2}'.format(self.auth.__class__.__name__,
+        '''
+        used by manage_actions' default implementation
+        :param username:
+        :param is_group:
+        :return:
+        '''
+        return '{3}/{0}/{1}/{2}'.format(self.auth.class_name(),
                                                                'groups' if is_group else 'users',
                                                         username, self.access_prefix)
 
     ALLOW_EMPTY_XENSTORE = False # Empty xenstore for some objects might treat them as for-all-by-default
 
+    @classmethod
+    def process_record(cls, auth, ref, record):
+        '''
+        Adds an 'access' field to processed record containing access rights
+        :param auth:
+        :param ref:
+        :param record:
+        :return:
+        '''
+        new_rec = super().process_record(auth, ref, record)
+        new_rec['access'] = cls.get_access_data(record, auth.__name__)
+        return new_rec
+
+    @classmethod
+    def get_access_data(cls, record, authenticator_name):
+        '''
+        Obtain access data
+        :param record:
+        :param authenticator_name:
+        :return:
+        '''
+        xenstore = record['xenstore_data']
+        def read_xenstore_access_rights(xenstore_data):
+            filtered_iterator = filter(
+                lambda keyvalue: keyvalue[1] and keyvalue[0].startswith(cls.VMEMPEROR_ACCESS_PREFIX),
+                xenstore_data.items())
+
+            for k, v in filtered_iterator:
+                key_components = k[len(cls.VMEMPEROR_ACCESS_PREFIX) + 1:].split('/')
+                if key_components[0] == authenticator_name:
+                    yield {'userid': '%s/%s' % (key_components[1], key_components[2]), 'access': v.split(';')}
+
+            else:
+                if cls.ALLOW_EMPTY_XENSTORE:
+                    yield {'userid': 'any', 'access': ['all']}
+
+        return list(read_xenstore_access_rights(xenstore))
     @use_logger
     def check_access(self,  action):
         '''
@@ -216,8 +277,7 @@ class ACLXenObject(XenObject):
             if self.ALLOW_EMPTY_XENSTORE:
                     return True
             raise XenAdapterUnauthorizedActionException(self.log,
-                                                    "Unauthorized attempt (no info on access rights): needs privilege '%s', call stack: %s"
-                                                    % (action, traceback.format_stack()))
+                                                    "Unauthorized attempt (no info on access rights): needs privilege '%s'" % action)
 
 
         username = 'users/%s'  % self.auth.get_id()

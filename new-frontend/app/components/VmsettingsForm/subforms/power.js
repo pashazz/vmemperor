@@ -10,12 +10,15 @@ class Power extends PureComponent {
   render()
   {
     return(
+      <React.Fragment>
       <Row>
         <Col sm={6}>
       <FullHeightCard>
         <CardBody>
           <CardTitle>Power status</CardTitle>
-        <CardText>I'm up since Jun 1, 2010 (X days Y hours Z minutes W seconds)</CardText>
+        <CardText>I'm up since Jun 1, 2010 (X days Y hours Z minutes W seconds)
+        <br/>
+        </CardText>
         </CardBody>
         <CardFooter>
         <div>
@@ -48,7 +51,36 @@ class Power extends PureComponent {
 
         </Col>
       </Row>
+        <Row>
+          <Col sm={6}>
+            <FullHeightCard>
+              <CardBody>
+                <CardTitle>Virtualization mode</CardTitle>
+                <CardSubtitle>Halt to switch mode</CardSubtitle>
 
+                <CardText><h4>PV</h4></CardText>
+              </CardBody>
+              <CardFooter>
+                <Button size="lg" color="info">Switch to HVM</Button>
+              </CardFooter>
+            </FullHeightCard>
+          </Col>
+        </Row>
+        <Row>
+          <Col>
+            <Card>
+             <CardBody>
+               <CardTitle>
+                 Boot parameters
+               </CardTitle>
+               <CardText>
+
+               </CardText>
+             </CardBody>
+            </Card>
+          </Col>
+        </Row>
+      </React.Fragment>
 
     );
   }

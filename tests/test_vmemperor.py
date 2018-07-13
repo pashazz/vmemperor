@@ -173,12 +173,12 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         super().setUp()
 
         res_login = self.fetch(r'/login', method='POST', body=urlencode(self.login_body))
-        self.assertEqual(res_login.code, 200, "Failed to login")
+        self.assertEqual(200, res_login.code, "Failed to login")
         self.headers = {'Cookie': res_login.headers['Set-Cookie']}
 
     @classmethod
     def tearDownClass(cls):
-        auth = DebugAuthenticator()
+        auth = DebugAuthenticator(user_auth=cls.auth_class)
         for uuid in cls.vms_created:
             try:
                 vm = VM(auth=auth, uuid=uuid)
@@ -534,8 +534,6 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
     def test_destroy_vm(self):
         uuid = self.createvm()
-
-
         body=dict(uuid=uuid)
         res = self.fetch(r'/destroyvm', method='POST', body=urlencode(body), headers=self.headers)
         self.assertEqual(res.code, 200)
@@ -546,25 +544,53 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
 
     def test_get_set_access(self):
         uuid = self.createvm()
-        body={'uuid': uuid, 'type': 'VM'}
+        self.get_set_access_tester(uuid, 'VM', 'launch')
+        self.vms_created.clear()
+
+    def test_pool_wide_network_access(self):
+        #login as admin
+        login_admin_body = { 'username': opts.username, 'password': opts.password}
+        res = self.fetch(r'/adminauth', method='POST', body=urlencode(login_admin_body))
+        self.assertEqual(200, res.code)
+        self.admin_headers = {'Cookie': res.headers['Set-Cookie']}
+        res = self.fetch(r'/netlist', method='GET', headers=self.admin_headers)
+        self.assertEqual(200, res.code)
+        netlist = json.loads(res.body.decode())
+        network = None
+        for net in netlist:
+            if net['name_label'].startswith('Pool-wide'):
+                network = net
+        if network is None:
+            self.fail("Can't find pool-wide network")
+
+        #set access all for for john
+        uuid = network['uuid']
+        body_set = {'uuid': uuid, 'type': 'Network', 'user': '1', 'action': 'all'}
+        res = self.fetch(r'/setaccess', method='POST', body=urlencode(body_set), headers=self.admin_headers)
+        self.assertEqual(200, res.code, "Admininstrator should grant all rights for a pool-wide network for john")
+        self.get_set_access_tester(uuid, 'Network', 'attach')
+        body_set['revoke'] = True
+        res = self.fetch(r'/setaccess', method='POST', body=urlencode(body_set), headers=self.admin_headers)
+        self.assertEqual(200, res.code, "Admininstrator should revoke all rights for a pool-wide network from john")
+
+
+    def get_set_access_tester(self, uuid, type, action):
+        body = {'uuid': uuid , 'type': type}
         res = self.fetch(r'/getaccess', method='POST', body=urlencode(body), headers=self.headers)
-        self.assertEqual(res.code, 200)
+        self.assertEqual(200, res.code)
         ans = json.loads(res.body.decode())
         self.assertEqual(ans['access'][0]['userid'], 'users/1')
         self.assertEqual(ans['access'][0]['access'], ['all'])
-        body_set = {'uuid': uuid, 'type': 'VM', 'group': '1', 'action': 'launch'}
+        body_set = {'uuid': uuid, 'type': type, 'group': '1', 'action': action}
         # login as eva, not in group
-        login_body_eva={'username':'eva', 'password': 'eva'}
+        login_body_eva = {'username': 'eva', 'password': 'eva'}
         res_login = self.fetch(r'/login', method='POST', body=urlencode(login_body_eva))
-
         self.assertEqual(res_login.code, 200, "Failed to login as Eva")
         headers_eva = {'Cookie': res_login.headers['Set-Cookie']}
-
         login_body_mike = {'username': 'mike', 'password': 'mike'}
         res_login = self.fetch(r'/login', method='POST', body=urlencode(login_body_mike))
         self.assertEqual(res_login.code, 200, "Failed to login as Mike")
         headers_mike = {'Cookie': res_login.headers['Set-Cookie']}
-
         res = self.fetch(r'/getaccess', method='POST', body=urlencode(body), headers=headers_mike)
         self.assertEqual(res.code, 403, "Access system hijacked by mike: {0}".format(res.body.decode()))
         res = self.fetch(r'/getaccess', method='POST', body=urlencode(body), headers=headers_eva)
@@ -576,19 +602,26 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         self.assertEqual(200, res.code, "Mike should get access rights cause he's in john's group")
         res = self.fetch(r'/getaccess', method='POST', body=urlencode(body), headers=headers_eva)
         self.assertEqual(res.code, 403, "Eva still shouldn't have  obtained access rights")
-        res = self.fetch(r'/vminfo', method='POST', body=urlencode(body), headers=headers_eva)
-        self.assertEqual(res.code, 403, "Eva shouldn't have got an access info")
-        res = self.fetch(r'/vminfo', method='POST', body=urlencode(body), headers=headers_mike, request_timeout=9999)
-        self.assertEqual(200, res.code, "Mike has Launch rights, he must have an ability to get VM info")
-        sleep(1)
-        res = self.fetch(r'/destroyvm', method='POST', body=urlencode(body), headers=headers_mike)
-        self.assertEqual(res.code, 403, "Mike shouldn't have destroyed a VM")
-        res = self.fetch(r'/destroyvm', method='POST', body=urlencode(body), headers=headers_eva)
-        self.assertEqual(res.code, 403, "Eva shouldn't have destroyed a VM")
-        res = self.fetch(r'/destroyvm', method='POST', body=urlencode(body), headers=self.headers)
-        self.assertEqual(res.code, 200, "John should destroy test VM")
+        if type == 'VM':
+            res = self.fetch(r'/vminfo', method='POST', body=urlencode(body), headers=headers_eva)
+            self.assertEqual(res.code, 403, "Eva shouldn't have got an access info")
+            res = self.fetch(r'/vminfo', method='POST', body=urlencode(body), headers=headers_mike, request_timeout=9999)
+            self.assertEqual(200, res.code, "Mike has Launch rights, he must have an ability to get VM info")
+            sleep(1)
+            res = self.fetch(r'/destroyvm', method='POST', body=urlencode(body), headers=headers_mike)
+            self.assertEqual(res.code, 403, "Mike shouldn't have destroyed a VM")
+            res = self.fetch(r'/destroyvm', method='POST', body=urlencode(body), headers=headers_eva)
+            self.assertEqual(res.code, 403, "Eva shouldn't have destroyed a VM")
+            res = self.fetch(r'/destroyvm', method='POST', body=urlencode(body), headers=self.headers)
+            self.assertEqual(res.code, 200, "John should destroy test VM")
 
-        self.vms_created.clear()
+        elif type == 'network':
+            res = self.fetch(r'/netinfo', method='POST', body=urlencode(body), headers=headers_eva)
+            self.assertEqual(res.code, 403, "Eva shouldn't have got an access info")
+            res = self.fetch(r'/netinfo', method='POST', body=urlencode(body), headers=headers_mike,
+                             request_timeout=9999)
+            self.assertEqual(200, res.code, "Mike has attach rights, he must have an ability to get Network info")
+            sleep(1)
 
 
 

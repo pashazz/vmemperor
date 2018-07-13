@@ -9,7 +9,7 @@ from xenadapter.template import Template
 from xenadapter.vm import VM
 
 from xenadapter.network import Network
-from xenadapter.disk import ISO, SR
+from xenadapter.disk import ISO, SR, VDI
 from xenadapter.pool import Pool
 import copy
 import traceback
@@ -52,9 +52,10 @@ from tornado.websocket import *
 import asyncio
 from tornado.platform.asyncio import AnyThreadEventLoopPolicy
 #Objects with ACL enabled
-objects = [VM, Network]
+objects = [VM, Network, VDI]
 
 user_table_ready = threading.Event()
+first_batch_of_events = threading.Event()
 need_exit = threading.Event()
 xen_events_run = threading.Event() # called by USR2 signal handler
 
@@ -113,15 +114,8 @@ class HandlerMethods(Loggable):
         self.debug = opts.debug
         self.init_log()
         self.conn = ReDBConnection().get_connection()
+        first_batch_of_events.wait()
 
-
-
-    # def init_xen(self, auth=None) -> XenAdapter:
-    #    opts_dict = {}
-    #    opts_dict.update(opts.group_dict('xenadapter'))
-    #    opts_dict.update(opts.group_dict('rethinkdb'))
-    #    xen = XenAdapter(opts_dict, auth if auth else self.user_authenticator)
-    #    return xen
 
     def get_current_user(self):
         return self.get_secure_cookie("user")
@@ -269,6 +263,10 @@ class Test(BaseHandler):
 
 
 class AdminAuth(BaseHandler):
+    def initialize(self, executor, authenticator):
+        super().initialize(executor)
+        self.user_auth = authenticator
+
     def post(self):
         '''
         Authenticate using XenServer auth system directly (as admin)
@@ -279,7 +277,7 @@ class AdminAuth(BaseHandler):
         username = self.get_argument("username", "")
         password = self.get_argument("password", "")
         try:
-            authenticator = AdministratorAuthenticator()
+            authenticator = AdministratorAuthenticator(user_auth=self.user_auth)
             authenticator.check_credentials(username=username, password=password, log=self.log)
         except AuthenticationException:
             self.write(json.dumps({"status": 'error', 'message': "wrong credentials"}))
@@ -295,6 +293,31 @@ class LogOut(BaseHandler):
         self.clear_cookie('user')
         #self.redirect(self.get_argument("next", "/login"))
         self.write({'status': 'ok'})
+
+
+class NetworkList(BaseHandler):
+    @auth_required
+    def get(self):
+        with self.conn:
+            db = r.db(opts.database)
+            try:
+                if isinstance(self.user_authenticator, AdministratorAuthenticator):
+                    query = db.table('nets').coerce_to('array')
+
+                else:
+                    userid = str(self.user_authenticator.get_id())
+                    query = db.table('nets_user').get_all('users/%s' % userid, index='userid').without('id').coerce_to('array')
+
+                    for group in self.user_authenticator.get_user_groups():
+                        group = str(group)
+                        query = query.union(db.table('nets_user').get_all('groups/%s' % group, index='userid')
+                                            .without('id').coerce_to('array'))
+
+                self.write(json.dumps(query.run()))
+
+            except Exception as e:
+                self.set_status(500)
+                self.log.error("Exception: {0}".format(e))
 
 
 class VMList(BaseWSHandler):
@@ -387,7 +410,16 @@ class VMList(BaseWSHandler):
                         return
 
 
-                    if not isinstance(self.user_authenticator, AdministratorAuthenticator):
+                    if isinstance(self.user_authenticator, AdministratorAuthenticator):
+                        if 'new_val' in change:
+                            if change['new_val']:
+                                new_val = change['new_val'].copy()
+                                del change['new_val']
+                                change.update(new_val)
+                            else:
+                                del change['new_val']
+
+                    else:
                         if change['type'] == 'change': #these are sent from vms
                             if change['new_val']:
                                 record = change['new_val']
@@ -423,6 +455,8 @@ class VMList(BaseWSHandler):
                                 continue
 
                             valid_uuids.remove(change['old_val']['uuid'])
+
+
 
 
 
@@ -641,7 +675,11 @@ class CreateVM(BaseHandler):
                     break
 
             if not self.template:
-                raise ValueError('Wrong template name: {0}'.format(tmpl_name))
+                self.set_status(400)
+                self.write({'status' : 'no such template', 'message': 'template '+ tmpl_name})
+                self.log.error("Client supplied wrong template name: {0}".format(tmpl_name))
+                self.finish()
+                return
 
             self.override_pv_args = self.get_argument('override_pv_args', None)
             self.mode = 'hvm' if self.template['hvm'] else 'pv'
@@ -730,8 +768,13 @@ class CreateVM(BaseHandler):
 
         conn = ReDBConnection().get_connection()
         with conn:
-            self.log.info("Finalizing installation of VM %s" % self.uuid)
+            self.log.debug("Set access rights for VM disks")
             db = r.db(opts.database)
+            disks = db.table('vms').get(self.uuid).pluck('disks').run()['disks']
+
+
+            self.log.info("Finalizing installation of VM %s" % self.uuid)
+
             state = db.table('vms').get(self.uuid).pluck('power_state').run()['power_state']
             if state != 'Running':
                 auth.xen.insert_log_entry(self.uuid, 'failed', "failed to start VM for installation (low resources?). State: %s" % state)
@@ -759,28 +802,6 @@ class CreateVM(BaseHandler):
                     else:
                         auth.xen.insert_log_entry(self.uuid, "installed", "OS successfully installed")
                     break
-
-
-
-
-
-
-
-
-
-class NetworkList(BaseHandler):
-    @auth_required
-    def get(self):
-        with self.conn:
-            db = r.db(opts.database)
-            try:
-                self.write(json.dumps(db.table('nets').coerce_to('array').run()))
-            except Exception as e:
-                self.set_status(500)
-                self.log.error("Exception: {0}".format(e))
-
-
-
 
 
 class ConvertVM(BaseHandler):
@@ -854,28 +875,30 @@ class AnsibleHooks:
     pass
 
 
-class VMAbstractHandler(BaseHandler):
+class ResourceAbstractHandler(BaseHandler):
     '''
-    Abstact handler for VM requests
+    Abstact handler for resource requests
     requires: function self.get_data returning something we can write
               attribute self.access - access mode
+              attribute self.resource - resource class
     provides: self.uuid <- vm_uuid
 
     '''
     @auth_required
     def post(self):
 
-        vm_uuid = self.get_argument('uuid')
-        self.uuid = vm_uuid
+        uuid = self.get_argument('uuid')
+        self.uuid = uuid
         with self.conn:
             try:
-                self.vm = VM(self.user_authenticator, uuid=vm_uuid)
+                resource_name = self.resource.__class__.__name__.lower()
+                self.__setattr__(resource_name,  self.resource(self.user_authenticator, uuid=uuid))
             except XenAdapterAPIError as e:
                 self.set_status(400)
                 self.write({'status' : 'bad request', 'message' : e.message})
                 return
             try:
-                self.vm.check_access(self.access)
+                self.__getattribute__(resource_name).check_access(self.access)
             except XenAdapterUnauthorizedActionException as e:
                 self.set_status(403)
                 self.write({'status':'access denied', 'message' : e.message})
@@ -889,6 +912,13 @@ class VMAbstractHandler(BaseHandler):
     def get_data(self):
         '''return answer information (if everything is OK). Else use set_status and write'''
         raise NotImplementedError()
+
+class VMAbstractHandler(ResourceAbstractHandler):
+    resource = VM
+
+class NetworkAbstractHandler(ResourceAbstractHandler):
+    resource = Network
+
 
 class SetAccessHandler(BaseHandler):
     @auth_required
@@ -915,7 +945,7 @@ class SetAccessHandler(BaseHandler):
                     break
             else:
                 self.set_status(400)
-                self.write({'status' : 'bad request', 'message' : 'unsupported type %s' % _type})
+                self.write({'status' : 'bad request', 'message' : 'unsupported type: %s' % _type})
                 return
 
             try:
@@ -989,6 +1019,21 @@ class VMInfo(VMAbstractHandler):
         db = r.db(opts.database)
         try:
             d = db.table('vms').get(self.uuid).run()
+            return d
+        except Exception as e:
+            self.log.error("Exception: {0}".format(e))
+            self.set_status(500)
+            self.write({'status' : 'database error/no info'})
+            return
+
+class NetworkInfo(NetworkAbstractHandler):
+
+    access = 'attach'
+
+    def get_data(self):
+        db = r.db(opts.database)
+        try:
+            d = db.table('nets').get(self.uuid).run()
             return d
         except Exception as e:
             self.log.error("Exception: {0}".format(e))
@@ -1125,10 +1170,9 @@ class EventLoop(Loggable):
                 raise XenAdapterAPIError("XenServer not reached", e.message)
 
             self.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
-
-            for obj in objects:  # for ACL objects we create DB before processing initial events
+            for obj in objects:
                 obj.create_db(self.db)
-                self.db.table(obj.db_table_name).insert(obj.init_db(authenticator)).run()
+
             del authenticator.xen
 
 
@@ -1141,11 +1185,12 @@ class EventLoop(Loggable):
                 table_list = self.db.table_list().run()
 
                 query = self.db.table(objects[0].db_table_name).pluck('uuid', 'access')\
-                    .merge({'table' : objects[0].db_table_name}).changes()
+                    .merge({'table' : objects[0].db_table_name}).changes(include_initial=True, include_types=True)
 
 
                 def initial_merge(table):
                     nonlocal table_list
+
                     self.db.table(table).wait().run()
                     table_user = table + '_user'
                     if table_user in table_list:
@@ -1168,11 +1213,12 @@ class EventLoop(Loggable):
 
                 i = 0
                 while i < len(objects):
+
                     initial_merge(objects[i].db_table_name)
 
                     if i > 0:
                         query.union(self.db.table(objects[i].db_table_name).pluck('uuid', 'access')\
-                                        .merge({'table': objects[i].db_table_name}).changes())
+                                        .merge({'table': objects[i].db_table_name}).changes(include_initial=True, include_types=True))
                     i += 1
 
                 #indicate that vms_user table is ready
@@ -1214,7 +1260,7 @@ class EventLoop(Loggable):
 
 
 
-                        if not record['old_val']:
+                        if 'old_val' not in record or not record['old_val']:
                             if access:
                                 log.info("Adding access rights for %s (table %s): %s" %
                                          (uuid, table, json.dumps(access)))
@@ -1267,6 +1313,7 @@ class EventLoop(Loggable):
         with conn:
             self.log.debug("Started process_xen_events. You can kill this thread and 'freeze'"
                            " cache databases (except for access) by sending signal USR2")
+            first_batch_of_events.clear()
 
             while True:
                 try:
@@ -1283,6 +1330,8 @@ class EventLoop(Loggable):
                     token_from = event_from_ret['token']
 
                     for event in events:
+                        if event['class'] == 'message':
+                            continue #temporary hardcode to fasten event handling
                         log_this = opts.log_events and event['class'] in opts.log_events.split(',')\
                                    or not opts.log_events
 
@@ -1300,7 +1349,7 @@ class EventLoop(Loggable):
                             ev_class = SR
 
                         elif event['class'] == 'vdi':
-                            ev_class = ISO
+                            ev_class = [ISO, VDI]
                         else:  # Implement ev_classes for all types of events
                             if log_this:
                                 self.log.debug("Ignored Event: %s" % json.dumps(print_event(event), cls=DateTimeEncoder))
@@ -1316,10 +1365,11 @@ class EventLoop(Loggable):
                             else:
                                 ev_class.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
                         except Exception as e:
-                            self.log.error("Failed to process event: class %s, error: %s" % (ev_class, e.message))
+                            self.log.error("Failed to process event: class %s, error: %s" % (ev_class, e))
 
 
-
+                    if not first_batch_of_events.is_set():
+                        first_batch_of_events.set()
 
 
                 except Failure as f:
@@ -1554,13 +1604,14 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/attachdetachiso', AttachDetachIso, dict(executor=executor)),
         (r'/destroyvm', DestroyVM, dict(executor=executor)),
         (r'/connectvm', ConnectVM, dict(executor=executor)),
-        (r'/adminauth', AdminAuth, dict(executor=executor)),
+        (r'/adminauth', AdminAuth, dict(executor=executor, authenticator=auth_class)),
         (r'/convertvm', ConvertVM, dict(executor=executor)),
         (r'/installstatus', InstallStatus, dict(executor=executor)),
         (r'/vminfo', VMInfo, dict(executor=executor)),
         (r'/isolist', ISOList, dict(executor=executor)),
         (r'/setaccess', SetAccessHandler, dict(executor=executor)),
-        (r'/getaccess', GetAccessHandler, dict(executor=executor))
+        (r'/getaccess', GetAccessHandler, dict(executor=executor)),
+        (r'/netinfo', NetworkInfo, dict(executor=executor))
 
     ], **settings)
 

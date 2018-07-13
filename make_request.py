@@ -47,7 +47,7 @@ class Main():
 
 
         p = argparse.ArgumentParser(description="VMEmperor CLI Utility")
-        p.add_argument('--login', help='login as user (see sections in make_request.ini)')
+        p.add_argument('--login', help='login as user (see sections in make_request.ini). If admin=True, we will try Administrator login')
         p.add_argument('--host', help='VMEmperor host', default='localhost')
         p.add_argument('-p','--port', help='VMEmperor port', default=8889, type=int)
         p.set_defaults(login='login')
@@ -119,13 +119,17 @@ class Main():
         #add parser for start
         p = self.subparsers.add_parser('start', description="Start VM")
         p.add_argument('uuid', help='VM UUID')
-        p.set_defaults(func=self.vminfo)
+        p.set_defaults(func=self.start)
 
         #add parser for stop
-        p = self.subparsers.add_parser('start', description="Start VM")
+        p = self.subparsers.add_parser('stop', description="Stop VM")
         p.add_argument('uuid', help='VM UUID')
-        p.set_defaults(func=self.vminfo)
+        p.set_defaults(func=self.stop)
 
+        #add parser for netinfo
+        p = self.subparsers.add_parser('netinfo', description="Print Network info")
+        p.add_argument('uuid', help='Network UUID')
+        p.set_defaults(func=self.netinfo)
 
 
         #add parser for everything else
@@ -151,7 +155,12 @@ class Main():
 
 
     def _login(self):
-        r = requests.post("%s/login" % self.url, data=self.login_opts)
+        if 'admin' in self.login_opts and self.login_opts['admin'].lower() == 'true':
+            url = '{0}/adminauth'.format(self.url)
+        else:
+            url = '{0}/login'.format(self.url)
+
+        r = requests.post(url, data=self.login_opts)
         self.jar = r.cookies
         self.headers={}
         self.headers['Cookie'] = r.headers['Set-Cookie']
@@ -187,6 +196,14 @@ class Main():
     @login
     def vminfo(self, args):
         r = requests.post("%s/vminfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
+
+        js = json.loads(r.text)
+        pprint.pprint(js)
+        print(r.status_code, file=sys.stderr)
+
+    @login
+    def netinfo(self, args):
+        r = requests.post("%s/netinfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
 
         js = json.loads(r.text)
         pprint.pprint(js)

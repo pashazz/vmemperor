@@ -28,16 +28,23 @@ class Authentication(metaclass=ABCMeta):
 
 
 
+
+
 @Authentication.register
 class BasicAuthenticator:
-    pass
+    @classmethod
+    def class_name(cls):
+        return cls.__name__
+
 
 
 class AdministratorAuthenticator(BasicAuthenticator):
     # TODO Implement check_credentials
 
-    def __init__(self):
+    def __init__(self, user_auth: type):
         self.auth = False
+        self.user_auth = user_auth
+
 
     def check_credentials(self, password, username, log=logging):
         from exc import AuthenticationPasswordException, XenAdapterConnectionError
@@ -61,7 +68,8 @@ class AdministratorAuthenticator(BasicAuthenticator):
     def get_name(self):
         return self.id
 
-
+    def class_name(self):
+        return self.user_auth.__name__
 
 
 
@@ -71,13 +79,13 @@ class DebugAuthenticator(AdministratorAuthenticator): #used by tests
     def check_credentials(self, password, username):
         pass #not rly used
 
-    def __init__(self):
+    def __init__(self, user_auth):
 
         from xenadapter import XenAdapter
         from vmemperor import opts
         self.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
 
-        super().__init__()
+        super().__init__(user_auth)
 
 class DummyAuth(BasicAuthenticator):
 

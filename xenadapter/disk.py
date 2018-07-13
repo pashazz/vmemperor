@@ -100,11 +100,12 @@ class Attachable:
 
 
 
+
 class ISO(XenObject, Attachable):
     api_class = 'VDI'
     db_table_name = 'isos'
     EVENT_CLASSES = ['vdi']
-    PROCESS_KEYS = ['uuid', 'name_label', 'name_description', 'location', 'ref']
+    PROCESS_KEYS = ['uuid', 'name_label', 'name_description', 'location']
 
     from .vm import VM
 
@@ -132,24 +133,14 @@ class ISO(XenObject, Attachable):
                 if not filtered:
                     return
 
-                new_rec = {k: v for k,v in record.items() if k in
-                           ('uuid', 'name_label', 'name_description')}
-                new_rec['ref'] = event['ref']
+                new_rec = cls.process_record(auth, event['ref'], record)
+                # We need SR information
                 new_rec['SR'] = SR['uuid']
 
                 from vmemperor import CHECK_ER
                 CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
             else:
                 super().process_event(auth, event, db, authenticator_name)
-
-
-
-
-
-
-    @classmethod
-    def process_record(cls, auth, ref, record):
-        raise NotImplementedError()
 
 
     def attach(self, vm : VM) -> VBD:
@@ -168,6 +159,9 @@ class ISO(XenObject, Attachable):
 
 class VDI(ACLXenObject):
     api_class = 'VDI'
+    db_table_name = 'vdis'
+    EVENT_CLASSES = ['vdi']
+    PROCESS_KEYS = ['uuid', 'name_label', 'name_description']
     @classmethod
     def create(cls, auth, sr_uuid, size, name_label = None):
         """
@@ -197,6 +191,40 @@ class VDI(ACLXenObject):
             raise XenAdapterAPIError(auth.log, "Failed to create VDI: {0}".format(f.details))
 
         return vdi_uuid
+
+    @classmethod
+    def filter_record(cls, record, return_SR_record=False):
+        query = cls.db.table(SR.db_table_name).get_all(record['SR'], index='ref').run()
+        if len(query.items) != 1:
+            raise XenAdapterAPIError("Unable to get SR for ISO {0}".format(record['uuid']),
+                                     "No such SR: {0}".format(record['SR']))
+        if return_SR_record:
+            return query.items[0]['content_type'] != 'iso', query.items[0]
+        else:
+            return query.items[0]['content_type'] != 'iso'
+
+    @classmethod
+    def process_event(cls, auth, event, db, authenticator_name):
+
+        if event['class'] == 'vdi':
+            cls.create_db(db)
+            if event['operation'] in ('add', 'mod'):
+                record = event['snapshot']
+
+                filtered, SR = cls.filter_record(record, return_SR_record=True)
+                if not filtered:
+                    return
+
+                # get access information
+                new_rec = cls.process_record(auth, event['ref'], record)
+                new_rec['SR'] = SR['uuid']
+
+                from vmemperor import CHECK_ER
+                CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
+
+            else:
+                super().process_event(auth, event, db, authenticator_name)
+
 
 class SR(XenObject):
     api_class = "SR"

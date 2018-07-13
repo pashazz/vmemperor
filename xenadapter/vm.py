@@ -11,6 +11,7 @@ from .os import *
 class VM (AbstractVM):
 
     db_table_name = 'vms'
+    PROCESS_KEYS = ['power_state', 'name_label', 'uuid',  'metrics']
 
     def __init__(self, auth, uuid=None, ref=None):
         super().__init__(auth, uuid, ref)
@@ -74,24 +75,7 @@ class VM (AbstractVM):
 
 
 
-    @classmethod
-    def process_xenstore(cls, xenstore, authenticator_name):
 
-        def read_xenstore_access_rights(xenstore_data):
-            filtered_iterator = filter(
-                lambda keyvalue: keyvalue[1] and keyvalue[0].startswith(cls.VMEMPEROR_ACCESS_PREFIX),
-                xenstore_data.items())
-
-            for k, v in filtered_iterator:
-                key_components = k[len(cls.VMEMPEROR_ACCESS_PREFIX) + 1:].split('/')
-                if key_components[0] == authenticator_name:
-                    yield {'userid': '%s/%s' % (key_components[1], key_components[2]), 'access': v.split(';')}
-
-            else:
-                if cls.ALLOW_EMPTY_XENSTORE:
-                    yield {'userid': 'any', 'access': ['all']}
-
-        return list(read_xenstore_access_rights(xenstore))
 
 
     @classmethod
@@ -100,12 +84,8 @@ class VM (AbstractVM):
 
 
     @classmethod
-    def create_db(cls, db):
-        if not cls.db:
-            super(VM, cls).create_db(db)
-            db.table('vms').index_create('metrics').run()
-            db.table('vms').index_wait('metrics').run()
-
+    def create_db(cls, db, indexes=None): #ignore indexes
+        super(VM, cls).create_db(db, indexes=['metrics'])
 
     @classmethod
     def process_record(cls, auth, ref, record):
@@ -114,10 +94,9 @@ class VM (AbstractVM):
         :param record:
         :return: record for DB
         '''
-        record = super().process_record(auth, ref, record)
-        keys = ['power_state', 'name_label', 'uuid', 'ref', 'metrics']
-        new_rec = {k: v for k, v in record.items() if k in keys}
-        new_rec['access'] = cls.process_xenstore(record['xenstore_data'], auth.__name__)
+        new_rec = super().process_record(auth, ref, record)
+
+
         new_rec['network'] = []
         for vif in record['VIFs']:
             net_ref = auth.xen.api.VIF.get_network(vif)
@@ -225,7 +204,6 @@ class VM (AbstractVM):
             bs = str(1048576 * int(mbs))
             #vm_ref = self.api.VM.get_by_uuid(vm_uuid)
             static_min = self.get_memory_static_min()
-            print(static_min)
 #            if bs <= static_min:
 #                self.set_memory_static_min(bs)
             self.set_memory(bs)
@@ -346,6 +324,8 @@ class VM (AbstractVM):
             message += ' from URL: %s' % install_url
 
         self.insert_log_entry('installing', message)
+
+
 
 
         try:
