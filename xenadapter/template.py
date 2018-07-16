@@ -41,10 +41,11 @@ class Template(AbstractVM):
         xenstore_data = record['xenstore_data']
         if not self.VMEMPEROR_TEMPLATE_PREFIX in xenstore_data:
             # TODO: Try to detect os_kind from other_config
-            for OS in 'ubuntu', 'centos':
-                if record['reference_label'].startswith(OS):
-                    new_rec['os_kind'] = OS
-                    break
+            if new_rec['hvm'] is False:
+                for OS in 'ubuntu', 'centos', 'debian':
+                    if record['reference_label'].startswith(OS):
+                        new_rec['os_kind'] = OS
+                        break
 
             return new_rec
 

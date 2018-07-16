@@ -59,7 +59,7 @@ class Main():
         p = self.subparsers.add_parser('createvm', description="Create a VM, return its UUID",
                                        usage="createvm <options>")
         p.add_argument("--template", help='Template UUID or name_label',
-                       default="Ubuntu Xenial (PV installation)")
+                       default="Debian Wheezy 7.0 (64-bit)")
         p.add_argument("--mode", help="VM mode: pv or hvm", default="pv", choices=['pv', 'hvm'])
         p.add_argument("--storage", help="Storage repository UUID", default="88458f94-2e69-6332-423a-00eba8f2008c")
         p.add_argument("--network", help="Network UUID", default="920b8d47-9945-63d8-4b04-ad06c65d950a")

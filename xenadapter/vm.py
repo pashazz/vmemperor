@@ -5,7 +5,8 @@ from authentication import BasicAuthenticator
 import provision
 from .xenobjectdict import XenObjectDict
 
-from .os import *
+from .os import OSChooser
+from exc import *
 
 
 class VM (AbstractVM):
@@ -175,7 +176,8 @@ class VM (AbstractVM):
         net.attach(vm)
         #self.convert_vm(new_vm_uuid, 'pv')
         if os_kind:
-            vm.os_detect(os_kind, ip, hostname, scenario_url, override_pv_args)
+            vm.os_detect(os_kind, ip, hostname, scenario_url, install_url, override_pv_args)
+
 
         if iso:
             try:
@@ -257,7 +259,7 @@ class VM (AbstractVM):
 
 
     @use_logger
-    def os_detect(self, os_kind, ip, hostname, scenario_url, override_pv_args):
+    def os_detect(self, os_kind, ip, hostname, scenario_url, install_url,  override_pv_args):
         '''
         call only during install
         :param os_kind:
@@ -271,24 +273,7 @@ class VM (AbstractVM):
 
         if not hasattr(self, 'install'):
             raise RuntimeError("Not an installation process")
-        os = None
-        if 'ubuntu' in os_kind:
-            os = UbuntuOS()
-        if 'debian' in os_kind:
-            os = DebianOS()
-
-        if os:
-            try:
-                debian_release = os.get_release(os_kind.split()[1])
-            except IndexError:
-                debian_release = None
-            if debian_release:
-                config = self.get_other_config()
-                config['debian-release'] = debian_release
-                self.set_other_config(config)
-
-        if 'centos' in os_kind:
-            os = CentOS()
+        os = OSChooser.get_os(os_kind)
 
         if os:
             if ip:
@@ -305,6 +290,15 @@ class VM (AbstractVM):
                 pv_args = override_pv_args
             self.set_PV_args(pv_args)
 
+            os.set_install_url(install_url)
+            other_config = self.get_other_config()
+            other_config.update(os.other_config)
+            self.set_other_config(other_config)
+
+
+
+
+
     @use_logger
     def os_install(self,  install_url):
         '''
@@ -315,19 +309,8 @@ class VM (AbstractVM):
         if not hasattr(self, 'install'):
             raise RuntimeError("Not an installation process")
         message = 'Installing OS'
-        if install_url:
-            config = self.get_other_config()
-            config['install-repository'] = install_url
-            config['default-mirror'] = install_url
-            self.set_other_config( config)
-            self.log.info("Adding Installation URL: %s" % install_url)
-            message += ' from URL: %s' % install_url
 
         self.insert_log_entry('installing', message)
-
-
-
-
         try:
             self.start(False, True)
         except Exception as e:
