@@ -84,12 +84,18 @@ class Main():
         #add parser for setaccess
         p = self.subparsers.add_parser('setaccess', description="Set/revoke access rights")
         p.add_argument('uuid', help='object UUID')
-        p.add_argument('--type', help='object type')
-        p.add_argument('--action', help='action to set')
+        p.add_argument('--type', help='object type', required=True)
+        p.add_argument('--action', help='action to set', required=True)
         p.add_argument('--revoke', help='Do we need to revoke it?', action='store_true')
         p.add_argument('--user')
         p.add_argument('--group')
         p.set_defaults(func=self.setaccess)
+
+        #add parser for getaccess
+        p = self.subparsers.add_parser('getaccess', description="Query access information")
+        p.add_argument('uuid', help='Object UUID')
+        p.add_argument('--type', help='object type', required=True)
+        p.set_defaults(func=self.getaccess)
 
         #add parser for destroy
         p = self.subparsers.add_parser('destroy', description="Destroy VM")
