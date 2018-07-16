@@ -61,7 +61,7 @@ class VM (AbstractVM):
             metrics_query = db.table(cls.db_table_name).get_all(event['ref'], index='metrics')
             rec_len = len(metrics_query.run().items)
             if rec_len == 0:
-                auth.xen.log.warning("VM: Cannot find a VM for metrics {0}".format(event['ref']))
+                #auth.xen.log.warning("VM: Cannot find a VM for metrics {0}".format(event['ref']))
                 return
             elif rec_len > 1:
                 auth.xen.log.warning("VM: More than one ({1}) VM for metrics {0}: DB broken?".format(event['ref'], rec_len))

@@ -557,6 +557,7 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         self.assertEqual(200, res.code)
         netlist = json.loads(res.body.decode())
         network = None
+        #TODO Create new network just for tests
         for net in netlist:
             if net['name_label'].startswith('Pool-wide'):
                 network = net
@@ -568,11 +569,17 @@ class VmEmperorAfterLoginTest(VmEmperorTest):
         body_set = {'uuid': uuid, 'type': 'Network', 'user': '1', 'action': 'all'}
         res = self.fetch(r'/setaccess', method='POST', body=urlencode(body_set), headers=self.admin_headers)
         self.assertEqual(200, res.code, "Admininstrator should grant all rights for a pool-wide network for john")
+        sleep(1)
         self.get_set_access_tester(uuid, 'Network', 'attach')
         body_set['revoke'] = True
         res = self.fetch(r'/setaccess', method='POST', body=urlencode(body_set), headers=self.admin_headers)
-        self.assertEqual(200, res.code, "Admininstrator should revoke all rights for a pool-wide network from john")
+        self.assertEqual(200, res.code, "Admininstrator should revoke all  rights for a pool-wide network from john")
 
+        del body_set['user']
+        body_set['group'] = '1'
+
+        res = self.fetch(r'/setaccess', method='POST', body=urlencode(body_set), headers=self.admin_headers)
+        self.assertEqual(200, res.code, "Admininstrator should revoke all rights for a pool-wide network from group 1")
 
     def get_set_access_tester(self, uuid, type, action):
         body = {'uuid': uuid , 'type': type}

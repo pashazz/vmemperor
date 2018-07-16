@@ -53,8 +53,13 @@ class Network(ACLXenObject):
         '''
         other_config = record['other_config']
         def read_other_config_access_rights(other_config):
+            from json import JSONDecodeError
             if 'vmemperor' in other_config:
-                emperor = json.loads(other_config['vmemperor'])
+                try:
+                    emperor = json.loads(other_config['vmemperor'])
+                except JSONDecodeError:
+                    emperor = {}
+
                 if 'access' in emperor:
                     if authenticator_name in emperor['access']:
                         auth_dict = emperor['access'][authenticator_name]
@@ -78,7 +83,7 @@ class Network(ACLXenObject):
         :param force: Change actionlist even if user do not have sufficient permissions. Used by CreateVM
         :return: False if failed
         '''
-
+        from json import JSONDecodeError
         if all((user,group)) or not any((user, group)):
             raise XenAdapterArgumentError(self.log, 'Specify user OR group for Network::manage_actions')
 
@@ -99,7 +104,13 @@ class Network(ACLXenObject):
         if 'vmemperor' not in other_config:
             emperor = {'access': {auth_name : {}}}
         else:
-            emperor = json.loads(other_config['vmemperor'])
+
+            try:
+                emperor = json.loads(other_config['vmemperor'])
+            except JSONDecodeError:
+                emperor = {'access': {auth_name: {}}}
+
+
         if auth_name in emperor['access']:
             auth_list = emperor['access'][auth_name]
         else:
@@ -120,7 +131,15 @@ class Network(ACLXenObject):
             if action not in action_list:
                 action_list.append(action)
 
-        emperor['access'][auth_name][real_name] = action_list
+        if action_list:
+            emperor['access'][auth_name][real_name] = action_list
+        else:
+            del emperor['access'][auth_name][real_name]
+
+        if not emperor['access'][auth_name]:
+            del emperor['access'][auth_name]
+
+
         other_config['vmemperor'] = json.dumps(emperor)
         self.set_other_config(other_config)
 
