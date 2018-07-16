@@ -17,7 +17,12 @@ export const authAgent = {
   session: null,
   async auth(login, password) {
     try {
-      const response = await axios.post('api/login',
+      let address = '/api/login';
+      if (login === 'root')
+      {
+        address = '/api/adminauth';
+      }
+      const response = await axios.post(address,
         {username: login, password});
       console.log("Auth: ", response);
 

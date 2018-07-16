@@ -411,13 +411,13 @@ class VMList(BaseWSHandler):
 
 
                     if isinstance(self.user_authenticator, AdministratorAuthenticator):
-                        if 'new_val' in change:
+                        if change['type'] in ('initial', 'add'):
                             if change['new_val']:
                                 new_val = change['new_val'].copy()
                                 del change['new_val']
                                 change.update(new_val)
-                            else:
-                                del change['new_val']
+                        elif change['type'] == 'remove':
+                            del change['new_val']
 
                     else:
                         if change['type'] == 'change': #these are sent from vms
