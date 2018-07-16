@@ -306,12 +306,15 @@ class NetworkList(BaseHandler):
 
                 else:
                     userid = str(self.user_authenticator.get_id())
-                    query = db.table('nets_user').get_all('users/%s' % userid, index='userid').without('id').coerce_to('array')
+                    query = db.table('nets_user').get_all('users/%s' % userid, index='userid').\
+                        pluck('uuid').coerce_to('array').\
+                        merge(db.table('nets').get(r.row['uuid']).pluck('name_label'))
 
                     for group in self.user_authenticator.get_user_groups():
                         group = str(group)
-                        query = query.union(db.table('nets_user').get_all('groups/%s' % group, index='userid')
-                                            .without('id').coerce_to('array'))
+                        query = query.union(db.table('nets_user').get_all('groups/%s' % group, index='userid').\
+                                            without('id').coerce_to('array').\
+                                            merge(db.table('nets').get(r.row['uuid']).pluck('name_label')))
 
                 self.write(json.dumps(query.run()))
 
