@@ -53,6 +53,10 @@ import appSaga from 'containers/App/saga'
 import 'react-redux-toastr/lib/css/react-redux-toastr.min.css'
 import ReduxToastr from 'react-redux-toastr';
 
+//import bootstrap
+import 'bootstrap/dist/css/bootstrap.min.css';
+
+
 // Create redux store with history
 const initialState = {};
 const history = createHistory();

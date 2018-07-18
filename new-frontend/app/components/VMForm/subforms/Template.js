@@ -30,7 +30,7 @@ function Template({ templates = [], onChange }) {
     </div>
   );
   */
-  /* return (
+   return (
     <InputGroup style={ {padding: '10px'}}>
       <InputGroupAddon>
         <InputGroupText>
@@ -38,6 +38,7 @@ function Template({ templates = [], onChange }) {
         </InputGroupText>
       </InputGroupAddon>
     <SelectList
+      style={{flex: 1}}
       data={templates}
       onChange={onChange}
       placeholder="Select Template..."
@@ -45,17 +46,17 @@ function Template({ templates = [], onChange }) {
       id="template"/>
     </InputGroup>
   );
-} */
+}
 
-  return (
+  /*return (
     <SelectList
       data={templates}
       onChange={onChange}
       placeholder="Select Template..."
       name="template"
       id="template"/>
-  )
-}
+  ) */
+//}
 
 Template.propTypes = {
   templates: IPT.listOf(IPT.record).isRequired,

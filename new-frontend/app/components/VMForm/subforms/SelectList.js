@@ -1,7 +1,7 @@
 import React, {PureComponent}  from 'react';
 import T from 'prop-types';
 import IPT from 'react-immutable-proptypes';
-import Select from 'react-select';
+import Select from 'components/Select';
 import {FormGroup, Label, Col} from 'reactstrap';
 
 
@@ -29,11 +29,10 @@ class SelectList extends PureComponent {
   render() {
     const {data, ...props} = this.props;
     return (
-      <div>
+<div style={{flex: 1}}>
         <Select options={this.state.options}
                 {...props} />
-
-      </div>
+</div>
     )
   }
 }
