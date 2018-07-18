@@ -36,6 +36,9 @@ class BasicAuthenticator:
     def class_name(cls):
         return cls.__name__
 
+    def get_user_groups(self):
+        return {}
+
 
 
 class AdministratorAuthenticator(BasicAuthenticator):
@@ -70,6 +73,7 @@ class AdministratorAuthenticator(BasicAuthenticator):
 
     def class_name(self):
         return self.user_auth.__name__
+
 
 
 

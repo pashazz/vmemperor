@@ -127,7 +127,7 @@ class SqlAlchemyAuthenticator(BasicAuthenticator, metaclass=SqlAlchemyMeta):
         return str(self.id)
 
     def get_name(self):
-        return self.session.query(User.name).filter(User.id == self.id).first()
+        return self.session.query(User.name).filter(User.id == self.id).first()[0]
 
     def get_user_groups(self):
         user = self.session.query(User).filter(User.id == self.id).first()

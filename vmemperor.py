@@ -971,6 +971,21 @@ class SetAccessHandler(BaseHandler):
                 self.write({'status': 'access denied', 'message': e.message})
                 return
 
+
+class UserInfo(BaseHandler):
+    @auth_required
+    def get(self):
+        auth = self.user_authenticator
+        self.write(
+            {
+                'id': auth.get_id(),
+                'name': auth.get_name(),
+                'groups': auth.get_user_groups(),
+                'is_admin': isinstance(auth, AdministratorAuthenticator)
+            }
+        )
+
+
 class GetAccessHandler(BaseHandler):
     @auth_required
     def post(self):
@@ -1625,7 +1640,8 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/isolist', ISOList, dict(executor=executor)),
         (r'/setaccess', SetAccessHandler, dict(executor=executor)),
         (r'/getaccess', GetAccessHandler, dict(executor=executor)),
-        (r'/netinfo', NetworkInfo, dict(executor=executor))
+        (r'/netinfo', NetworkInfo, dict(executor=executor)),
+        (r'/userinfo', UserInfo, dict(executor=executor))
 
     ], **settings)
 

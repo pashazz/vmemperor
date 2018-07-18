@@ -137,6 +137,7 @@ class Main():
         p.set_defaults(func=self.netinfo)
 
 
+
         #add parser for everything else
         for method in inspect.getmembers(self, predicate=inspect.ismethod):
             if method[0].startswith('_') or method[0] in self.subparsers.choices:
@@ -241,6 +242,12 @@ class Main():
     @login
     def tmpllist(self, args):
         r = requests.get("%s/tmpllist" % self.url, cookies=self.jar)
+        pprint.pprint(r.json())
+        print(r.status_code, file=sys.stderr)
+
+    @login
+    def userinfo(self, args):
+        r = requests.get("%s/userinfo" % self.url, cookies=self.jar)
         pprint.pprint(r.json())
         print(r.status_code, file=sys.stderr)
 
