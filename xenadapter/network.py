@@ -3,10 +3,43 @@ from . import use_logger
 
 class VIF(XenObject, metaclass=XenObjectMeta):
     api_class = 'VIF'
+    EVENT_CLASSES = ['vif']
+    PROCESS_KEYS = ['uuid', 'currently_attached', 'network', 'status_detail']
     @classmethod
     def create(cls, auth, *args, **kwargs):
         attr = cls.__class__.__getattr__(cls, 'create')
         return VIF(auth, ref=attr(auth.xen, *args, **kwargs))
+
+    @classmethod
+    def process_event(cls, auth, event, db, authenticator_name):
+        '''
+        Make changes to a RethinkDB-based cache, processing a XenServer event
+        :param auth: auth object
+        :param event: event dict
+        :param db: rethinkdb DB
+        :param authenticator_name: authenticator class name - used by access control
+        :return: nothing
+        '''
+        from vmemperor import CHECK_ER
+        from .vm import VM
+        from .network import Network
+        cls.create_db(db)
+
+        if event['class'] in cls.EVENT_CLASSES:
+            if event['operation'] == 'del':
+                #handled by VM
+                return
+
+            record = event['snapshot']
+
+
+            if event['operation'] in ('mod', 'add'):
+                vm = VM(auth=auth, ref=record['VM'])
+                net = Network(auth=auth, ref=record['network'])
+                new_rec = {'uuid': vm.uuid, 'networks' : {record['device']:
+                {'VIF': record['uuid'], 'network': net.uuid, 'attached': record['currently_attached'], 'MAC': record['MAC'], 'status': record['status_detail']}} }
+                CHECK_ER(db.table(vm.db_table_name).insert(new_rec, conflict='update').run())
+
 
 
 
@@ -18,8 +51,8 @@ class Network(ACLXenObject):
     EVENT_CLASSES = ['network']
     PROCESS_KEYS =  ['name_label', 'name_description', 'PIFs', 'VIFs', 'uuid', 'ref', 'other_config']
 
-    def __init__(self, auth, uuid):
-        super().__init__(auth, uuid)
+    def __init__(self, auth, uuid=None, ref=None):
+        super().__init__(auth, uuid=uuid, ref=ref)
 
     @use_logger
     def attach(self, vm: VM) -> VIF:

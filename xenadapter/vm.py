@@ -5,6 +5,8 @@ from authentication import BasicAuthenticator
 import provision
 from .xenobjectdict import XenObjectDict
 
+
+
 from .os import OSChooser
 from exc import *
 
@@ -13,44 +15,20 @@ from urllib.parse import urlencode
 class VM (AbstractVM):
 
     db_table_name = 'vms'
-    PROCESS_KEYS = ['power_state', 'name_label', 'uuid',  'metrics']
+    PROCESS_KEYS = ['power_state', 'name_label', 'uuid',  'metrics', 'guest_metrics', 'domain_type']
 
     def __init__(self, auth, uuid=None, ref=None):
         super().__init__(auth, uuid, ref)
 
 
     @classmethod
-    def init_db(cls, auth):
-        '''
-        Use default implementation and additionally insert information from
-        vm_metrics
-        :param auth:
-        :return:
-        '''
-
-        def insert_metrics(record):
-            '''
-            Insert metics information in a record
-            :param record: VM record
-            :return: updated dictionary
-            '''
-            if record['metrics'] == cls.REF_NULL:
-                auth.xen.log.warning('VM {0} does not have metrics, skipping it while initializing DB...'.format(record['uuid']))
-                return record # this record doesn't have a metrics field (yet)
-
-            metrics = XenObjectDict(auth.xen.api.VM_metrics.get_record(record['metrics']))
-            return  {**record, **cls.process_metrics_record(auth, metrics)}
-
-        return [insert_metrics(record) for record in super().init_db(auth)]
-
-
-
-
-
-    @classmethod
     def process_event(cls,  auth, event, db, authenticator_name):
 
         from vmemperor import CHECK_ER
+        # patch event[snapshot] so that if it doesn't have domain_type, guess it from HVM_boot_policy
+        if 'domain_type' not in event['snapshot']:
+            event['snapshot']['domain_type'] = 'hvm' if 'hvm_boot_policy' in event['snapshot'] and event['snapshot']['HVM_boot_policy'] else 'pv'
+
         super(cls, VM).process_event(auth, event, db, authenticator_name)
         if event['class'] == 'vm':
             return # handled by supermethod
@@ -66,14 +44,15 @@ class VM (AbstractVM):
                 #auth.xen.log.warning("VM: Cannot find a VM for metrics {0}".format(event['ref']))
                 return
             elif rec_len > 1:
-                auth.xen.log.warning("VM: More than one ({1}) VM for metrics {0}: DB broken?".format(event['ref'], rec_len))
+                auth.xen.log.warning("VM::process_event: More than one ({1}) VM for metrics {0}: DB broken?".format(event['ref'], rec_len))
                 return
 
 
             CHECK_ER(metrics_query.update(new_rec).run())
 
-        else:
-            raise XenAdapterArgumentError(auth.xen.log, "this method accepts only 'vm' and 'vm_metrics' events")
+        #elif
+        #else:
+        #    raise XenAdapterArgumentError(auth.xen.log, "this method accepts only 'vm' and 'vm_metrics' events")
 
 
 
@@ -87,7 +66,7 @@ class VM (AbstractVM):
 
     @classmethod
     def create_db(cls, db, indexes=None): #ignore indexes
-        super(VM, cls).create_db(db, indexes=['metrics'])
+        super(VM, cls).create_db(db, indexes=['metrics', 'guest_metrics'])
 
     @classmethod
     def process_record(cls, auth, ref, record):
@@ -96,15 +75,9 @@ class VM (AbstractVM):
         :param record:
         :return: record for DB
         '''
+        from xenadapter.network import VIF, Network
         new_rec = super().process_record(auth, ref, record)
-
-
-        new_rec['network'] = []
-        for vif in record['VIFs']:
-            net_ref = auth.xen.api.VIF.get_network(vif)
-            net_uuid = auth.xen.api.network.get_uuid(net_ref)
-            new_rec['network'].append(net_uuid)
-
+        new_rec['networks'] = {}
         new_rec['disks'] = []
         for vbd in record['VBDs']:
             vdi_ref = auth.xen.api.VBD.get_VDI(vbd)
@@ -128,6 +101,7 @@ class VM (AbstractVM):
         # NB: ensure that keys and process_record.keys have no intersection
         keys = ['start_time', 'install_time', 'memory_actual']
         return XenObjectDict({k: v for k, v in record.items() if k in keys})
+
 
     @classmethod
     def create(self, auth, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, name_label = '', start=True, override_pv_args=None, iso=None,

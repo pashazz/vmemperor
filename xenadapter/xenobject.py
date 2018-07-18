@@ -34,7 +34,7 @@ class XenObjectMeta(type):
 
 
 class XenObject(metaclass=XenObjectMeta):
-
+    api_class = None
     REF_NULL = "OpaqueRef:NULL"
     db_table_name = ''
     EVENT_CLASSES=[]
@@ -45,7 +45,7 @@ class XenObject(metaclass=XenObjectMeta):
 
 
     def __init__(self, auth : BasicAuthenticator,  uuid=None, ref=None):
-        '''Set  self.auth.xen_api_class to xen.api.something before calling this'''
+        '''Set  self.api to Xen object class name before calling this'''
         self.auth = auth
         # if not isinstance(xen, XenAdapter):
         #          raise AttributeError("No XenAdapter specified")
@@ -118,6 +118,8 @@ class XenObject(metaclass=XenObjectMeta):
 
     @classmethod
     def create_db(cls, db, indexes=None):
+        if not cls.db_table_name:
+            return
         def index_yielder():
             yield 'ref'
             if hasattr(indexes, '__iter__'):

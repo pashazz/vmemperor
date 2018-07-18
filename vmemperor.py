@@ -7,8 +7,8 @@ from auth import dummy
 from xenadapter import XenAdapter, XenAdapterPool
 from xenadapter.template import Template
 from xenadapter.vm import VM
-
-from xenadapter.network import Network
+from xenadapter.vmguest import VMGuest
+from xenadapter.network import Network, VIF
 from xenadapter.disk import ISO, SR, VDI
 from xenadapter.pool import Pool
 import copy
@@ -1360,6 +1360,10 @@ class EventLoop(Loggable):
 
                         elif event['class'] == 'vdi':
                             ev_class = [ISO, VDI]
+                        elif event['class'] == 'vif':
+                            ev_class = VIF
+                        elif event['class'] == 'vm_guest_metrics':
+                            ev_class = VMGuest
                         else:  # Implement ev_classes for all types of events
                             if log_this:
                                 self.log.debug("Ignored Event: %s" % json.dumps(print_event(event), cls=DateTimeEncoder))
