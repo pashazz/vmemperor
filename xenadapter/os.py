@@ -1,6 +1,8 @@
 from exc import *
 
 
+from urllib.parse import urlencode
+
 class GenericOS:
     '''
     A class that generates kernel boot arguments string for various Linux distributions
@@ -9,6 +11,18 @@ class GenericOS:
     def __init__(self):
         self.dhcp = True
         self.other_config = {}
+
+        self.hostname = None
+        self.username = None
+        self.password = None
+        self.install_url = None
+        self.fullname = None
+        self.ip = None
+        self.gateway=None
+        self.netmask = None
+        self.dns0 = None
+        self.dns1 = None
+        self.partition = None
 
     def pv_args(self) -> str:
         '''
@@ -28,9 +42,35 @@ class GenericOS:
         :param url:
         :return:
         '''
+        self.install_url = url
 
     def set_scenario(self, url):
         raise NotImplementedError
+
+    def get_scenario(self):
+        '''
+        return
+        :return: Scenario URL
+        '''
+        from vmemperor import opts
+        from xenadapter import XenAdapter
+        args = dict(
+            hostname=self.hostname,
+            username=self.username,
+            password=self.password,
+            mirror_url=self.install_url,
+            fullname=self.fullname,
+            ip=self.ip,
+            gateway=self.gateway,
+            netmask=self.netmask,
+            dns0=self.dns0,
+            dns1=self.dns1,
+            partition=self.partition
+        )
+
+        return 'http://' + opts.vmemperor_url + ':' + str(
+            opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + self.os_kind.split()[0] + "?" \
+        + urlencode(args, doseq=True)
 
     def set_kickstart(self, url):
         return 'ks={0}'.format(url)
@@ -42,57 +82,41 @@ class GenericOS:
         self.hostname = hostname
 
     def set_network_parameters(self, ip=None, gw=None, netmask=None, dns1=None, dns2=None):
-        if not ip:
-            self.dhcp = True
-            self.ip = None
-        else:
-            if not gw:
-                raise XenAdapterArgumentError(self, "Network configuration: IP has been specified, missing gateway")
-            if not netmask:
-                raise XenAdapterArgumentError(self, "Network configuration: IP has been specified, missing netmask")
-            ip_string = " ip=%s::%s:%s" % (ip, gw, netmask)
-
-            if dns1:
-                ip_string = ip_string + ":::off:%s" % dns1
-                if dns2:
-                    ip_string = ip_string + ":%s" % dns2
-
-            self.ip = ip_string
-        self.dhcp = False
+        self.ip = ip
+        self.gateway = gw
+        self.netmask = netmask
+        self.dns1 = dns1
+        self.dns2 = dns2
+        if self.ip and self.gateway and self.netmask:
+            self.dhcp = False
 
     def set_os_kind(self, os_kind):
-        pass
+        self.os_kind = os_kind
 
 class DebianOS(GenericOS):
     '''
-    OS-specific parameters for Ubuntu
+    OS-specific parameters for Debian
     '''
-
-    def set_scenario(self, url):
-        self.scenario = self.set_preseed(url)
-        # self.scenario = self.set_kickstart(url)
 
     def pv_args(self):
         if self.dhcp:
-            self.ip = "netcfg/disable_dhcp=false"
-        return "auto=true console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 %s netcfg/get_hostname=%s %s --" % (
-            self.ip, self.hostname, self.scenario)
-
-    def set_network_parameters(self, ip=None, gw=None, netmask=None, dns1=None, dns2=None):
-        if not ip:
-            self.dhcp = True
-            self.ip = None
+            net_config = "netcfg/disable_dhcp=false"
         else:
-            if not gw:
-                raise XenAdapterArgumentError(self, "Network configuration: IP has been specified, missing gateway")
-            if not netmask:
-                raise XenAdapterArgumentError(self, "Network configuration: IP has been specified, missing netmask")
+            if not self.ip:
+                raise AttributeError("dhcp is set to false, but ip is not set")
+            if not self.gateway:
+                raise AttributeError("dhcp is set to false, but gateway is not set")
+            if not self.netmask:
+                raise AttributeError("dhcp is set to false, but netmask is not set")
 
-            ip_string = " ipv6.disable=1 netcfg/disable_autoconfig=true netcfg/use_autoconfig=false  netcfg/confirm_static=true netcfg/get_ipaddress=%s netcfg/get_gateway=%s netcfg/get_netmask=%s netcfg/get_nameservers=%s netcfg/get_domain=vmemperor" % (
-                ip, gw, netmask, dns1)
 
-            self.ip = ip_string
-            self.dhcp = False
+        net_config  = "ipv6.disable=1 netcfg/disable_autoconfig=true netcfg/use_autoconfig=false  netcfg/confirm_static=true"
+        net_config = net_config + " netcfg/get_ipaddress={0} netcfg/get_gateway={1} netcfg/get_netmask={2} netcfg/get_nameservers={3} netcfg/get_domain=vmemperor".format(
+            self.ip, self.gateway, self.netmask, self.dns1)
+        # scenario set up
+        scenario = self.get_scenario()
+        return "auto=true console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 %s netcfg/get_hostname=%s preseed/url=%s --" % (
+            net_config, self.hostname, scenario)
 
     def get_release(self, num):
         releases = {
@@ -107,6 +131,7 @@ class DebianOS(GenericOS):
         return None
 
     def set_os_kind(self, os_kind: str):
+        super().set_os_kind(os_kind)
         try:
             debian_release = self.get_release(os_kind.split()[1])
             self.other_config['debian-release'] = debian_release
@@ -115,11 +140,14 @@ class DebianOS(GenericOS):
 
 
     def set_install_url(self, url):
+
         if not url:
             url = 'http://ftp.ru.debian.org/debian/'
 
         self.other_config['install-repository'] = url
         self.other_config['default-mirror'] = url
+        super().set_install_url(url)
+
 
 class UbuntuOS(DebianOS):
     '''
@@ -161,8 +189,33 @@ class CentOS(GenericOS):
     def set_scenario(self, url):
         self.scenario = self.set_kickstart(url)
 
+
     def pv_args(self):
-        return "%s %s" % (self.ip, self.scenario)
+        '''
+        TODO: rewrite for CentOS
+        :return:
+        '''
+        if self.dhcp:
+            net_config = "netcfg/disable_dhcp=false"
+        else:
+            if not self.ip:
+                raise AttributeError("dhcp is set to false, but ip is not set")
+            if not self.gateway:
+                raise AttributeError("dhcp is set to false, but gateway is not set")
+            if not self.netmask:
+                raise AttributeError("dhcp is set to false, but netmask is not set")
+            net_config = " ip=%s::%s:%s" % (self.ip, self.gateway, self.netmask)
+
+
+            if self.dns0:
+                net_config = net_config + ":::off:%s" % self.dns0
+                if self.dns1:
+                    net_config = net_config + ":%s" % self.dns1
+
+        # scenario set up
+        scenario = self.get_scenario()
+        return "auto=true console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 %s netcfg/get_hostname=%s preseed/url=%s --" % (
+            net_config, self.hostname, scenario)
 
 
 class OSChooser:

@@ -5,37 +5,37 @@ import Select from 'react-select';
 import {FormGroup, Label, Col} from 'reactstrap';
 
 
-class ISO extends PureComponent {
+class SelectList extends PureComponent {
   state = {
     options: [],
   };
 
   static getDerivedStateFromProps(props, state)
   {
-    return { options:  props.isos.map((iso) => {
+    return { options:  props.data.map((item) => {
         return {
-          value: iso.uuid,
-          label: iso.name_label
+          value: item.uuid,
+          label: item.name_label
         };
       }),
     };
   }
 
   static PropTypes = {
-    isos: IPT.listOf(IPT.record),
+    data: IPT.listOf(IPT.record).isRequired,
     onChange: T.func.isRequired,
   };
 
   render() {
+    const {data, ...props} = this.props;
     return (
       <div>
-            <Select options={this.state.options}
-                    placeholder="Select ISO Image..."
-                    onChange={this.props.onChange}
-                    isSearchable name="iso" id="iso"/>
+        <Select options={this.state.options}
+                {...props} />
+
       </div>
     )
   }
 }
 
-export default ISO;
+export default SelectList;

@@ -31,8 +31,8 @@ function Description({ description, onChange, touched }) {
           type="text"
           className="form-control input"
           placeholder="What do you want to do with this virtual machine?"
-          id="vm-description"
-          name="vm-description"
+          id="name_description"
+          name="name_description"
           style={{ resize: 'vertical' }}
           value={description}
           onChange={onChange}

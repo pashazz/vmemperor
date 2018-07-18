@@ -8,6 +8,7 @@ from .xenobjectdict import XenObjectDict
 from .os import OSChooser
 from exc import *
 
+from urllib.parse import urlencode
 
 class VM (AbstractVM):
 
@@ -129,7 +130,8 @@ class VM (AbstractVM):
         return XenObjectDict({k: v for k, v in record.items() if k in keys})
 
     @classmethod
-    def create(self, auth, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, scenario_url=None, name_label = '', start=True, override_pv_args=None, iso=None):
+    def create(self, auth, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, name_label = '', start=True, override_pv_args=None, iso=None,
+               username=None, password=None, partition=None, fullname=None):
         '''1
         Creates a virtual machine and installs an OS
 
@@ -154,6 +156,7 @@ class VM (AbstractVM):
 
         vm = VM(auth, uuid=new_vm_uuid)
         vm.install = True
+        vm.remove_tags('vmemperor')
         if isinstance(auth, BasicAuthenticator):
             vm.manage_actions('all',  user=auth.get_id())
 
@@ -176,7 +179,17 @@ class VM (AbstractVM):
         net.attach(vm)
         #self.convert_vm(new_vm_uuid, 'pv')
         if os_kind:
-            vm.os_detect(os_kind, ip, hostname, scenario_url, install_url, override_pv_args)
+            scenario_args = dict(
+                hostname=hostname,
+                username=username,
+                password=password,
+                fullname=fullname)
+
+
+
+            vm.os_detect(os_kind, ip, hostname, install_url, override_pv_args, fullname, username, password, partition)
+
+
 
 
         if iso:
@@ -259,7 +272,7 @@ class VM (AbstractVM):
 
 
     @use_logger
-    def os_detect(self, os_kind, ip, hostname, scenario_url, install_url,  override_pv_args):
+    def os_detect(self, os_kind, net_tuple, hostname,  install_url,  override_pv_args, fullname, username, password, partition):
         '''
         call only during install
         :param os_kind:
@@ -269,20 +282,25 @@ class VM (AbstractVM):
         :param override_pv_args:
         :return:
         '''
-        #vm_ref = self.api.VM.get_by_uuid(vm_uuid)
 
         if not hasattr(self, 'install'):
             raise RuntimeError("Not an installation process")
         os = OSChooser.get_os(os_kind)
 
         if os:
-            if ip:
-                os.set_network_parameters(*ip)
-            else:
-                os.set_network_parameters()
+            if net_tuple:
+                os.set_network_parameters(*net_tuple)
 
             os.set_hostname(hostname)
-            os.set_scenario(scenario_url)
+
+            os.set_install_url(install_url)
+            other_config = self.get_other_config()
+            other_config.update(os.other_config)
+            self.set_other_config(other_config)
+            os.fullname = fullname
+            os.username = username
+            os.password = password
+            os.partition = partition
 
             if not override_pv_args:
                 pv_args = os.pv_args()
@@ -290,10 +308,7 @@ class VM (AbstractVM):
                 pv_args = override_pv_args
             self.set_PV_args(pv_args)
 
-            os.set_install_url(install_url)
-            other_config = self.get_other_config()
-            other_config.update(os.other_config)
-            self.set_other_config(other_config)
+            self.log.info("Set PV args: {0}".format(pv_args))
 
 
 

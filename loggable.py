@@ -36,11 +36,11 @@ class Loggable:
             # self.log.error("Running in debug mode: all errors are in stderr, for further info check log file")
 
     def create_additional_log(self, name):
-        log = logging.getLogger(name)
+        log = logging.getLogger(name + self.__class__.__name__)
         log.propagate = False
         log.setLevel(logging.DEBUG)
         fileHandler = logging.FileHandler("{0}.log".format(name))
-        log_format = "%(levelname)-10s [%(asctime)s] {0}: %(message)s".format(name)
+        log_format = "%(levelname)-10s [%(asctime)s] {0}: %(message)s".format(self.__class__.__name__)
         formatter = logging.Formatter(log_format)
         fileHandler.setLevel(logging.DEBUG)
         fileHandler.setFormatter(formatter)

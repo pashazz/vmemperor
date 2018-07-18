@@ -17,7 +17,19 @@ const makeSelectPools = () => createSelector(
 const makeSelectIsos = () => createSelector(
   makeSelectCreateVmDomain(),
   state => state.get('isos', new List())
+);
+
+const makeSelectNetworks = () => createSelector(
+  makeSelectCreateVmDomain(),
+  state => state.get('networks', new List())
+);
+
+
+const makeSelectTemplates = () => createSelector(
+  makeSelectCreateVmDomain(),
+  state => state.get('tmpls', new List())
 )
+
 
 const makeGetModal = () => createSelector(
   makeSelectCreateVmDomain(),
@@ -39,4 +51,6 @@ export {
   makeSelectPools,
   makeGetModal,
   makeSelectIsos,
+  makeSelectNetworks,
+  makeSelectTemplates,
 };

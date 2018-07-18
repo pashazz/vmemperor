@@ -11,6 +11,12 @@ import { FormattedMessage } from 'react-intl';
 import messages from './messages';
 import styles from './styles.css';
 import VMInput from './helpers';
+import IPT from 'react-immutable-proptypes';
+import Pool from 'models/Pool';
+import BasicRecord from 'models/BasicRecord';
+import ISO from 'models/ISO';
+import Network, { NetworkShape } from 'models/Network';
+import Template from 'models/Template';
 
 function getTemplates(pool = null) {
   return pool ?
@@ -61,7 +67,10 @@ function getHooks(template = null) {
 
 class VMForm extends React.Component { // eslint-disable-line react/prefer-stateless-function
   static propTypes = {
-    pools: T.any.isRequired,
+    pools: IPT.listOf(T.instanceOf(Pool)).isRequired,
+    networks: IPT.listOf(NetworkShape).isRequired,
+    isos: IPT.listOf(T.instanceOf(ISO)).isRequired,
+    templates: IPT.listOf(T.instanceOf(Template)).isRequired,
     onSubmit: T.func.isRequired,
   };
 
@@ -70,27 +79,29 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
 
     this.handleSubmit = this.handleSubmit.bind(this);
     this.getPool = this.getPool.bind(this);
-    this.getTemplate = this.getTemplate.bind(this);
     this.onInputTextChange = this.onInputTextChange.bind(this);
     this.onInputNumberChange = this.onInputNumberChange.bind(this);
     this.onISOOptionChange = this.onISOOptionChange.bind(this);
+    this.onNetworkOptionChange = this.onNetworkOptionChange.bind(this);
  //   this.onHookChange = this.onHookChange.bind(this);
+    this.onTemplateOptionChange = this.onTemplateOptionChange.bind(this);
 
     this.state = {
       'pool-select': '',
-      'template-select': '',
+      template: null,
       'storage-select': '',
-      'network-select': '',
+      network: '',
       fullname: '',
       username: '',
       hostname: '',
       password: '',
       password2: '',
-      'vm-description': '',
+      name_description: '',
+      name_label: '',
       vcpus: 1,
       ram: 256,
       hdd: 9,
-      networkType: 'dhcp',
+      networkType: null,
       ip: '',
       netmask: '',
       gateway: '',
@@ -101,6 +112,8 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
 
     };
   }
+
+
 
 
   onInputTextChange(e) {
@@ -121,6 +134,40 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
     const form = this.state;
     form['iso'] = option.value;
     this.setState(form)
+  }
+
+  onNetworkOptionChange(option)
+  {
+    const form = this.state;
+    form.network = option.value;
+    const currentNetwork = this.props.networks.find(network => network.uuid === form.network);
+    if (!form.networkType) { //Guess network type from metadata
+      if (currentNetwork && currentNetwork.other_config) {
+        const {other_config} = currentNetwork;
+        form.networkType = (other_config.gateway ? 'static' : 'dhcp');
+        if (form.networkType === 'static') {
+          form.gateway = other_config.gateway;
+          if (other_config.netmask) {
+            form.netmask = other_config.netmask;
+          }
+          if (other_config.ip_begin) {
+            form.ip = other_config.ip_begin;
+          }
+        }
+      }
+    }
+    this.setState(form);
+  }
+
+  onTemplateOptionChange(option)
+  {
+    const form = this.state;
+    form.template = option.value;
+    if (!form.name_label)
+      form.name_label = option.label;
+
+    this.setState(form);
+
   }
 /*
 
@@ -149,40 +196,43 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
     return this.props.pools.find(pool => pool.uuid === this.state['pool-select']);
   }
 
-  getTemplate() {
-    const selectedPool = this.getPool();
-    if (!selectedPool) {
-      return null;
-    }
-    return selectedPool.templates_enabled.find(template => template.uuid === this.state['template-select']);
-  }
-
   handleSubmit(e) {
     e.preventDefault();
     this.props.onSubmit(this.state);
+
+
   }
 
   render() {
     const form = this.state;
 
     const currentPool = this.getPool();
-    const currentTemplate = this.getTemplate();
+    const currentTemplate = this.props.templates.find(tmpl => tmpl.uuid === this.state.template);
+    const currentNetwork = this.props.networks.find(net => net.uuid === this.state.network);
   //  const currentHooks = getHooks(currentTemplate);
-    console.log("Current template: ", currentTemplate);
+
     return (
       <form role="form" className={styles.vmForm} onSubmit={this.handleSubmit}>
         <h4 style={{ margin: '20px'}}><FormattedMessage {...messages.infrastructure} /></h4>
         <VMInput.Pool pools={this.props.pools} selected={form['pool-select']} onChange={this.onInputTextChange} />
-        <VMInput.Template templates={getTemplates(currentPool)} selected={form['template-select']} onChange={this.onInputTextChange} />
-        <VMInput.Storage storages={getStorageResources(currentPool)} selected={form['storage-select']} onChange={this.onInputTextChange} />
-        <VMInput.Network networks={getNetworks(currentPool)} selected={form['network-select']} onChange={this.onInputTextChange} />
+        {form['pool-select'] && (
+          <React.Fragment>
+            <VMInput.Template templates={this.props.templates} onChange={this.onTemplateOptionChange}/>
+            <VMInput.Storage storages={getStorageResources(currentPool)} selected={form['storage-select']} onChange={this.onInputTextChange} />
+            <VMInput.Network
+              networks={this.props.networks}
+              onChange={this.onNetworkOptionChange} />
+            <VMInput.Name name={form.name_label} onChange={this.onInputTextChange}/>
+            <VMInput.Description description={form.name_description} onChange={this.onInputTextChange} />
+          </React.Fragment>
+          )}
         {(currentTemplate && currentTemplate.os_kind) &&  (
           <div>
         <h4 style={{margin: '20px'}}><FormattedMessage {...messages.account} /></h4>
         <VMInput.Fullname fullname={form.fullname} onChange={this.onInputTextChange} />
         <VMInput.Link username={form.username} hostname={form.hostname} onChange={this.onInputTextChange} />
         <VMInput.Passwords password={form.password} password2={form.password2} onChange={this.onInputTextChange} />
-        <VMInput.Description description={form['vm-description']} onChange={this.onInputTextChange} />
+
           </div>)}
         {(currentTemplate && !currentTemplate.os_kind) && (
             <div>
@@ -199,10 +249,17 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
           <VMInput.HDD className="col-sm-4 col-lg-4" hdd={form.hdd} onChange={this.onInputNumberChange} />
           </div>
         </div>
-        {currentTemplate && currentTemplate.os_kind && (
+        {currentTemplate && currentTemplate.os_kind && currentNetwork &&  (
           <div>
             <h4><FormattedMessage {...messages.network} /></h4>
-            <VMInput.Connection networkType={form.networkType} ip={form.ip} gateway={form.gateway} netmask={form.netmask} dns0={form.dns0} dns1={form.dns1} onChange={this.onInputTextChange} />
+            <VMInput.Connection networkType={form.networkType}
+                                ip={form.ip}
+                                gateway={form.gateway}
+                                netmask={form.netmask}
+                                dns0={form.dns0}
+                                dns1={form.dns1}
+                                onChange={this.onInputTextChange}
+            />
           </div>
           )}
 

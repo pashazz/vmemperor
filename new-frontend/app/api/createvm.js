@@ -1,7 +1,7 @@
 import axios from 'axios'
-const poollist = async (form) =>
+const createvm = async (form) =>
 {
   return await axios.post('api/createvm', form);
 };
 
-export default poollist;
+export default createvm;

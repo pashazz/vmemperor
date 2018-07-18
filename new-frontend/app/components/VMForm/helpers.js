@@ -16,6 +16,7 @@ import HDD from './subforms/HDD';
 import Hook from './subforms/Hook';
 import Connection from './subforms/Connection';
 import ISO from './subforms/ISO';
+import Name from './subforms/Name';
 
 const firstTouchWrapper = (WrappedComponent) =>
   class InputWraper extends React.Component {
@@ -66,6 +67,8 @@ const exportObject = {
   Hook,
   Connection: firstTouchWrapper(Connection),
   ISO: firstTouchWrapper(ISO),
+  Name: firstTouchWrapper(Name),
+
 };
 
 export default exportObject;

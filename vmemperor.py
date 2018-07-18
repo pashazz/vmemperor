@@ -34,7 +34,7 @@ from rethinkdb.errors import ReqlDriverError, ReqlTimeoutError
 from authentication import BasicAuthenticator
 from loggable import Loggable
 from pathlib import Path
-from urllib.parse import urlsplit, urlunsplit, urlencode
+from urllib.parse import urlsplit, urlunsplit
 from exc import *
 import logging
 from netifaces import ifaddresses, AF_INET
@@ -115,6 +115,7 @@ class HandlerMethods(Loggable):
         self.init_log()
         self.conn = ReDBConnection().get_connection()
         first_batch_of_events.wait()
+        self.actions_log = self.create_additional_log('actions')
 
 
     def get_current_user(self):
@@ -308,13 +309,13 @@ class NetworkList(BaseHandler):
                     userid = str(self.user_authenticator.get_id())
                     query = db.table('nets_user').get_all('users/%s' % userid, index='userid').\
                         pluck('uuid').coerce_to('array').\
-                        merge(db.table('nets').get(r.row['uuid']).pluck('name_label'))
+                        merge(db.table('nets').get(r.row['uuid']).without('uuid'))
 
                     for group in self.user_authenticator.get_user_groups():
                         group = str(group)
                         query = query.union(db.table('nets_user').get_all('groups/%s' % group, index='userid').\
                                             without('id').coerce_to('array').\
-                                            merge(db.table('nets').get(r.row['uuid']).pluck('name_label')))
+                                            merge(db.table('nets').get(r.row['uuid']).without('uuid')))
 
                 self.write(json.dumps(query.run()))
 
@@ -689,13 +690,13 @@ class CreateVM(BaseHandler):
             self.os_kind = self.template['os_kind'] if 'os_kind' in self.template and self.template['os_kind'] else None
             self.log.info("Creating VM: name_label %s; os_kind: %s" % (self.name_label, self.os_kind))
             if self.os_kind is None:
-                iso = self.get_argument('iso')
+                self.iso = self.get_argument('iso')
                 self.scenario_url = None
                 self.mirror_url = None
                 self.ip_tuple = None
 
             else:
-                iso = None
+                self.iso = None
 
                 ip = self.get_argument('ip', '')
                 gw = self.get_argument('gateway', '')
@@ -712,38 +713,44 @@ class CreateVM(BaseHandler):
                 if dns1:
                     self.ip_tuple.append(dns1)
 
-                kwargs = {}
-                if 'ubuntu' in self.os_kind or 'centos' in self.os_kind or 'debian' in self.os_kind:
-                    # see os_kind-ks.cfg
-                    kwargs['hostname'] = self.get_argument('hostname', default='xen_vm')
-                    kwargs['username'] = self.get_argument('username', default='')
-                    kwargs['password'] = self.get_argument('password')
-                    kwargs['mirror_url'] = self.mirror_url
-                    kwargs['fullname'] = self.get_argument('fullname')
-                    kwargs['ip'] = ip
-                    kwargs['partition'] = self.get_argument('partition', default='auto')
+                self.hostname = self.get_argument('hostname', default='xen_vm')
+                self.username = self.get_argument('username', default='')
+                self.password = self.get_argument('password')
+                self.fullname = self.get_argument('fullname', default=None)
+                self.partition = self.get_argument('partition', default='auto')
 
-                    if ip:
-                        kwargs['gateway'] = gw
-                        kwargs['netmask'] = netmask
-                        if dns0:
-                            kwargs['dns0'] = dns0
-                        if dns1:
-                            kwargs['dns1'] = dns1
-                self.scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + self.os_kind.split()[0] + "?" +\
-                    urlencode(kwargs, doseq=True )
-                self.log.info("Scenario URL generated: %s", self.scenario_url)
 
             def clone_post_hook(return_value, auth):
                 vm =  VM.create(auth, return_value, self.sr_uuid, self.net_uuid, self.vdi_size, self.ram_size,
-                                         self.hostname, self.mode, self.os_kind, self.ip_tuple, self.mirror_url,
-                                         self.scenario_url, self.name_label, False, self.override_pv_args,
-                                         iso=iso)
+                self.hostname, self.mode, os_kind=self.os_kind, ip=self.ip_tuple, install_url=self.mirror_url,
+                name_label=self.name_label, override_pv_args=self.override_pv_args, iso=self.iso,
+                username=self.username, password=self.password, partition=self.partition, fullname=self.fullname)
+
 
                 ioloop = tornado.ioloop.IOLoop.current()
                 self.uuid = vm.uuid
                 #ioloop.add_callback(self.do_finalize_install)
                 ioloop.run_in_executor(self.executor, self.finalize_install)
+                log_message = """
+                Created VM: UUID {return_value}
+                Created by: {user} (of {auth})
+                Name: {name_label}
+                Full name: {fullname}
+                SR: {sr_uuid}
+                Network: {net_uuid}
+                IP, Gateway, Netmask, DNS: {ip}
+                VDI Size: {vdi_size}
+                RAM Size: {ram_size}
+                Hostname: {hostname}
+                Username: {username}
+                Password: {password}
+                ISO: {iso}
+                Partition scheme: {partition}
+                """
+                self.actions_log.info(log_message.format(user=self.user_authenticator.get_name(), auth=self.user_authenticator.__class__.__name__,
+                                                         name_label=self.name_label, fullname=self.fullname, sr_uuid=self.sr_uuid, net_uuid=self.net_uuid,
+                                                         vdi_size=self.vdi_size, ram_size=self.ram_size, hostname=self.hostname, username=self.username, password=self.password,
+                                                         iso=self.iso, partition=self.partition, ip=self.ip_tuple, return_value=return_value))
 
 
 
