@@ -1,0 +1,7 @@
+#!/bin/sh
+mount /dev/cdrom /mnt
+cd /mnt/Linux
+case $(uname -m) in
+*64) dpkg -i *amd64.deb ;;
+*) dpkg -i *i386.deb ;;
+esac

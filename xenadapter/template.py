@@ -75,10 +75,10 @@ class Template(AbstractVM):
         '''
         try:
             if enable:
-                self.add_tags('vmemperor_enabled')
+                self.add_tags('vmemperor')
                 self.log.info("Enabled template UUID {0}".format(self.uuid))
             else:
-                self.remove_tags('vmemperor_enabled')
+                self.remove_tags('vmemperor')
                 self.log.info("Disabled template UUID {0}".format(self.uuid))
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self.log, "Failed to {0} template: {1}".format(

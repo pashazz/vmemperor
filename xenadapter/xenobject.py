@@ -12,18 +12,18 @@ class XenObjectMeta(type):
     def __getattr__(cls, item):
         if item[0] == '_':
             item = item[1:]
-        def method(xen, *args, **kwargs):
+        def method(auth, *args, **kwargs):
 
             if not hasattr(cls, 'api_class'):
-                raise XenAdapterArgumentError(xen.log, "api_class not specified for XenObject")
+                raise XenAdapterArgumentError(auth.xen.log, "api_class not specified for XenObject")
 
             api_class = getattr(cls, 'api_class')
-            api = getattr(xen.api, api_class)
+            api = getattr(auth.xen.api, api_class)
             attr = getattr(api, item)
             try:
                 return attr(*args, **kwargs)
             except XenAPI.Failure as f:
-                raise XenAdapterAPIError(xen.log, "Failed to execute static method %s::%s: Error details: %s"
+                raise XenAdapterAPIError(auth.xen.log, "Failed to execute static method %s::%s: Error details: %s"
                                          % (api_class, item, f.details ))
         return method
 
@@ -176,7 +176,7 @@ class XenObject(metaclass=XenObjectMeta):
 
     @classmethod
     def init_db(cls, auth):
-        return [cls.process_record(auth, ref, record) for ref, record in cls.get_all_records(auth.xen).items()]
+        return [cls.process_record(auth, ref, record) for ref, record in cls.get_all_records(auth).items()]
 
 
 

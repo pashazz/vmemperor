@@ -26,8 +26,11 @@ class VM (AbstractVM):
 
         from vmemperor import CHECK_ER
         # patch event[snapshot] so that if it doesn't have domain_type, guess it from HVM_boot_policy
-        if 'domain_type' not in event['snapshot']:
-            event['snapshot']['domain_type'] = 'hvm' if 'hvm_boot_policy' in event['snapshot'] and event['snapshot']['HVM_boot_policy'] else 'pv'
+        try:
+            if 'domain_type' not in event['snapshot']:
+                event['snapshot']['domain_type'] = 'hvm' if 'hvm_boot_policy' in event['snapshot'] and event['snapshot']['HVM_boot_policy'] else 'pv'
+        except:
+            pass
 
         super(cls, VM).process_event(auth, event, db, authenticator_name)
         if event['class'] == 'vm':
@@ -136,11 +139,13 @@ class VM (AbstractVM):
 
         vm.set_ram_size(ram_size)
         vm.set_disks(sr_uuid, vdi_size)
+        vm.install_guest_tools()
 
 
         #self.connect_vm(new_vm_uuid, net_uuid, ip)
         if mode == 'pv':
             vm.convert('pv')
+
 
 
         try:
@@ -309,6 +314,17 @@ class VM (AbstractVM):
                 self.insert_log_entry('failed', 'Failed to start OS installation:  %s' % f.details)
                 raise XenAdapterAPIError(self.log, 'Failed to start OS installation', f.details)
 
+    @use_logger
+    def install_guest_tools(self):
+        from .disk import SR, ISO
+        for ref in SR.get_all(self.auth):
+            sr = SR(ref=ref, auth=self.auth)
+            if sr.get_is_tools_sr():
+                for vdi_ref in sr.get_VDIs():
+                    vdi = ISO(ref=vdi_ref, auth=self.auth)
+                    if vdi.get_is_tools_iso():
+                        vdi.attach(self)
+                        return
 
     def convert(self,  mode):
         """

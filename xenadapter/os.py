@@ -68,7 +68,7 @@ class GenericOS:
             partition=self.partition
         )
 
-        return 'http://' + opts.vmemperor_url + ':' + str(
+        return 'http://' + opts.vmemperor_host + ':' + str(
             opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + self.os_kind.split()[0] + "?" \
         + urlencode(args, doseq=True)
 

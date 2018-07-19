@@ -8,7 +8,7 @@ class VIF(XenObject, metaclass=XenObjectMeta):
     @classmethod
     def create(cls, auth, *args, **kwargs):
         attr = cls.__class__.__getattr__(cls, 'create')
-        return VIF(auth, ref=attr(auth.xen, *args, **kwargs))
+        return VIF(auth, ref=attr(auth, *args, **kwargs))
 
     @classmethod
     def process_event(cls, auth, event, db, authenticator_name):

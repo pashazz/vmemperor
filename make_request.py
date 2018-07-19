@@ -136,6 +136,12 @@ class Main():
         p.add_argument('uuid', help='Network UUID')
         p.set_defaults(func=self.netinfo)
 
+        #add parser for turntemplate
+        p = self.subparsers.add_parser('turntemplate', description="Enable/disable template in vmemperor (Administrator only)")
+        p.add_argument('action', choices=['on', 'off'])
+        p.add_argument('uuid', help='Template UUID')
+        p.set_defaults(func=self.turntemplate)
+
 
 
         #add parser for everything else
@@ -203,6 +209,13 @@ class Main():
     def vminfo(self, args):
         r = requests.post("%s/vminfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
 
+        js = json.loads(r.text)
+        pprint.pprint(js)
+        print(r.status_code, file=sys.stderr)
+
+    @login
+    def turntemplate(self, args):
+        r = requests.post("%s/turntemplate" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, action=args.action))
         js = json.loads(r.text)
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)

@@ -26,7 +26,7 @@ import socket
 from tornado import gen, ioloop
 from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
-from urllib.parse import urlparse
+from urllib.parse import urlencode
 import base64
 import pickle
 import rethinkdb as r
@@ -51,6 +51,8 @@ from authentication import AdministratorAuthenticator
 from tornado.websocket import *
 import asyncio
 from tornado.platform.asyncio import AnyThreadEventLoopPolicy
+
+POSTINST_ROUTE=r'/postinst'
 #Objects with ACL enabled
 objects = [VM, Network, VDI]
 
@@ -58,6 +60,7 @@ user_table_ready = threading.Event()
 first_batch_of_events = threading.Event()
 need_exit = threading.Event()
 xen_events_run = threading.Event() # called by USR2 signal handler
+URL = ""
 
 def table_drop(db, table_name):
     try:
@@ -105,7 +108,23 @@ def auth_required(method):
 
     return decorator
 
+def admin_required(method):
+    def decorator(self, *args, **kwargs):
+        user = HandlerMethods.get_current_user(self)
+        if not user:
+            self.set_status(401)
+            self.write({'status': 'error', 'message': 'not authorized'})
+        else:
+            self.user_authenticator = pickle.loads(user)
+            if not isinstance(self.user_authenticator, AdministratorAuthenticator):
+                self.set_status(403)
+                self.write({'status' : 'error', 'message': 'administrator required'})
+                return
+            self.user_authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
+            self.xen = self.user_authenticator.xen
+            return method(self)
 
+    return decorator
 
 
 class HandlerMethods(Loggable):
@@ -294,6 +313,26 @@ class LogOut(BaseHandler):
         self.clear_cookie('user')
         #self.redirect(self.get_argument("next", "/login"))
         self.write({'status': 'ok'})
+
+class TurnTemplate(BaseHandler):
+    @admin_required
+    def post(self):
+        uuid = self.get_argument('uuid')
+        action = self.get_argument('action')
+        tmpl = Template(self.user_authenticator, uuid=uuid)
+        if action not in ('on', 'off'):
+            self.set_status(400)
+            self.write({'status' : 'error', 'message': 'action is either on or off'})
+            return
+        try:
+            tmpl.enable_disable(action == 'on')
+        except XenAdapterAPIError as e:
+            self.set_status(400)
+            self.write({'status': 'error', 'message': e.message})
+            return
+
+
+        self.write({'status' : 'ok'})
 
 
 class NetworkList(BaseHandler):
@@ -694,7 +733,11 @@ class CreateVM(BaseHandler):
                 self.scenario_url = None
                 self.mirror_url = None
                 self.ip_tuple = None
-
+                self.hostname = None
+                self.username = None
+                self.password = None
+                self.fullname = None
+                self.partition = None
             else:
                 self.iso = None
 
@@ -1106,7 +1149,7 @@ class VNC(VMAbstractHandler):
             url = VM(auth, uuid=vm_uuid).get_vnc()
             url_splitted = list(urlsplit(url))
             url_splitted[0] = 'ws'
-            url_splitted[1] = opts.vmemperor_url + ":" + str(opts.vmemperor_port)
+            url_splitted[1] = opts.vmemperor_host + ":" + str(opts.vmemperor_port)
             url = urlunsplit(url_splitted)
             return url
 
@@ -1432,6 +1475,10 @@ def event_loop(executor, authenticator=None, ioloop = None):
 
     return ioloop
 
+class Postinst(BaseHandler):
+    def get(self):
+        os = self.get_argument("os")
+        self.render('templates/installation-scenarios/postinst/{0}'.format(os))
 
 
 class AutoInstall(BaseHandler):
@@ -1499,7 +1546,10 @@ class AutoInstall(BaseHandler):
             raise ValueError("OS {0} doesn't support autoinstallation".format(os_kind))
         # filename = 'raid10.cfg'
         self.render("templates/installation-scenarios/{0}".format(filename), hostname = hostname, username = username,
-                    fullname=fullname, password = password, mirror_url=mirror_url, mirror_path=mirror_path, ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, partition=partition)
+                    fullname=fullname, password = password, mirror_url=mirror_url, mirror_path=mirror_path,
+                    ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, partition=partition,
+                    postinst=URL +  POSTINST_ROUTE + "?" + urlencode({'os': 'debian'}, doseq=True)
+                    )
 
 class ConsoleHandler(BaseWSHandler):
     def check_origin(self, origin):
@@ -1619,6 +1669,7 @@ def make_app(executor, auth_class=None, debug = False):
         (r"/logout", LogOut, dict(executor=executor)),
         (r'/test', Test, dict(executor=executor)),
         (XenAdapter.AUTOINSTALL_PREFIX + r'/([^/]+)', AutoInstall, dict(executor=executor)),
+        (POSTINST_ROUTE + r'.*', Postinst, dict(executor=executor)),
         (r'/console.*', ConsoleHandler, dict(executor=executor)),
         (r'/createvm', CreateVM, dict(executor=executor)),
         (r'/startstopvm', StartStopVM, dict(executor=executor)),
@@ -1641,7 +1692,8 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/setaccess', SetAccessHandler, dict(executor=executor)),
         (r'/getaccess', GetAccessHandler, dict(executor=executor)),
         (r'/netinfo', NetworkInfo, dict(executor=executor)),
-        (r'/userinfo', UserInfo, dict(executor=executor))
+        (r'/userinfo', UserInfo, dict(executor=executor)),
+        (r'/turntemplate', TurnTemplate, dict(executor=executor))
 
     ], **settings)
 
@@ -1674,7 +1726,7 @@ def read_settings():
     define('port', group = 'rethinkdb', type = int, default = 28015)
     define('delay', group = 'ioloop', type = int, default=5000)
     define('max_workers', group = 'executor', type = int, default=16)
-    define('vmemperor_url', group ='vmemperor', default = '10.10.10.102')
+    define('vmemperor_host', group ='vmemperor', default = '10.10.10.102')
     define('vmemperor_port', group = 'vmemperor', type = int, default = 8888)
     define('authenticator', group='vmemperor', default='')
     define('log_events', group='ioloop', default='')
@@ -1720,11 +1772,9 @@ def main():
     asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
 
     read_settings()
-
-
-
-
-
+    global URL
+    URL = "http://{0}:{1}".format(opts.vmemperor_host, opts.vmemperor_port)
+    print("Listening on: {0}".format(URL))
 
     executor = ThreadPoolExecutor(max_workers = 1024)
     app = make_app(executor)
@@ -1732,6 +1782,7 @@ def main():
     server.listen(opts.vmemperor_port, address="0.0.0.0")
     ioloop = event_loop(executor, authenticator=app.auth_class)
     print("Using authentication: {0}".format(app.auth_class.__name__))
+
     ioloop.start()
 
     return
