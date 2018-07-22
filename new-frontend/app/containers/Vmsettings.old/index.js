@@ -6,64 +6,42 @@
 
 import React from 'react';
 import T from 'prop-types';
-import IPT from 'react-immutable-proptypes';
 import { connect } from 'react-redux';
 import { createStructuredSelector } from 'reselect';
 import { compose } from 'redux';
 
 import injectSaga from 'utils/injectSaga';
 import injectReducer from 'utils/injectReducer';
-import makeSelectVmsettings from './selectors';
+import {makeSelectVminfo} from './selectors';
+import { requestVMInfo} from "./actions";
 import reducer from './reducer';
 import saga from './saga';
 import VmsettingsForm from "../../components/VmsettingsForm";
-import {makeSelectVmData} from "./selectors";
-import {makeSelectVmDataForTable} from "../Vms/selectors";
+import VM from 'models/VM';
 
 export class VMSettings extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
-  render() {
-    const data = this.props.vm_data.get(this.props.match.params.uuid);
-    if (!data) {
-      return (
-        <div>
-          <h1>
-            VM NOT FOUND
-          </h1>
-        </div>
 
-      )
-    }
-    else {
-      return (
-        <div>
-          <VmsettingsForm
-            data={data}
-          />
-        </div>
-      );
-    }
+  render() {
+    return (
+      <div>
+        <VmsettingsForm vm={this.props.vminfo}/>
+      </div>
+    );
   }
 }
 
 VMSettings.propTypes = {
-  vm_data: IPT.map.isRequired,
-  match: T.shape({
-    params: T.shape({
-      uuid: T.string.isRequired,
-    }),
-  }).isRequired,
+  requestVMInfo: T.func.isRequired,
+  vminfo: T.instanceOf(VM)
 };
 
 const mapStateToProps = createStructuredSelector({
-  vm_data: makeSelectVmData(),
+  vminfo: makeSelectVminfo(),
 });
 
 const mapDispatchToProps = {
-
+  requestVMInfo,
 };
-
-
-
 
 const withConnect = connect(mapStateToProps, mapDispatchToProps);
 

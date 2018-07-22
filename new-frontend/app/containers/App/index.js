@@ -30,7 +30,7 @@ import VncView from 'containers/Vncview/Loadable';
 import { compose } from 'redux';
 import injectReducer from 'utils/injectReducer';
 import reducer from './reducer';
-import {VMSettings} from "../Vmsettings";
+import VMSettings from "../Vmsettings";
 
 function App() {
   return (

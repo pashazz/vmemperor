@@ -225,6 +225,14 @@ class VDI(ACLXenObject):
             else:
                 super().process_event(auth, event, db, authenticator_name)
 
+    def destroy(self):
+        sr = SR(auth=self.auth, ref=self.get_SR())
+        if 'vdi_destroy' in sr.get_allowed_operations():
+            self._destroy()
+            return True
+        else:
+            return False
+
 
 class SR(XenObject):
     api_class = "SR"

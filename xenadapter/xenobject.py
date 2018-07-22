@@ -190,7 +190,8 @@ class XenObject(metaclass=XenObjectMeta):
             return self.ref
 
 
-
+        if name[0] == '_':
+            name=name[1:]
         attr = getattr(api, name)
         return lambda *args, **kwargs : attr(self.ref, *args, **kwargs)
 

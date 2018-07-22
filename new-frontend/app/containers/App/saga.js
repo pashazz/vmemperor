@@ -1,17 +1,197 @@
 import { take, call, put, select, all, takeEvery, takeLatest, apply, race} from 'redux-saga/effects';
 import { eventChannel, END } from 'redux-saga';
-import {AUTH, LOGOUT, AUTHENTICATED, LOGGED_OUT, VMLIST_URL} from './constants';
+import {AUTH, LOGOUT, AUTHENTICATED, LOGGED_OUT, VMLIST_URL, VMLIST_MESSAGE, REMOVE_FROM_WAIT_LIST} from './constants';
 import { push, LOCATION_CHANGE} from 'react-router-redux';
 import { makeSelectLocation } from './selectors';
 import {authAgent} from "../PrivateRoute";
-import { msgVmlist } from "./actions";
+import {addToWaitList, msgVmlist, removeFromWaitList, vm_delete_error} from "./actions";
 import { Server } from 'mock-socket';
-import ErrorCard from '../../components/ErrorCard';
-import axios  from 'axios';
-import {VM_RUN_ERROR} from "../Vms/constants";
+import uuid from 'uuid';
+
+import {startStopVm, destroyVm } from 'api/vm';
+import {VM_DELETE, VM_HALT,  VM_RUN, VM_RUN_ERROR} from "./constants";
+import {vm_run_error, vmNotificationDecrease, vmNotificationIncrease, vm_deselect} from "./actions";
+import React from 'react';
+import { Map } from 'immutable';
+
+import { actions } from 'react-redux-toastr';
 
 
-import { toast } from 'react-toastify'
+
+const actionHandlers = Map({
+  [VM_RUN]: {
+    onError: vm_run_error,
+    handler: function* (uuid) {
+      const data = yield  call(startStopVm, uuid, true);
+      console.log('vmRun: data:', data);
+    },
+    notificationTitle: "Starting VMs",
+    status: 'running',
+},
+  [VM_HALT]: {
+    onError: vm_run_error,
+    handler: function* (uuid) {
+      const data = yield  call(startStopVm, uuid, false);
+      console.log('vmHalt: data:', data);
+    },
+    notificationTitle: "Stopping VMs",
+    status: 'halted',
+  },
+  [VM_DELETE]: {
+    onError: vm_delete_error,
+    handler: function* (uuid) {
+      const data = yield  call(destroyVm, uuid);
+      console.log('vmHalt: data:', data);
+    },
+    notificationTitle: "Deleting VMs",
+    status: 'removed',
+  }
+});
+
+
+function* showNotification(title, uuids) { //Show a toastr notification. Return its notifyId
+  //Select vm names from store by uuids
+  const selector = (state) => state.get('app').get('vm_data');
+  const vm_data_map = yield select(selector);
+  const names = uuids.map(uuid => vm_data_map.get(uuid).name_label);
+  //Set up notification options
+  const options = {
+    id: uuid(),
+    type: 'info',
+    timeOut: 0,
+    title,
+    message: names.join('\n'),
+    options: {
+      showCloseButton: true,
+    }
+  };
+  yield put(actions.add(options));
+  return options.id;
+}
+
+
+function* handleActions (action){
+
+  const handler = actionHandlers.get(action.type);
+  const notifyId = yield showNotification(handler.notificationTitle, action.uuids);
+
+  for (const uuid of action.uuids)
+  {
+    console.log("Notification id: ", notifyId, );
+    yield addToWaitList(uuid, handler.status, notifyId);
+    try {
+      yield handler.handler(uuid);
+    }
+    catch (e)
+    {
+      if (e.response)
+    {
+      console.log(e.response);
+      if (e.response.status === 400)
+      {
+        //Handle error
+        if (e.response.data.details)
+        {
+          yield put(handler.onError(e.response.data.details));
+        }
+        else {
+          console.error("Unhandled Response Error: ", e.response)
+        }
+      }
+    }
+    else {
+      console.error(e);
+      }
+    }
+    finally {
+      yield put(removeFromWaitList(uuid, handler.status, notifyId));
+    }
+  }
+
+}
+
+function* handleErrors(action)
+{
+  let errorHeader = null;
+
+  // select VM name from store by ref
+  const selector = (state) => state.get('app').get('vm_data');
+  const vm_data_map = yield select(selector);
+  const vm_array = vm_data_map.valueSeq().toArray();
+  let vmName = null;
+  for (let value of vm_array)
+  {
+    console.log(value);
+    if (value.ref === action.ref)
+    {
+      vmName = value.name_label;
+      break;
+    }
+  }
+  const {errorType, errorDetailedText} = action;
+  let message = null;
+  if (errorDetailedText)
+  {
+    message =  errorType + ": " + errorDetailedText;
+  }
+  else {
+    message = errorType;
+  }
+  yield put(actions.add(
+    {
+      id: action.ref,
+      type: 'error',
+      title: action.errorTitle,
+      message,
+      options :
+        {
+          timeOut: 0,
+          showCloseButton: true,
+        }
+    }));
+}
+
+function* handleRemoveFromWaitList(action) {
+  const selector = (state) => state.get('app').get('waitList').get('notifications');
+  const vm_notification_map =  yield select(selector);
+  if (!vm_notification_map.has(action.notifyId))
+  {
+    yield put(actions.remove(action.notifyId));
+  }
+}
+
+function* handleVmListMessage(action) {
+  let { message }= action;
+  let status = null;
+  switch (message.type) {
+    case 'add':
+      //TODO Add a toaster from CreateVM
+      return;
+    case 'change':
+      message = message.new_val;
+      status = message.power_state.toLowerCase();
+      break;
+    case 'remove':
+      message = message.old_val;
+      status = 'removed';
+      break;
+    case 'initial':
+      return;
+  }
+    const selector = (state) => state.get('app').get('waitList').get(status);
+    const selection = yield select(selector);
+    if (!selection)
+    {
+      console.error("BAD POWER STATE/STATUS " + status, "message.type=", message.type);
+      return;
+    }
+
+    if (selection.has(message.uuid))
+    {
+      const notifyId = selection.get(message.uuid);
+      yield removeFromWaitList(message.uuid, status, notifyId);
+    }
+}
 
 export function* loginFlow() {
   window.beforeLogin = '/';
@@ -25,8 +205,6 @@ export function* loginFlow() {
 
     if (session !== null)
     {
-
-
       if (session !== previousSession) {
         yield put({type: AUTHENTICATED});
       }
@@ -199,11 +377,21 @@ function* watchWebsocketFlow(){
 
 // All sagas to be loaded
 export default function* rootSaga () {
-  yield all([ watchLoginFlow(),
-    watchWebsocketFlow() ]);
-  yield takeEvery(VM_RUN_ERROR, handleErrors);
+
+
+  yield takeEvery(VMLIST_MESSAGE, handleVmListMessage);
   //yield all[loginFlow()];
   //yield takeEvery(AUTH, authenticate);
   //yield takeEvery(LOGOUT, logout);
+  yield takeEvery(VM_RUN, handleActions);
+  yield takeEvery(VM_HALT, handleActions);
+  yield takeEvery(VM_DELETE, handleActions);
+  yield takeEvery(VM_RUN_ERROR, handleErrors);
+  yield takeEvery(REMOVE_FROM_WAIT_LIST, handleRemoveFromWaitList);
+
+  yield all([ watchLoginFlow(),
+    watchWebsocketFlow() ]);
+  //VM_HALT_ERROR: todo!
 };
+
 

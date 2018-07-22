@@ -386,7 +386,7 @@ class VM (AbstractVM):
 
     @use_logger
     def destroy_vm(self):
-        from .disk import VBD
+        from .disk import VBD,VDI,SR
 
         self.start_stop_vm(False)
 
@@ -396,9 +396,11 @@ class VM (AbstractVM):
         try:
             self.destroy()
             for vdi_ref in vdis:
-                self.xen.api.VDI.destroy(vdi_ref) #????
+                vdi = VDI(auth=self.auth, ref=vdi_ref)
+                vdi.destroy()
+
         except XenAPI.Failure as f:
-            raise XenAdapterAPIError(self.log, "Failed to destroy VM: {0}".format(f.details))
+            raise XenAdapterAPIError(self.log, "Failed to destroy VM",f.details)
 
         return
 

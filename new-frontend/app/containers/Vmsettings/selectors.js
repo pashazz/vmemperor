@@ -3,23 +3,20 @@ import { createSelector } from 'reselect';
 /**
  * Direct selector to the vmsettings state domain
  */
-const selectVmsettingsDomain = (state) => state.get('vmsettings');
-
+const makeSelectAppDomain = () => (state) => state.get('app');
+const selectVmData = (state) => selectAppData(state).get('vm_data');
 /**
  * Other specific selectors
  */
 
-
+const makeSelectVmData = () => createSelector(
+  makeSelectAppDomain(),
+  state =>{ console.log(state); return state.get('vm_data') }
+);
 /**
  * Default selector used by VMSettings
  */
 
-const makeSelectVmsettings = () => createSelector(
-  selectVmsettingsDomain,
-  (substate) => substate.toJS()
-);
-
-export default makeSelectVmsettings;
 export {
-  selectVmsettingsDomain,
+  makeSelectVmData
 };

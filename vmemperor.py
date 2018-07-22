@@ -73,13 +73,12 @@ def table_drop(db, table_name):
 
 
 class DateTimeEncoder(json.JSONEncoder):
-    MY_TIME_FORMAT = "%d.%m.%Y, %H:%M:%S"
     def default(self, o):
         if isinstance(o, xmldt):
             t =  datetime.datetime.strptime(o.value, "%Y%m%dT%H:%M:%SZ")
-            return t.strftime(self.MY_TIME_FORMAT)
+            return t.isoformat()
         elif isinstance(o, datetime.datetime):
-            return o.strftime(self.MY_TIME_FORMAT)
+            return o.isoformat()
 
         
 

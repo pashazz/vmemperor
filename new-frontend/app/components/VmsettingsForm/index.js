@@ -37,6 +37,7 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
   }
 
   render() {
+    const data = this.props.data;
     return (
       <div>
         <Nav tabs>
@@ -69,7 +70,7 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
           <TabPane tabId="power">
             <Row>
               <Col sm="12">
-              <Power/>
+              <Power data={data}/>
               </Col>
             </Row>
           </TabPane>
@@ -103,9 +104,7 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
     );
     }
     static propTypes = {
-      disks: T.array.isRequired,
-      isos: T.array.isRequired,
-
+      data: T.any.isRequired,
     }
 
 

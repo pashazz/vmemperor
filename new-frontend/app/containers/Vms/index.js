@@ -41,7 +41,8 @@ import {VMRecord} from "./type";
 
 
 
-import {vm_delete, run, halt, vm_select, vm_deselect, vm_select_all, vm_deselect_all} from "./actions";
+import {vm_select, vm_deselect, vm_select_all, vm_deselect_all} from "./actions";
+import {vm_delete, run, halt } from 'containers/App/actions';
 
 
 export class Vms extends React.Component { // eslint-disable-line react/prefer-stateless-function
@@ -155,28 +156,18 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
   }
   onTableRun()
   {
-    const names = this.props.table_selection_halted.map(uuid => this.props.vm_data_names.get(uuid));
-  //  this.doTableAction(this.state.selectedHalted, run);
-    const options = this.notificationOptions('Starting VMs', names);
-    this.props.addToastr(options);
-    this.props.table_selection_halted.forEach(uuid => this.props.run(uuid, options.id));
-
+    this.props.run(this.props.table_selection_halted);
   }
 
   onTableHalt()
   {
-    const names = this.props.table_selection_running.map(uuid => this.props.vm_data_names.get(uuid));
-    const options = this.notificationOptions('Stopping VMs', names);
-    this.props.addToastr(options);
-    this.props.table_selection_running.forEach(uuid => this.props.halt(uuid, options.id));
+    this.props.halt(this.props.table_selection_running);
+    //forEach(uuid => this.props.halt(uuid, options.id));
   }
 
   onTableDelete()
   {
-    const names = this.props.table_selection.map(uuid => this.props.vm_data_names.get(uuid));
-    const options = this.notificationOptions('Deleting VMs', names);
-    this.props.addToastr(options);
-    this.props.table_selection.forEach(uuid => this.props.vm_delete(uuid, options.id));
+    this.props.vm_delete(this.props.table_selection);
   }
 
   onDoubleClick(e, row, rowIndex)

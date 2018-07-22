@@ -30,26 +30,8 @@ const selected = (state = Set(), action) =>
 
 };
 
-const notifications = (state = Map(), action) =>
-{
-  switch (action.type)
-  {
-    case VM_NOTIFICATION_INCREASE:
-      return state.update(action.notifyId, 0, val => val + 1);
-    case VM_NOTIFICATION_DECREASE:
-      if (state.get(action.notifyId) === 1)
-        return state.delete(action.notifyId);
-      else
-        return state.update(action.notifyId, val => val - 1);
-    default:
-      return state;
-
-
-
-  }
-};
-
 export default combineReducers(
-  {selected,
-  notifications}
+  {
+    selected,
+  }
 );

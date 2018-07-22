@@ -28,7 +28,7 @@ const makeSelectNetworks = () => createSelector(
 const makeSelectTemplates = () => createSelector(
   makeSelectCreateVmDomain(),
   state => state.get('tmpls', new List())
-)
+);
 
 
 const makeGetModal = () => createSelector(
