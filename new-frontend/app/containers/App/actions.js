@@ -77,7 +77,7 @@ export function vm_run_error(payload, date)
     errorText: message,
     errorType: details[0],
     ref: details[1],
-    errorDetailedText: null,
+    errorDetailedText: details[2],
     date: date,
   }
 }
