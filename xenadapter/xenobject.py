@@ -23,8 +23,8 @@ class XenObjectMeta(type):
             try:
                 return attr(*args, **kwargs)
             except XenAPI.Failure as f:
-                raise XenAdapterAPIError(auth.xen.log, "Failed to execute static method %s::%s: Error details: %s"
-                                         % (api_class, item, f.details ))
+                raise XenAdapterAPIError(auth.xen.log, "Failed to execute static method %s::%s"
+                                         % (api_class, item ), f.details)
         return method
 
     def __init__(cls, what, bases=None, dict=None):
@@ -193,7 +193,12 @@ class XenObject(metaclass=XenObjectMeta):
         if name[0] == '_':
             name=name[1:]
         attr = getattr(api, name)
-        return lambda *args, **kwargs : attr(self.ref, *args, **kwargs)
+        def method (*args, **kwargs):
+            try:
+                return attr(self.ref, *args, **kwargs)
+            except XenAPI.Failure as f:
+                raise XenAdapterAPIError(self.log, "Failed  to execute {0}::{1}".format(self.api_class, name), f.details)
+        return method
 
 
 

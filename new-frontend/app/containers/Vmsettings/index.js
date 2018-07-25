@@ -17,12 +17,73 @@ import makeSelectVmsettings from './selectors';
 import reducer from './reducer';
 import saga from './saga';
 import VmsettingsForm from "../../components/VmsettingsForm";
-import {makeSelectVmData} from "./selectors";
+import {makeSelectVmData} from "../../containers/App/selectors";
+import { halt, run, reboot } from "../App/actions";
+import { vm_convert} from "./actions";
 import {makeSelectVmDataForTable} from "../Vms/selectors";
 
-export class VMSettings extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
+class VMSettings extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
+  constructor(props)
+  {
+    super(props);
+    this.render = this.render.bind(this);
+    this.onHalt = this.onHalt.bind(this);
+    this.onReboot = this.onReboot.bind(this);
+    this.onConvertVm = this.onConvertVm.bind(this);
+  }
+
+  /* static getDerivedStateFromProps(props, state)
+  {
+    if (props.vm_data) {
+      return {
+        uuid: props.match.params.uuid,
+        data: props.vm_data.get(props.match.params.uuid),
+        loading: false,
+      }
+    }
+    else{
+      return {loading: true,}
+    }
+  } */
+  onHalt()
+  {
+    const data  = this.props.vm_data.get(this.props.match.params.uuid);
+    if (data.power_state === 'Halted')
+    {
+      this.props.run([data.uuid]);
+    }
+    else
+    {
+      this.props.halt([data.uuid]);
+    }
+  }
+
+  onReboot()
+  {
+
+    const data  = this.props.vm_data.get(this.props.match.params.uuid);
+    if (data.power_state === 'Running')
+    {
+      console.log("Rebooting");
+      this.props.reboot([data.uuid]);
+    }
+  }
+
+  onConvertVm()
+  {
+    const data  = this.props.vm_data.get(this.props.match.params.uuid);
+    if (data.power_state === 'Halted')
+    {
+
+      const mode = data.domain_type === 'hvm' ? 'pv' : 'hvm';
+      console.log("Converting to " + mode);
+      this.props.vm_convert(data.uuid, mode);
+    }
+  }
+
+
   render() {
-    const data = this.props.vm_data.get(this.props.match.params.uuid);
+    const data  = this.props.vm_data.get(this.props.match.params.uuid);
     if (!data) {
       return (
         <div>
@@ -38,6 +99,9 @@ export class VMSettings extends React.PureComponent { // eslint-disable-line rea
         <div>
           <VmsettingsForm
             data={data}
+            onHalt={this.onHalt}
+            onReboot={this.onReboot}
+            onConvertVm={this.onConvertVm}
           />
         </div>
       );
@@ -52,6 +116,10 @@ VMSettings.propTypes = {
       uuid: T.string.isRequired,
     }),
   }).isRequired,
+  halt: T.func.isRequired,
+  run: T.func.isRequired,
+  reboot: T.func.isRequired,
+  vm_convert: T.func.isRequired,
 };
 
 const mapStateToProps = createStructuredSelector({
@@ -59,7 +127,10 @@ const mapStateToProps = createStructuredSelector({
 });
 
 const mapDispatchToProps = {
-
+  halt,
+  run,
+  reboot,
+  vm_convert,
 };
 
 

@@ -13,3 +13,13 @@ export const vnc = async(uuid) =>
 {
   return await axios.post('/api/vnc', { uuid });
 };
+
+export const reboot = async(uuid) =>
+{
+  return await axios.post('/api/rebootvm', { uuid});
+};
+
+export const convert = async(uuid, mode) =>
+{
+  return await axios.post('/api/convertvm', {uuid, mode})
+};

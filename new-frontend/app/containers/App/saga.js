@@ -8,8 +8,8 @@ import {addToWaitList, msgVmlist, removeFromWaitList, vm_delete_error} from "./a
 import { Server } from 'mock-socket';
 import uuid from 'uuid';
 
-import {startStopVm, destroyVm } from 'api/vm';
-import {VM_DELETE, VM_HALT,  VM_RUN, VM_RUN_ERROR} from "./constants";
+import {startStopVm, destroyVm, reboot } from 'api/vm';
+import {VM_DELETE, VM_HALT,  VM_RUN, VM_RUN_ERROR, VM_REBOOT} from "./constants";
 import {vm_run_error, vmNotificationDecrease, vmNotificationIncrease, vm_deselect} from "./actions";
 import React from 'react';
 import { Map } from 'immutable';
@@ -45,7 +45,17 @@ const actionHandlers = Map({
     },
     notificationTitle: "Deleting VMs",
     status: 'removed',
-  }
+  },
+  [VM_REBOOT]: {
+    onError: vm_run_error,
+    handler: function* (uuid) {
+      const data = yield call(reboot, uuid);
+      console.log('vmReboot: data:', data);
+    },
+    notificationTitle: "Rebooting VMs",
+    status: 'rebooted',
+  },
+
 });
 
 
@@ -110,9 +120,8 @@ function* handleActions (action){
 
 }
 
-function* handleErrors(action)
+export function* handleVMErrors(action)
 {
-  let errorHeader = null;
 
   // select VM name from store by ref
   const selector = (state) => state.get('app').get('vm_data');
@@ -190,6 +199,20 @@ function* handleVmListMessage(action) {
     {
       const notifyId = selection.get(message.uuid);
       yield removeFromWaitList(message.uuid, status, notifyId);
+    }
+    else{ //Handle rebooting
+      if (status === 'halted')
+      {
+        const selector =  (state) => state.get('app').get('waitList').get("rebooted");
+        const selection = yield select(selector);
+        if (selection.has(message.uuid))
+        {
+          const notifyId = selection.get(message.uuid);
+          //RemoveFromWaitList of rebooted moves it to running
+          yield removeFromWaitList(message.uuid, status, notifyId);
+        }
+        }
+
     }
 }
 
@@ -386,7 +409,10 @@ export default function* rootSaga () {
   yield takeEvery(VM_RUN, handleActions);
   yield takeEvery(VM_HALT, handleActions);
   yield takeEvery(VM_DELETE, handleActions);
-  yield takeEvery(VM_RUN_ERROR, handleErrors);
+  yield takeEvery(VM_REBOOT, handleActions);
+
+  yield takeEvery(VM_RUN_ERROR, handleVMErrors);
+
   yield takeEvery(REMOVE_FROM_WAIT_LIST, handleRemoveFromWaitList);
 
   yield all([ watchLoginFlow(),

@@ -4,27 +4,55 @@ import {Button, Card, CardTitle, CardText, Col, Row, CardFooter,CardBody, CardSu
 import FullHeightCard from 'components/FullHeightCard';
 import {VM_STATE_RUNNING} from "../../../containers/App/constants";
 
+//import DateDiff from 'utils/datediff';
+import  VM from 'models/VM';
+
+import { FormattedMessage } from 'react-intl';
+import messages from  '../messages';
+
 class Power extends PureComponent {
   static propTypes = {
     onReboot: T.func.isRequired,
     onHalt: T.func.isRequired,
-    data: T.any.isRequired
+    onConvertVm: T.func.isRequired,
+    data: T.instanceOf(VM),
   };
   render()
   {
     const { data } = this.props;
+
+    const current_date = new Date();
+    const start_date = new Date(data.start_time);
+
     let uptime_text = null;
+
     switch (data.power_state)
     {
       case VM_STATE_RUNNING:
-        uptime_text = "I'm up since " + data.start_time + ".";
+        uptime_text = "I'm up since " +  start_date.toLocaleString() + ".";
         break;
       default:
         uptime_text = "I'm " + data.power_state.toLowerCase() + ".";
     }
 
+    const nets = data['networks'];
+    const addresses = data.networks.map((value, key) => {
+      let text= "";
+      if (value.get('ip'))
+      {
+        text = "IPv4: " +  value.get('ip') + " (Network " + key + ")\n"
+      }
+      if (value.get('ipv6'))  {
 
+        text += "IPv6:" + value.get('ipv6') + " (Network " + key + ")";
+      }
+      if (!text)
+      {
+        text = "Not available";
+      }
 
+      return text;
+    }).valueSeq().toArray();
     return(
       <React.Fragment>
       <Row>
@@ -38,8 +66,13 @@ class Power extends PureComponent {
         </CardBody>
         <CardFooter>
         <div>
-        <Button size="lg" color="danger">Reboot</Button>{' '}
-        <Button size="lg" color="primary">Halt</Button>
+          { data.power_state === 'Running' && (
+        <Button size="lg" color="danger" onClick={this.props.onReboot}>Reboot  </Button>)}
+          {' '}
+        <Button size="lg" color="primary" onClick={this.props.onHalt}>{ (data.power_state === 'Halted') ?
+          <FormattedMessage {...messages.turnon}/> :
+          <FormattedMessage {...messages.halt}/>
+        } </Button>
         </div>
         </CardFooter>
       </FullHeightCard>
@@ -49,18 +82,25 @@ class Power extends PureComponent {
 
             <CardBody>
               <CardTitle>Access</CardTitle>
-              <CardSubtitle>IP addresses</CardSubtitle>
-            <CardText>
 
-             XXX.XXX.XXX.XXX (Network 1)<br/>
-
-             XXX.XXX.XXX.YYY (Network 2)<br/>
-
-            </CardText>
+              {addresses && (
+                <React.Fragment>
+                  <CardSubtitle>IP addresses</CardSubtitle>
+                  <CardText>
+                    {addresses.map(address => <div>{address}</div>)}
+                  </CardText>
+                </React.Fragment>
+              ) || (
+                <CardSubtitle>Connect your VM to a network to access it </CardSubtitle>)
+              }
             </CardBody>
             <CardFooter>
               <div>
-                <Button size="lg" color="success">Go to Desktop</Button>
+                <Button disabled={data.power_state !== 'Running'} size="lg" color="success"
+                onClick={() => {
+                  const win = window.open('/desktop/' + data.uuid, '_blank');
+                  win.focus();
+                }}>Go to Desktop</Button>
               </div>
             </CardFooter>
           </FullHeightCard>
@@ -72,12 +112,20 @@ class Power extends PureComponent {
             <FullHeightCard>
               <CardBody>
                 <CardTitle>Virtualization mode</CardTitle>
-                <CardSubtitle>Halt to switch mode</CardSubtitle>
+                {data.power_state !== 'Halted' && (
+                <CardSubtitle>Halt to switch mode</CardSubtitle>)}
 
-                <CardText><h4>PV</h4></CardText>
+                <CardText><h4>{data.domain_type.toUpperCase()}</h4></CardText>
               </CardBody>
               <CardFooter>
-                <Button size="lg" color="info">Switch to HVM</Button>
+                <Button
+                  disabled={data.power_state !== 'Halted'}
+                  size="lg"
+                  color="info"
+                  onClick={this.props.onConvertVm}
+                >Switch to
+                  {data.domain_type === 'pv' ? ' HVM' : ' PV'}
+                </Button>
               </CardFooter>
             </FullHeightCard>
           </Col>

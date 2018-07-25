@@ -11,10 +11,13 @@ import Storage from './subforms/storage';
 
 import { FormattedMessage } from 'react-intl';
 import messages from './messages';
-import { Nav, NavItem, NavLink, TabContent, TabPane, Row, Col, Card, CardTitle, CardText, Button} from 'reactstrap';
+import { Nav, NavItem, Badge, NavLink, TabContent, TabPane, Row, Col, Card, CardTitle, CardText, Button} from 'reactstrap';
 import classnames from 'classnames';
 
 import T from 'prop-types';
+
+//import Vncview from 'containers/Vncview/Loadable';
+
 
 class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
   constructor(props) {
@@ -40,6 +43,11 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
     const data = this.props.data;
     return (
       <div>
+        <h3 className="text-center">{data.name_label} <Badge color="primary">{data.power_state}</Badge>
+          {data.hasIn(['os_version', 'name']) &&
+          (<Badge color="success">{data.getIn(['os_version', 'name'])}</Badge>)}
+        </h3>
+
         <Nav tabs>
           <NavItem>
             <NavLink
@@ -49,6 +57,17 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
              Power
             </NavLink>
           </NavItem>
+
+          <NavItem>
+            <NavLink
+              className={classnames({ active: this.state.activeTab === 'vnc' })}
+              onClick={() => { this.toggle('vnc'); }}
+            >
+              VNC
+            </NavLink>
+          </NavItem>
+
+
           <NavItem>
             <NavLink
                  className={classnames({ active: this.state.activeTab === 'storage' })}
@@ -70,7 +89,11 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
           <TabPane tabId="power">
             <Row>
               <Col sm="12">
-              <Power data={data}/>
+              <Power data={data}
+                     onHalt={this.props.onHalt}
+                     onReboot={this.props.onReboot}
+                     onConvertVm={this.props.onConvertVm}
+              />
               </Col>
             </Row>
           </TabPane>
@@ -80,6 +103,9 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
                 <Storage/>
               </Col>
             </Row>
+          </TabPane>
+          <TabPane tabId="vnc">
+            <h1>Use power tab for now</h1>
           </TabPane>
           <TabPane tabId="2">
             <Row>
@@ -105,6 +131,9 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
     }
     static propTypes = {
       data: T.any.isRequired,
+      onHalt: T.func.isRequired,
+      onReboot: T.func.isRequired,
+      onConvertVm: T.func.isRequired,
     }
 
 

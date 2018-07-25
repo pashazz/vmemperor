@@ -3,12 +3,19 @@
 // Individual exports for testing
 import {VNC_REQUESTED} from "./constants";
 import { vnc } from 'api/vm';
- import {vncAcquire} from "./actions";
+ import {vncAcquire, vncError} from "./actions";
 
 function* onVncRequested(action)
 {
-  const url = yield call(vnc, action.uuid);
-  yield put(vncAcquire(url.data));
+  try {
+    const url = yield call(vnc, action.uuid);
+    yield put(vncAcquire(url.data));
+  }
+  catch (e)
+  {
+    yield put(vncError(e.response.data));
+  }
+
 }
 
 export default function* rootSaga() {

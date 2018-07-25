@@ -5,11 +5,13 @@
  */
 
 import {
-  DEFAULT_ACTION,
+  VM_CONVERT,
 } from './constants';
 
-export function defaultAction() {
+export function vm_convert(uuid, mode)
+{
   return {
-    type: DEFAULT_ACTION,
-  };
+    type: VM_CONVERT,
+    uuid, mode
+  }
 }

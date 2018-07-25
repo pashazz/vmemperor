@@ -19,6 +19,13 @@ const makeSelectUrl = () => createSelector(
   (substate) => substate.get('url')
 );
 
+
+const makeSelectError = () => createSelector(
+  selectVncviewDomain,
+  (substate) => substate.get('error')
+);
+
 export {
   makeSelectUrl,
+  makeSelectError,
 };

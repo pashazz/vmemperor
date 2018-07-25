@@ -5,6 +5,7 @@ import {
   ADD_TO_WAIT_LIST, REMOVE_FROM_WAIT_LIST,
   VMLIST_MESSAGE
 } from "./constants";
+import VM from 'models/VM';
 
 const initialState = fromJS(
 {}
@@ -30,9 +31,9 @@ const vm_data = (state = initialState, action) => {
       {
         case 'initial':
         case 'add':
-          return state.set(message.uuid, message);
+          return state.set(message.uuid, new VM(fromJS(message)));
         case 'change':
-          return state.set(message.new_val.uuid, message.new_val);
+          return state.set(message.new_val.uuid, new VM(fromJS(message.new_val)));
         case 'remove':
           return state.delete(message.old_val.uuid);
         default:
@@ -65,13 +66,17 @@ const  waitList = (actionType) => (state=fromJS({}), action) =>
       {
         case actionType:
           return state.delete(action.uuid);
-        default:
+        case 'rebooted':
+          if (actionType === 'running') //Remove from rebooted wait list triggers addition to running wait list
+            return state.set(action.uuid, action.notifyId);
+        default: //eslint-disable-line no-fallthrough
           return state;
       }
     default:
       return state;
   }
 };
+
 
 const notifications = (state=fromJS({}), action) =>
 { //Key: Notification ID, value: List of UUIDs
@@ -102,6 +107,7 @@ export default combineReducers(
       paused: waitList('paused'),
       suspended: waitList('suspended'),
       removed: waitList('removed'),
+      rebooted: waitList('rebooted'),
       notifications,
     })
   }

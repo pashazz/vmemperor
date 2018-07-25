@@ -28,7 +28,7 @@ class VM (AbstractVM):
         # patch event[snapshot] so that if it doesn't have domain_type, guess it from HVM_boot_policy
         try:
             if 'domain_type' not in event['snapshot']:
-                event['snapshot']['domain_type'] = 'hvm' if 'hvm_boot_policy' in event['snapshot'] and event['snapshot']['HVM_boot_policy'] else 'pv'
+                event['snapshot']['domain_type'] = 'hvm' if 'HVM_boot_policy' in event['snapshot'] and event['snapshot']['HVM_boot_policy'] else 'pv'
         except:
             pass
 
@@ -264,18 +264,19 @@ class VM (AbstractVM):
 
         if not hasattr(self, 'install'):
             raise RuntimeError("Not an installation process")
-        os = OSChooser.get_os(os_kind)
+        other_config = self.get_other_config()
+        os = OSChooser.get_os(os_kind, other_config)
 
         if os:
+
             if net_tuple:
                 os.set_network_parameters(*net_tuple)
 
             os.set_hostname(hostname)
 
             os.set_install_url(install_url)
-            other_config = self.get_other_config()
-            other_config.update(os.other_config)
-            self.set_other_config(other_config)
+
+            self.set_other_config(os.other_config)
             os.fullname = fullname
             os.username = username
             os.password = password
@@ -357,7 +358,7 @@ class VM (AbstractVM):
                 self.log.info("Started".format(self.uuid))
             if ps == 'Running' and not enable:
                 self.shutdown()
-                self.xen.log.info("Shutted down".format(self.uuid))
+                self.log.info("Shutted down")
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self.log, "Failed to start/stop VM", f.details)
 

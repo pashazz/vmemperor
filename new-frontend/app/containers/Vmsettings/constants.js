@@ -4,4 +4,5 @@
  *
  */
 
-export const DEFAULT_ACTION = 'app/VMSettings/DEFAULT_ACTION';
+
+export const VM_CONVERT = 'emperor/vmsettings/VM_CONVERT';

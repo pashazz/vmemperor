@@ -196,6 +196,8 @@ class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
             self.write(json.dumps({'status': 'error', 'details': ee.message}))
             self.finish()
 
+
+
         else:
             if ret:
                 self.write(ret)
@@ -848,6 +850,9 @@ class CreateVM(BaseHandler):
                 if change['new_val']['power_state'] == 'Halted':
                     try:
                         vm = VM(auth, uuid=self.uuid)
+                        other_config =  vm.get_other_config()
+                        if 'convert-to-hvm' in other_config and other_config['convert-to-hvm']:
+                            vm.convert('hvm')
                         vm.start_stop_vm(True)
                     except XenAdapterAPIError as e:
                         auth.xen.insert_log_entry(self.uuid, "failed", "failed to start after installation: %s" % e.message)
@@ -1126,8 +1131,19 @@ class StartStopVM(VMAbstractHandler):
         uuid = self.get_argument('uuid')
         enable = self.get_argument('enable')
 
+        if isinstance(enable, str) and enable.lower() == "false":
+            enable = False
+
 
         self.try_xenadapter(lambda auth: VM(auth, uuid=uuid).start_stop_vm(enable))
+
+class RebootVM(VMAbstractHandler):
+    access = 'launch'
+
+    def get_data(self):
+        uuid = self.get_argument('uuid')
+
+        self.try_xenadapter(lambda  auth: VM(auth, uuid=uuid).clean_reboot())
 
 
 class VNC(VMAbstractHandler):
@@ -1437,6 +1453,7 @@ class EventLoop(Loggable):
                                 ev_class.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
                         except Exception as e:
                             self.log.error("Failed to process event: class %s, error: %s" % (ev_class, e))
+                            traceback.print_exc()
 
 
                     if not first_batch_of_events.is_set():
@@ -1672,6 +1689,7 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/console.*', ConsoleHandler, dict(executor=executor)),
         (r'/createvm', CreateVM, dict(executor=executor)),
         (r'/startstopvm', StartStopVM, dict(executor=executor)),
+        (r'/rebootvm', RebootVM, dict(executor=executor)),
         (r'/vmlist', VMList, dict(executor=executor)),
         (r'/poollist', PoolList, dict(executor=executor)),
         (r'/list_pools', PoolListPublic, dict(executor=executor)),

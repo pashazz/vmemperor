@@ -29,7 +29,10 @@ export const VM_RUN = 'emperor/global/VM_RUN';
 export const VM_HALT = 'emperor/global/VM_HALT';
 export const VM_DELETE = 'emperor/global/VM_DELETE';
 
+export const VM_REBOOT = 'emperor/global/VM_REBOOT';
+
 export const ADD_TO_WAIT_LIST = 'emperor/global/ADD_TO_WAIT_LIST';
 export const REMOVE_FROM_WAIT_LIST = 'emperor/global/REMOVE_FROM_WAIT_LIST';
 
 export const VM_RUN_ERROR = 'emperor/global/VM_RUN_ERROR';
+

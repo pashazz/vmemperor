@@ -16,7 +16,9 @@ import  VncDisplay from 'components/VncDisplay';
 import injectSaga from 'utils/injectSaga';
 import injectReducer from 'utils/injectReducer';
 import Loader from 'components/Loader';
-import { makeSelectUrl } from './selectors';
+import { makeSelectUrl,
+  makeSelectError
+} from './selectors';
 import reducer from './reducer';
 import saga from './saga';
 import messages from './messages';
@@ -27,45 +29,46 @@ import NavLink from "../../components/NavLink";
 export class Vncview extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
   constructor(props){
     super(props);
+
   }
+
   render() {
+    console.log(this.props.error);
     return (
       <div>
-        { this.props.url ?
+        { this.props.error && (<div>
+          <h1 className="text-center">Unable to open VNC console </h1>
+          <p className="text-monospace"> {JSON.stringify(this.props.error)} </p>
+        </div>) || (
+          this.props.url ?
           (
             <VncDisplay url={this.props.url}/>
+          ) : ( <Loader/>)
           )
-          : (
-            <Loader/>
-          )}
-          <NavLink to={"/vmsettings/" + this.props.match.params.uuid}>
-            Settings
-          </NavLink>
+        }
       </div>
     );
   }
   componentWillMount() {
-    this.props.vncRequest(this.props.match.params.uuid);
+    if (this.props.match) {
+      this.props.vncRequest(this.props.match.params.uuid);
+    }
+    else {
+     this.props.vncRequest(this.props.uuid);
+    }
+
   }
 }
 
-Vncview.propTypes = {
-  url: T.string,
-  vncRequest: T.func.isRequired,
-  match: T.shape({
-    params: T.shape({
-      uuid: T.string.isRequired,
-    }).isRequired,
-  }).isRequired,
-
-};
 
 const mapStateToProps = createStructuredSelector({
   url: makeSelectUrl(),
+  error: makeSelectError(),
 });
 
 const  mapDispatchToProps =  {
     vncRequest,
+
 };
 
 const withConnect = connect(mapStateToProps, mapDispatchToProps);

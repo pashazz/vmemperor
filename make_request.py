@@ -142,7 +142,16 @@ class Main():
         p.add_argument('uuid', help='Template UUID')
         p.set_defaults(func=self.turntemplate)
 
+        #add parser to convertvm
+        p = self.subparsers.add_parser('convertvm', description="Convert VM type (PV/HVM)")
+        p.add_argument('uuid', help='VM UUID')
+        p.add_argument('mode', choices=['pv', 'hvm'])
+        p.set_defaults(func=self.convertvm)
 
+        #add parser to convertvm
+        p = self.subparsers.add_parser('reboot', description="Reboot VM (clean if possible)")
+        p.add_argument('uuid', help='VM UUID')
+        p.set_defaults(func=self.reboot)
 
         #add parser for everything else
         for method in inspect.getmembers(self, predicate=inspect.ismethod):
@@ -216,6 +225,22 @@ class Main():
     @login
     def turntemplate(self, args):
         r = requests.post("%s/turntemplate" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, action=args.action))
+        js = json.loads(r.text)
+        pprint.pprint(js)
+        print(r.status_code, file=sys.stderr)
+
+    @login
+    def convertvm(self, args):
+        r = requests.post("%s/convertvm" % self.url, cookies=self.jar,
+        data=dict(uuid=args.uuid, mode=args.mode))
+        js = json.loads(r.text)
+        pprint.pprint(js)
+        print(r.status_code, file=sys.stderr)
+
+    @login
+    def reboot(self, args):
+        r = requests.post("%s/rebootvm" % self.url, cookies=self.jar,
+        data=dict(uuid=args.uuid))
         js = json.loads(r.text)
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
@@ -307,6 +332,7 @@ class Main():
         js = json.loads(r.text)
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
+
 
 if __name__ == '__main__':
     try:

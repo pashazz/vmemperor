@@ -174,7 +174,7 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
   {
     const { history } = this.props;
     const { uuid } = this.props.vm_data_table[rowIndex];
-    history.push('/desktop/' + uuid);
+    history.push('/vmsettings/' + uuid);
   }
 
   render() {

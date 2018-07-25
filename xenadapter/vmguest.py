@@ -35,8 +35,12 @@ class VMGuest(XenObject):
                 new_rec = {'uuid': vm_uuid, 'os_version': record['os_version'],'networks': {},
                            'PV_drivers_version': record['PV_drivers_version'], 'PV_drivers_up_to_date': record['PV_drivers_up_to_date']}
                 for k,v in record['networks'].items():
-                    net_name, key = k.split('/')
-                    new_rec['networks'][net_name] = {key : v }
+                    try:
+                        net_name, key, *rest = k.split('/')
+                        new_rec['networks'][net_name] = {key : v }
+                    except ValueError:
+                        auth.xen.log.warning("Can't get network information for VM {0}: {1}:{2}".format(vm_uuid, k, v))
+
 
 
 

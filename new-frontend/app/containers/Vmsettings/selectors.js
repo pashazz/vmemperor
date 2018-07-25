@@ -11,7 +11,7 @@ const selectVmData = (state) => selectAppData(state).get('vm_data');
 
 const makeSelectVmData = () => createSelector(
   makeSelectAppDomain(),
-  state =>{ console.log(state); return state.get('vm_data') }
+  state =>{console.log("VM DATA: ", state.get('vm_data')); return state.get('vm_data') }
 );
 /**
  * Default selector used by VMSettings

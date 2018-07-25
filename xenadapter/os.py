@@ -97,6 +97,7 @@ class DebianOS(GenericOS):
     '''
     OS-specific parameters for Debian
     '''
+    HVM_RELEASES=[]
 
     def pv_args(self):
         if self.dhcp:
@@ -138,6 +139,8 @@ class DebianOS(GenericOS):
         except IndexError:
             pass
 
+        if self.other_config['debian-release'] in self.HVM_RELEASES:
+            self.other_config['convert-to-hvm'] = 'true'
 
     def set_install_url(self, url):
 
@@ -153,6 +156,7 @@ class UbuntuOS(DebianOS):
     '''
     OS-specific parameters for Ubuntu
     '''
+    HVM_RELEASES = ['artful',  'zesty', 'yakkety']
     def get_release(self, num):
         releases = {
             '12.04': 'precise',
@@ -220,7 +224,7 @@ class CentOS(GenericOS):
 
 class OSChooser:
     @classmethod
-    def get_os(cls, os_kind):
+    def get_os(cls, os_kind, other_config):
         if os_kind.startswith('ubuntu'):
             os = UbuntuOS()
         elif os_kind.startswith('centos'):
@@ -230,6 +234,7 @@ class OSChooser:
         else:
             return None
 
+        os.other_config = other_config
         os.set_os_kind(os_kind)
         return os
 
