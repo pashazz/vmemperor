@@ -51,6 +51,6 @@ export default function* rootSaga() {
   // See example in containers/HomePage/saga.js
   yield takeEvery(VM_CONVERT, handleActions);
 
-  yield takeEvery(VM_RUN_ERROR, handleVMErrors);
+
 
 }

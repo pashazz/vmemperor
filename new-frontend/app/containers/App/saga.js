@@ -150,7 +150,7 @@ export function* handleVMErrors(action)
     {
       id: action.ref,
       type: 'error',
-      title: action.errorTitle,
+      title: action.errorTitle + ' "' + vmName +'"',
       message,
       options :
         {
