@@ -1,23 +1,9 @@
+from xenadapter.sr import SR
+from xenadapter.vbd import VBD
 from .xenobject import *
 from . import use_logger
 from exc import *
 import XenAPI
-
-
-class VBD(XenObject):
-    api_class = 'VBD'
-
-  #  @classmethod
-  #  def process_event(cls, xen, event, db):
-  #      from vmemperor import CHECK_ER
-  #      if event['class'] != 'vbd':
-  #          raise XenAdapterArgumentError(xen.log, "this method accepts only 'vbd' events")
-
-        #record = event['snapshot']
-        #if event['operation'] == 'add':
-
-
-
 
 
 class Attachable:
@@ -105,7 +91,7 @@ class ISO(XenObject, Attachable):
     api_class = 'VDI'
     db_table_name = 'isos'
     EVENT_CLASSES = ['vdi']
-    PROCESS_KEYS = ['uuid', 'name_label', 'name_description', 'location']
+    PROCESS_KEYS = ['uuid', 'name_label', 'name_description', 'location', 'virtual_size', 'physical_utilization']
 
     from .vm import VM
 
@@ -161,7 +147,7 @@ class VDI(ACLXenObject):
     api_class = 'VDI'
     db_table_name = 'vdis'
     EVENT_CLASSES = ['vdi']
-    PROCESS_KEYS = ['uuid', 'name_label', 'name_description']
+    PROCESS_KEYS = ['uuid', 'name_label', 'name_description', 'virtual_size', 'physical_utlilisation']
     @classmethod
     def create(cls, auth, sr_uuid, size, name_label = None):
         """
@@ -232,13 +218,6 @@ class VDI(ACLXenObject):
             return True
         else:
             return False
-
-
-class SR(XenObject):
-    api_class = "SR"
-    db_table_name = "srs"
-    EVENT_CLASSES=["sr"]
-    PROCESS_KEYS = ["uuid", "name_label", "name_description", "content_type", "VDIs", "PBDs"]
 
 
 

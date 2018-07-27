@@ -10,7 +10,7 @@ const VM = Record(
     install_time: new Date(0),
     domain_type: '',
     access: [],
-    disks: [],
+    disks: {},
     uuid: '',
     ref: '',
     memory_actual: '',

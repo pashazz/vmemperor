@@ -87,6 +87,7 @@ export function vm_delete_error(payload, date)
   const {message, details} = JSON.parse(payload);
   console.log("Error payload", payload);
   console.log("Error details: ", details);
+
   return {
     type: VM_RUN_ERROR,
     errorTitle: "Sorry, we couldn't delete VM",

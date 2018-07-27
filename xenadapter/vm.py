@@ -81,15 +81,15 @@ class VM (AbstractVM):
         from xenadapter.network import VIF, Network
         new_rec = super().process_record(auth, ref, record)
         new_rec['networks'] = {}
-        new_rec['disks'] = []
-        for vbd in record['VBDs']:
-            vdi_ref = auth.xen.api.VBD.get_VDI(vbd)
-            try:
-                vdi_uuid = auth.xen.api.VDI.get_uuid(vdi_ref)
-                new_rec['disks'].append(vdi_uuid)
-            except XenAPI.Failure as f:
-                if f.details[1] != 'VDI':
-                    raise f
+        new_rec['disks'] = {}
+        #for vbd in record['VBDs']:
+        #    vdi_ref = auth.xen.api.VBD.get_VDI(vbd)
+        #    try:
+        #        vdi_uuid = auth.xen.api.VDI.get_uuid(vdi_ref)
+        #        new_rec['disks'].append(vdi_uuid)
+        #    except XenAPI.Failure as f:
+        #        if f.details[1] != 'VDI':
+        #            raise f
         return new_rec
 
     @classmethod
@@ -107,7 +107,7 @@ class VM (AbstractVM):
 
 
     @classmethod
-    def create(self, auth, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, name_label = '', start=True, override_pv_args=None, iso=None,
+    def create(cls, auth, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, name_label ='', start=True, override_pv_args=None, iso=None,
                username=None, password=None, partition=None, fullname=None):
         '''1
         Creates a virtual machine and installs an OS
@@ -139,6 +139,20 @@ class VM (AbstractVM):
 
         vm.set_ram_size(ram_size)
         vm.set_disks(sr_uuid, vdi_size)
+        # After provision. manage disks actions
+
+        if isinstance(auth, BasicAuthenticator):
+            for vbd_ref in vm.get_VBDs():
+                from .vbd import VBD
+                from .disk import VDI
+
+                vbd = VBD(auth=auth, ref=vbd_ref)
+                if vbd.get_type() != 'Disk':
+                    continue
+                vdi = VDI(auth=auth, ref=vbd.get_VDI())
+                vdi.manage_actions('all', user=auth.get_id())
+
+
         vm.install_guest_tools()
 
 
@@ -236,6 +250,8 @@ class VM (AbstractVM):
 
         try:
             self.provision()
+
+
         except Exception as e:
 
             try:
@@ -317,7 +333,8 @@ class VM (AbstractVM):
 
     @use_logger
     def install_guest_tools(self):
-        from .disk import SR, ISO
+        from .disk import ISO
+        from xenadapter.sr import SR
         for ref in SR.get_all(self.auth):
             sr = SR(ref=ref, auth=self.auth)
             if sr.get_is_tools_sr():
@@ -387,7 +404,9 @@ class VM (AbstractVM):
 
     @use_logger
     def destroy_vm(self):
-        from .disk import VBD,VDI,SR
+        from .disk import VDI
+        from xenadapter.sr import SR
+        from xenadapter.vbd import VBD
 
         self.start_stop_vm(False)
 

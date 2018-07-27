@@ -9,7 +9,9 @@ from xenadapter.template import Template
 from xenadapter.vm import VM
 from xenadapter.vmguest import VMGuest
 from xenadapter.network import Network, VIF
-from xenadapter.disk import ISO, SR, VDI
+from xenadapter.disk import ISO, VDI
+from xenadapter.sr import SR
+from xenadapter.vbd import VBD
 from xenadapter.pool import Pool
 import copy
 import traceback
@@ -954,8 +956,11 @@ class ResourceAbstractHandler(BaseHandler):
                 self.set_status(400)
                 self.write({'status' : 'bad request', 'message' : e.message})
                 return
+
             try:
-                self.__getattribute__(resource_name).check_access(self.access)
+                from xenadapter.xenobject import ACLXenObject
+                if isinstance(self.__getattribute__(resource_name), ACLXenObject):
+                    self.__getattribute__(resource_name).check_access(self.access)
             except XenAdapterUnauthorizedActionException as e:
                 self.set_status(403)
                 self.write({'status':'access denied', 'message' : e.message})
@@ -975,6 +980,12 @@ class VMAbstractHandler(ResourceAbstractHandler):
 
 class NetworkAbstractHandler(ResourceAbstractHandler):
     resource = Network
+
+class VDIAbstractHandler(ResourceAbstractHandler):
+    resource = VDI
+
+class ISOAbstractHandler(ResourceAbstractHandler):
+    resource = ISO
 
 
 class SetAccessHandler(BaseHandler):
@@ -1098,14 +1109,65 @@ class VMInfo(VMAbstractHandler):
             self.write({'status' : 'database error/no info'})
             return
 
-class NetworkInfo(NetworkAbstractHandler):
+class VMDiskInfo(VMAbstractHandler):
 
+    access = 'launch'
+
+    def get_data(self):
+        db = r.db(opts.database)
+        try:
+
+            vm_data = db.table('vms').get(self.uuid).do(lambda vm: vm['disks'].keys().\
+            map(lambda diskKey: r.expr([diskKey, vm['disks'][diskKey].merge(r.branch(
+                vm['disks'][diskKey]['type'].eq('Disk'),
+                db.table('vdis').get(vm['disks'][diskKey]['VDI']).without('uuid'),
+                db.table('isos').get(vm['disks'][diskKey]['VDI']).without('uuid')))])).\
+                                filter(lambda item: item[1] != None).coerce_to('object')).run()
+            return vm_data
+
+
+
+        except Exception as e:
+            self.log.error("Exception: {0}".format(e))
+            self.set_status(500)
+            self.write({'status' : 'database error/no info'})
+            return
+
+
+
+class NetworkInfo(NetworkAbstractHandler):
     access = 'attach'
 
     def get_data(self):
         db = r.db(opts.database)
         try:
             d = db.table('nets').get(self.uuid).run()
+            return d
+        except Exception as e:
+            self.log.error("Exception: {0}".format(e))
+            self.set_status(500)
+            self.write({'status' : 'database error/no info'})
+            return
+
+class VDIInfo(VDIAbstractHandler):
+    access = 'attach'
+
+    def get_data(self):
+        db = r.db(opts.database)
+        try:
+            d = db.table('vdis').get(self.uuid).run()
+            return d
+        except Exception as e:
+            self.log.error("Exception: {0}".format(e))
+            self.set_status(500)
+            self.write({'status' : 'database error/no info'})
+            return
+
+class ISOInfo(ISOAbstractHandler):
+    def get_data(self):
+        db = r.db(opts.database)
+        try:
+            d = db.table('isos').get(self.uuid).run()
             return d
         except Exception as e:
             self.log.error("Exception: {0}".format(e))
@@ -1437,6 +1499,9 @@ class EventLoop(Loggable):
                             ev_class = VIF
                         elif event['class'] == 'vm_guest_metrics':
                             ev_class = VMGuest
+                        elif event['class'] == 'vbd':
+                            ev_class = VBD
+
                         else:  # Implement ev_classes for all types of events
                             if log_this:
                                 self.log.debug("Ignored Event: %s" % json.dumps(print_event(event), cls=DateTimeEncoder))
@@ -1710,6 +1775,9 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/getaccess', GetAccessHandler, dict(executor=executor)),
         (r'/netinfo', NetworkInfo, dict(executor=executor)),
         (r'/userinfo', UserInfo, dict(executor=executor)),
+        (r'/vdiinfo', VDIInfo, dict(executor=executor)),
+        (r'/isoinfo', ISOInfo, dict(executor=executor)),
+        (r'/vmdiskinfo', VMDiskInfo, dict(executor=executor)),
         (r'/turntemplate', TurnTemplate, dict(executor=executor))
 
     ], **settings)

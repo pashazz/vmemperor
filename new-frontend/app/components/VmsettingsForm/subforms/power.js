@@ -35,7 +35,6 @@ class Power extends PureComponent {
         uptime_text = "I'm " + data.power_state.toLowerCase() + ".";
     }
 
-    const nets = data['networks'];
     const addresses = data.networks.map((value, key) => {
       let text= "";
       if (value.get('ip'))

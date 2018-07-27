@@ -121,6 +121,11 @@ class Main():
         p.add_argument('uuid', help='VM UUID')
         p.set_defaults(func=self.vminfo)
 
+        # add parser for vmdiskinfo
+        p = self.subparsers.add_parser('vmdiskinfo', description="Print VM disks full info")
+        p.add_argument('uuid', help='VM UUID')
+        p.set_defaults(func=self.vmdiskinfo)
+
         #add parser for start
         p = self.subparsers.add_parser('start', description="Start VM")
         p.add_argument('uuid', help='VM UUID')
@@ -135,6 +140,16 @@ class Main():
         p = self.subparsers.add_parser('netinfo', description="Print Network info")
         p.add_argument('uuid', help='Network UUID')
         p.set_defaults(func=self.netinfo)
+
+        # add parser for vdiinfo
+        p = self.subparsers.add_parser('vdiinfo', description="Print VDI info")
+        p.add_argument('uuid', help='VDI UUID')
+        p.set_defaults(func=self.vdiinfo)
+
+        # add parser for isoinfo
+        p = self.subparsers.add_parser('isoinfo', description="Print ISO info")
+        p.add_argument('uuid', help='ISO UUID')
+        p.set_defaults(func=self.isoinfo)
 
         #add parser for turntemplate
         p = self.subparsers.add_parser('turntemplate', description="Enable/disable template in vmemperor (Administrator only)")
@@ -248,11 +263,31 @@ class Main():
     @login
     def netinfo(self, args):
         r = requests.post("%s/netinfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
-
         js = json.loads(r.text)
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
 
+
+    @login
+    def vdiinfo(self, args):
+        r = requests.post("%s/vdiinfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
+        js = json.loads(r.text)
+        pprint.pprint(js)
+        print(r.status_code, file=sys.stderr)
+
+    @login
+    def isoinfo(self, args):
+        r = requests.post("%s/isoinfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
+        js = json.loads(r.text)
+        pprint.pprint(js)
+        print(r.status_code, file=sys.stderr)
+
+    @login
+    def vmdiskinfo(self, args):
+        r = requests.post("%s/vmdiskinfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
+        js = json.loads(r.text)
+        pprint.pprint(js)
+        print(r.status_code, file=sys.stderr)
     @login
     def start(self, args):
         r = requests.post("%s/startstopvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, enable=True))
