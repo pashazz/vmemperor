@@ -3,11 +3,13 @@
 // Individual exports for testing
 
 
-import {VM_CONVERT} from "./constants";
+import {VM_CONVERT, VM_REQUEST_DISKINFO} from "./constants";
 import {VM_RUN_ERROR} from "../App/constants";
  import {convert} from "../../api/vm";
  import {vm_run_error} from "../App/actions";
  import {handleVMErrors} from '../App/saga';
+ import {diskInfo} from "../../api/vm";
+ import {setDiskInfo} from "./actions";
 
  const actionHandlers = {
   [VM_CONVERT]: {
@@ -22,7 +24,6 @@ import {VM_RUN_ERROR} from "../App/constants";
 
 
  function* handleActions(action) {
-   console.log("hello");
    const {type, ...rest} = action;
    const handler = actionHandlers[type];
    console.log("vmsettings: handle" + type);
@@ -46,11 +47,19 @@ import {VM_RUN_ERROR} from "../App/constants";
  }
 
 
+ function* requestDiskInfo(action) {
+   const {uuid} = action;
+   const response = yield call(diskInfo, uuid);
+   if (response.data) {
+     yield put(setDiskInfo(response.data));
+   }
+ }
+
+
 
 export default function* rootSaga() {
   // See example in containers/HomePage/saga.js
   yield takeEvery(VM_CONVERT, handleActions);
-
-
+  yield takeEvery(VM_REQUEST_DISKINFO, requestDiskInfo);
 
 }

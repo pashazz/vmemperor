@@ -100,7 +100,9 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
           <TabPane tabId="storage">
             <Row>
               <Col sm="12">
-                <Storage/>
+                <Storage
+                data={data}
+                diskInfo={this.props.diskInfo}/>
               </Col>
             </Row>
           </TabPane>
@@ -131,6 +133,7 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
     }
     static propTypes = {
       data: T.any.isRequired,
+      diskInfo: T.any.isRequired,
       onHalt: T.func.isRequired,
       onReboot: T.func.isRequired,
       onConvertVm: T.func.isRequired,

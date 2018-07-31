@@ -19,8 +19,8 @@ import saga from './saga';
 import VmsettingsForm from "../../components/VmsettingsForm";
 import {makeSelectVmData} from "../../containers/App/selectors";
 import { halt, run, reboot } from "../App/actions";
-import { vm_convert} from "./actions";
-import {makeSelectVmDataForTable} from "../Vms/selectors";
+import {requestDiskInfo, vm_convert} from "./actions";
+import {makeSelectDiskInfo} from "./selectors";
 
 class VMSettings extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
   constructor(props)
@@ -30,6 +30,7 @@ class VMSettings extends React.PureComponent { // eslint-disable-line react/pref
     this.onHalt = this.onHalt.bind(this);
     this.onReboot = this.onReboot.bind(this);
     this.onConvertVm = this.onConvertVm.bind(this);
+
   }
 
   /* static getDerivedStateFromProps(props, state)
@@ -81,6 +82,15 @@ class VMSettings extends React.PureComponent { // eslint-disable-line react/pref
     }
   }
 
+  componentDidMount()
+  {
+    const { props } = this;
+    if (!props.diskInfo.size && props.match)
+    {
+      props.requestDiskInfo(props.match.params.uuid);
+    }
+  }
+
 
   render() {
     const data  = this.props.vm_data.get(this.props.match.params.uuid);
@@ -102,6 +112,7 @@ class VMSettings extends React.PureComponent { // eslint-disable-line react/pref
             onHalt={this.onHalt}
             onReboot={this.onReboot}
             onConvertVm={this.onConvertVm}
+            diskInfo={this.props.diskInfo}
           />
         </div>
       );
@@ -124,6 +135,7 @@ VMSettings.propTypes = {
 
 const mapStateToProps = createStructuredSelector({
   vm_data: makeSelectVmData(),
+  diskInfo: makeSelectDiskInfo(),
 });
 
 const mapDispatchToProps = {
@@ -131,6 +143,7 @@ const mapDispatchToProps = {
   run,
   reboot,
   vm_convert,
+  requestDiskInfo,
 };
 
 

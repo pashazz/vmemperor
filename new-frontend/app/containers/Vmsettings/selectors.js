@@ -3,6 +3,7 @@ import { createSelector } from 'reselect';
 /**
  * Direct selector to the vmsettings state domain
  */
+const makeSelectVmSettingsDomain = () => (state) => state.get('vmsettings');
 const makeSelectAppDomain = () => (state) => state.get('app');
 const selectVmData = (state) => selectAppData(state).get('vm_data');
 /**
@@ -11,12 +12,23 @@ const selectVmData = (state) => selectAppData(state).get('vm_data');
 
 const makeSelectVmData = () => createSelector(
   makeSelectAppDomain(),
-  state =>{console.log("VM DATA: ", state.get('vm_data')); return state.get('vm_data') }
+  state =>{ return state.get('vm_data'); }
+);
+
+const makeSelectDiskInfo = () => createSelector(
+  makeSelectVmSettingsDomain(),
+  state => { return state.get('vm_disk_info').entrySeq().map(value => {
+    return {
+      key: value[0],
+      ...value[1].toJS(),
+    };
+  }).toArray()}
 );
 /**
  * Default selector used by VMSettings
  */
 
 export {
-  makeSelectVmData
+  makeSelectVmData,
+  makeSelectDiskInfo
 };

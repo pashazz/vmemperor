@@ -338,32 +338,44 @@ class TurnTemplate(BaseHandler):
         self.write({'status' : 'ok'})
 
 
-class NetworkList(BaseHandler):
+class ResourceList(BaseHandler):
     @auth_required
     def get(self):
         with self.conn:
             db = r.db(opts.database)
             try:
                 if isinstance(self.user_authenticator, AdministratorAuthenticator):
-                    query = db.table('nets').coerce_to('array')
+                    query = db.table(self.table).coerce_to('array')
 
                 else:
                     userid = str(self.user_authenticator.get_id())
-                    query = db.table('nets_user').get_all('users/%s' % userid, index='userid').\
+                    query = db.table(self.table + '_user').get_all('users/%s' % userid, index='userid').\
                         pluck('uuid').coerce_to('array').\
-                        merge(db.table('nets').get(r.row['uuid']).without('uuid'))
+                        merge(db.table(self.table).get(r.row['uuid']).without('uuid'))
 
                     for group in self.user_authenticator.get_user_groups():
                         group = str(group)
-                        query = query.union(db.table('nets_user').get_all('groups/%s' % group, index='userid').\
+                        query = query.union(db.table(self.table + '_user').get_all('groups/%s' % group, index='userid').\
                                             without('id').coerce_to('array').\
-                                            merge(db.table('nets').get(r.row['uuid']).without('uuid')))
+                                            merge(db.table(self.table).get(r.row['uuid']).without('uuid')))
+
+                page = int(self.get_argument('page', -1))
+                if page > 0:
+                    page_size = int(self.get_argument('page_size', 10))
+                    query = query.slice((page-1)*page_size, page_size)
 
                 self.write(json.dumps(query.run()))
+
 
             except Exception as e:
                 self.set_status(500)
                 self.log.error("Exception: {0}".format(e))
+
+class NetworkList(ResourceList):
+    table = 'nets'
+
+class VDIList(ResourceList):
+    table = 'vdis'
 
 
 class VMList(BaseWSHandler):
@@ -1771,6 +1783,7 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/installstatus', InstallStatus, dict(executor=executor)),
         (r'/vminfo', VMInfo, dict(executor=executor)),
         (r'/isolist', ISOList, dict(executor=executor)),
+        (r'/vdilist', VDIList, dict(executor=executor)),
         (r'/setaccess', SetAccessHandler, dict(executor=executor)),
         (r'/getaccess', GetAccessHandler, dict(executor=executor)),
         (r'/netinfo', NetworkInfo, dict(executor=executor)),

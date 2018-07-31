@@ -21,5 +21,10 @@ export const reboot = async(uuid) =>
 
 export const convert = async(uuid, mode) =>
 {
-  return await axios.post('/api/convertvm', {uuid, mode})
+  return await axios.post('/api/convertvm', {uuid, mode});
+};
+
+export const diskInfo = async (uuid) =>
+{
+  return await axios.post('/api/vmdiskinfo', {uuid});
 };

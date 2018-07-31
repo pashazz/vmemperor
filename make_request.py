@@ -157,16 +157,22 @@ class Main():
         p.add_argument('uuid', help='Template UUID')
         p.set_defaults(func=self.turntemplate)
 
-        #add parser to convertvm
+        #add parser for convertvm
         p = self.subparsers.add_parser('convertvm', description="Convert VM type (PV/HVM)")
         p.add_argument('uuid', help='VM UUID')
         p.add_argument('mode', choices=['pv', 'hvm'])
         p.set_defaults(func=self.convertvm)
 
-        #add parser to convertvm
+        #add parser for reboot
         p = self.subparsers.add_parser('reboot', description="Reboot VM (clean if possible)")
         p.add_argument('uuid', help='VM UUID')
         p.set_defaults(func=self.reboot)
+
+        # add parser for vdilist
+        p = self.subparsers.add_parser('vdilist', description="VDI list")
+        p.add_argument('--page', help="page number, 0 to disable pagination", default=0)
+        p.add_argument('--pageSize', help="page size, default 10", default=10)
+        p.set_defaults(func=self.vdilist)
 
         #add parser for everything else
         for method in inspect.getmembers(self, predicate=inspect.ismethod):
@@ -364,6 +370,14 @@ class Main():
     @login
     def isolist(self, args):
         r = requests.get("%s/isolist" % self.url, cookies=self.jar)
+        js = json.loads(r.text)
+        pprint.pprint(js)
+        print(r.status_code, file=sys.stderr)
+
+
+    @login
+    def vdilist(self, args):
+        r = requests.get("%s/vdilist" % self.url, cookies=self.jar, data=dict(page=args.page, page_size=args.pageSize))
         js = json.loads(r.text)
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
