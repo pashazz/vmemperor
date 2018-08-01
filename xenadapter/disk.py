@@ -83,8 +83,18 @@ class Attachable:
 
         return
 
+    @classmethod
+    def get_vbd_vms(self, record, auth):
 
+        def vbd_to_vm_uuid(vbd_ref):
+            from .vbd import VBD
+            from .vm import VM
 
+            vbd = VBD(auth=auth, ref=vbd_ref)
+            vm = VM(auth=auth, ref=vbd.get_VM())
+            return vm.uuid
+
+        return [vbd_to_vm_uuid(ref) for ref in record['VBDs']]
 
 
 class ISO(XenObject, Attachable):
@@ -122,6 +132,7 @@ class ISO(XenObject, Attachable):
                 new_rec = cls.process_record(auth, event['ref'], record)
                 # We need SR information
                 new_rec['SR'] = SR['uuid']
+                new_rec['VMs'] = Attachable.get_vbd_vms(record, auth)
 
                 from vmemperor import CHECK_ER
                 CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
@@ -204,6 +215,8 @@ class VDI(ACLXenObject):
                 # get access information
                 new_rec = cls.process_record(auth, event['ref'], record)
                 new_rec['SR'] = SR['uuid']
+                new_rec['VMs'] = Attachable.get_vbd_vms(record, auth)
+
 
                 from vmemperor import CHECK_ER
                 CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())

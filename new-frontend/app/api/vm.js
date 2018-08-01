@@ -1,4 +1,5 @@
 import axios from 'axios';
+
 export const startStopVm = async (uuid, isStart) =>
 {
   return await axios.post('/api/startstopvm', { uuid, enable: isStart});
@@ -27,4 +28,7 @@ export const convert = async(uuid, mode) =>
 export const diskInfo = async (uuid) =>
 {
   return await axios.post('/api/vmdiskinfo', {uuid});
+};
+export const vminfo = async (uuid) => {
+  return await axios.post('/api/vminfo', {uuid});
 };
