@@ -71,7 +71,13 @@ class StorageAttach extends PureComponent
 
   rowFilter(row)
   {
-    return row.VMs.filter(vm => vm.uuid === uuid).length > 0;
+    try {
+      return row.VMs.filter(vm => vm.uuid === uuid).length > 0;
+    }
+    catch (e) {
+      console.warn("Exception in rowFilter:", e);
+      return false;
+    }
   }
 
 
@@ -83,6 +89,7 @@ class StorageAttach extends PureComponent
       sizePerPage={10}
       columns={columns}
       rowFilter={this.rowFilter}
+      noData={() =>  "No disks available for attaching"}
       />)
   }
 

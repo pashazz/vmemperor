@@ -9,6 +9,7 @@ export default class TableWithPagination extends PureComponent
   static propTypes =
     {
       fetcher: T.func.isRequired,
+      noData: T.func,
       sizePerPage: T.number.isRequired,
       columns: T.arrayOf(
         T.shape({
@@ -72,6 +73,7 @@ export default class TableWithPagination extends PureComponent
         pagination={paginationFactory(page, sizePerPage, totalSize)}
         onTableChange={this.handlePageChange}
         caption={this.props.caption}
+        noDataIndication={this.props.noData}
         />
     );
   }

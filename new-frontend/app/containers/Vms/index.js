@@ -219,6 +219,7 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
           rowClasses={this.rowClasses}
           rowEvents={rowEvents}
           style={tableStyle}
+          noDataIndication="No VMs available... create something new!"
           striped
           hover/>
       </React.Fragment>);
