@@ -1,6 +1,6 @@
 import React from 'react';
-import Select from 'react-select';
-//import { styles } from 'react-select-bootstrap3';
+//import Select from 'react-select';
+import Select from '@availity/reactstrap-validation-select';
 
 
 const select = (props) => (

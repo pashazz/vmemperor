@@ -17,6 +17,8 @@ import BasicRecord from 'models/BasicRecord';
 import ISO from 'models/ISO';
 import Network, { NetworkShape } from 'models/Network';
 import Template from 'models/Template';
+import { AvForm } from 'availity-reactstrap-validation';
+import App from "../../containers/App";
 
 function getTemplates(pool = null) {
   return pool ?
@@ -212,7 +214,7 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
   //  const currentHooks = getHooks(currentTemplate);
 
     return (
-      <form role="form" className={styles.vmForm} onSubmit={this.handleSubmit}>
+      <AvForm className={styles.vmForm} onValidSubmit={this.handleSubmit}>
         <h4 style={{ margin: '20px'}}><FormattedMessage {...messages.infrastructure} /></h4>
         <VMInput.Pool pools={this.props.pools} selected={form['pool-select']} onChange={this.onInputTextChange} />
         {form['pool-select'] && (
@@ -274,7 +276,7 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
         <br />
          */}
         <input type="submit" className="btn btn-lg btn-primary btn-block" />
-      </form>
+      </AvForm>
     );
   }
 }

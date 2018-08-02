@@ -53,7 +53,7 @@ const firstTouchWrapper = (WrappedComponent) =>
   };
 
 const exportObject = {
-  Pool: firstTouchWrapper(Pool),
+  Pool: Pool,
   Template: firstTouchWrapper(Template),
   Storage: firstTouchWrapper(Storage),
   Network: firstTouchWrapper(Network),

@@ -24,6 +24,7 @@ class SelectList extends PureComponent {
   static PropTypes = {
     data: IPT.listOf(IPT.record).isRequired,
     onChange: T.func.isRequired,
+
   };
 
   render() {
