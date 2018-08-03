@@ -78,6 +78,14 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
           </NavItem>
           <NavItem>
             <NavLink
+              className={classnames({ active: this.state.activeTab === 'network' })}
+              onClick={() => { this.toggle('storage'); }}
+            >
+              Network
+            </NavLink>
+          </NavItem>
+          <NavItem>
+            <NavLink
               className={classnames({ active: this.state.activeTab === '2' })}
               onClick={() => { this.toggle('2'); }}
             >
@@ -108,6 +116,8 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
           </TabPane>
           <TabPane tabId="vnc">
             <h1>Use power tab for now</h1>
+          </TabPane>
+          <TabPane tabId="network">
           </TabPane>
           <TabPane tabId="2">
             <Row>
