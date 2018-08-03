@@ -9,26 +9,31 @@ import React, {PureComponent } from 'react';
 import {sizeFormatter} from "../../../utils/sizeFormatter";
 import BluePromise from 'bluebird';
 
-const myFetcher = (fetchFunc) =>   async(page, sizePerPage) =>
+const myFetcher = (fillVms) => (fetchFunc) =>   async(page, sizePerPage) =>
 {
   const list = await fetchFunc(page, sizePerPage);
   return await BluePromise.map(list.data, async(record) => {
     const {VMs, ...rest} = record;
-    rest.VMs = await BluePromise.map(VMs, async(uuid) =>
-    {
-      try {
-        const ret = await vminfo(uuid);
-        return ret.data;
-      }
-      catch (e) {
-        return {
-          uuid,
-          name_label: "Unknown VM"
+    if (fillVms) {
+      rest.VMs = await BluePromise.map(VMs, async (uuid) => {
+        try {
+          const ret = await vminfo(uuid);
+          return ret.data;
         }
+        catch (e) {
+          return {
+            uuid,
+            name_label: "Unknown VM"
+          }
+        }
+
+
       }
-
-
-    });
+      );
+    }
+    else {
+      rest.VMs = VMs.map(vm => {return {uuid: vm, name_label: ""}});
+    }
     console.log("Rest: ", rest);
     return rest;
   } );
@@ -115,11 +120,12 @@ class StorageAttach extends PureComponent
     return (
       <div>
       <TableWithPagination
-      fetcher={myFetcher(this.props.fetch)}
+      fetcher={myFetcher(this.props.showConnectedTo)(this.props.fetch)}
       sizePerPage={10}
       columns={this.state.columns}
       rowFilter={this.rowFilter}
       noData={() =>  "No disks available for attaching"}
+      actions={this.props.actions}
       />
       </div>)
   }

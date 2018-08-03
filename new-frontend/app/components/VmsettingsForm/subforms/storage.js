@@ -66,11 +66,17 @@ class Storage extends PureComponent {
     this.state = {
       vdiAttach: false,
       isoAttach: false,
+      selected: [],
     };
     this.toggleVdiAttach = this.toggleVdiAttach.bind(this);
     this.toggleIsoAttach = this.toggleIsoAttach.bind(this);
+    this.onDetach = this.onDetach.bind(this);
   }
 
+  onDetach()
+  {
+    console.log("Detach disk");
+  }
   toggleIsoAttach()
   {
     let set = {
@@ -95,6 +101,56 @@ class Storage extends PureComponent {
   }
   render()
   {
+    const actions = [
+      {
+        text: "Create",
+        color: "info",
+        type: "always",
+        handler: () => { console.log("EMIT Create new Disk!")}
+
+      },
+      {
+        text: "Delete",
+        color: "danger",
+        type: "selection",
+        handler: (row) => { console.log ("Delete a Disk!", row); },
+        filter: (row) => {return row.VMs.length === 0;}
+      }
+
+    ];
+
+    const selectRow = {
+      mode: 'checkbox',
+      clickToSelect: true,
+      selected: this.state.selected,
+      onSelect: (row, isSelect) => {
+        console.log(isSelect);
+        console.log(this.state);
+        if (isSelect) {
+          this.setState(() => ({
+            selected: [...this.state.selected, row.key]
+          }));
+        }
+        else {
+          this.setState(() => ({
+            selected: this.state.selected.filter(x => x !== row.key),
+          }))
+        }
+      },
+      onSelectAll: (isSelect, rows) => {
+        if (isSelect) {
+        this.setState(() => ({
+          selected: rows.map(r => r.key)
+        }));
+        }
+        else {
+          this.setState(() => ({
+            selected: [],
+          }))
+        }
+      }
+};
+    const detachDisabled = this.state.selected.length === 0;
     return (
       <React.Fragment>
       <Row>
@@ -107,28 +163,24 @@ class Storage extends PureComponent {
                   columns={columns}
                   data={this.props.diskInfo}
                   keyField="key"
-
+                  selectRow={selectRow}
                   />
               </CardText>
             </CardBody>
             <CardFooter>
               <Button size="lg" color="success" onClick={this.toggleVdiAttach} active={this.state.vdiAttach} aria-pressed="true"> Attach virtual hard disk </Button>
               <Button size="lg" color="success" onClick={this.toggleIsoAttach} active={this.state.isoAttach} aria-pressed="true"> Attach ISO image </Button>
-              <Button size="lg" color="danger"> Detach </Button>
+              <Button size="lg" color="danger" disabled={detachDisabled}> Detach </Button>
               <Collapse id="collVdi"
                 isOpen={this.state.vdiAttach}>
-                <UncontrolledAlert color='info'>Double-click to attach a disk</UncontrolledAlert>
+                <UncontrolledAlert color='info'>Double-click to attach a disk. You can't delete an attached disk</UncontrolledAlert>
               <StorageAttach
                   uuid={this.props.data.get('uuid')}
                   caption="Hard disks"
                   fetch={vdilist}
                   showConnectedTo
+                  actions={actions}
                   />
-
-                <ButtonGroup>
-                  <Button>Create new disk</Button>
-                  <Button>Delete</Button>
-                </ButtonGroup>
               </Collapse>
               <Collapse id="collIso"
                         isOpen={this.state.isoAttach}>
