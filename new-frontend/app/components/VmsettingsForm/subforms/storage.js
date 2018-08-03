@@ -8,6 +8,10 @@ import StorageAttach from "./storageAttach";
 import {vdilist} from "../../../api/vdi";
 import isolist from "../../../api/isolist";
 
+import ControlledTable, { selectors } from 'containers/ControlledTable';
+import {connect} from 'react-redux';
+import { compose } from 'redux';
+import { createStructuredSelector } from 'reselect';
 const checkBoxFormatter = (cell, row) =>
 {
   if (cell)
@@ -150,7 +154,8 @@ class Storage extends PureComponent {
         }
       }
 };
-    const detachDisabled = this.state.selected.length === 0;
+    const detachDisabled = this.props.table_selection.length === 0;
+    const DiskTable = ControlledTable("disks");
     return (
       <React.Fragment>
       <Row>
@@ -159,11 +164,10 @@ class Storage extends PureComponent {
             <CardBody>
               <CardTitle>Virtual disks</CardTitle>
               <CardText>
-                <NextTable
+                <DiskTable
                   columns={columns}
                   data={this.props.diskInfo}
                   keyField="key"
-                  selectRow={selectRow}
                   />
               </CardText>
             </CardBody>
@@ -202,4 +206,11 @@ class Storage extends PureComponent {
     );
   }
 }
-export default Storage;
+
+const mapStateToProps = createStructuredSelector({
+  table_selection: selectors("disks").makeSelectionSelector()
+});
+const mapDispatchToProps = {};
+const withConnect = connect(mapStateToProps, mapDispatchToProps);
+
+export default compose(withConnect)(Storage);
