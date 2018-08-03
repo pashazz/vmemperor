@@ -411,13 +411,14 @@ class VM (AbstractVM):
         self.start_stop_vm(False)
 
         vbds = self.get_VBDs()
-        vdis = [VBD(self.auth, ref=vbd_ref).get_VDI() for vbd_ref in vbds]
+        vdis = [VBD(self.auth, ref=vbd_ref) for vbd_ref in vbds]
 
         try:
             self.destroy()
             for vdi_ref in vdis:
                 vdi = VDI(auth=self.auth, ref=vdi_ref)
-                vdi.destroy()
+                if len(vdi.get_VBDs()) < 2:
+                    vdi.destroy()
 
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self.log, "Failed to destroy VM",f.details)

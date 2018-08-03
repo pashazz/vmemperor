@@ -24,7 +24,8 @@ module.exports = (options) => ({
     rules: [
       {
         test: /\.js$/, // Transform all .js files required somewhere with Babel
-        exclude: /node_modules/,
+        //exclude: /node_modules/,
+        exclude: /node_modules[\\/](?!@av).*/,
         use: {
           loader: 'babel-loader',
           options: options.babelQuery,

@@ -726,6 +726,12 @@ class CreateVM(BaseHandler):
             db = r.db(opts.database)
             tmpls = db.table('tmpls').run()
             self.template = None
+            if not tmpl_name:
+                self.set_status(400)
+                self.write({'status' : 'bad argument: template', 'message': 'bad request'})
+                self.log.error("Client supplied no template");
+                self.finish()
+
             for tmpl in tmpls:
                 if tmpl['uuid'] == tmpl_name or \
                 tmpl['name_label'] == tmpl_name:

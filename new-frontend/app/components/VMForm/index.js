@@ -18,7 +18,6 @@ import ISO from 'models/ISO';
 import Network, { NetworkShape } from 'models/Network';
 import Template from 'models/Template';
 import { AvForm } from 'availity-reactstrap-validation';
-import App from "../../containers/App";
 
 function getTemplates(pool = null) {
   return pool ?

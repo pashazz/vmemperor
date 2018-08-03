@@ -179,9 +179,7 @@
       "bootstrap",
       "ip",
       "minimist",
-      "sanitize.css",
-      "@availity/reactstrap-validation-select",
-      "@novnc/novnc"
+      "sanitize.css"
     ],
     "include": [
       "core-js",

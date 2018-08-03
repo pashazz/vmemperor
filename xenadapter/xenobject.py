@@ -8,6 +8,23 @@ from . import use_logger
 from .xenobjectdict import XenObjectDict
 import threading
 
+
+def dict_deep_convert(d):
+    def convert_to_bool(v):
+        if isinstance(v, str):
+            if v.lower() == 'true':
+                return True
+            elif v.lower() == 'false':
+                return False
+        elif isinstance(v, dict):
+            return dict_deep_convert(v)
+
+        return v
+
+    return {k: convert_to_bool(v) for k, v in d.items()}
+
+
+
 class XenObjectMeta(type):
     def __getattr__(cls, item):
         if item[0] == '_':
@@ -21,7 +38,10 @@ class XenObjectMeta(type):
             api = getattr(auth.xen.api, api_class)
             attr = getattr(api, item)
             try:
-                return attr(*args, **kwargs)
+                ret = attr(*args, **kwargs)
+                if isinstance(ret, dict):
+                    ret = dict_deep_convert(ret)
+                return ret
             except XenAPI.Failure as f:
                 raise XenAdapterAPIError(auth.xen.log, "Failed to execute static method %s::%s"
                                          % (api_class, item ), f.details)
@@ -41,6 +61,7 @@ class XenObject(metaclass=XenObjectMeta):
     PROCESS_KEYS=[]
     _db_created = False
     db = None
+
 
 
 
@@ -178,6 +199,9 @@ class XenObject(metaclass=XenObjectMeta):
     def init_db(cls, auth):
         return [cls.process_record(auth, ref, record) for ref, record in cls.get_all_records(auth).items()]
 
+    def set_other_config(self, config):
+        config = {k : str(v) for k,v in config.items()}
+        self.__getattr__('set_other_config')(config)
 
 
     def __getattr__(self, name):
@@ -195,9 +219,13 @@ class XenObject(metaclass=XenObjectMeta):
         attr = getattr(api, name)
         def method (*args, **kwargs):
             try:
-                return attr(self.ref, *args, **kwargs)
+                ret =  attr(self.ref, *args, **kwargs)
+                if isinstance(ret, dict):
+                    ret = dict_deep_convert(ret)
+
+                return ret
             except XenAPI.Failure as f:
-                raise XenAdapterAPIError(self.log, "Failed  to execute {0}::{1}".format(self.api_class, name), f.details)
+                raise XenAdapterAPIError(self.log, "Failed to execute {0}::{1}".format(self.api_class, name), f.details)
         return method
 
 
