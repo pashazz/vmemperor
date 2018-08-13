@@ -110,7 +110,10 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
               <Col sm="12">
                 <Storage
                 data={data}
-                diskInfo={this.props.diskInfo}/>
+                diskInfo={this.props.diskInfo}
+                onDetachVdi={this.props.onDetachVdi}
+                onAttachVdi={this.props.onAttachVdi}
+                />
               </Col>
             </Row>
           </TabPane>
@@ -147,6 +150,8 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
       onHalt: T.func.isRequired,
       onReboot: T.func.isRequired,
       onConvertVm: T.func.isRequired,
+      onDetachVdi: T.func.isRequired,
+      onAttachVdi: T.func.isRequired,
     }
 
 

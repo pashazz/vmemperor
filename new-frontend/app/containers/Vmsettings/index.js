@@ -19,7 +19,7 @@ import saga from './saga';
 import VmsettingsForm from "../../components/VmsettingsForm";
 import {makeSelectVmData} from "../../containers/App/selectors";
 import { halt, run, reboot } from "../App/actions";
-import {requestDiskInfo, vm_convert} from "./actions";
+import {requestDiskInfo, vm_convert, vdi_detach, vdi_attach, vmWatch} from "./actions";
 import {makeSelectDiskInfo} from "./selectors";
 
 class VMSettings extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
@@ -30,6 +30,8 @@ class VMSettings extends React.PureComponent { // eslint-disable-line react/pref
     this.onHalt = this.onHalt.bind(this);
     this.onReboot = this.onReboot.bind(this);
     this.onConvertVm = this.onConvertVm.bind(this);
+    this.onDetachVdi = this.onDetachVdi.bind(this);
+    this.onAttachVdi = this.onAttachVdi.bind(this);
 
   }
 
@@ -82,12 +84,30 @@ class VMSettings extends React.PureComponent { // eslint-disable-line react/pref
     }
   }
 
+  onDetachVdi(vdi)
+  {
+    this.props.vdi_detach(this.props.match.params.uuid, vdi);
+    //this.props.requestDiskInfo(this.props.match.params.uuid);
+  }
+
+  onAttachVdi(vdi)
+  {
+    this.props.vdi_attach(this.props.match.params.uuid, vdi);
+    //this.props.requestDiskInfo(this.props.match.params.uuid);
+  }
+
   componentDidMount()
   {
+
     const { props } = this;
-    if (!props.diskInfo.size && props.match)
-    {
-      props.requestDiskInfo(props.match.params.uuid);
+    if (props.match) {
+      if (props.vmWatch)
+      {
+        props.vmWatch(props.match.params.uuid);
+      }
+      if (!props.diskInfo.size) {
+        props.requestDiskInfo(props.match.params.uuid);
+      }
     }
   }
 
@@ -112,6 +132,8 @@ class VMSettings extends React.PureComponent { // eslint-disable-line react/pref
             onHalt={this.onHalt}
             onReboot={this.onReboot}
             onConvertVm={this.onConvertVm}
+            onAttachVdi={this.onAttachVdi}
+            onDetachVdi={this.onDetachVdi}
             diskInfo={this.props.diskInfo}
           />
         </div>
@@ -131,6 +153,8 @@ VMSettings.propTypes = {
   run: T.func.isRequired,
   reboot: T.func.isRequired,
   vm_convert: T.func.isRequired,
+  vdi_detach: T.func.isRequired,
+  vdi_attach: T.func.isRequired,
 };
 
 const mapStateToProps = createStructuredSelector({
@@ -144,6 +168,9 @@ const mapDispatchToProps = {
   reboot,
   vm_convert,
   requestDiskInfo,
+  vdi_detach,
+  vdi_attach,
+  vmWatch
 };
 
 

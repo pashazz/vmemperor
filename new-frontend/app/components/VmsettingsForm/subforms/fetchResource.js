@@ -26,7 +26,6 @@ const myFetcher = (fillVms) => (fetchFunc) => async (page, sizePerPage) => {
         return {uuid: vm, name_label: ""}
       });
     }
-    console.log("Rest: ", rest);
     return rest;
   });
 };

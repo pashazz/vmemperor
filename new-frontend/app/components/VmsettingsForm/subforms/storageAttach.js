@@ -34,7 +34,6 @@ const myFetcher = (fillVms) => (fetchFunc) =>   async(page, sizePerPage) =>
     else {
       rest.VMs = VMs.map(vm => {return {uuid: vm, name_label: ""}});
     }
-    console.log("Rest: ", rest);
     return rest;
   } );
 };
@@ -55,6 +54,7 @@ class StorageAttach extends PureComponent
     uuid: T.string,
     caption: T.string.isRequired,
     fetch: T.func.isRequired,
+    onAttach: T.func.isRequired,
     showConnectedTo: T.bool.isRequired
   };
 
@@ -63,6 +63,14 @@ class StorageAttach extends PureComponent
     super(props);
     this.rowFilter = this.rowFilter.bind(this);
     this.render = this.render.bind(this);
+    this.onDoubleClick = this.onDoubleClick.bind(this);
+
+  }
+
+  onDoubleClick(row)
+  {
+    this.props.onAttach(row.uuid);
+
   }
 
   static  getDerivedStateFromProps(props, state)
@@ -126,6 +134,8 @@ class StorageAttach extends PureComponent
       rowFilter={this.rowFilter}
       noData={() =>  "No disks available for attaching"}
       actions={this.props.actions}
+      onDoubleClick={this.onDoubleClick}
+      refresh={this.props.refresh}
       />
       </div>)
   }

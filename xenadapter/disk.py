@@ -23,21 +23,32 @@ class Attachable:
         vm_vbds = vm.get_VBDs()
         my_vbds = self.get_VBDs()
 
+        userdevice_max = -1
         for vm_vbd in vm_vbds:
             for vdi_vbd in my_vbds:
                 if vm_vbd == vdi_vbd:
                     vbd_uuid = self.auth.xen.api.VBD.get_uuid(vm_vbd)
                     self.log.warning ("Disk is already attached with VBD UUID {0}".format(vbd_uuid))
                     return vbd_uuid
+            try:
+                userdevice = int(self.auth.xen.api.VBD.get_userdevice(vm_vbd))
+            except ValueError:
+                userdevice = -1
 
-        args = {'VM': vm.ref, 'VDI': self.ref, 'userdevice': str(len(vm_vbds)),
+            if userdevice_max < userdevice:
+                userdevice_max = userdevice
+
+        userdevice_max += 1
+
+        args = {'VM': vm.ref, 'VDI': self.ref,
+                'userdevice': str(userdevice_max),
         'bootable' : True, 'mode' :mode, 'type' : type, 'empty' : empty,
         'other_config' : {},'qos_algorithm_type': '', 'qos_algorithm_params': {}}
 
         try:
             vbd_ref = self.auth.xen.api.VBD.create(args)
         except XenAPI.Failure as f:
-            raise XenAdapterAPIError(self.auth.xen.log, "Failed to create VBD: {0}".format(f.details))
+            raise XenAdapterAPIError(self.auth.xen.log, "Failed to create VBD", f.details)
 
         vbd_uuid = self.auth.xen.api.VBD.get_uuid(vbd_ref)
         if (vm.get_power_state() == 'Running'):
@@ -142,10 +153,10 @@ class ISO(XenObject, Attachable):
 
     def attach(self, vm : VM) -> VBD:
         '''
-        Attaches ISO to a vm
+        Attaches VDI to a vm as RW
         :param vm:
-        :return:
         WARNING: It does not check whether self is a real ISO, do it for yourself.
+
         '''
         return VBD(auth=self.auth, uuid=self._attach(vm, 'CD', 'RO'))
 
@@ -154,7 +165,7 @@ class ISO(XenObject, Attachable):
 
 
 
-class VDI(ACLXenObject):
+class VDI(ACLXenObject, Attachable):
     api_class = 'VDI'
     db_table_name = 'vdis'
     EVENT_CLASSES = ['vdi']
@@ -232,6 +243,17 @@ class VDI(ACLXenObject):
         else:
             return False
 
+
+    def attach(self, vm) -> VBD:
+        '''
+        Attaches ISO to a vm
+        :param vm:
+        :return:
+        '''
+        return VBD(auth=self.auth, uuid=self._attach(vm, 'Disk', 'RW'))
+
+    def detach(self, vm):
+        self._detach(vm)
 
 
 

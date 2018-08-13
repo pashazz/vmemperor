@@ -5,7 +5,7 @@ import FontAwesomeIcon from '@fortawesome/react-fontawesome';
 import faCheck from '@fortawesome/fontawesome-free-solid/faCheck';
 import {sizeFormatter} from "../../../utils/sizeFormatter";
 import StorageAttach from "./storageAttach";
-import {vdilist} from "../../../api/vdi";
+import {detachvdi, vdilist} from "../../../api/vdi";
 import isolist from "../../../api/isolist";
 
 import ControlledTable, { selectors } from 'containers/ControlledTable';
@@ -71,15 +71,26 @@ class Storage extends PureComponent {
       vdiAttach: false,
       isoAttach: false,
       selected: [],
+      refreshWidgets: false,
     };
     this.toggleVdiAttach = this.toggleVdiAttach.bind(this);
     this.toggleIsoAttach = this.toggleIsoAttach.bind(this);
     this.onDetach = this.onDetach.bind(this);
+    this.refreshWidgets = this.refreshWidgets.bind(this);
   }
 
+  refreshWidgets()
+  {
+    this.setState({refreshWidgets: !this.state.refreshWidgets})
+  }
   onDetach()
   {
-    console.log("Detach disk");
+    for (const ref of this.props.table_selection)
+    {
+      const vdi = this.props.diskInfo.filter(row => row.key === ref )[0]['VDI'];
+      this.props.onDetachVdi(vdi);
+    }
+    this.refreshWidgets();
   }
   toggleIsoAttach()
   {
@@ -174,7 +185,7 @@ class Storage extends PureComponent {
             <CardFooter>
               <Button size="lg" color="success" onClick={this.toggleVdiAttach} active={this.state.vdiAttach} aria-pressed="true"> Attach virtual hard disk </Button>
               <Button size="lg" color="success" onClick={this.toggleIsoAttach} active={this.state.isoAttach} aria-pressed="true"> Attach ISO image </Button>
-              <Button size="lg" color="danger" disabled={detachDisabled}> Detach </Button>
+              <Button size="lg" color="danger" disabled={detachDisabled} onClick={this.onDetach}> Detach </Button>
               <Collapse id="collVdi"
                 isOpen={this.state.vdiAttach}>
                 <UncontrolledAlert color='info'>Double-click to attach a disk. You can't delete an attached disk</UncontrolledAlert>
@@ -182,7 +193,9 @@ class Storage extends PureComponent {
                   uuid={this.props.data.get('uuid')}
                   caption="Hard disks"
                   fetch={vdilist}
+                  refresh={this.refreshWidgets}
                   showConnectedTo
+                  onAttach={this.props.onAttachVdi}
                   actions={actions}
                   />
               </Collapse>
@@ -194,6 +207,7 @@ class Storage extends PureComponent {
                   caption="ISO images"
                   fetch={isolist}
                   showConnectedTo={false}
+                  refresh={this.refreshWidgets}
                 />
               </Collapse>
 

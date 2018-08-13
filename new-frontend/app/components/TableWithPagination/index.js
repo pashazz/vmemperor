@@ -29,7 +29,8 @@ export default class TableWithPagination extends PureComponent
           type: T.oneOf(['always', 'selection']),
           handler: T.func.isRequired,
         })
-      )
+      ),
+      onDoubleClick: T.func.isRequired,
     };
   constructor(props)
   {
@@ -100,6 +101,13 @@ export default class TableWithPagination extends PureComponent
     this.fetch(1, sizePerPage);
   }
 
+
+  componentWillReceiveProps(props) {
+    const { refresh } = this.props;
+    if (props.refresh !== refresh) {
+      this.fetch();
+    }
+  }
   render() {
     const { page } = this.state;
     const { sizePerPage } = this.props;
@@ -110,6 +118,14 @@ export default class TableWithPagination extends PureComponent
       selected: this.state.selected.map(row => row.uuid),
       onSelect: this.handleOnSelect,
       onSelectAll: this.handleOnSelectAll
+    };
+
+    const rowEvents = {
+      onDoubleClick: (e, row, rowIndex) =>
+      {
+        this.props.onDoubleClick(row);
+        this.fetch();
+      }
     };
 
     return (
@@ -124,6 +140,7 @@ export default class TableWithPagination extends PureComponent
         caption={this.props.caption}
         noDataIndication={this.props.noData}
         selectRow={selectRow}
+        rowEvents={rowEvents}
         />
         {
           this.props.actions && (
@@ -143,7 +160,6 @@ export default class TableWithPagination extends PureComponent
                     if (action.filter)
                     {
                       disabled = rows.filter(action.filter).length === 0;
-                      console.log("Filter it: ", rows);
                     }
                     else {
                       disabled = rows.length === 0;

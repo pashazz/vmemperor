@@ -174,6 +174,13 @@ class Main():
         p.add_argument('--pageSize', help="page size, default 10", default=10)
         p.set_defaults(func=self.vdilist)
 
+        #add parser for attachdetachvdi
+        p = self.subparsers.add_parser('attachdetachvdi', description="attach/detach VDI")
+        p.add_argument('--uuid', help="VM UUID", required=True)
+        p.add_argument('--vdi', help="VDI UUID", required=True)
+        p.add_argument('--action', choices=['attach', 'detach'], required=True)
+        p.set_defaults(func=self.attachdetachvdi)
+
         #add parser for everything else
         for method in inspect.getmembers(self, predicate=inspect.ismethod):
             if method[0].startswith('_') or method[0] in self.subparsers.choices:
@@ -282,6 +289,14 @@ class Main():
         print(r.status_code, file=sys.stderr)
 
     @login
+    def attachdetachvdi(self, args):
+        r = requests.post("%s/attachdetachvdi" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, vdi=args.vdi, action=args.action))
+        js = json.loads(r.text)
+        pprint.pprint(js)
+        print(r.status_code, file=sys.stderr)
+
+
+    @login
     def isoinfo(self, args):
         r = requests.post("%s/isoinfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
         js = json.loads(r.text)
@@ -310,6 +325,7 @@ class Main():
     def destroy(self, args):
         r = requests.post("%s/destroyvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
         print(r.text)
+
         print(r.status_code, file=sys.stderr)
 
     @login

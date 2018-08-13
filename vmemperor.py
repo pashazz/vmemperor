@@ -523,6 +523,7 @@ class VMList(BaseWSHandler):
         except Exception as e:
             self.log.error("Exception in items_changes', user: {0}: {1}, restarting..."
                            .format(self.user_authenticator.get_id(), e))
+            traceback.print_exc()
             ioloop = tornado.ioloop.IOLoop.instance()
             ioloop.run_in_executor(self.executor, self.items_changes)
 
@@ -906,28 +907,6 @@ class EnableDisableTemplate(BaseHandler):
 
 
 
-class AttachDetachDisk(BaseHandler):
-    @auth_required
-    def post(self):
-        '''
-        Attach or detach VDI from/to VM
-        Arguments:
-            vm_uuid: VM UUID
-            vdi_uuid: VDI UUID
-            enable: True if to attach disk, False if to detach.
-        '''
-        with self.conn:
-            vm_uuid = self.get_argument('vm_uuid')
-            vdi_uuid = self.get_argument('vdi_uuid')
-            enable = self.get_argument('enable')
-
-
-
-
-
-
-
-
 
 class ConnectVM(BaseHandler):
     @auth_required
@@ -968,7 +947,7 @@ class ResourceAbstractHandler(BaseHandler):
         self.uuid = uuid
         with self.conn:
             try:
-                resource_name = self.resource.__class__.__name__.lower()
+                resource_name = self.resource .__name__.lower()
                 self.__setattr__(resource_name,  self.resource(self.user_authenticator, uuid=uuid))
             except XenAdapterAPIError as e:
                 self.set_status(400)
@@ -1004,6 +983,7 @@ class VDIAbstractHandler(ResourceAbstractHandler):
 
 class ISOAbstractHandler(ResourceAbstractHandler):
     resource = ISO
+
 
 
 class SetAccessHandler(BaseHandler):
@@ -1147,6 +1127,7 @@ class VMDiskInfo(VMAbstractHandler):
 
         except Exception as e:
             self.log.error("Exception: {0}".format(e))
+            traceback.print_exc()
             self.set_status(500)
             self.write({'status' : 'database error/no info'})
             return
@@ -1295,6 +1276,41 @@ class AttachDetachIso(VMAbstractHandler):
             self.set_status(400)
             self.write({'status':'error', 'message': 'invalid UUID iso_uuid'})
             return
+
+
+class AttachDetachVDI(VMAbstractHandler):
+    access = 'attach'
+
+    def get_data(self):
+        vdi = self.get_argument('vdi')
+        vm_uuid = self.get_argument('uuid')
+        action = self.get_argument('action')
+        if action == 'attach':
+            is_attach = True
+        elif action == 'detach':
+            is_attach = False
+        else:
+            self.set_status(400)
+            self.write({'status': 'error', 'message' : 'invalid parameter "action": should be one of '
+                                                       '"attach", "detach", got %s' % action })
+            return
+
+        _vdi = VDI(auth=self.user_authenticator, uuid=vdi)
+        try:
+            _vdi.check_access('attach')
+        except XenAdapterUnauthorizedActionException as e:
+            self.set_status(403)
+            self.write({'status': 'access denied', 'message': e.message})
+            return
+
+        def attach(auth):
+            _vdi = VDI(uuid=vdi, auth=auth)
+            if is_attach:
+                _vdi.attach(self.vm)
+            else:
+                _vdi.detach(self.vm)
+
+        self.try_xenadapter(attach)
 
 
 
@@ -1780,7 +1796,7 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/netlist', NetworkList, dict(executor=executor)),
         (r'/enabledisabletmpl', EnableDisableTemplate, dict(executor=executor)),
         (r'/vnc', VNC, dict(executor=executor)),
-        (r'/attachdetachdisk', AttachDetachDisk, dict(executor=executor)),
+        (r'/attachdetachvdi', AttachDetachVDI, dict(executor=executor)),
         (r'/attachdetachiso', AttachDetachIso, dict(executor=executor)),
         (r'/destroyvm', DestroyVM, dict(executor=executor)),
         (r'/connectvm', ConnectVM, dict(executor=executor)),

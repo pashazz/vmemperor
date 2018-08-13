@@ -14,7 +14,10 @@ const vm_disk_info = (state = initialState, action) =>
 {
   switch (action.type) {
     case VM_SET_DISKINFO:
-      return fromJS(action.data);
+      if (action.data)
+        return fromJS(action.data);
+      else
+        return fromJS({});
     default:
       return state;
   }

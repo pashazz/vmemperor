@@ -80,7 +80,7 @@ class Network(ACLXenObject):
 
             self.log.info("VM is connected to network: VIF UUID {0}".format(vif.uuid))
         except XenAdapterAPIError as f:
-            raise XenAdapterAPIError(self.auth.xen.log, "Failed to create VIF: {0}".format(f.details))
+            raise XenAdapterAPIError(self.auth.xen.log, "Failed to create VIF",f.details)
 
         return vif
 
