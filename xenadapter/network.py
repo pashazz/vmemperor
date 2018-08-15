@@ -61,7 +61,7 @@ class Network(ACLXenObject):
     api_class = "network"
     db_table_name = 'nets'
     EVENT_CLASSES = ['network']
-    PROCESS_KEYS =  ['name_label', 'name_description', 'PIFs', 'VIFs', 'uuid', 'ref', 'other_config']
+    PROCESS_KEYS =  ['name_label', 'name_description', 'PIFs',  'uuid', 'ref', 'other_config']
 
     def __init__(self, auth, uuid=None, ref=None):
         super().__init__(auth, uuid=uuid, ref=ref)
@@ -116,6 +116,33 @@ class Network(ACLXenObject):
 
         return list(read_other_config_access_rights(other_config))
 
+    @classmethod
+    def process_record(cls, auth, ref, record):
+        '''
+        Process as regular object, but replace VIFs with corresponding VMs
+        :param auth:
+        :param event:
+        :param db:
+        :param authenticator_name:
+        :return:
+        '''
+        new_rec = super().process_record(auth, ref,record)
+        if not new_rec:
+            return
+
+
+        def vif_to_vm_uuid(vif_ref):
+            from .vm import VM
+
+            vif = VIF(auth=auth, ref=vif_ref)
+            vm = VM(auth=auth, ref=vif.get_VM())
+            return vm.uuid
+
+
+        new_rec['VMs'] = [vif_to_vm_uuid(vif_ref) for vif_ref in record['VIFs']]
+
+
+        return new_rec
 
 
     def manage_actions(self, action,  revoke=False, user=None, group=None):

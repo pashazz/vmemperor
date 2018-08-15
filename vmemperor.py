@@ -1107,6 +1107,25 @@ class VMInfo(VMAbstractHandler):
             self.write({'status' : 'database error/no info'})
             return
 
+class VMNetInfo(VMAbstractHandler):
+    access = 'launch'
+
+    def get_data(self):
+        db = r.db(opts.database)
+        try:
+            vm_data = db.table('vms').get(self.uuid).do(lambda vm: vm['networks'].keys().\
+                map(lambda key: r.expr([key, vm['networks'][key].merge(
+                db.table('nets').get(vm['networks'][key]['network']).without('uuid'))])).filter(lambda item: item[1] != None).\
+                coerce_to('object')).run()
+            return vm_data
+        except Exception as e:
+            self.log.error("Exception: {0}".format(e))
+            traceback.print_exc()
+            self.set_status(500)
+            self.write({'status' : 'database error/no info'})
+            return
+
+
 class VMDiskInfo(VMAbstractHandler):
 
     access = 'launch'
@@ -1318,6 +1337,7 @@ class AttachDetachVDI(VMAbstractHandler):
 
 
         def attach(auth):
+
             if is_attach:
                 _vdi.attach(self.vm)
             else:
@@ -1826,6 +1846,7 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/vdiinfo', VDIInfo, dict(executor=executor)),
         (r'/isoinfo', ISOInfo, dict(executor=executor)),
         (r'/vmdiskinfo', VMDiskInfo, dict(executor=executor)),
+        (r'/vmnetinfo', VMNetInfo, dict(executor=executor)),
         (r'/turntemplate', TurnTemplate, dict(executor=executor))
 
     ], **settings)

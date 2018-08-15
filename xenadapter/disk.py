@@ -147,8 +147,7 @@ class ISO(XenObject, Attachable):
 
                 from vmemperor import CHECK_ER
                 CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
-            else:
-                super().process_event(auth, event, db, authenticator_name)
+
 
 
     def attach(self, vm : VM) -> VBD:
@@ -232,8 +231,6 @@ class VDI(ACLXenObject, Attachable):
                 from vmemperor import CHECK_ER
                 CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
 
-            else:
-                super().process_event(auth, event, db, authenticator_name)
 
     def destroy(self):
         sr = SR(auth=self.auth, ref=self.get_SR())

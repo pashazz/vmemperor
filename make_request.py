@@ -126,6 +126,11 @@ class Main():
         p.add_argument('uuid', help='VM UUID')
         p.set_defaults(func=self.vmdiskinfo)
 
+        # add parser for vmnetinfo
+        p = self.subparsers.add_parser('vmnetinfo', description="Print VM networks full info")
+        p.add_argument('uuid', help='VM UUID')
+        p.set_defaults(func=self.vmnetinfo)
+
         #add parser for start
         p = self.subparsers.add_parser('start', description="Start VM")
         p.add_argument('uuid', help='VM UUID')
@@ -309,6 +314,14 @@ class Main():
         js = json.loads(r.text)
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
+
+    @login
+    def vmnetinfo(self, args):
+        r = requests.post("%s/vmnetinfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
+        js = json.loads(r.text)
+        pprint.pprint(js)
+        print(r.status_code, file=sys.stderr)
+
     @login
     def start(self, args):
         r = requests.post("%s/startstopvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, enable=True))
