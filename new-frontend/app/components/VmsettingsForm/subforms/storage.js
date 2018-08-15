@@ -1,28 +1,25 @@
 import React, {PureComponent} from 'react';
-import {Button, Card, CardBody, CardFooter, CardText, CardTitle, Col, Row, Table, Collapse, UncontrolledAlert, ButtonGroup} from 'reactstrap';
-import NextTable from 'react-bootstrap-table-next';
-import FontAwesomeIcon from '@fortawesome/react-fontawesome';
-import faCheck from '@fortawesome/fontawesome-free-solid/faCheck';
-import {sizeFormatter} from "../../../utils/sizeFormatter";
+import {
+  Button,
+  Card,
+  CardBody,
+  CardFooter,
+  CardText,
+  CardTitle,
+  Col,
+  Collapse,
+  Row,
+  UncontrolledAlert
+} from 'reactstrap';
+import {sizeFormatter} from "../../../utils/formatters";
 import StorageAttach from "./storageAttach";
-import {detachvdi, vdilist} from "../../../api/vdi";
-import isolist from "../../../api/isolist";
+import {detachvdi} from "../../../api/vdi";
 
-import ControlledTable, { selectors } from 'containers/ControlledTable';
+import ControlledTable, {selectors} from 'containers/ControlledTable';
 import {connect} from 'react-redux';
-import { compose } from 'redux';
-import { createStructuredSelector } from 'reselect';
-const checkBoxFormatter = (cell, row) =>
-{
-  if (cell)
-  {
-    return (
-      <span>
-        { cell && (<FontAwesomeIcon icon={faCheck}/>)}
-      </span>
-    )
-  }
-};
+import {compose} from 'redux';
+import {createStructuredSelector} from 'reselect';
+import {checkBoxFormatter} from "../../../utils/formatters";
 
 
 const columns = [
@@ -70,7 +67,6 @@ class Storage extends PureComponent {
     this.state = {
       vdiAttach: false,
       isoAttach: false,
-      selected: [],
       refreshWidgets: false,
     };
     this.toggleVdiAttach = this.toggleVdiAttach.bind(this);
@@ -137,37 +133,7 @@ class Storage extends PureComponent {
 
     ];
 
-    const selectRow = {
-      mode: 'checkbox',
-      clickToSelect: true,
-      selected: this.state.selected,
-      onSelect: (row, isSelect) => {
-        console.log(isSelect);
-        console.log(this.state);
-        if (isSelect) {
-          this.setState(() => ({
-            selected: [...this.state.selected, row.key]
-          }));
-        }
-        else {
-          this.setState(() => ({
-            selected: this.state.selected.filter(x => x !== row.key),
-          }))
-        }
-      },
-      onSelectAll: (isSelect, rows) => {
-        if (isSelect) {
-        this.setState(() => ({
-          selected: rows.map(r => r.key)
-        }));
-        }
-        else {
-          this.setState(() => ({
-            selected: [],
-          }))
-        }
-      }
-};
+
     const detachDisabled = this.props.table_selection.length === 0;
     const DiskTable = ControlledTable("disks");
 

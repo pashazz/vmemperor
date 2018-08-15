@@ -1,5 +1,16 @@
+import FontAwesomeIcon from "@fortawesome/react-fontawesome";
+import faCheck from "@fortawesome/fontawesome-free-solid/faCheck";
 import React from "react";
 
+export const checkBoxFormatter = (cell, row) => {
+  if (cell) {
+    return (
+      <span>
+        {cell && (<FontAwesomeIcon icon={faCheck}/>)}
+      </span>
+    )
+  }
+};
 export const sizeFormatter = (cell, row) => {
   const suffixes = ['b', 'Kb', 'Mb', 'Gb', 'Tb', 'Pb'];
   let number = Number(cell);

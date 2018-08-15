@@ -6,7 +6,7 @@ import {Button, ButtonGroup} from 'reactstrap';
 import {vminfo} from 'api/vm';
 
 import React, {PureComponent } from 'react';
-import {sizeFormatter} from "../../../utils/sizeFormatter";
+import {sizeFormatter} from "../../../utils/formatters";
 import BluePromise from 'bluebird';
 
 const myFetcher = (fillVms) => (fetchFunc) =>   async(page, sizePerPage) =>
