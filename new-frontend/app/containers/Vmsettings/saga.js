@@ -8,7 +8,7 @@ import {
   VDI_ATTACH,
   VDI_DETACH,
   VM_CONVERT,
-  VM_REQUEST_DISKINFO,
+  VM_REQUEST_INFO,
   VM_REQUEST_RESOURCE,
   VM_WATCH
 } from "./constants";
@@ -16,10 +16,12 @@ import {VM_RUN_ERROR, VMLIST_MESSAGE} from "../App/constants";
  import {convert} from "../../api/vm";
  import {vm_run_error} from "../App/actions";
  import {handleVMErrors} from '../App/saga';
- import {diskInfo} from "../../api/vm";
+ import {diskInfo, netInfo} from "../../api/vm";
  import {attachdetachvdi, attachdetachiso, vdilist} from "../../api/vdi";
  import isolist from '../../api/isolist';
- import {setDiskInfo, requestDiskInfo as actRequestDiskInfo, setResourceData} from "./actions";
+ import {netlist} from '../../api/net';
+ import {setInfo, requestInfo as actRequestInfo, setResourceData} from "./actions";
+
 
  const actionHandlers = {
   [VM_CONVERT]: {
@@ -96,18 +98,30 @@ import {VM_RUN_ERROR, VMLIST_MESSAGE} from "../App/constants";
      case 'vdi':
        func = vdilist;
        break;
+     case 'net':
+       func = netlist;
+       break;
    }
 
    const response = yield call(func, page, pageSize);
    yield put(setResourceData(resourceType, response.data));
  }
 
- function* requestDiskInfo(action) {
-   const { uuid } = action;
-   const response = yield call(diskInfo, uuid);
+ function* requestInfo(action) {
+   const { uuid, resourceType } = action;
+   let func = null;
+   switch (resourceType)
+   {
+     case 'disk':
+       func = diskInfo;
+       break;
+     case 'net':
+       func = netInfo;
+       break;
+   }
+   const response = yield call(func, uuid);
    console.log("Disk info:", response.data);
-   yield put(setDiskInfo(response.data));
-
+   yield put(setInfo(resourceType, response.data));
 
  }
 
@@ -115,6 +129,7 @@ import {VM_RUN_ERROR, VMLIST_MESSAGE} from "../App/constants";
  {
    const {uuid} = action;
    let disks = true;
+   let networks = true;
    while(true)
    {
      const action = yield take(VMLIST_MESSAGE);
@@ -133,7 +148,12 @@ import {VM_RUN_ERROR, VMLIST_MESSAGE} from "../App/constants";
 
      if (value.disks !== disks)
      {
-       yield put(actRequestDiskInfo(uuid, true));
+       yield put(actRequestInfo('disk', uuid));
+     }
+
+     if (value.networks !== networks)
+     {
+       yield put(actRequestInfo('net', uuid));
      }
 
    }
@@ -146,7 +166,7 @@ export default function* rootSaga() {
   yield takeEvery(VDI_DETACH, handleActions);
   yield takeEvery(VDI_ATTACH, handleActions);
   yield takeEvery(ISO_ATTACH, handleActions);
-  yield takeEvery(VM_REQUEST_DISKINFO, requestDiskInfo);
+  yield takeEvery(VM_REQUEST_INFO, requestInfo);
   yield takeEvery(VM_WATCH, vmWatch);
   yield takeEvery(VM_REQUEST_RESOURCE, requestResource);
 }

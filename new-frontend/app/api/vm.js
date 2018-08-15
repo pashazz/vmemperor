@@ -29,6 +29,12 @@ export const diskInfo = async (uuid) =>
 {
   return await axios.post('/api/vmdiskinfo', {uuid});
 };
+
+export const netInfo = async (uuid) =>
+{
+  return await axios.post('/api/vmnetinfo', {uuid});
+};
+
 export const vminfo = async (uuid) => {
   return await axios.post('/api/vminfo', {uuid});
 };

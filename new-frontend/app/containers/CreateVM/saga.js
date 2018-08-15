@@ -8,7 +8,7 @@ import localStorage from 'store';
 import poollist from 'api/poollist';
 import isolist from 'api/isolist';
 import createvm from 'api/createvm';
-import netlist from 'api/netlist';
+import {netlist} from 'api/net';
 import tmpllist from 'api/tmpllist';
 
 export function* getPoolList() {

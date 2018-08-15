@@ -7,36 +7,6 @@ import {vminfo} from 'api/vm';
 
 import React, {PureComponent } from 'react';
 import {sizeFormatter} from "../../../utils/formatters";
-import BluePromise from 'bluebird';
-
-const myFetcher = (fillVms) => (fetchFunc) =>   async(page, sizePerPage) =>
-{
-  const list = await fetchFunc(page, sizePerPage);
-  return await BluePromise.map(list.data, async(record) => {
-    const {VMs, ...rest} = record;
-    if (fillVms) {
-      rest.VMs = await BluePromise.map(VMs, async (uuid) => {
-        try {
-          const ret = await vminfo(uuid);
-          return ret.data;
-        }
-        catch (e) {
-          return {
-            uuid,
-            name_label: "Unknown VM"
-          }
-        }
-
-
-      }
-      );
-    }
-    else {
-      rest.VMs = VMs.map(vm => {return {uuid: vm, name_label: ""}});
-    }
-    return rest;
-  } );
-};
 
 
 function vmFormatter(cell, row)

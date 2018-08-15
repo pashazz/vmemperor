@@ -7,6 +7,7 @@
 import React from 'react';
 import Power from './subforms/power';
 import Storage from './subforms/storage';
+import Network from './subforms/network';
 // import styled from 'styled-components';
 
 import { FormattedMessage } from 'react-intl';
@@ -129,6 +130,10 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
           <TabPane tabId="network">
             <Row>
               <Col sm="12">
+                <Network
+                  data={data}
+                  networks={this.props.netInfo}
+                  />
               </Col>
             </Row>
           </TabPane>
@@ -157,6 +162,7 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
     static propTypes = {
       data: T.any.isRequired,
       diskInfo: T.any.isRequired,
+      netInfo: T.array.isRequired,
       onHalt: T.func.isRequired,
       onReboot: T.func.isRequired,
       onConvertVm: T.func.isRequired,

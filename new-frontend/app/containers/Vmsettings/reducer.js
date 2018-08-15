@@ -6,29 +6,36 @@
 
 import { fromJS } from 'immutable';
 import {combineReducers} from 'redux-immutable';
-import {VM_SET_DISKINFO, VM_SET_RESOURCE, VM_WATCH} from "./constants";
+import {VM_SET_INFO, VM_SET_RESOURCE, VM_WATCH} from "./constants";
 
 const initialState = fromJS({});
 
-const vm_disk_info = (state = initialState, action) =>
+const vmInfo = (resourceType) => (state = initialState, action) =>
 {
   switch (action.type) {
-    case VM_SET_DISKINFO:
-      if (action.data)
-        return fromJS(action.data);
-      else
-        return fromJS({});
+    case VM_SET_INFO:
+      switch (action.resourceType) {
+        case resourceType:
+
+          if (action.data)
+            return fromJS(action.data);
+          else
+            return fromJS({});
+        default:
+          return state;
+      }
     default:
       return state;
   }
+
 };
 
-const isoList = (state = fromJS([]), action) =>
+const genericList = (resource) => (state = fromJS([]), action) =>
 {
   switch (action.type) {
     case VM_SET_RESOURCE:
       switch (action.resourceType) {
-        case 'iso':
+        case resource:
               if (action.data) {
                 return fromJS(action.data);
               }
@@ -44,27 +51,6 @@ const isoList = (state = fromJS([]), action) =>
   
 };
 
-const vdiList = (state = fromJS([]), action) =>
-{
-  switch (action.type) {
-    case VM_SET_RESOURCE:
-      switch (action.resourceType) {
-        case 'vdi':
-          if (action.data) {
-            return fromJS(action.data);
-          }
-          else {
-            return fromJS([]);
-          }
-        default:
-          return state;
-      }
-    default:
-      return state;
-  }
-
-};
-
 const uuid = (state = "", action) =>
 {
   switch (action.type) {
@@ -78,9 +64,11 @@ const uuid = (state = "", action) =>
 
 export default combineReducers(
   {
-    vm_disk_info,
-    isoList,
-    vdiList,
+    vmDiskInfo: vmInfo('disk'),
+    vmNetworkInfo: vmInfo('net'),
+    isoList: genericList('iso'),
+    vdiList: genericList('vdi'),
+    netList: genericList('net'),
     uuid,
   }
 );

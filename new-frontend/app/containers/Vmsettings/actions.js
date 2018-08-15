@@ -6,8 +6,8 @@
 
 import {
   VM_CONVERT,
-  VM_REQUEST_DISKINFO,
-  VM_SET_DISKINFO,
+  VM_REQUEST_INFO,
+  VM_SET_INFO,
   VDI_DETACH,
   VDI_ATTACH,
   VM_WATCH,
@@ -48,10 +48,11 @@ export function iso_attach(vm, iso)
   }
 }
 
-export function requestDiskInfo(uuid)
+export function requestInfo(resourceType, uuid)
 {
   return {
-    type: VM_REQUEST_DISKINFO,
+    type: VM_REQUEST_INFO,
+    resourceType,
     uuid,
   };
 }
@@ -77,10 +78,11 @@ export function setResourceData(resourceType, data)
 
 
 
-export function setDiskInfo(data)
+export function setInfo(resourceType, data)
 {
   return {
-    type: VM_SET_DISKINFO,
+    type: VM_SET_INFO,
+    resourceType,
     data
   }
 }

@@ -17,9 +17,9 @@ const makeSelectVmData = () => createSelector(
   state =>{ return state.get('vm_data'); }
 );
 
-const makeSelectDiskInfo = () => createSelector(
+const makeSelectInfo = (resourceType) =>() => createSelector(
   makeSelectVmSettingsDomain(),
-  state => { return state.get('vm_disk_info').entrySeq().map(value => {
+  state => { return state.get(resourceType).entrySeq().map(value => {
     return {
       key: value[0],
       ...value[1].toJS(),
@@ -49,17 +49,23 @@ const makeSelectResList = (res) => () => createSelector(
 );
 
 
+
 const makeSelectVdiList = makeSelectResList('vdiList');
 const makeSelectIsoList = makeSelectResList('isoList');
+const makeSelectNetList = makeSelectResList('netList');
 
-/**
- * Default selector used by VMSettings
- */
+const makeSelectDiskInfo = makeSelectInfo('vmDiskInfo');
+const makeSelectNetInfo = makeSelectInfo('vmNetworkInfo');
+
+const makeSelectNetworks = () => createSelector(
+  makeSelectUuid(),
+  makeSelectVmData()
+);
 
 export {
   makeSelectVmData,
   makeSelectDiskInfo,
   makeSelectIsoList,
   makeSelectVdiList,
-
+  makeSelectNetInfo,
 };

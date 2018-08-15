@@ -18,8 +18,8 @@ import saga from './saga';
 import VmsettingsForm from "../../components/VmsettingsForm";
 import {makeSelectVmData} from "../../containers/App/selectors";
 import { halt, run, reboot } from "../App/actions";
-import {requestDiskInfo, vm_convert, vdi_detach, vdi_attach, vmWatch, iso_attach, requestResourceData} from "./actions";
-import {makeSelectDiskInfo, makeSelectIsoList, makeSelectVdiList} from "./selectors";
+import {requestInfo, vm_convert, vdi_detach, vdi_attach, vmWatch, iso_attach, requestResourceData} from "./actions";
+import {makeSelectDiskInfo, makeSelectNetInfo, makeSelectIsoList, makeSelectVdiList} from "./selectors";
 
 class VMSettings extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
   constructor(props)
@@ -112,7 +112,12 @@ class VMSettings extends React.PureComponent { // eslint-disable-line react/pref
         props.vmWatch(props.match.params.uuid);
       }
       if (!props.diskInfo.size) {
-        props.requestDiskInfo(props.match.params.uuid);
+        props.requestInfo('disk',props.match.params.uuid);
+
+      }
+      if (!props.netInfo.size)
+      {
+        props.requestInfo('net', props.match.params.uuid);
       }
     }
   }
@@ -146,6 +151,7 @@ class VMSettings extends React.PureComponent { // eslint-disable-line react/pref
             vdiList={this.props.vdiList}
             requestIso={(page, pageSize) => this.props.requestResourceData('iso', page, pageSize)}
             requestVdi={(page, pageSize) => this.props.requestResourceData('vdi', page, pageSize)}
+            netInfo={this.props.netInfo}
           />
         </div>
       );
@@ -167,11 +173,15 @@ VMSettings.propTypes = {
   vdi_detach: T.func.isRequired,
   vdi_attach: T.func.isRequired,
   requestResourceData: T.func.isRequired,
+  requestInfo: T.func.isRequired,
+  diskInfo: T.array.isRequired,
+  netInfo: T.array.isRequired,
 };
 
 const mapStateToProps = createStructuredSelector({
   vm_data: makeSelectVmData(),
   diskInfo: makeSelectDiskInfo(),
+  netInfo: makeSelectNetInfo(),
   isoList: makeSelectIsoList(),
   vdiList: makeSelectVdiList(),
 });
@@ -181,7 +191,7 @@ const mapDispatchToProps = {
   run,
   reboot,
   vm_convert,
-  requestDiskInfo,
+  requestInfo,
   vdi_detach,
   vdi_attach,
   iso_attach,
