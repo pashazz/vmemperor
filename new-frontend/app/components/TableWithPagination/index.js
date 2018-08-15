@@ -12,6 +12,7 @@ export default class TableWithPagination extends PureComponent
     {
       fetcher: T.func.isRequired,
       noData: T.func,
+      data: T.array,
       sizePerPage: T.number.isRequired,
       columns: T.arrayOf(
         T.shape({
@@ -31,6 +32,8 @@ export default class TableWithPagination extends PureComponent
         })
       ),
       onDoubleClick: T.func.isRequired,
+      localOptions: T.any.isRequired,
+      refresh: T.any,
     };
   constructor(props)
   {
@@ -39,31 +42,70 @@ export default class TableWithPagination extends PureComponent
       {
         items: [],
         page: 1,
-        selected: []
+        selected: [],
+        refresh: null,
       };
     this.fetch = this.fetch.bind(this);
     this.handlePageChange = this.handlePageChange.bind(this);
     this.handleSizePerPageChange = this.handleSizePerPageChange.bind(this);
     this.handleOnSelect = this.handleOnSelect.bind(this);
     this.handleOnSelectAll = this.handleOnSelectAll(this);
+    this.fetchHandler = this.fetchHandler.bind(this);
+  }
+
+
+  fetchHandler (data) {
+  this.setState({
+    items:
+      this.props.rowFilter ? data.filter(this.props.rowFilter) : data,
+  });
+};
+
+  static getDerivedStateFromProps(props, state) {
+    if (props.refresh !== state.refresh)
+    {
+      const res = props.fetcher(state.page, props.sizePerPage);
+
+      if (res.then)
+      {
+        let myData = null;
+        res.then(data => myData = data);
+        return {
+          ...state,
+          refresh: props.refresh,
+          items: props.rowFilter ? myData.filter(props.rowFilter) : myData,
+        }
+      }
+    }
+
+    if (props.data) {
+      return {
+        ...state,
+        refresh: props.refresh,
+        items: props.rowFilter ? props.data.filter(props.rowFilter) : props.data,
+      }
+    }
+    else {
+      return state;
+    }
   }
 
   fetch(page = this.state.page, sizePerPage = this.props.sizePerPage)
   {
-    this.props.fetcher(page, sizePerPage).then(
-      data => {
-        this.setState({items:
-            this.props.rowFilter ? data.filter(this.props.rowFilter) : data,
-          page, sizePerPage});
-      });
-
-
+    const res = this.props.fetcher(page, sizePerPage);
+    if (res.then)
+    {
+      res.then(this.fetchHandler);
+    }
+    this.setState({
+      page, sizePerPage
+    })
   }
 
-  componentDidMount()
+  /*componentDidMount()
   {
     this.fetch();
-  }
+  }*/
 
   handleOnSelect (row, isSelect)
   {
@@ -102,12 +144,7 @@ export default class TableWithPagination extends PureComponent
   }
 
 
-  componentWillReceiveProps(props) {
-    const { refresh } = this.props;
-    if (props.refresh !== refresh) {
-      this.fetch();
-    }
-  }
+
   render() {
     const { page } = this.state;
     const { sizePerPage } = this.props;
@@ -127,7 +164,6 @@ export default class TableWithPagination extends PureComponent
         this.fetch();
       }
     };
-
     return (
       <div>
       <NextTable

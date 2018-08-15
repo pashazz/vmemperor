@@ -13,14 +13,13 @@ import { compose } from 'redux';
 
 import injectSaga from 'utils/injectSaga';
 import injectReducer from 'utils/injectReducer';
-import makeSelectVmsettings from './selectors';
 import reducer from './reducer';
 import saga from './saga';
 import VmsettingsForm from "../../components/VmsettingsForm";
 import {makeSelectVmData} from "../../containers/App/selectors";
 import { halt, run, reboot } from "../App/actions";
-import {requestDiskInfo, vm_convert, vdi_detach, vdi_attach, vmWatch} from "./actions";
-import {makeSelectDiskInfo} from "./selectors";
+import {requestDiskInfo, vm_convert, vdi_detach, vdi_attach, vmWatch, iso_attach, requestResourceData} from "./actions";
+import {makeSelectDiskInfo, makeSelectIsoList, makeSelectVdiList} from "./selectors";
 
 class VMSettings extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
   constructor(props)
@@ -32,6 +31,8 @@ class VMSettings extends React.PureComponent { // eslint-disable-line react/pref
     this.onConvertVm = this.onConvertVm.bind(this);
     this.onDetachVdi = this.onDetachVdi.bind(this);
     this.onAttachVdi = this.onAttachVdi.bind(this);
+    this.onAttachIso = this.onAttachIso.bind(this);
+
 
   }
 
@@ -96,6 +97,11 @@ class VMSettings extends React.PureComponent { // eslint-disable-line react/pref
     //this.props.requestDiskInfo(this.props.match.params.uuid);
   }
 
+  onAttachIso(iso)
+  {
+    this.props.iso_attach(this.props.match.params.uuid, iso);
+  }
+
   componentDidMount()
   {
 
@@ -133,8 +139,13 @@ class VMSettings extends React.PureComponent { // eslint-disable-line react/pref
             onReboot={this.onReboot}
             onConvertVm={this.onConvertVm}
             onAttachVdi={this.onAttachVdi}
+            onAttachIso={this.onAttachIso}
             onDetachVdi={this.onDetachVdi}
             diskInfo={this.props.diskInfo}
+            isoList={this.props.isoList}
+            vdiList={this.props.vdiList}
+            requestIso={(page, pageSize) => this.props.requestResourceData('iso', page, pageSize)}
+            requestVdi={(page, pageSize) => this.props.requestResourceData('vdi', page, pageSize)}
           />
         </div>
       );
@@ -155,11 +166,14 @@ VMSettings.propTypes = {
   vm_convert: T.func.isRequired,
   vdi_detach: T.func.isRequired,
   vdi_attach: T.func.isRequired,
+  requestResourceData: T.func.isRequired,
 };
 
 const mapStateToProps = createStructuredSelector({
   vm_data: makeSelectVmData(),
   diskInfo: makeSelectDiskInfo(),
+  isoList: makeSelectIsoList(),
+  vdiList: makeSelectVdiList(),
 });
 
 const mapDispatchToProps = {
@@ -170,7 +184,9 @@ const mapDispatchToProps = {
   requestDiskInfo,
   vdi_detach,
   vdi_attach,
-  vmWatch
+  iso_attach,
+  vmWatch,
+  requestResourceData,
 };
 
 

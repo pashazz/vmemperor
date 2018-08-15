@@ -61,16 +61,21 @@ class StorageAttach extends PureComponent
   constructor(props)
   {
     super(props);
-    this.rowFilter = this.rowFilter.bind(this);
+   // this.rowFilter = this.rowFilter.bind(this);
     this.render = this.render.bind(this);
     this.onDoubleClick = this.onDoubleClick.bind(this);
+
+    this.state = {
+      columns: [],
+
+    }
 
   }
 
   onDoubleClick(row)
   {
     this.props.onAttach(row.uuid);
-
+    this.props.fetch();
   }
 
   static  getDerivedStateFromProps(props, state)
@@ -104,7 +109,7 @@ class StorageAttach extends PureComponent
     }
     return newState;
   }
-
+/*
   rowFilter(row)
   {
     const {uuid} = this.props;
@@ -118,7 +123,7 @@ class StorageAttach extends PureComponent
       return false;
     }
   }
-
+*/
 
 
 
@@ -128,10 +133,10 @@ class StorageAttach extends PureComponent
     return (
       <div>
       <TableWithPagination
-      fetcher={myFetcher(this.props.showConnectedTo)(this.props.fetch)}
+      fetcher={this.props.fetch}
+      data={this.props.data}
       sizePerPage={10}
       columns={this.state.columns}
-      rowFilter={this.rowFilter}
       noData={() =>  "No disks available for attaching"}
       actions={this.props.actions}
       onDoubleClick={this.onDoubleClick}

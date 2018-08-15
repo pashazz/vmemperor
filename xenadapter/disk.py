@@ -256,6 +256,22 @@ class VDI(ACLXenObject, Attachable):
         self._detach(vm)
 
 
+class VDIorISO:
+    def __new__(cls, auth, uuid=None, ref=None):
+        db = auth.xen.db
 
-
+        if uuid:
+            if db.table(ISO.db_table_name).get(uuid).run():
+                return ISO(auth, uuid, ref)
+            elif db.table(VDI.db_table_name).get(uuid).run():
+                return VDI(auth, uuid, ref)
+            else:
+                return None
+        elif ref:
+            if len(db.table(ISO.db_table_name).get_all(ref, index='ref').run().items) == 1:
+                return ISO(auth, uuid, ref)
+            elif len(db.table(VDI.db_table_name).get_all(ref, index='ref').run().items) == 1:
+                return VDI(auth, uuid, ref)
+            else:
+                return None
 

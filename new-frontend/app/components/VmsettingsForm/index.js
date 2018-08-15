@@ -41,6 +41,7 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
 
   render() {
     const data = this.props.data;
+
     return (
       <div>
         <h3 className="text-center">{data.name_label} <Badge color="primary">{data.power_state}</Badge>
@@ -112,7 +113,12 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
                 data={data}
                 diskInfo={this.props.diskInfo}
                 onDetachVdi={this.props.onDetachVdi}
+                onAttachIso={this.props.onAttachIso}
                 onAttachVdi={this.props.onAttachVdi}
+                requestIso={this.props.requestIso}
+                requestVdi={this.props.requestVdi}
+                isoList={this.props.isoList}
+                vdiList={this.props.vdiList}
                 />
               </Col>
             </Row>
@@ -152,6 +158,11 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
       onConvertVm: T.func.isRequired,
       onDetachVdi: T.func.isRequired,
       onAttachVdi: T.func.isRequired,
+      onAttachIso: T.func.isRequired,
+      requestIso: T.func.isRequired,
+      requestVdi: T.func.isRequired,
+      isoList: T.any.isRequired,
+      vdiList: T.any.isRequired,
     }
 
 

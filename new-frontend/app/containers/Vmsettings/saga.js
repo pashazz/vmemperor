@@ -3,14 +3,23 @@
 // Individual exports for testing
 
 
-import {VDI_ATTACH, VDI_DETACH, VM_CONVERT, VM_REQUEST_DISKINFO, VM_WATCH} from "./constants";
+import {
+  ISO_ATTACH,
+  VDI_ATTACH,
+  VDI_DETACH,
+  VM_CONVERT,
+  VM_REQUEST_DISKINFO,
+  VM_REQUEST_RESOURCE,
+  VM_WATCH
+} from "./constants";
 import {VM_RUN_ERROR, VMLIST_MESSAGE} from "../App/constants";
  import {convert} from "../../api/vm";
  import {vm_run_error} from "../App/actions";
  import {handleVMErrors} from '../App/saga';
  import {diskInfo} from "../../api/vm";
- import { attachdetachvdi} from "../../api/vdi";
- import {setDiskInfo, requestDiskInfo as actRequestDiskInfo} from "./actions";
+ import {attachdetachvdi, attachdetachiso, vdilist} from "../../api/vdi";
+ import isolist from '../../api/isolist';
+ import {setDiskInfo, requestDiskInfo as actRequestDiskInfo, setResourceData} from "./actions";
 
  const actionHandlers = {
   [VM_CONVERT]: {
@@ -37,6 +46,15 @@ import {VM_RUN_ERROR, VMLIST_MESSAGE} from "../App/constants";
      console.log("handle attach");
      const data = yield call(attachdetachvdi, args.vm, args.vdi, 'attach');
      console.log("attach: data", data);
+   }
+ },
+   [ISO_ATTACH]: {
+    onError: vm_run_error,
+      handler: function* (args)
+   {
+     console.log("handle iso attach");
+     const data = yield call(attachdetachiso, args.vm, args.iso, 'attach');
+     console.log("isoattach: data", data);
    }
  }
 };
@@ -67,6 +85,22 @@ import {VM_RUN_ERROR, VMLIST_MESSAGE} from "../App/constants";
 
  }
 
+ function* requestResource(action)
+ {
+   const {resourceType, page, pageSize } = action;
+   let func = null;
+   switch (resourceType) {
+     case 'iso':
+       func = isolist;
+       break;
+     case 'vdi':
+       func = vdilist;
+       break;
+   }
+
+   const response = yield call(func, page, pageSize);
+   yield put(setResourceData(resourceType, response.data));
+ }
 
  function* requestDiskInfo(action) {
    const { uuid } = action;
@@ -111,6 +145,8 @@ export default function* rootSaga() {
   yield takeEvery(VM_CONVERT, handleActions);
   yield takeEvery(VDI_DETACH, handleActions);
   yield takeEvery(VDI_ATTACH, handleActions);
+  yield takeEvery(ISO_ATTACH, handleActions);
   yield takeEvery(VM_REQUEST_DISKINFO, requestDiskInfo);
   yield takeEvery(VM_WATCH, vmWatch);
+  yield takeEvery(VM_REQUEST_RESOURCE, requestResource);
 }

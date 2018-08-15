@@ -5,7 +5,15 @@
  */
 
 import {
-  VM_CONVERT, VM_REQUEST_DISKINFO, VM_SET_DISKINFO, VDI_DETACH, VDI_ATTACH, VM_WATCH,
+  VM_CONVERT,
+  VM_REQUEST_DISKINFO,
+  VM_SET_DISKINFO,
+  VDI_DETACH,
+  VDI_ATTACH,
+  VM_WATCH,
+  VM_REQUEST_RESOURCE,
+  VM_SET_RESOURCE,
+  ISO_ATTACH
 } from './constants';
 
 export function vm_convert(uuid, mode)
@@ -32,6 +40,14 @@ export function vdi_attach(vm, vdi)
   }
 }
 
+export function iso_attach(vm, iso)
+{
+  return {
+    type: ISO_ATTACH,
+    vm, iso
+  }
+}
+
 export function requestDiskInfo(uuid)
 {
   return {
@@ -40,6 +56,27 @@ export function requestDiskInfo(uuid)
   };
 }
 
+export function requestResourceData(resourceType, page, pageSize)
+{
+  return {
+    type: VM_REQUEST_RESOURCE,
+    resourceType,
+    page,
+    pageSize
+  }
+}
+
+export function setResourceData(resourceType, data)
+{
+  return{
+    type: VM_SET_RESOURCE,
+    resourceType,
+    data,
+  }
+}
+
+
+
 export function setDiskInfo(data)
 {
   return {
@@ -47,6 +84,8 @@ export function setDiskInfo(data)
     data
   }
 }
+
+
 
 export function vmWatch(uuid)
 {

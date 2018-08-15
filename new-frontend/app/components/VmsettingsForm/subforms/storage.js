@@ -87,7 +87,9 @@ class Storage extends PureComponent {
   {
     for (const ref of this.props.table_selection)
     {
-      const vdi = this.props.diskInfo.filter(row => row.key === ref )[0]['VDI'];
+      console.log("diskInfo: ", this.props.diskInfo);
+      console.log("key:", ref);
+      const vdi = this.props.diskInfo.filter(row => {console.log("row.key=", row.key, "ref=", ref); return  row.key === ref})[0]['VDI'];
       this.props.onDetachVdi(vdi);
     }
     this.refreshWidgets();
@@ -114,6 +116,7 @@ class Storage extends PureComponent {
       set
     );
   }
+
   render()
   {
     const actions = [
@@ -167,6 +170,7 @@ class Storage extends PureComponent {
 };
     const detachDisabled = this.props.table_selection.length === 0;
     const DiskTable = ControlledTable("disks");
+
     return (
       <React.Fragment>
       <Row>
@@ -192,8 +196,9 @@ class Storage extends PureComponent {
               <StorageAttach
                   uuid={this.props.data.get('uuid')}
                   caption="Hard disks"
-                  fetch={vdilist}
-                  refresh={this.refreshWidgets}
+                  fetch={this.props.requestVdi}
+                  data={this.props.vdiList}
+                  refresh={this.state.refreshWidgets}
                   showConnectedTo
                   onAttach={this.props.onAttachVdi}
                   actions={actions}
@@ -205,9 +210,11 @@ class Storage extends PureComponent {
                 <StorageAttach
                   uuid={this.props.data.get('uuid')}
                   caption="ISO images"
-                  fetch={isolist}
+                  fetch={this.props.requestIso}
+                  data={this.props.isoList}
                   showConnectedTo={false}
-                  refresh={this.refreshWidgets}
+                  refresh={this.state.refreshWidgets}
+                  onAttach={this.props.onAttachIso}
                 />
               </Collapse>
 

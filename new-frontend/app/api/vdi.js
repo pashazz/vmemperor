@@ -10,3 +10,10 @@ export const attachdetachvdi = async(vm, vdi, action)  =>
   return await  axios.post('/api/attachdetachvdi', {uuid: vm, vdi: vdi,
   action});
 };
+
+export const attachdetachiso = async(vm, iso, action) =>
+{
+  console.log("in attachiso");
+  return await  axios.post('/api/attachdetachiso', {uuid: vm, iso: iso,
+    action});
+};

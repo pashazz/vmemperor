@@ -97,7 +97,7 @@ const {TABLE_SELECT, TABLE_DESELECT, TABLE_SELECT_ALL, TABLE_DESELECT_ALL} = con
 
 
 
-  class ControlledTable extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
+  class ControlledTable extends React.Component { // eslint-disable-line react/prefer-stateless-function
     constructor(props) {
       super(props);
       this.onSelect = this.onSelect.bind(this);
@@ -136,6 +136,35 @@ const {TABLE_SELECT, TABLE_DESELECT, TABLE_SELECT_ALL, TABLE_DESELECT_ALL} = con
         this.props.onDoubleClick(row[keyField]);
       }
     }
+/*
+    getSnapshotBeforeUpdate(prevProps, prevState){
+      console.log("GetSnapshotBeforeUpdate");
+    }
+
+    componentDidUpdate(prevProps, prevState)
+    {
+      console.log("Component did update");
+      const {data, keyField} = this.props;
+      if (data === prevProps.data)
+        return;
+      for (const oldItem of prevProps.data)
+      {
+        if (!data.filter(item => item[keyField] === oldItem[keyField]))
+        {
+          this.props.deselect(oldItem[keyField]);
+        }
+      }
+    }
+    */
+    componentDidMount()
+    { //Deselect all deleted items
+      this.props.table_selection.filter(key => !this.props.data.filter(item => key === item[this.props.keyField]).length).forEach(key =>
+        {
+          this.props.deselect(key);
+        }
+      );
+    }
+
     render() {
       const selectRow = {
       mode: 'checkbox',

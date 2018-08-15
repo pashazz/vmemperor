@@ -9,7 +9,7 @@ from xenadapter.template import Template
 from xenadapter.vm import VM
 from xenadapter.vmguest import VMGuest
 from xenadapter.network import Network, VIF
-from xenadapter.disk import ISO, VDI
+from xenadapter.disk import ISO, VDI, VDIorISO
 from xenadapter.sr import SR
 from xenadapter.vbd import VBD
 from xenadapter.pool import Pool
@@ -1246,7 +1246,7 @@ class AttachDetachIso(VMAbstractHandler):
         :return:
         '''
         self.log.info("check if ISO UUID is valid")
-        iso_uuid = self.get_argument('iso_uuid')
+        iso = self.get_argument('iso')
         action = self.get_argument('action')
         if action == 'attach':
             is_attach = True
@@ -1259,20 +1259,25 @@ class AttachDetachIso(VMAbstractHandler):
             return
 
         db = r.db(opts.database)
-        res = db.table('isos').get(iso_uuid).run()
+        res = db.table('isos').get(iso).run()
         if res:
-            self.log.info("UUID %s valid, attaching/detaching..." % iso_uuid)
+            self.log.info("UUID {1} valid, {0}...".format(
+                          "attaching" if is_attach else "detaching",
+                          iso))
+
+
             def attach(auth : BasicAuthenticator):
-                iso = ISO(uuid=iso_uuid, auth=auth)
+                _iso = ISO(uuid=iso, auth=auth)
                 if is_attach:
-                    iso.attach(self.vm)
+                    _iso.attach(self.vm)
                 else:
-                    iso.detach(self.vm)
+                    _iso.detach(self.vm)
 
 
             self.try_xenadapter(attach)
         else:
-            self.log.info("UUID %s invalid, not attaching..." % iso_uuid)
+            self.log.info("UUID {1} invalid, not {0}...".format("attaching" if is_attach else "detaching",
+                                                                iso))
             self.set_status(400)
             self.write({'status':'error', 'message': 'invalid UUID iso_uuid'})
             return
@@ -1283,7 +1288,7 @@ class AttachDetachVDI(VMAbstractHandler):
 
     def get_data(self):
         vdi = self.get_argument('vdi')
-        vm_uuid = self.get_argument('uuid')
+
         action = self.get_argument('action')
         if action == 'attach':
             is_attach = True
@@ -1295,7 +1300,12 @@ class AttachDetachVDI(VMAbstractHandler):
                                                        '"attach", "detach", got %s' % action })
             return
 
-        _vdi = VDI(auth=self.user_authenticator, uuid=vdi)
+
+        vdi = self.get_argument('vdi')
+        action = self.get_argument('action')
+
+        _vdi = VDIorISO(auth=self.user_authenticator, uuid=vdi)
+
         try:
             _vdi.check_access('attach')
         except XenAdapterUnauthorizedActionException as e:
@@ -1303,8 +1313,11 @@ class AttachDetachVDI(VMAbstractHandler):
             self.write({'status': 'access denied', 'message': e.message})
             return
 
+
+
+
+
         def attach(auth):
-            _vdi = VDI(uuid=vdi, auth=auth)
             if is_attach:
                 _vdi.attach(self.vm)
             else:

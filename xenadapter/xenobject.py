@@ -304,10 +304,14 @@ class ACLXenObject(XenObject):
             return True # admin can do it all
 
         self.log.info("Checking %s %s rights for user %s: action %s" % (self.__class__.__name__, self.uuid, self.auth.get_id(), action))
-
+        from rethinkdb.errors import ReqlNonExistenceError
 
         db = self.auth.xen.db
-        access_info = db.table(self.db_table_name).get(self.uuid).pluck('access').run()
+        try:
+            access_info = db.table(self.db_table_name).get(self.uuid).pluck('access').run()
+        except ReqlNonExistenceError:
+            access_info = None
+            
         access_info = access_info['access'] if access_info else None
         if not access_info:
             if self.ALLOW_EMPTY_XENSTORE:
