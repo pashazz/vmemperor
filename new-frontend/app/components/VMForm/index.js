@@ -77,7 +77,7 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
 
   constructor(props) {
     super(props);
-
+    console.log("VMForm constructor");
     this.handleSubmit = this.handleSubmit.bind(this);
     this.getPool = this.getPool.bind(this);
     this.onInputTextChange = this.onInputTextChange.bind(this);
@@ -118,6 +118,7 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
 
 
   onInputTextChange(e) {
+    console.log("Text change: ",e.target.name,  e.target.value);
     const form = this.state;
     form[e.target.name] = e.target.value;
     this.setState(form);
@@ -133,14 +134,14 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
   onISOOptionChange(option)
   {
     const form = this.state;
-    form['iso'] = option.value;
+    form['iso'] = option;
     this.setState(form)
   }
 
   onNetworkOptionChange(option)
   {
     const form = this.state;
-    form.network = option.value;
+    form.network = option;
     const currentNetwork = this.props.networks.find(network => network.uuid === form.network);
     if (!form.networkType) { //Guess network type from metadata
       if (currentNetwork && currentNetwork.other_config) {
@@ -162,10 +163,13 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
 
   onTemplateOptionChange(option)
   {
+    console.log("Template option change: ", option);
     const form = this.state;
-    form.template = option.value;
+    form.template = option;
     if (!form.name_label)
-      form.name_label = option.label;
+      form.name_label = this.props.templates.filter(row =>
+        row.get('uuid') === option)
+        .first().get('name_label');
 
     this.setState(form);
 
@@ -201,7 +205,6 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
     e.preventDefault();
     this.props.onSubmit(this.state);
 
-
   }
 
   render() {
@@ -213,7 +216,7 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
   //  const currentHooks = getHooks(currentTemplate);
 
     return (
-      <AvForm className={styles.vmForm} onValidSubmit={this.handleSubmit}>
+      <AvForm ref={(ref) => {this.formRef = ref}} className={styles.vmForm} onValidSubmit={this.handleSubmit}>
         <h4 style={{ margin: '20px'}}><FormattedMessage {...messages.infrastructure} /></h4>
         <VMInput.Pool pools={this.props.pools} selected={form['pool-select']} onChange={this.onInputTextChange} />
         {form['pool-select'] && (
@@ -232,7 +235,7 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
         <h4 style={{margin: '20px'}}><FormattedMessage {...messages.account} /></h4>
         <VMInput.Fullname fullname={form.fullname} onChange={this.onInputTextChange} />
         <VMInput.Link username={form.username} hostname={form.hostname} onChange={this.onInputTextChange} />
-        <VMInput.Passwords password={form.password} password2={form.password2} onChange={this.onInputTextChange} />
+        <VMInput.Passwords password={form.password} password2={form.password2} onChange={this.onInputTextChange} formRef={this.formRef} />
 
           </div>)}
         {(currentTemplate && !currentTemplate.os_kind) && (

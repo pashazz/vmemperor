@@ -32,7 +32,9 @@ class ISO extends PureComponent {
             <Select options={this.state.options}
                     placeholder="Select ISO Image..."
                     onChange={this.props.onChange}
-                    isSearchable name="iso" id="iso"/>
+                    isSearchable name="iso" id="iso"
+                    required
+            />
       </div>
     )
   }

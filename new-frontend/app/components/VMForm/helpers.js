@@ -54,20 +54,20 @@ const firstTouchWrapper = (WrappedComponent) =>
 
 const exportObject = {
   Pool: Pool,
-  Template: firstTouchWrapper(Template),
-  Storage: firstTouchWrapper(Storage),
-  Network: firstTouchWrapper(Network),
-  Fullname: firstTouchWrapper(Fullname),
-  Link: firstTouchWrapper(Link),
-  Passwords: firstTouchWrapper(Passwords),
-  Description: firstTouchWrapper(Description),
-  CPU: firstTouchWrapper(CPU),
-  RAM: firstTouchWrapper(RAM),
-  HDD: firstTouchWrapper(HDD),
+  Template:Template,
+  Storage: Storage,
+  Network: Network,
+  Fullname: Fullname,
+  Link: Link,
+  Passwords: Passwords,
+  Description: Description,
+  CPU: CPU,
+  RAM: RAM,
+  HDD: HDD,
   Hook,
-  Connection: firstTouchWrapper(Connection),
-  ISO: firstTouchWrapper(ISO),
-  Name: firstTouchWrapper(Name),
+  Connection: Connection,
+  ISO,
+  Name: Name,
 
 };
 

@@ -1,36 +1,55 @@
-import React from 'react';
+import React, {Fragment} from 'react';
 import T from 'prop-types';
 
-import classNames from 'classnames';
-
-function validate(username, hostname) {
+import {AvField, AvGroup, AvInput, AvFeedback } from 'availity-reactstrap-validation';
+function validateUser(value, ctx) {
+  const {username} = ctx;
   if (username.length < 4) {
     return 'User name should have at least 4 symbols';
   }
   if (username.search(/[\s]/) !== -1) {
     return 'User name should have no spaces';
   }
+  return true;
+}
+
+function validateHost(value, ctx) {
+  const {hostname} = ctx;
+
   if (hostname.length < 4) {
     return 'Host name should have at least 4 symbols';
   }
   if (hostname.search(/[\s]/) !== -1) {
     return 'Host name should have no spaces';
   }
-  return '';
+  return true;
 }
 
-function Link({ username, hostname, onChange, touched }) {
-  const validation = validate(username, hostname);
-  const isValid = validation === '';
+function Link({ username, hostname, onChange, }) {
+return (
+  <Fragment>
+  <AvField label="Username"
+           name="username"
+           id="username"
+           value={username}
+           onChange={onChange}
+           placeholder="Your login for a new VM"
+           validate={{myValidation: validateUser}}
+           />
+    <AvField label="Host name"
+             name="hostname"
+             id="hostname"
+             value={hostname}
+             onChange={onChange}
+             placeholder="Your hostname for a new VM"
+             validate={{myValidation: validateHost}}
+    />
 
-  const mainClassName = classNames('form-group', {
-    'has-success': touched && isValid,
-    'has-error': touched && !isValid,
-  });
+  </Fragment>
+);
 
-  const errorText = touched && !isValid ?
-    <span className="help-block">{ validation }</span> : null;
 
+/*
   return (
     <div className={mainClassName}>
       <div className="input-group">
@@ -60,6 +79,7 @@ function Link({ username, hostname, onChange, touched }) {
       { errorText }
     </div>
   );
+  */
 }
 
 Link.propTypes = {

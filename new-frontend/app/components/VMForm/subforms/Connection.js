@@ -4,9 +4,14 @@ import messages from '../messages';
 import InputMask from 'react-input-mask';
 import { InputGroup, InputGroupAddon, InputGroupText, Input, FormGroup,Label,Col } from 'reactstrap';
 import {NetworkShape} from "../../../models/Network";
-
+import {AvField, AvGroup, AvInput, AvFeedback } from 'availity-reactstrap-validation';
 const IPInput = (props) => (
-  <Input {...props}/>
+  <AvGroup>
+  <AvInput {...props}/>
+    <AvFeedback>
+      This field is required
+    </AvFeedback>
+  </AvGroup>
 );
 
 export default class Connection extends PureComponent {
@@ -31,7 +36,9 @@ export default class Connection extends PureComponent {
                    id="networkType"
                    name="networkType"
                    onChange={onChange}
-                   value={this.props.networkType}>
+                   value={this.props.networkType}
+                   required
+            >
               <option key="dhcp" value="dhcp">DHCP</option>
               <option key="static" value="static">Static IP</option>
             </Input>
@@ -47,7 +54,9 @@ export default class Connection extends PureComponent {
                     id="ip"
                     name="ip"
                     onChange={onChange}
-                    value={this.props.ip}/>
+                    value={this.props.ip}
+                    required
+                  />
                 </Col>
               </FormGroup>
               <FormGroup row ml-auto>
@@ -57,7 +66,9 @@ export default class Connection extends PureComponent {
                     id="gateway"
                     name="gateway"
                     onChange={onChange}
-                    value={this.props.gateway}/>
+                    value={this.props.gateway}
+                    required
+                  />
                 </Col>
               </FormGroup>
               <FormGroup row>
@@ -67,7 +78,9 @@ export default class Connection extends PureComponent {
                     id="netmask"
                     name="netmask"
                     onChange={onChange}
-                    value={this.props.netmask}/>
+                    value={this.props.netmask}
+                    required
+                  />
                 </Col>
               </FormGroup>
               <FormGroup row>
@@ -77,7 +90,9 @@ export default class Connection extends PureComponent {
                     id="dns0"
                     name="dns0"
                     onChange={onChange}
-                    value={this.props.dns0}/>
+                    value={this.props.dns0}
+                    required
+                  />
                 </Col>
               </FormGroup>
               <FormGroup row>

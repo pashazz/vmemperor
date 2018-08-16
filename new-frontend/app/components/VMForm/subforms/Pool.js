@@ -21,7 +21,7 @@ const Pool = ({ pools, selected, onChange }) =>
           <option key={pool.uuid} value={pool.uuid}>{pool.description}</option>)
       }
     </AvInput>
-    <AvFeedback>Select pool to install in</AvFeedback>
+    <AvFeedback>Select a pool to install on</AvFeedback>
   </InputGroup>
   </AvGroup>;
 

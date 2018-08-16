@@ -1,30 +1,14 @@
 import React from 'react';
 import T from 'prop-types';
+import { InputGroup, InputGroupAddon, InputGroupText, Input } from 'reactstrap';
+import {AvField, AvGroup, AvInput, AvFeedback } from 'availity-reactstrap-validation';
+import faHdd from '@fortawesome/fontawesome-free-solid/faHdd';
+import FontAwesomeIcon from '@fortawesome/react-fontawesome';
 
+function HDD({ hdd, onChange }) {
 
-import classNames from 'classnames';
+  /*return (
 
-function validate(hdd) {
-  if (hdd < 9 || hdd > 500) {
-    return 'should be between 9 and 500';
-  }
-  return '';
-}
-
-function HDD({ hdd, onChange, className, touched }) {
-  const validation = validate(hdd);
-  const isValid = validation === '';
-
-  const mainClassName = classNames(className, 'form-group', {
-    'has-success': touched && isValid,
-    'has-error': touched && !isValid,
-  });
-
-  const errorText = touched && !isValid ?
-    <span className="help-block">{ validation }</span> : null;
-
-  return (
-    <div className={mainClassName}>
       <div className="input-group">
         <span className="input-group-addon"><i className="icon-hdd"></i></span>
         <input
@@ -40,6 +24,30 @@ function HDD({ hdd, onChange, className, touched }) {
       </div>
       { errorText }
     </div>
+  ); */
+  return (
+    <AvGroup>
+     <InputGroup>
+       <InputGroupAddon style={ {"line-height": "1!important"}} addonType="prepend">
+         <InputGroupText style = { { height: '100%'}}>
+           <FontAwesomeIcon icon={faHdd}/>
+         </InputGroupText>
+       </InputGroupAddon>
+     <AvInput
+       type="number"
+       validate={{max: {value: 500}, min: {value: 9}}}
+       id="hdd"
+       name="hdd"
+       value={hdd}
+       onChange={onChange}
+     />
+       <InputGroupAddon addonType="append" style={ {"line-height": "1!important"}} >
+       <InputGroupText>
+         GB
+       </InputGroupText>
+       </InputGroupAddon>
+     </InputGroup>
+    </AvGroup>
   );
 }
 

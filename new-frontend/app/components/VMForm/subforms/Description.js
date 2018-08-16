@@ -1,28 +1,37 @@
 import React from 'react';
 import T from 'prop-types';
 
-import classNames from 'classnames';
 
-export function validate(val) {
-  if (val.length < 10) {
-    return 'Please provide meaningfull description';
-  }
-  return '';
-}
 
-function Description({ description, onChange, touched }) {
-  const validation = validate(description);
-  const isValid = validation === '';
+import {AvField, AvGroup, AvInput, AvFeedback } from 'availity-reactstrap-validation';
+import { InputGroup, InputGroupAddon, InputGroupText, Input } from 'reactstrap';
+import icon  from '@fortawesome/fontawesome-free-solid/faStickyNote';
+import FontAwesomeIcon from '@fortawesome/react-fontawesome';
 
-  const mainClassName = classNames('form-group', {
-    'has-success': touched && isValid,
-    'has-error': touched && !isValid,
-  });
-
-  const errorText = touched ?
-    <span className="help-block">{ validation }</span> : null;
+function Description({ description, onChange }) {
 
   return (
+   <AvGroup>
+     <InputGroup>
+       <InputGroupAddon style={ {"line-height": "1!important"}} addonType="prepend">
+         <InputGroupText style = { { height: '100%'}}>
+           <FontAwesomeIcon icon={icon}/>
+         </InputGroupText>
+       </InputGroupAddon>
+     <AvInput
+       type="textarea"
+       id="name_description"
+       name="name_description"
+       style={{ resize: 'vertical' }}
+       value={description}
+       placeholder="Provide a description (optional)"
+       onChange={onChange}
+
+     />
+     </InputGroup>
+   </AvGroup>
+  )
+  /*return (
     <div className={mainClassName} style={{ paddingBottom: '10px' }}>
       <div className="input-group">
         <span className="input-group-addon"><i className="icon-noteslist" style={{ fontSize: '28px' }}></i></span>
@@ -41,6 +50,7 @@ function Description({ description, onChange, touched }) {
       { errorText }
     </div>
   );
+  */
 }
 
 Description.propTypes = {

@@ -5,7 +5,7 @@ import faDesktop from '@fortawesome/fontawesome-free-solid/faCompactDisc';
 import FontAwesomeIcon from '@fortawesome/react-fontawesome';
 import SelectList from './SelectList';
 import IPT from 'react-immutable-proptypes';
-
+import {AvGroup, AvFeedback} from 'availity-reactstrap-validation';
 
 function Template({ templates = [], onChange }) {
   if (templates.length === 0) {
@@ -31,8 +31,9 @@ function Template({ templates = [], onChange }) {
   );
   */
    return (
+     <AvGroup>
     <InputGroup style={ {padding: '10px'}}>
-      <InputGroupAddon>
+      <InputGroupAddon addonType="prepend">
         <InputGroupText>
           <FontAwesomeIcon icon={faDesktop}/>
         </InputGroupText>
@@ -43,8 +44,13 @@ function Template({ templates = [], onChange }) {
       onChange={onChange}
       placeholder="Select Template..."
       name="template"
-      id="template"/>
+      id="template"
+      required
+    />
+      <AvFeedback>Select a template to use as configuration basis</AvFeedback>
     </InputGroup>
+
+     </AvGroup>
   );
 }
 
