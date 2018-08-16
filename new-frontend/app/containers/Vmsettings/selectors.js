@@ -48,6 +48,13 @@ const makeSelectResList = (res) => () => createSelector(
   }
 );
 
+const makeSelectPages = (res) => () => createSelector(
+  makeSelectVmSettingsDomain(),
+  (vmsettings) => {
+    return vmsettings.get('pages').get(res).toJS();
+  }
+);
+
 
 
 const makeSelectVdiList = makeSelectResList('vdiList');
@@ -57,15 +64,12 @@ const makeSelectNetList = makeSelectResList('netList');
 const makeSelectDiskInfo = makeSelectInfo('vmDiskInfo');
 const makeSelectNetInfo = makeSelectInfo('vmNetworkInfo');
 
-const makeSelectNetworks = () => createSelector(
-  makeSelectUuid(),
-  makeSelectVmData()
-);
-
 export {
   makeSelectVmData,
   makeSelectDiskInfo,
   makeSelectIsoList,
   makeSelectVdiList,
   makeSelectNetInfo,
+  makeSelectNetList,
+  makeSelectPages,
 };

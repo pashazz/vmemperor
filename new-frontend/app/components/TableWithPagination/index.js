@@ -61,39 +61,23 @@ export default class TableWithPagination extends PureComponent
   });
 };
 
-  static getDerivedStateFromProps(props, state) {
-    if (props.refresh !== state.refresh)
+  componentDidUpdate(prevProps)
+  {
+    if (prevProps.refresh !== this.props.refresh)
     {
-      const res = props.fetcher(state.page, props.sizePerPage);
-
-      if (res.then)
-      {
-        let myData = null;
-        res.then(data => myData = data);
-        return {
-          ...state,
-          refresh: props.refresh,
-          items: props.rowFilter ? myData.filter(props.rowFilter) : myData,
-        }
-      }
+      this.fetch();
     }
-
-    if (props.data) {
-      return {
-        ...state,
-        refresh: props.refresh,
-        items: props.rowFilter ? props.data.filter(props.rowFilter) : props.data,
-      }
-    }
-    else {
-      return state;
+    if (prevProps.data !== this.props.data)
+    {
+      this.fetchHandler(this.props.data);
     }
   }
+
 
   fetch(page = this.state.page, sizePerPage = this.props.sizePerPage)
   {
     const res = this.props.fetcher(page, sizePerPage);
-    if (res.then)
+    if (res && res.then)
     {
       res.then(this.fetchHandler);
     }
@@ -102,10 +86,10 @@ export default class TableWithPagination extends PureComponent
     })
   }
 
-  /*componentDidMount()
+  componentDidMount()
   {
     this.fetch();
-  }*/
+  }
 
   handleOnSelect (row, isSelect)
   {
@@ -164,6 +148,7 @@ export default class TableWithPagination extends PureComponent
         this.fetch();
       }
     };
+
     return (
       <div>
       <NextTable

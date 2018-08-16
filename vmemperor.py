@@ -1016,8 +1016,11 @@ class SetAccessHandler(BaseHandler):
 
             try:
                 self.target = type_obj(self.user_authenticator, uuid=uuid)
+                self.log.info("Checking object {0} access for action {1}, revoke: {2}" .format(_type, action, revoke))
                 self.target.check_access(action)
+                self.log.debug("Access granted, performing changes")
                 self.target.manage_actions(action, revoke, user, group)
+                self.log.debug("Changes successful")
             except XenAdapterAPIError as e:
                 self.set_status(400)
                 self.write({'status': 'bad request', 'message': e.message})
@@ -1321,7 +1324,6 @@ class AttachDetachVDI(VMAbstractHandler):
 
 
         vdi = self.get_argument('vdi')
-        action = self.get_argument('action')
 
         _vdi = VDIorISO(auth=self.user_authenticator, uuid=vdi)
 
@@ -1345,6 +1347,48 @@ class AttachDetachVDI(VMAbstractHandler):
 
         self.try_xenadapter(attach)
 
+
+class NetworkAction(VMAbstractHandler):
+    access = 'attach'
+
+    def get_data(self):
+        _net = self.get_argument('net')
+
+        action = self.get_argument('action')
+        if action == 'attach':
+            is_attach = True
+        elif action == 'detach':
+            is_attach = False
+        else:
+            self.set_status(400)
+            self.write({'status': 'error', 'message' : 'invalid parameter "action": should be one of '
+                                                       '"attach", "detach", got %s' % action })
+            return
+
+
+
+
+        net = Network(auth=self.user_authenticator, uuid=_net)
+
+        try:
+            net.check_access('attach')
+        except XenAdapterUnauthorizedActionException as e:
+            self.set_status(403)
+            self.write({'status': 'access denied', 'message': e.message})
+            return
+
+
+
+
+
+        def attach(auth):
+            # TODO support arguments: MAC. MTU, qos_algorithm_type
+            if is_attach:
+                net.attach(self.vm)
+            else:
+                net.detach(self.vm)
+
+        self.try_xenadapter(attach)
 
 
 class EventLoop(Loggable):
@@ -1418,10 +1462,6 @@ class EventLoop(Loggable):
                     #self.db.table(table_user).index_create('uuid', r.row['uuid']).run()
                     #self.db.table(table_user).index_wait('uuid').run()
 
-                    CHECK_ER(self.db.table(table_user).insert(
-                        self.db.table(table).pluck('access', 'uuid').filter(r.row['access'] != []).\
-                        concat_map(lambda acc: acc['access'].merge({'uuid':acc['uuid']}))).run())
-
 
                 i = 0
                 while i < len(objects):
@@ -1429,12 +1469,13 @@ class EventLoop(Loggable):
                     initial_merge(objects[i].db_table_name)
 
                     if i > 0:
-                        query.union(self.db.table(objects[i].db_table_name).pluck('uuid', 'access')\
+                        query = query.union(self.db.table(objects[i].db_table_name).pluck('uuid', 'access')\
                                         .merge({'table': objects[i].db_table_name}).changes(include_initial=True, include_types=True))
                     i += 1
 
                 #indicate that vms_user table is ready
                 user_table_ready.set()
+                self.log.debug("Changes query: {0}".format(query))
                 cur = query.run()
                 self.log.debug("Started access_monitor in thread {0}".format(threading.get_ident()))
 
@@ -1831,6 +1872,7 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/vnc', VNC, dict(executor=executor)),
         (r'/attachdetachvdi', AttachDetachVDI, dict(executor=executor)),
         (r'/attachdetachiso', AttachDetachIso, dict(executor=executor)),
+        (r'/netaction', NetworkAction, dict(executor=executor)),
         (r'/destroyvm', DestroyVM, dict(executor=executor)),
         (r'/connectvm', ConnectVM, dict(executor=executor)),
         (r'/adminauth', AdminAuth, dict(executor=executor, authenticator=auth_class)),
@@ -1848,6 +1890,7 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/vmdiskinfo', VMDiskInfo, dict(executor=executor)),
         (r'/vmnetinfo', VMNetInfo, dict(executor=executor)),
         (r'/turntemplate', TurnTemplate, dict(executor=executor))
+
 
     ], **settings)
 

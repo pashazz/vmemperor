@@ -6,7 +6,7 @@
 
 import { fromJS } from 'immutable';
 import {combineReducers} from 'redux-immutable';
-import {VM_SET_INFO, VM_SET_RESOURCE, VM_WATCH} from "./constants";
+import {VM_REQUEST_RESOURCE, VM_SET_INFO, VM_SET_RESOURCE, VM_WATCH} from "./constants";
 
 const initialState = fromJS({});
 
@@ -61,6 +61,17 @@ const uuid = (state = "", action) =>
   }
 };
 
+const pages = (state = fromJS({}), action) =>
+{
+  switch (action.type) {
+    case VM_REQUEST_RESOURCE:
+      return state.set(action.resourceType,
+        fromJS({page: action.page, pageSize: action.pageSize}));
+    default:
+      return state;
+
+  }
+}
 
 export default combineReducers(
   {
@@ -69,6 +80,7 @@ export default combineReducers(
     isoList: genericList('iso'),
     vdiList: genericList('vdi'),
     netList: genericList('net'),
+    pages: pages,
     uuid,
   }
 );

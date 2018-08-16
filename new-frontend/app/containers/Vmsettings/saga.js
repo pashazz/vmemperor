@@ -10,7 +10,8 @@ import {
   VM_CONVERT,
   VM_REQUEST_INFO,
   VM_REQUEST_RESOURCE,
-  VM_WATCH
+  VM_WATCH,
+  NET_ACTION
 } from "./constants";
 import {VM_RUN_ERROR, VMLIST_MESSAGE} from "../App/constants";
  import {convert} from "../../api/vm";
@@ -19,9 +20,9 @@ import {VM_RUN_ERROR, VMLIST_MESSAGE} from "../App/constants";
  import {diskInfo, netInfo} from "../../api/vm";
  import {attachdetachvdi, attachdetachiso, vdilist} from "../../api/vdi";
  import isolist from '../../api/isolist';
- import {netlist} from '../../api/net';
- import {setInfo, requestInfo as actRequestInfo, setResourceData} from "./actions";
-
+ import {netlist, netaction} from '../../api/net';
+ import {setInfo, requestInfo as actRequestInfo, setResourceData, requestResourceData} from "./actions";
+ import {makeSelectPages} from "./selectors";
 
  const actionHandlers = {
   [VM_CONVERT]: {
@@ -38,6 +39,10 @@ import {VM_RUN_ERROR, VMLIST_MESSAGE} from "../App/constants";
      {
        const data = yield call(attachdetachvdi, args.vm, args.vdi, 'detach');
        console.log("detach: data", data);
+       let pages = yield select(makeSelectPages('vdi')());
+       yield put(requestResourceData('vdi', pages.page, pages.pageSize));
+       pages = yield select(makeSelectPages('iso')());
+       yield put(requestResourceData('iso', pages.page, pages.pageSize));
      }
    },
 
@@ -48,6 +53,8 @@ import {VM_RUN_ERROR, VMLIST_MESSAGE} from "../App/constants";
      console.log("handle attach");
      const data = yield call(attachdetachvdi, args.vm, args.vdi, 'attach');
      console.log("attach: data", data);
+     const pages = yield select(makeSelectPages('vdi')());
+     yield put(requestResourceData('vdi', pages.page, pages.pageSize));
    }
  },
    [ISO_ATTACH]: {
@@ -57,8 +64,22 @@ import {VM_RUN_ERROR, VMLIST_MESSAGE} from "../App/constants";
      console.log("handle iso attach");
      const data = yield call(attachdetachiso, args.vm, args.iso, 'attach');
      console.log("isoattach: data", data);
+     const pages = yield select(makeSelectPages('iso')());
+     yield put(requestResourceData('iso', pages.page, pages.pageSize));
    }
- }
+ },
+   [NET_ACTION]: {
+    onError: vm_run_error,
+     handler:  function* (args)
+   {
+     console.log("handle net action");
+     const data = yield call(netaction, args.vm, args.net, args.action);
+     console.log("net: data", data);
+     const pages = yield select(makeSelectPages('net')());
+     yield put(requestResourceData('net', pages.page, pages.pageSize));
+   }
+ },
+
 };
 
 
@@ -83,6 +104,7 @@ import {VM_RUN_ERROR, VMLIST_MESSAGE} from "../App/constants";
        }
      }
    }
+
 
 
  }
@@ -120,7 +142,6 @@ import {VM_RUN_ERROR, VMLIST_MESSAGE} from "../App/constants";
        break;
    }
    const response = yield call(func, uuid);
-   console.log("Disk info:", response.data);
    yield put(setInfo(resourceType, response.data));
 
  }
@@ -166,6 +187,7 @@ export default function* rootSaga() {
   yield takeEvery(VDI_DETACH, handleActions);
   yield takeEvery(VDI_ATTACH, handleActions);
   yield takeEvery(ISO_ATTACH, handleActions);
+  yield takeEvery(NET_ACTION, handleActions);
   yield takeEvery(VM_REQUEST_INFO, requestInfo);
   yield takeEvery(VM_WATCH, vmWatch);
   yield takeEvery(VM_REQUEST_RESOURCE, requestResource);

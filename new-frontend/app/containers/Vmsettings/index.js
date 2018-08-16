@@ -18,8 +18,8 @@ import saga from './saga';
 import VmsettingsForm from "../../components/VmsettingsForm";
 import {makeSelectVmData} from "../../containers/App/selectors";
 import { halt, run, reboot } from "../App/actions";
-import {requestInfo, vm_convert, vdi_detach, vdi_attach, vmWatch, iso_attach, requestResourceData} from "./actions";
-import {makeSelectDiskInfo, makeSelectNetInfo, makeSelectIsoList, makeSelectVdiList} from "./selectors";
+import {requestInfo, vm_convert, vdi_detach, vdi_attach, vmWatch, iso_attach, requestResourceData, net_action} from "./actions";
+import {makeSelectDiskInfo, makeSelectNetInfo, makeSelectIsoList, makeSelectVdiList, makeSelectNetList } from "./selectors";
 
 class VMSettings extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
   constructor(props)
@@ -32,8 +32,11 @@ class VMSettings extends React.PureComponent { // eslint-disable-line react/pref
     this.onDetachVdi = this.onDetachVdi.bind(this);
     this.onAttachVdi = this.onAttachVdi.bind(this);
     this.onAttachIso = this.onAttachIso.bind(this);
-
-
+    this.onAttachNet = this.onAttachNet.bind(this);
+    this.onDetachNet = this.onDetachNet.bind(this);
+    this.requestIso = this.requestIso.bind(this);
+    this.requestNet = this.requestNet.bind(this);
+    this.requestVdi = this.requestVdi.bind(this);
   }
 
   /* static getDerivedStateFromProps(props, state)
@@ -88,13 +91,11 @@ class VMSettings extends React.PureComponent { // eslint-disable-line react/pref
   onDetachVdi(vdi)
   {
     this.props.vdi_detach(this.props.match.params.uuid, vdi);
-    //this.props.requestDiskInfo(this.props.match.params.uuid);
   }
 
   onAttachVdi(vdi)
   {
     this.props.vdi_attach(this.props.match.params.uuid, vdi);
-    //this.props.requestDiskInfo(this.props.match.params.uuid);
   }
 
   onAttachIso(iso)
@@ -102,6 +103,30 @@ class VMSettings extends React.PureComponent { // eslint-disable-line react/pref
     this.props.iso_attach(this.props.match.params.uuid, iso);
   }
 
+  onAttachNet(net)
+  {
+    this.props.net_action(this.props.match.params.uuid, net, 'attach');
+  }
+
+  onDetachNet(net)
+  {
+    this.props.net_action(this.props.match.params.uuid, net, 'detach');
+  }
+
+  requestIso(page, pageSize)
+  {
+    this.props.requestResourceData('iso', page, pageSize);
+  }
+
+  requestNet(page, pageSize)
+  {
+    this.props.requestResourceData('net', page, pageSize);
+  }
+
+  requestVdi(page, pageSize)
+  {
+    this.props.requestResourceData('vdi', page, pageSize);
+  }
   componentDidMount()
   {
 
@@ -146,11 +171,15 @@ class VMSettings extends React.PureComponent { // eslint-disable-line react/pref
             onAttachVdi={this.onAttachVdi}
             onAttachIso={this.onAttachIso}
             onDetachVdi={this.onDetachVdi}
+            onAttachNet={this.onAttachNet}
+            onDetachNet={this.onDetachNet}
             diskInfo={this.props.diskInfo}
             isoList={this.props.isoList}
             vdiList={this.props.vdiList}
-            requestIso={(page, pageSize) => this.props.requestResourceData('iso', page, pageSize)}
-            requestVdi={(page, pageSize) => this.props.requestResourceData('vdi', page, pageSize)}
+            netList={this.props.netList}
+            requestIso={this.requestIso}
+            requestVdi={this.requestVdi}
+            requestNet={this.requestNet}
             netInfo={this.props.netInfo}
           />
         </div>
@@ -172,10 +201,12 @@ VMSettings.propTypes = {
   vm_convert: T.func.isRequired,
   vdi_detach: T.func.isRequired,
   vdi_attach: T.func.isRequired,
+  net_action: T.func.isRequired,
   requestResourceData: T.func.isRequired,
   requestInfo: T.func.isRequired,
   diskInfo: T.array.isRequired,
   netInfo: T.array.isRequired,
+  netList: T.array.isRequired,
 };
 
 const mapStateToProps = createStructuredSelector({
@@ -184,6 +215,7 @@ const mapStateToProps = createStructuredSelector({
   netInfo: makeSelectNetInfo(),
   isoList: makeSelectIsoList(),
   vdiList: makeSelectVdiList(),
+  netList: makeSelectNetList(),
 });
 
 const mapDispatchToProps = {
@@ -197,6 +229,7 @@ const mapDispatchToProps = {
   iso_attach,
   vmWatch,
   requestResourceData,
+  net_action,
 };
 
 

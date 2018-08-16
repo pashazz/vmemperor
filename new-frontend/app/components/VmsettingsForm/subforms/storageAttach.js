@@ -1,9 +1,6 @@
 import T from 'prop-types';
 import TableWithPagination from 'components/TableWithPagination';
-import {Button, ButtonGroup} from 'reactstrap';
 
-
-import {vminfo} from 'api/vm';
 
 import React, {PureComponent } from 'react';
 import {sizeFormatter} from "../../../utils/formatters";
@@ -79,24 +76,6 @@ class StorageAttach extends PureComponent
     }
     return newState;
   }
-/*
-  rowFilter(row)
-  {
-    const {uuid} = this.props;
-    if (!uuid)
-      return true;
-    try {
-      return row.VMs.filter(vm => vm.uuid === uuid).length === 0;
-    }
-    catch (e) {
-      console.warn("Exception in rowFilter:", e);
-      return false;
-    }
-  }
-*/
-
-
-
 
   render()
   {
@@ -110,7 +89,6 @@ class StorageAttach extends PureComponent
       noData={() =>  "No disks available for attaching"}
       actions={this.props.actions}
       onDoubleClick={this.onDoubleClick}
-      refresh={this.props.refresh}
       />
       </div>)
   }

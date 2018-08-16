@@ -13,7 +13,8 @@ import {
   VM_WATCH,
   VM_REQUEST_RESOURCE,
   VM_SET_RESOURCE,
-  ISO_ATTACH
+  ISO_ATTACH,
+  NET_ACTION,
 } from './constants';
 
 export function vm_convert(uuid, mode)
@@ -47,6 +48,16 @@ export function iso_attach(vm, iso)
     vm, iso
   }
 }
+
+export function net_action(vm, net, action)
+{
+  return {
+    type: NET_ACTION,
+    vm, net, action
+  }
+}
+
+
 
 export function requestInfo(resourceType, uuid)
 {

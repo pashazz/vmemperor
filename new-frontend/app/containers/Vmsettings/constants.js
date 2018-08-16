@@ -13,6 +13,8 @@ export const VDI_DETACH = 'emperor/vmsettings/VDI_DETACH';
 export const VDI_ATTACH = 'emperor/vmsettings/VDI_ATTACH';
 export const ISO_ATTACH = 'emperor/vmsettings/ISO_ATTACH';
 
+export const NET_ACTION = 'emperor/vmsettings/NET_ACTION';
+
 export const VM_WATCH = 'emperor/vmsettings/VM_WATCH';
 
 export const VM_REQUEST_RESOURCE ='emperor/vmsettings/VM_REQUEST_RESOURCE';

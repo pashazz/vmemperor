@@ -29,8 +29,7 @@ class VIF(XenObject, metaclass=XenObjectMeta):
             if event['operation'] == 'del':
                 # Find VIF REF on RethinkDB server (fast)
                 try:
-                    arr = db.table(VM.db_table_name).coerce_to('array').filter(lambda vm: vm['networks'].values().get_field('VIF').contains(event['ref'])).\
-                    pluck('uuid', 'networks').run()
+                    arr = db.table(VM.db_table_name).coerce_to('array').filter(lambda vm: vm['networks'].values().get_field('VIF').contains(event['ref'])).run()
                     doc = arr[0]
                 except:
                     return
@@ -38,8 +37,9 @@ class VIF(XenObject, metaclass=XenObjectMeta):
                 for k,v in doc['networks'].items():
                     if 'VIF' in v and v['VIF'] == event['ref']:
                         del doc['networks'][k]
+                        break
 
-                CHECK_ER(db.table(VM.db_table_name).insert(doc))
+                CHECK_ER(db.table(VM.db_table_name).insert(doc, conflict='replace').run())
                 return
 
             record = event['snapshot']
@@ -79,10 +79,29 @@ class Network(ACLXenObject):
             #vif_uuid = self.auth.xen.api.VIF.get_uuid(vif_ref)
 
             self.log.info("VM is connected to network: VIF UUID {0}".format(vif.uuid))
-        except XenAdapterAPIError as f:
-            raise XenAdapterAPIError(self.auth.xen.log, "Failed to create VIF",f.details)
+        except XenAPI.Failure as f:
+            raise XenAdapterAPIError(self.auth.xen.log, "Network::attach: Failed to create VIF",f.details)
 
         return vif
+
+    @use_logger
+    def detach(self, vm: VM):
+        self.check_access('attach')
+
+        for ref in vm.get_VIFs():
+            vif = VIF(self.auth, ref=ref)
+            if vif.get_network() == self.ref:
+                try:
+                    vif.destroy()
+                except XenAPI.Failure as f:
+                    raise XenAdapterAPIError(self.log, "Network::detach: Failed to detach VIF", f.details)
+                break
+        else:
+            raise XenAdapterAPIError(self.log, "Network::detach: Network {0} is not attached to vm {1}".format(
+                self.uuid, vm.uuid
+            ))
+
+
 
     @classmethod
     def filter_record(cls, record):

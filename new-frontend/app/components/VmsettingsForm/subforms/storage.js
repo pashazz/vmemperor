@@ -67,25 +67,20 @@ class Storage extends PureComponent {
     this.state = {
       vdiAttach: false,
       isoAttach: false,
-      refreshWidgets: false,
+
+      detachDisabled: false,
     };
     this.toggleVdiAttach = this.toggleVdiAttach.bind(this);
     this.toggleIsoAttach = this.toggleIsoAttach.bind(this);
     this.onDetach = this.onDetach.bind(this);
-    this.refreshWidgets = this.refreshWidgets.bind(this);
+
   }
 
-  refreshWidgets()
-  {
-    this.setState({refreshWidgets: !this.state.refreshWidgets})
-  }
   onDetach()
   {
     for (const ref of this.props.table_selection)
     {
-      console.log("diskInfo: ", this.props.diskInfo);
-      console.log("key:", ref);
-      const vdi = this.props.diskInfo.filter(row => {console.log("row.key=", row.key, "ref=", ref); return  row.key === ref})[0]['VDI'];
+      const vdi = this.props.diskInfo.filter(row => {return  row.key === ref})[0]['VDI'];
       this.props.onDetachVdi(vdi);
     }
     this.refreshWidgets();
@@ -113,6 +108,15 @@ class Storage extends PureComponent {
     );
   }
 
+  static getDerivedStateFromProps(props, state)
+  {
+    if (!props.table_selection)
+      return state;
+     return {
+       ...state,
+       detachDisabled: props.table_selection.length === 0
+     }
+  }
   render()
   {
     const actions = [
@@ -134,7 +138,7 @@ class Storage extends PureComponent {
     ];
 
 
-    const detachDisabled = this.props.table_selection.length === 0;
+
     const DiskTable = ControlledTable("disks");
 
     return (
@@ -155,7 +159,7 @@ class Storage extends PureComponent {
             <CardFooter>
               <Button size="lg" color="success" onClick={this.toggleVdiAttach} active={this.state.vdiAttach} aria-pressed="true"> Attach virtual hard disk </Button>
               <Button size="lg" color="success" onClick={this.toggleIsoAttach} active={this.state.isoAttach} aria-pressed="true"> Attach ISO image </Button>
-              <Button size="lg" color="danger" disabled={detachDisabled} onClick={this.onDetach}> Detach </Button>
+              <Button size="lg" color="danger" disabled={this.state.detachDisabled} onClick={this.onDetach}> Detach </Button>
               <Collapse id="collVdi"
                 isOpen={this.state.vdiAttach}>
                 <UncontrolledAlert color='info'>Double-click to attach a disk. You can't delete an attached disk</UncontrolledAlert>
@@ -164,7 +168,6 @@ class Storage extends PureComponent {
                   caption="Hard disks"
                   fetch={this.props.requestVdi}
                   data={this.props.vdiList}
-                  refresh={this.state.refreshWidgets}
                   showConnectedTo
                   onAttach={this.props.onAttachVdi}
                   actions={actions}
@@ -179,7 +182,6 @@ class Storage extends PureComponent {
                   fetch={this.props.requestIso}
                   data={this.props.isoList}
                   showConnectedTo={false}
-                  refresh={this.state.refreshWidgets}
                   onAttach={this.props.onAttachIso}
                 />
               </Collapse>

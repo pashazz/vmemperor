@@ -133,6 +133,10 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
                 <Network
                   data={data}
                   networks={this.props.netInfo}
+                  onAttach={this.props.onAttachNet}
+                  onDetach={this.props.onDetachNet}
+                  requestNet={this.props.requestNet}
+                  netList={this.props.netList}
                   />
               </Col>
             </Row>
@@ -169,10 +173,16 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
       onDetachVdi: T.func.isRequired,
       onAttachVdi: T.func.isRequired,
       onAttachIso: T.func.isRequired,
+      onAttachNet: T.func.isRequired,
+      onDetachNet: T.func.isRequired,
+      requestNet: T.func.isRequired,
       requestIso: T.func.isRequired,
       requestVdi: T.func.isRequired,
-      isoList: T.any.isRequired,
-      vdiList: T.any.isRequired,
+      isoList: T.array.isRequired,
+      vdiList: T.array.isRequired,
+      netList: T.array.isRequired,
+
+
     }
 
 

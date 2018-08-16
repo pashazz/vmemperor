@@ -186,6 +186,13 @@ class Main():
         p.add_argument('--action', choices=['attach', 'detach'], required=True)
         p.set_defaults(func=self.attachdetachvdi)
 
+        # add parser for networkaction
+        p = self.subparsers.add_parser('netaction', description="attach/detach network (more actions in future)")
+        p.add_argument('--uuid', help="VM UUID", required=True)
+        p.add_argument('--net', help="Network UUID", required=True)
+        p.add_argument('--action', choices=['attach', 'detach'], required=True)
+        p.set_defaults(func=self.networkaction)
+
         #add parser for everything else
         for method in inspect.getmembers(self, predicate=inspect.ismethod):
             if method[0].startswith('_') or method[0] in self.subparsers.choices:
@@ -300,6 +307,12 @@ class Main():
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
 
+    @login
+    def networkaction(self, args):
+        r = requests.post("%s/netaction" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, net=args.net, action=args.action))
+        js = json.loads(r.text)
+        pprint.pprint(js)
+        print(r.status_code, file=sys.stderr)
 
     @login
     def isoinfo(self, args):
