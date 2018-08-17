@@ -161,29 +161,22 @@ class VM (AbstractVM):
             vm.convert('pv')
 
 
+        if net_uuid:
+            try:
+                from .network import Network
+                net = Network(auth, uuid=net_uuid)
+            except XenAdapterAPIError as e:
+                auth.xen.insert_log_entry(new_vm_uuid, state="failed", message="Failed to connect VM to a network: %s" % e.message )
+                return
 
-        try:
-            from .network import Network
-            net = Network(auth, uuid=net_uuid)
-        except XenAdapterAPIError as e:
-            auth.xen.insert_log_entry(new_vm_uuid, state="failed", message="Failed to connect VM to a network: %s" % e.message )
-            return
+            net.attach(vm)
+        else:
+            if os_kind:
+                auth.xen.log.warning("os_kind specified as {0}, but no network specified. The OS won't install".format(os_kind))
 
-        net.attach(vm)
-        #self.convert_vm(new_vm_uuid, 'pv')
+
         if os_kind:
-            scenario_args = dict(
-                hostname=hostname,
-                username=username,
-                password=password,
-                fullname=fullname)
-
-
-
             vm.os_detect(os_kind, ip, hostname, install_url, override_pv_args, fullname, username, password, partition)
-
-
-
 
         if iso:
             try:
@@ -198,8 +191,6 @@ class VM (AbstractVM):
 
         vm.os_install(install_url)
         vm.convert(mode)
-        #self.convert_vm(new_vm_uuid, mode)
-        #self.start_stop_vm(new_vm_uuid, start)
 
         del vm.install
         #subscribe to changefeed
@@ -411,7 +402,7 @@ class VM (AbstractVM):
         self.start_stop_vm(False)
 
         vbds = self.get_VBDs()
-        vdis = [VBD(self.auth, ref=vbd_ref) for vbd_ref in vbds]
+        vdis = [VBD(self.auth, ref=vbd_ref).get_VDI() for vbd_ref in vbds]
 
         try:
             self.destroy()

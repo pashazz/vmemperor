@@ -1,5 +1,5 @@
 #!/bin/sh
-mount /dev/cdrom /mnt
+mount "/dev/disk/by-label/XenServer\x20Tools" /mnt
 cd /mnt/Linux
 case $(uname -m) in
 *64) dpkg -i *amd64.deb ;;

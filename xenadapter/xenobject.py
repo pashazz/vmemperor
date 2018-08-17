@@ -65,7 +65,14 @@ class XenObject(metaclass=XenObjectMeta):
 
 
 
-    def __init__(self, auth : BasicAuthenticator,  uuid=None, ref=None):
+    def __init__(self, auth : BasicAuthenticator,  uuid:str=None , ref : str =None):
+        '''
+
+        :param auth: authenticator
+        either
+        :param uuid: object uuid
+        :param ref: object ref or object
+        '''
         '''Set  self.api to Xen object class name before calling this'''
         self.auth = auth
         # if not isinstance(xen, XenAdapter):
@@ -74,7 +81,11 @@ class XenObject(metaclass=XenObjectMeta):
         self.xen = self.auth.xen
 
         if uuid:
-            self.uuid = uuid
+            if isinstance(uuid, str):
+                self.uuid = uuid
+            else:
+                raise XenAdapterAPIError(auth.xen.log, "Failed to initialize object of type {0}: invalid type of uuid. Expected: str, got {1}".format(
+                    self.__class__.__name__, uuid.__class__.__name__))
             try:
                 getattr(self, 'ref') #uuid check
             except XenAPI.Failure as f:
@@ -84,7 +95,12 @@ class XenObject(metaclass=XenObjectMeta):
 
 
         elif ref:
-            self.ref = ref
+            if isinstance(ref, str):
+                self.ref = ref
+            else:
+                raise XenAdapterAPIError(auth.xen.log, "Failed to initialize object of type {0}: invalid type of ref. Expected: str, got {1}".format
+                (self.__class__.__name__, ref.__class__.__name__))
+
         else:
             raise AttributeError("Not uuid nor ref not specified")
 
