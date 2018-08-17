@@ -111,9 +111,9 @@ class DebianOS(GenericOS):
                 raise AttributeError("dhcp is set to false, but netmask is not set")
 
 
-        net_config  = "ipv6.disable=1 netcfg/disable_autoconfig=true netcfg/use_autoconfig=false  netcfg/confirm_static=true"
-        net_config = net_config + " netcfg/get_ipaddress={0} netcfg/get_gateway={1} netcfg/get_netmask={2} netcfg/get_nameservers={3} netcfg/get_domain=vmemperor".format(
-            self.ip, self.gateway, self.netmask, self.dns1)
+            net_config  = "ipv6.disable=1 netcfg/disable_autoconfig=true netcfg/use_autoconfig=false  netcfg/confirm_static=true"
+            net_config = net_config + " netcfg/get_ipaddress={0} netcfg/get_gateway={1} netcfg/get_netmask={2} netcfg/get_nameservers={3} netcfg/get_domain=vmemperor".format(
+                self.ip, self.gateway, self.netmask, self.dns1)
         # scenario set up
         scenario = self.get_scenario()
         return "auto=true console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 %s netcfg/get_hostname=%s preseed/url=%s --" % (

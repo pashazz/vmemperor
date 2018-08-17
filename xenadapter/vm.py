@@ -422,7 +422,6 @@ class VM (AbstractVM):
         try:
             self.api.VDI.destroy(vdi_ref)
         except XenAPI.Failure as f:
-
             raise XenAdapterAPIError(self, "Failed to destroy VDI: {0}".format(f.details))
 
         return
