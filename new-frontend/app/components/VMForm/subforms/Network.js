@@ -2,7 +2,7 @@ import React from 'react';
 
 import SelectList from './SelectList';
 
-const Network = ({networks, onChange}) =>
+const Network = ({networks, onChange, required}) =>
 {
   return (
     <SelectList data={networks}
@@ -10,7 +10,9 @@ const Network = ({networks, onChange}) =>
                 placeholder="Select Network..."
                 isSearchable
                 name='network'
-                id='network' />
+                id='network'
+                required={required}
+    />
       );
 };
 

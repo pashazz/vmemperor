@@ -225,7 +225,9 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
             <VMInput.Storage storages={getStorageResources(currentPool)} selected={form['storage-select']} onChange={this.onInputTextChange} />
             <VMInput.Network
               networks={this.props.networks}
-              onChange={this.onNetworkOptionChange} />
+              onChange={this.onNetworkOptionChange}
+              required={currentTemplate && currentTemplate.os_kind}
+            />
             <VMInput.Name name={form.name_label} onChange={this.onInputTextChange}/>
             <VMInput.Description description={form.name_description} onChange={this.onInputTextChange} />
           </React.Fragment>
