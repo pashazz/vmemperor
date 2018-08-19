@@ -11,12 +11,49 @@ File: `login.ini`
     url = 'http://10.10.10.18:80/' # XenServer URL
     database = 'vmemperor' # RethinkDB DB name
     host = '10.10.10.102' # RethinkDB host name
-    delay = 5000 # Delay before Xen events update, in ms
-    max_workers = 16
     vmemperor_port = 8889 # My port, specify it in URL of VMEmperor CLI
-    log_
+    authenticator='ispldap' # authenticator type, see later
+    ansible_pubkey = /opt/ansible_key.pub # This pubkey is used for Ansible access to VMs and will be added to each VM during automatic installation
+    ansible_dir='ansible' # directory with adapted Ansible playbooks
+    ansible_playbook='ansible-playbook' # ansible playbook executable
+    ansible_bin='ansible' # ansible executable
 
-## Logging
+
+## How to configure
+  1. Set Up XenServer and provide XenServer URL as `url` config parameter
+  2. Set up RethinkDB
+  3. Install ansible in order to use automation benefits
+  4. Generate a SSH pubkey for ansible to use
+  5. Set up config parameters as shown in Example
+  6. Set up API URL for frontend:
+      in `new-frontend/server/index.js` find:
+      ```js
+      const options = {
+        target: 'http://localhost:8889',
+      ```
+
+        around line 38 and replace it with `http://localhost:vmemperor_port` (or another host if you plan to use frontend and backend on different hosts)
+
+  7. Start RethinkDB
+  8. Install VMEmperor dependencies with `pip install -r requirements.txt` (optionally create a virtualenv ). Install npm for managing frontend                                                                     
+  8. Start VMEmperor with `python3 vmemperor.py`
+  10. from `new-frontend` directory install dependencies with `npm install`
+  11. run frontend with `npm run start`
+  12. Set up networks in your XenServer
+  13. Set up CLI utility. Create a file `make_request.ini` with the following content:
+  ```
+[admin]
+username=root
+password=your_root_password
+admin=True
+  ```
+  14. Provide access of desired networks to desired users using CLI:
+  ` ./make_request.py --login admin setaccess <network uuid> --type="Network" --action="all" --user '<userid>'  `
+  To get user list, run
+  `./make_request.py --login admin userlist`
+  To get group list, run
+  `./make_request.py --login admin grouplist`
+  15. In XenCenter make desirable templates available to users by applying `vmemperor` tag
 
 
 # CLI
