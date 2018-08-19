@@ -5,3 +5,8 @@ case $(uname -m) in
 *64) dpkg -i *amd64.deb ;;
 *) dpkg -i *i386.deb ;;
 esac
+
+mkdir /root/.ssh/
+echo "{{ pubkey }}" >> /root/.ssh/authorized_keys
+chmod -R 700 /root/.ssh
+

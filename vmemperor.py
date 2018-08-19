@@ -63,6 +63,8 @@ first_batch_of_events = threading.Event()
 need_exit = threading.Event()
 xen_events_run = threading.Event() # called by USR2 signal handler
 URL = ""
+ansible_pubkey = ""
+
 
 def table_drop(db, table_name):
     try:
@@ -343,6 +345,7 @@ class ResourceList(BaseHandler):
     def get(self):
         with self.conn:
             db = r.db(opts.database)
+            user_table_ready.wait()
             try:
                 if isinstance(self.user_authenticator, AdministratorAuthenticator):
                     query = db.table(self.table).coerce_to('array')
@@ -379,9 +382,13 @@ class VDIList(ResourceList):
 
 
 class VMList(BaseWSHandler):
+    connections = []
+
     @auth_required
     @tornado.web.asynchronous
     def open(self):
+        self.connections.append(self)
+        print("Open VMList, connection ", len(self.connections))
         with self.conn:
             db  = r.db(opts.database)
             self.db = db
@@ -415,6 +422,7 @@ class VMList(BaseWSHandler):
 
             ioloop = tornado.ioloop.IOLoop.instance()
             ioloop.run_in_executor(self.executor, self.items_changes)
+
 
 
 
@@ -530,6 +538,7 @@ class VMList(BaseWSHandler):
 
 
     def on_close(self):
+        self.connections.remove(self)
         if hasattr(self, 'cur'):
             self.log.info("Closing websocket connection: {0}".format(self.ws_connection))
 
@@ -1666,8 +1675,11 @@ def event_loop(executor, authenticator=None, ioloop = None):
 
 class Postinst(BaseHandler):
     def get(self):
+
         os = self.get_argument("os")
-        self.render('templates/installation-scenarios/postinst/{0}'.format(os))
+        pubkey_path = pathlib.Path(ansible_pubkey)
+        pubkey = pubkey_path.read_text()
+        self.render('templates/installation-scenarios/postinst/{0}'.format(os), pubkey=pubkey)
 
 
 class AutoInstall(BaseHandler):
@@ -1721,8 +1733,8 @@ class AutoInstall(BaseHandler):
             mirror_path = mirror_url[mirror_url.find('/'):]
             mirror_url = mirror_url[:mirror_url.find('/')]
             filename = 'debian.jinja2'
-            # filename = 'ubuntu-ks.cfg'
-            # mirror_path = ''
+
+            pubkey = "" # We handle it in postinst
         if 'centos' in os_kind:
             for part in partition['expert_recipe']:
                 if part['mp'] is "/":
@@ -1731,12 +1743,14 @@ class AutoInstall(BaseHandler):
                     part['name'] = part['mp'].replace('/','')
             filename = 'centos-ks.cfg'
             mirror_path = ''
+            pubkey_path = pathlib.Path(ansible_pubkey)
+            pubkey = pubkey_path.read_text()
         if not filename:
             raise ValueError("OS {0} doesn't support autoinstallation".format(os_kind))
         # filename = 'raid10.cfg'
         self.render("templates/installation-scenarios/{0}".format(filename), hostname = hostname, username = username,
                     fullname=fullname, password = password, mirror_url=mirror_url, mirror_path=mirror_path,
-                    ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, partition=partition,
+ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, partition=partition, pubkey=pubkey,
                     postinst=URL +  POSTINST_ROUTE + "?" + urlencode({'os': 'debian'}, doseq=True)
                     )
 
@@ -1763,12 +1777,14 @@ class ConsoleHandler(BaseWSHandler):
 
 
 
-
+    connections = []
     @tornado.web.asynchronous
     def open(self):
         '''
         This method proxies WebSocket calls to XenServer
         '''
+        self.connections.append(self)
+        print("Opening console connection {0}", len(self.connections))
         self.sock = socket.create_connection((self.host, self.port))
         self.sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY,1)
         self.sock.setblocking(0)
@@ -1823,12 +1839,14 @@ class ConsoleHandler(BaseWSHandler):
 
     def on_close(self):
         self.halt = True
+
         try:
             self.sock.send(b'close\n')
         except:
             pass
         finally:
             self.sock.close()
+            self.connections.remove(self)
 
 
 
@@ -1928,13 +1946,19 @@ def read_settings():
     define('authenticator', group='vmemperor', default='')
     define('log_events', group='ioloop', default='')
     define('log_file_name', group='log',default='vmemperor.log')
+    define('ansible_pubkey', group='ansible', default='~/.ssh/id_rsa.pub')
 
 
     from os import path
 
     file_path = path.join(path.dirname(path.realpath(__file__)), 'login.ini')
     parse_config_file(file_path)
+    global ansible_pubkey
+    ansible_pubkey = path.expanduser(opts.ansible_pubkey)
     ReDBConnection().set_options(opts.host, opts.port)
+    if not os.access(ansible_pubkey, os.R_OK):
+        print("WARNING: Ansible pubkey {0} (ansible_pubkey config option) is not readable".format(ansible_pubkey))
+
 
     def on_exit():
         xen_events_run.set()
@@ -1973,7 +1997,7 @@ def main():
     URL = "http://{0}:{1}".format(opts.vmemperor_host, opts.vmemperor_port)
     print("Listening on: {0}".format(URL))
 
-    executor = ThreadPoolExecutor(max_workers = 1024)
+    executor = ThreadPoolExecutor(max_workers = 2048)
     app = make_app(executor)
     server = tornado.httpserver.HTTPServer(app)
     server.listen(opts.vmemperor_port, address="0.0.0.0")

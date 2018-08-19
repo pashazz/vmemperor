@@ -38,11 +38,31 @@ export class CreateVm extends React.Component { // eslint-disable-line react/pre
   {
     super(props);
     this.createVM = this.createVM.bind(this);
+    this.toggleModal = this.toggleModal.bind(this);
   }
 
   createVM(form) {
     this.props.createVM(form);
     this.props.toggleModal();
+  }
+  toggleModal(e)
+  {
+    if (this.props.modal)
+    {
+      if (confirm("Do you want to leave?"))
+      {
+        this.props.toggleModal(!this.props.modal)
+      }
+      else
+      {
+        console.log("Prevent default...")
+        e.stopPropagation();
+      }
+
+    }
+    else {
+      this.props.toggleModal(!this.props.modal);
+    }
   }
   render() {
     return (
@@ -59,7 +79,10 @@ export class CreateVm extends React.Component { // eslint-disable-line react/pre
               <div style={{ textAlign: 'center' }}><Loader /></div>
           }
         </div>
-        <Modal title="VM form" lg toggle={this.props.toggleModal} isOpen={this.props.modal}>
+        <Modal title="VM form"
+               lg
+               toggle={this.toggleModal}
+               isOpen={this.props.modal}>
           <VMForm  pools={this.props.pools}
                    isos={this.props.isos}
                    networks={this.props.networks}

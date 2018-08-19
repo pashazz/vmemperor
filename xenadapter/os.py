@@ -81,12 +81,12 @@ class GenericOS:
     def set_hostname(self, hostname):
         self.hostname = hostname
 
-    def set_network_parameters(self, ip=None, gw=None, netmask=None, dns1=None, dns2=None):
+    def set_network_parameters(self, ip=None, gw=None, netmask=None, dns0=None, dns1=None):
         self.ip = ip
         self.gateway = gw
         self.netmask = netmask
+        self.dns0 = dns0
         self.dns1 = dns1
-        self.dns2 = dns2
         if self.ip and self.gateway and self.netmask:
             self.dhcp = False
 
@@ -113,7 +113,7 @@ class DebianOS(GenericOS):
 
             net_config  = "ipv6.disable=1 netcfg/disable_autoconfig=true netcfg/use_autoconfig=false  netcfg/confirm_static=true"
             net_config = net_config + " netcfg/get_ipaddress={0} netcfg/get_gateway={1} netcfg/get_netmask={2} netcfg/get_nameservers={3} netcfg/get_domain=vmemperor".format(
-                self.ip, self.gateway, self.netmask, self.dns1)
+                self.ip, self.gateway, self.netmask, self.dns0)
         # scenario set up
         scenario = self.get_scenario()
         return "auto=true console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 %s netcfg/get_hostname=%s preseed/url=%s --" % (
@@ -189,7 +189,8 @@ class CentOS(GenericOS):
     """
     OS-specific parameters for CetOS
     """
-
+    #Releases that require HVM installation and then switching to PV
+    HVM_RELEASES=['7']
     def set_scenario(self, url):
         self.scenario = self.set_kickstart(url)
 
@@ -200,7 +201,7 @@ class CentOS(GenericOS):
         :return:
         '''
         if self.dhcp:
-            net_config = "netcfg/disable_dhcp=false"
+            net_config = ""
         else:
             if not self.ip:
                 raise AttributeError("dhcp is set to false, but ip is not set")
@@ -208,18 +209,99 @@ class CentOS(GenericOS):
                 raise AttributeError("dhcp is set to false, but gateway is not set")
             if not self.netmask:
                 raise AttributeError("dhcp is set to false, but netmask is not set")
-            net_config = " ip=%s::%s:%s" % (self.ip, self.gateway, self.netmask)
 
+            # These options are deprecated in CentOS 7
+            #net_config = " ip={0} netmask={1} gateway={2}".format(self.ip, self.netmask, self.gateway)
+
+
+            #if self.dns0:
+            #    net_config = net_config + " nameserver={0}".format(self.dns0)
+            #    if self.dns1:
+            #        net_config = net_config + ",{0}".format(self.dns1)
+
+            # These options are new
+            net_config = " ip=%s::%s:%s" % (self.ip, self.gateway, self.netmask)
 
             if self.dns0:
                 net_config = net_config + ":::off:%s" % self.dns0
                 if self.dns1:
                     net_config = net_config + ":%s" % self.dns1
 
+
         # scenario set up
         scenario = self.get_scenario()
-        return "auto=true console=hvc0 debian-installer/locale=en_US console-setup/layoutcode=us console-setup/ask_detect=false interface=eth0 %s netcfg/get_hostname=%s preseed/url=%s --" % (
-            net_config, self.hostname, scenario)
+        return "linux ks={0} ksdevice=eth0{1} sshd".format(scenario, net_config)
+
+    def set_install_url(self, url):
+
+        if not url:
+            url = 'http://mirror.centos.org/centos/{0}/os/x86_64'.format(self.rhel_version)
+
+        self.other_config['install-repository'] = url
+        self.other_config['default-mirror'] = url
+        super().set_install_url(url)
+
+    def set_rhel_version(self, rhel_version):
+        '''
+        Set RHEL version (self.rhel_version)for using in RHEL installation repository
+        :param rhel_version: specified version. If None, guess from other_config
+        :return:
+        '''
+        try:
+            if rhel_version and isinstance(rhel_version, str):
+                version = int(rhel_version)
+                if version < 1 or version > 7:
+                    raise ValueError()
+            else:
+                raise ValueError()
+
+        except ValueError: # RHEL Version should be a nunber
+            rhel_version = None
+
+        rhel_keys = [key for key in self.other_config if key.startswith('rhel')]
+        if rhel_version:
+            set_rhel_version = True
+
+            for key in rhel_keys:
+
+                if key[4:] == rhel_version:
+                    set_rhel_version = False # already set
+                    continue
+                else:
+                    del self.other_config[key]
+
+                if set_rhel_version:
+                    self.other_config['rhel'+rhel_version] = 'true'
+
+        else:
+            for key in rhel_keys:
+                if self.other_config[key]:
+                    rhel_version = key[4:]
+                    break
+
+        if not rhel_version:
+            raise ValueError("No RHEL version specified")
+        self.rhel_version = rhel_version
+
+
+
+
+
+
+
+
+    def set_os_kind(self, os_kind: str):
+        super().set_os_kind(os_kind)
+        try:
+            rhel_version = os_kind.split()[1]
+            self.set_rhel_version(rhel_version)
+        except IndexError:
+            self.set_rhel_version(None)
+
+        if self.rhel_version in self.HVM_RELEASES:
+            self.other_config['convert-to-hvm'] = 'true'
+
+
 
 
 class OSChooser:
