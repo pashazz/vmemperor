@@ -113,7 +113,7 @@ class Main():
 
         #add parser for installstatus
         p = self.subparsers.add_parser('installstatus', description="Check VM install status")
-        p.add_argument('uuid', help='VM UUID')
+        p.add_argument('taskid', help='Installation Task ID')
         p.set_defaults(func=self.installstatus)
 
         #add parser for vminfo
@@ -198,6 +198,13 @@ class Main():
         p.add_argument('id', help="Task ID")
         p.set_defaults(func=self.playbook_output)
 
+        #add parser for execute playbook
+        p = self.subparsers.add_parser('execplaybook', description="Execute a playbook")
+        p.add_argument('playbook', help="Playbook ID", nargs=1)
+        p.add_argument('vms', help="VM UUIDs", nargs='+')
+        p.set_defaults(func=self.execute_playbook)
+
+
         #add parser for everything else
         for method in inspect.getmembers(self, predicate=inspect.ismethod):
             if method[0].startswith('_') or method[0] in self.subparsers.choices:
@@ -206,7 +213,7 @@ class Main():
             p = self.subparsers.add_parser(method[0])
             p.set_defaults(func=method[1])
 
-        args = self.parser.parse_args(sys.argv[1:])
+        args, unknown = self.parser.parse_known_args(sys.argv[1:])
         self.url = 'http://{0}:{1}'.format(args.host, args.port)
         self.ws_url = self.url.replace('http://', 'ws://')
 
@@ -215,7 +222,7 @@ class Main():
             return
         self.login_opts = config._sections[args.login]
 
-        args.func(args)
+        args.func(args, unknown)
 
 
 
@@ -233,34 +240,34 @@ class Main():
         if r.text: print(r.text)
 
     @login
-    def createvm(self, args):
+    def createvm(self, args, unknown):
         r = requests.post("%s/createvm" % self.url, cookies=self.jar, data=dict(args._get_kwargs()))
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
     @login
-    def setaccess(self, args):
+    def setaccess(self, args, unknown):
         print("Send data: ", dict(args._get_kwargs()))
         r = requests.post("%s/setaccess" % self.url, cookies=self.jar, data=dict(args._get_kwargs()))
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
     @login
-    def getaccess(self, args):
+    def getaccess(self, args, unknown):
         print("Send data: ", dict(args._get_kwargs()))
         r = requests.post("%s/getaccess" % self.url, cookies=self.jar, data=dict(args._get_kwargs()))
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
     @login
-    def installstatus(self, args):
-        r = requests.post("%s/installstatus" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
+    def installstatus(self, args, unknown):
+        r = requests.post("%s/createvm" % self.url, cookies=self.jar, data=dict(taskid=args.taskid))
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
 
     @login
-    def vminfo(self, args):
+    def vminfo(self, args, unknown):
         r = requests.post("%s/vminfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
 
         js = json.loads(r.text)
@@ -268,14 +275,14 @@ class Main():
         print(r.status_code, file=sys.stderr)
 
     @login
-    def turntemplate(self, args):
+    def turntemplate(self, args, unknown):
         r = requests.post("%s/turntemplate" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, action=args.action))
         js = json.loads(r.text)
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
 
     @login
-    def convertvm(self, args):
+    def convertvm(self, args, unknown):
         r = requests.post("%s/convertvm" % self.url, cookies=self.jar,
         data=dict(uuid=args.uuid, mode=args.mode))
         js = json.loads(r.text)
@@ -283,7 +290,7 @@ class Main():
         print(r.status_code, file=sys.stderr)
 
     @login
-    def reboot(self, args):
+    def reboot(self, args, unknown):
         r = requests.post("%s/rebootvm" % self.url, cookies=self.jar,
         data=dict(uuid=args.uuid))
         js = json.loads(r.text)
@@ -291,7 +298,7 @@ class Main():
         print(r.status_code, file=sys.stderr)
 
     @login
-    def netinfo(self, args):
+    def netinfo(self, args, unknown):
         r = requests.post("%s/netinfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
         js = json.loads(r.text)
         pprint.pprint(js)
@@ -299,87 +306,100 @@ class Main():
 
 
     @login
-    def vdiinfo(self, args):
+    def vdiinfo(self, args, unknown):
         r = requests.post("%s/vdiinfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
         js = json.loads(r.text)
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
 
     @login
-    def attachdetachvdi(self, args):
+    def attachdetachvdi(self, args, unknown):
         r = requests.post("%s/attachdetachvdi" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, vdi=args.vdi, action=args.action))
         js = json.loads(r.text)
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
 
     @login
-    def networkaction(self, args):
+    def networkaction(self, args, unknown):
         r = requests.post("%s/netaction" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, net=args.net, action=args.action))
         js = json.loads(r.text)
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
 
     @login
-    def isoinfo(self, args):
+    def isoinfo(self, args, unknown):
         r = requests.post("%s/isoinfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
         js = json.loads(r.text)
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
 
     @login
-    def vmdiskinfo(self, args):
+    def vmdiskinfo(self, args, unknown):
         r = requests.post("%s/vmdiskinfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
         js = json.loads(r.text)
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
 
     @login
-    def vmnetinfo(self, args):
+    def vmnetinfo(self, args, unknown):
         r = requests.post("%s/vmnetinfo" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
         js = json.loads(r.text)
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
 
     @login
-    def start(self, args):
+    def start(self, args, unknown):
         r = requests.post("%s/startstopvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, enable=True))
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
     @login
-    def stop(self, args):
+    def stop(self, args, unknown):
         r = requests.post("%s/startstopvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid, enable=False))
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
     @login
-    def destroy(self, args):
-        r = requests.post("%s/destroyvm" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
+    def destroy(self, args, unknown):
+        r = requests.post(f"{self.url}/destroyvm", cookies=self.jar, data=dict(uuid=args.uuid))
         print(r.text)
-
         print(r.status_code, file=sys.stderr)
 
     @login
-    def vnc(self, args):
+    def execute_playbook(self, args, unknown):
+        d = {'vms': args.vms, 'playbook': args.playbook}
+        for arg in unknown:
+            name, value=arg.split('=')
+            name = name[1:].strip()
+            value = value.strip().replace('"', '').replace("'", '')
+            d[name] = value
+        r = requests.post(f'{self.url}/executeplaybook', cookies=self.jar, data=d)
+        print(r.text)
+        print(r.status_code, file=sys.stderr)
+
+    @login
+    def vnc(self, args, unknown):
         r = requests.post("%s/vnc" % self.url, cookies=self.jar, data=dict(uuid=args.uuid))
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
     @login
-    def tmpllist(self, args):
+    def tmpllist(self, args, unknown):
         r = requests.get("%s/tmpllist" % self.url, cookies=self.jar)
         pprint.pprint(r.json())
         print(r.status_code, file=sys.stderr)
 
 
+
+
     @login
-    def playbooks(self, args):
+    def playbooks(self, args, unknown):
         r = requests.get("%s/playbooks" % self.url, cookies=self.jar)
         pprint.pprint(r.json())
         print(r.status_code, file=sys.stderr)
 
     @login
-    def userinfo(self, args):
+    def userinfo(self, args, unknown):
         r = requests.get("%s/userinfo" % self.url, cookies=self.jar)
         pprint.pprint(r.json())
         print(r.status_code, file=sys.stderr)
@@ -390,40 +410,40 @@ class Main():
                     msg = await socket.recv()
                     print(msg, end='\n\n')
 
-    async def _playbook_async(self, args):
+    async def _playbook_async(self, args, unknown):
         async with websockets.connect(self.ws_url + "/playbookoutput?id=" + args.id, extra_headers=self.headers) as socket:
             while not ev.is_set():
                 msg = await socket.recv()
                 print(msg, end='\n\n')
 
-    async def _console_async(self, args):
+    async def _console_async(self, args, unknown):
         async with websockets.connect(args.url, extra_headers=self.headers) as socket:
             while not ev.is_set():
                 msg = await socket.recv()
                 print(msg, end='\n\n')
 
     @login
-    def vmlist(self, args):
+    def vmlist(self, args, unknown):
         self._async_call(self._vmlist_async)
 
     @login
-    def console(self, args):
+    def console(self, args, unknown):
         self._async_call(self._console_async, args)
 
     @login
-    def playbook_output(self, args):
+    def playbook_output(self, args, unknown):
         self._async_call(self._playbook_async, args)
 
 
     @login
-    def networklist(self, args):
+    def networklist(self, args, unknown):
         r = requests.get("%s/netlist" % self.url, cookies=self.jar)
         js = json.loads(r.text)
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
 
     @login
-    def poollist(self, args):
+    def poollist(self, args, unknown):
         r = requests.get("%s/poollist" % self.url, cookies=self.jar)
         js = json.loads(r.text)
         pprint.pprint(js)
@@ -432,7 +452,7 @@ class Main():
 
 
     @login
-    def isolist(self, args):
+    def isolist(self, args, unknown):
         r = requests.get("%s/isolist" % self.url, cookies=self.jar)
         js = json.loads(r.text)
         pprint.pprint(js)
@@ -440,7 +460,7 @@ class Main():
 
 
     @login
-    def vdilist(self, args):
+    def vdilist(self, args, unknown):
         r = requests.get("%s/vdilist" % self.url, cookies=self.jar, data=dict(page=args.page, page_size=args.pageSize))
         js = json.loads(r.text)
         pprint.pprint(js)

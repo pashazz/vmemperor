@@ -26,11 +26,11 @@ class Playbook (Loggable):
         playbook_dir = directory.joinpath(playbook_name)
         try:
             if not playbook_dir.is_dir():
-                raise ValueError('"{0}" does not exist or not a directory!'.format(playbook_dir.absolute()))
+                raise ValueError(f'"{playbook_dir.absolute()}" does not exist or not a directory!')
 
             config_file = playbook_dir.joinpath('vmemperor.conf')
             if not config_file.is_file():
-                raise ValueError('"{0}" does not exist or not a file!'.format(config_file.absolute()))
+                raise ValueError(f'"{config_file.absolute()}" does not exist or not a file!')
 
             with open(config_file) as file:
                 config_dict = yaml.safe_load(file)
@@ -40,18 +40,21 @@ class Playbook (Loggable):
             # Find variables
             keys = self.config['variables'].keys()
             self.variables_locations = {}
+            self.vars={}
             for var in ('host_vars', 'group_vars'):
+                self.variables_locations[var] = []
                 host_vars_file = playbook_dir.joinpath(var, 'all')
                 if not host_vars_file.is_file():
                     continue
                 with open(host_vars_file) as file:
                     host_vars = yaml.safe_load(file)
 
+                self.vars[var] = host_vars
                 for key in keys:
                     try:
                         self.config['variables'][key] = {**self.config['variables'][key],
                                                **{'value': host_vars[key]}}
-                        self.variables_locations[key] = var
+                        self.variables_locations[var].append(key)
                     except KeyError:
                         continue
 
@@ -60,11 +63,12 @@ class Playbook (Loggable):
             if not playbook_file.is_file():
                 raise ValueError("Playbook file {0} does not exist".format(playbook_file.absolute()))
 
-            self.config['playbook_dir'] = str(playbook_dir.absolute())
+
+            self.config['playbook_dir'] = playbook_dir.absolute()
             self.config['id'] = playbook_dir.name
         except Exception as e:
-            self.log.error("Exception: {0}".format(e))
-            self.log.error("At {0}".format(traceback.print_exc()))
+            self.log.error(f"Exception: {e}")
+            self.log.error(f"At {traceback.print_exc()}")
 
     def get_name(self):
         return self.config['name']
@@ -73,13 +77,29 @@ class Playbook (Loggable):
         return self.config['requires']
 
     def get_playbook_file(self):
+        '''
+        This is relative path to playbook file
+        :return:
+        '''
         return self.config['playbook']
 
     def get_description(self):
         return self.config.get('description', '')
 
+    def get_playbook_dir(self):
+        return self.config['playbook_dir']
+
     def get_config(self):
         return self.config
+
+    def get_variables(self):
+        return self.config['variables']
+
+    def get_id(self):
+        return self.config['id']
+
+    def get_variables_locations(self):
+        return self.variables_locations
 
 
 

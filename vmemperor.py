@@ -3,6 +3,7 @@ from collections import OrderedDict
 import signal
 import atexit
 from connman import ReDBConnection
+import subprocess
 from auth import dummy
 from xenadapter import XenAdapter, XenAdapterPool
 from xenadapter.template import Template
@@ -34,6 +35,7 @@ import base64
 import pickle
 import rethinkdb as r
 from rethinkdb.errors import ReqlDriverError, ReqlTimeoutError
+from rethinkdb.net import DefaultCursorEmpty
 from authentication import BasicAuthenticator
 from loggable import Loggable
 from pathlib import Path
@@ -47,13 +49,16 @@ import queue
 import threading
 import datetime
 import tempfile
-
+import shutil
+from ruamel import yaml
 from xmlrpc.client import DateTime as xmldt
 from frozendict import frozendict, FrozenDictEncoder
 from authentication import AdministratorAuthenticator
 from tornado.websocket import *
 import asyncio
 from tornado.platform.asyncio import AnyThreadEventLoopPolicy
+from typing import Dict, Optional, List
+
 
 POSTINST_ROUTE=r'/postinst'
 #Objects with ACL enabled
@@ -65,7 +70,9 @@ need_exit = threading.Event()
 xen_events_run = threading.Event() # called by USR2 signal handler
 URL = ""
 ansible_pubkey = ""
-playbooks = {}
+playbooks = Dict[str, Playbook]
+
+ansible_finished = {}
 
 
 def table_drop(db, table_name):
@@ -150,6 +157,7 @@ class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
 
     def initialize(self, executor):
         self.init_executor(executor)
+        self.user_authenticator = Optional[BasicAuthenticator]
         super().initialize()
 
     def prepare(self):
@@ -188,6 +196,7 @@ class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
         :param post_hook: call this function with a xenadapter method's return value and an authenticator object  as arguments argument (optional)        :return:
         '''
         auth = self.user_authenticator
+
         try:
             ret = func(auth)
 
@@ -471,8 +480,8 @@ class VMList(BaseWSHandler):
 
                 while True:
                     try:
-                        change = cur.next(False)
-                    except ReqlTimeoutError as e: #Monitor if we need to exit
+                        change = cur.next(1)
+                    except (ReqlTimeoutError, DefaultCursorEmpty) as e: #Monitor if we need to exit
                         if not self.ws_connection or need_exit.is_set():
                             return
                         else:
@@ -702,10 +711,121 @@ class ISOList(BaseHandler):
 
 
 class CreateVM(BaseHandler):
-
+    vms = {}
     @auth_required
     @tornado.web.asynchronous
     def post(self):
+        taskid = self.get_argument('taskid', '')
+        if not taskid:
+            try:
+                tmpl_name = self.get_argument('template')
+                self.sr_uuid = self.get_argument('storage')
+                self.net_uuid = self.get_argument('network')
+                self.vdi_size = self.get_argument('vdi_size')
+                self.ram_size = self.get_argument('ram_size')
+                self.hostname = self.get_argument('hostname')
+                self.name_label = self.get_argument('name_label')
+                self.mirror_url = self.get_argument('mirror_url', None)
+
+            except Exception as e:
+                self.set_status(400)
+                self.log.error("Exception: {0}".format(e))
+                self.write({'status': 'error', 'message': 'bad request'})
+                self.finish()
+                return
+
+            with self.conn:
+                db = r.db(opts.database)
+                tmpls = db.table('tmpls').run()
+                self.template = None
+                if not tmpl_name:
+                    self.set_status(400)
+                    self.write({'status': 'bad argument: template', 'message': 'bad request'})
+                    self.log.error("Client supplied no template")
+                    self.finish()
+
+                for tmpl in tmpls:
+                    if tmpl['uuid'] == tmpl_name or \
+                            tmpl['name_label'] == tmpl_name:
+                        self.template = tmpl
+                        break
+
+                if not self.template:
+                    self.set_status(400)
+                    self.write({'status': 'no such template', 'message': 'template ' + tmpl_name})
+                    self.log.error("Client supplied wrong template name: {0}".format(tmpl_name))
+                    self.finish()
+                    return
+
+                self.override_pv_args = self.get_argument('override_pv_args', None)
+                self.mode = 'hvm' if self.template['hvm'] else 'pv'
+                self.os_kind = self.template['os_kind'] if 'os_kind' in self.template and self.template['os_kind'] else None
+                self.log.info("Creating VM: name_label %s; os_kind: %s" % (self.name_label, self.os_kind))
+                if self.os_kind is None:
+                    self.iso = self.get_argument('iso')
+                    self.scenario_url = None
+                    self.mirror_url = None
+                    self.ip_tuple = None
+                    self.hostname = None
+                    self.username = None
+                    self.password = None
+                    self.fullname = None
+                    self.partition = None
+                else:
+                    self.iso = None
+
+                    ip = self.get_argument('ip', '')
+                    gw = self.get_argument('gateway', '')
+                    netmask = self.get_argument('netmask', '')
+                    dns0 = self.get_argument('dns0', '')
+                    dns1 = self.get_argument('dns1', '')
+                    if not ip or not gw or not netmask:
+                        self.ip_tuple = None
+                    else:
+                        self.ip_tuple = [ip, gw, netmask]
+
+                    if dns0:
+                        self.ip_tuple.append(dns0)
+                    if dns1:
+                        self.ip_tuple.append(dns1)
+
+                    self.hostname = self.get_argument('hostname', default='xen_vm')
+                    self.username = self.get_argument('username', default='')
+                    self.password = self.get_argument('password')
+                    self.fullname = self.get_argument('fullname', default=None)
+                    self.partition = self.get_argument('partition', default='auto')
+
+
+                self.taskid = str(uuid.uuid4())
+                tornado.ioloop.IOLoop.current().spawn_callback(self.createvm)
+                self.write({'task': self.taskid})
+                self.finish()
+
+        else:
+            if taskid not in self.vms:
+                self.set_status(404)
+                self.finish()
+                return
+            elif self.user_authenticator.id != self.vms[taskid]['auth'].id or\
+                    type(self.user_authenticator) != type(self.vms[taskid]['auth']):
+                self.set_status(403)
+                self.finish()
+                return
+
+
+            try:
+                self.write({k:v for k,v  in self.vms[taskid].items() if k != 'auth'})
+            except Exception as e:
+                self.write({'status': 'error', 'details': 'no such taskid'})
+            finally:
+                self.finish()
+
+    def insert_log_entry(self, uuid, state, message):
+        self.vms[self.taskid] = dict(uuid=uuid,state=state, message=message, auth=self.user_authenticator)
+        self.log.info(f"LOG ENTRY: uuid: {uuid}, state: {state}, message: {message}")
+
+    @gen.coroutine
+    def createvm(self):
         """
         Create a new VM. Current user gets full permissions of newly created VM
         Arguments:
@@ -736,85 +856,8 @@ class CreateVM(BaseHandler):
         """
 
         try:
-            tmpl_name = self.get_argument('template')
-            self.sr_uuid = self.get_argument('storage')
-            self.net_uuid = self.get_argument('network')
-            self.vdi_size = self.get_argument('vdi_size')
-            self.ram_size = self.get_argument('ram_size')
-            self.hostname = self.get_argument('hostname')
-            self.name_label = self.get_argument('name_label')
-            self.mirror_url = self.get_argument('mirror_url', None)
-
-        except Exception as e:
-            self.set_status(400)
-            self.log.error("Exception: {0}".format(e))
-            self.write({'status': 'error', 'message': 'bad request'})
-            self.finish()
-            return
-        with self.conn:
-            db = r.db(opts.database)
-            tmpls = db.table('tmpls').run()
-            self.template = None
-            if not tmpl_name:
-                self.set_status(400)
-                self.write({'status' : 'bad argument: template', 'message': 'bad request'})
-                self.log.error("Client supplied no template");
-                self.finish()
-
-            for tmpl in tmpls:
-                if tmpl['uuid'] == tmpl_name or \
-                tmpl['name_label'] == tmpl_name:
-                    self.template = tmpl
-                    break
-
-            if not self.template:
-                self.set_status(400)
-                self.write({'status' : 'no such template', 'message': 'template '+ tmpl_name})
-                self.log.error("Client supplied wrong template name: {0}".format(tmpl_name))
-                self.finish()
-                return
-
-            self.override_pv_args = self.get_argument('override_pv_args', None)
-            self.mode = 'hvm' if self.template['hvm'] else 'pv'
-            self.os_kind = self.template['os_kind'] if 'os_kind' in self.template and self.template['os_kind'] else None
-            self.log.info("Creating VM: name_label %s; os_kind: %s" % (self.name_label, self.os_kind))
-            if self.os_kind is None:
-                self.iso = self.get_argument('iso')
-                self.scenario_url = None
-                self.mirror_url = None
-                self.ip_tuple = None
-                self.hostname = None
-                self.username = None
-                self.password = None
-                self.fullname = None
-                self.partition = None
-            else:
-                self.iso = None
-
-                ip = self.get_argument('ip', '')
-                gw = self.get_argument('gateway', '')
-                netmask = self.get_argument('netmask', '')
-                dns0 = self.get_argument('dns0', '')
-                dns1 = self.get_argument('dns1', '')
-                if not ip or not gw or not netmask:
-                    self.ip_tuple = None
-                else:
-                    self.ip_tuple = [ip,gw,netmask]
-
-                if dns0:
-                    self.ip_tuple.append(dns0)
-                if dns1:
-                    self.ip_tuple.append(dns1)
-
-                self.hostname = self.get_argument('hostname', default='xen_vm')
-                self.username = self.get_argument('username', default='')
-                self.password = self.get_argument('password')
-                self.fullname = self.get_argument('fullname', default=None)
-                self.partition = self.get_argument('partition', default='auto')
-
-
             def clone_post_hook(return_value, auth):
-                vm =  VM.create(auth, return_value, self.sr_uuid, self.net_uuid, self.vdi_size, self.ram_size,
+                vm =  VM.create(self.insert_log_entry, auth, return_value, self.sr_uuid, self.net_uuid, self.vdi_size, self.ram_size,
                 self.hostname, self.mode, os_kind=self.os_kind, ip=self.ip_tuple, install_url=self.mirror_url,
                 name_label=self.name_label, override_pv_args=self.override_pv_args, iso=self.iso,
                 username=self.username, password=self.password, partition=self.partition, fullname=self.fullname)
@@ -850,10 +893,19 @@ class CreateVM(BaseHandler):
             def do_clone(auth):
                 tmpl = Template(auth, uuid=self.template['uuid'])
                 vm = tmpl.clone(self.name_label)
-                return vm.uuid
+                self.insert_log_entry(vm.uuid, 'cloned', f'cloned from {tmpl.uuid}')
+                clone_post_hook(vm.uuid, auth)
 
 
-            self.try_xenadapter(do_clone, post_hook=clone_post_hook)
+
+
+
+
+            do_clone(self.user_authenticator)
+        except XenAdapterUnauthorizedActionException as ee:
+            self.insert_log_entry(None, 'access denied', ee.message)
+        except EmperorException as ee:
+            self.insert_log_entry(None, 'error', ee.message)
 
     @gen.coroutine
     def do_finalize_install(self):
@@ -880,7 +932,7 @@ class CreateVM(BaseHandler):
 
             state = db.table('vms').get(self.uuid).pluck('power_state').run()['power_state']
             if state != 'Running':
-                auth.xen.insert_log_entry(self.uuid, 'failed', "failed to start VM for installation (low resources?). State: %s" % state)
+                self.insert_log_entry(self.uuid, 'failed', "failed to start VM for installation (low resources?). State: %s" % state)
                 return
 
             cur = db.table('vms').get(self.uuid).changes().run()
@@ -904,9 +956,9 @@ class CreateVM(BaseHandler):
                             vm.convert('hvm')
                         vm.start_stop_vm(True)
                     except XenAdapterAPIError as e:
-                        auth.xen.insert_log_entry(self.uuid, "failed", "failed to start after installation: %s" % e.message)
+                        self.insert_log_entry(self.uuid, "failed", "failed to start after installation: %s" % e.message)
                     else:
-                        auth.xen.insert_log_entry(self.uuid, "installed", "OS successfully installed")
+                        self.insert_log_entry(self.uuid, "installed", "OS successfully installed")
                     break
 
 
@@ -932,59 +984,112 @@ class EnableDisableTemplate(BaseHandler):
 
         self.try_xenadapter( lambda auth: Template(auth, uuid=uuid).enable_disable(bool(enable)))
 
-
-
-
-
-class ConnectVM(BaseHandler):
-    @auth_required
-    def post(self):
-        '''
-        Connect a VM to a Network. Requires permission "attach"
-        Arguments:
-        vm_uuid: VM UUID
-        net_uuid: Network UUID
-        ip: undocumented. Lera?
-        :return:
-        '''
-
-        vm_uuid = self.get_argument('vm_uuid')
-        net_uuid = self.get_argument('net_uuid')
-        ip = self.get_argument('ip', default=None)
-        self.try_xenadapter(lambda : xen.connect_vm(vm_uuid, net_uuid, ip))
-
-
 class ExecutePlaybook(BaseHandler):
+
+    @gen.coroutine
+    def run_ansible(self):
+        self.log.info(f"Running: {self.cmd_line} in {self.cwd} as {self.cwd.name}")
+        log_path = Path(opts.ansible_logs).joinpath(self.cwd.name)
+        os.makedirs(log_path)
+        with open(log_path.joinpath('stdout'), 'w') as _stdout:
+            with open(log_path.joinpath('stderr'), 'w') as _stderr:
+                proc = subprocess.run(self.cmd_line,
+                                      cwd=self.cwd, stdout=_stdout, stderr=_stderr)
+
+                ansible_finished[self.cwd.name] = proc.returncode
+        self.log.info(f'Finished {self.cwd.name} with return code {ansible_finished[self.cwd.name]}')
+
+    @tornado.web.asynchronous
     @auth_required
     def post(self):
-        vms = self.get_argument('vms')
-        for _vm in vms:
-            vm = VM(self.user_authenticator, _vm)
-            try:
-                vm.check_access('launch')
-            except XenAdapterUnauthorizedActionException as e:
-                self.set_status(403)
-                self.write({'status':'access denied', 'message' : e.message})
+        vms = self.get_arguments('vms')
+        ans = {}
+        with self.conn:
+            for _vm in vms:
+                vm = VM(self.user_authenticator, uuid=_vm)
+                try:
+                    vm.check_access('launch')
+                except XenAdapterUnauthorizedActionException as e:
+                    self.set_status(403)
+                    self.write({'status':'access denied', 'message' : e.message})
+                    return
+
+            _playbook = self.get_argument('playbook')
+            if not _playbook in playbooks:
+                self.set_status(400)
+                self.write({'status':'error', 'message' : 'no such playbook: {0}'.format(_playbook)})
+                return
+            p = playbooks[_playbook]
+
+
+            temp_dir = tempfile.mkdtemp(prefix='vmemperor-', suffix=f'-playbook-{_playbook}')
+            self.log.info(f"Creating temporary directory {temp_dir}")
+            from distutils.dir_util import copy_tree
+            playbook_dir = p.get_playbook_dir()
+            self.log.info(f"Copying {playbook_dir} into temporary directory")
+            copy_tree(playbook_dir, temp_dir)
+            temp_path = Path(temp_dir)
+            table = r.db(opts.database).table('vms')
+            documents = table.get_all(*vms).coerce_to('array').run()
+
+
+            yaml_hosts = {'all' : {'hosts': {}}}
+            for vm in documents:
+                for net in vm['networks'].values():
+                    if not net['network'] in opts.ansible_networks:
+                        continue
+                    if not 'ip' in net or not net['ip']:
+                        continue
+                    yaml_hosts['all']['hosts'][vm['name_label']] = {
+                        'ansible_user' : 'root',
+                        'ansible_host' : net['ip']
+                    }
+                    break
+                else:
+                    self.log.warning(f"Ignoring VM {vm['uuid']}: not connected to any of 'ansible_networks'. Check your configuration")
+                    if 'warnings' in ans:
+                        if 'notconnected' in ans['warnings']:
+                            ans['warnings']['notconnencted'].append(vm['uuid'])
+                        else:
+                            ans['warnings'] = {'notconnected': vm['uuid']}
+                    else:
+                        ans['warnings'] = {'notconnected': vm['uuid']}
+
+            if yaml_hosts['all']['hosts']:
+                # Create ansible execution task
+
+
+                with open(temp_path.joinpath('hosts'), 'w') as file:
+                    yaml.dump(yaml_hosts, file)
+                self.log.info("Hosts file created")
+            else:
+                self.set_status(400)
+                self.write(ans)
+                self.log.error(f"{temp_dir}: No suitable VMs found")
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                self.finish()
                 return
 
-        _playbook = self.get_argument('playbook')
-        if not _playbook in playbooks:
-            self.set_status(400)
-            self.write({'status':'error', 'message' : 'no such playbook: {0}'.format(_playbook)})
-            return
-        p = playbooks[_playbook]
+            self.log.info("Patching variables files...")
 
+            for key, vars in p.vars.items():
+                vars_copy = vars.copy()
+                for variable in  p.variables_locations[key]:
+                    value = self.get_argument(variable, p.config['variables'][variable]['value'])
+                    vars_copy['variable'] = value
+                file_name = temp_path.joinpath(key, 'all')
+                with open(file_name, 'w') as file:
+                    yaml.dump(vars_copy, file)
 
+                self.log.info(f'File {file_name} patched')
 
-        with tempfile.TemporaryDirectory(prefix='vmemperor', suffix='playbook-{0}'.format(_playbook)) as temp_dir:
-            self.log.info("Creating temporary directory {0}".format(temp_dir))
-            from distutils.dir_util import copy_tree
-            playbook_dir = p.get_config('playbook_dir')
-            self.log.info("Copying {0} into temporary directory")
-            copy_tree(p.get_config('playbook_dir'), temp_dir)
-            
-
-
+            self.cmd_line = [opts.ansible_playbook, '-i', 'hosts', p.get_playbook_file()]
+            self.cwd = temp_path
+            #ioloop = tornado.ioloop.IOLoop.instance()
+            tornado.ioloop.IOLoop.current().spawn_callback(self.run_ansible)
+            ans['task'] = self.cwd.name
+            self.write(ans)
+            self.finish()
 
 
 
@@ -1137,21 +1242,14 @@ class GetAccessHandler(BaseHandler):
 
 
 
-class InstallStatus(VMAbstractHandler):
+class InstallStatus(BaseHandler):
+    @auth_required
+    def post(self):
+        taskid = self.get_argument('taskid')
 
-    access = 'launch'
 
-    def get_data(self):
-        db = r.db(opts.database)
-        try:
-            d = db.table('vm_logs').filter({'uuid': self.uuid}).max('time').run()
-            d['time'] = d['time'].isoformat()
-            return d
-        except Exception as e:
-            self.set_status(500)
-            self.log.error("Unable to get VM installation logs: uuid: {0}, error: {1}".format(self.uuid, e))
-            self.write({'status': 'database error/no info'})
-            return
+
+
 
 
 
@@ -1545,7 +1643,7 @@ class EventLoop(Loggable):
 
                 while True:
                     try:
-                        record = cur.next(False)
+                        record = cur.next(1)
                     except ReqlTimeoutError as e:
                         if need_exit.is_set():
                             self.log.debug("Exiting access_monitor")
@@ -1829,7 +1927,6 @@ class ConsoleHandler(BaseWSHandler):
 
 
     connections = []
-    @auth_required
     @tornado.web.asynchronous
     def open(self):
         '''
@@ -1944,7 +2041,6 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/attachdetachiso', AttachDetachIso, dict(executor=executor)),
         (r'/netaction', NetworkAction, dict(executor=executor)),
         (r'/destroyvm', DestroyVM, dict(executor=executor)),
-        (r'/connectvm', ConnectVM, dict(executor=executor)),
         (r'/adminauth', AdminAuth, dict(executor=executor, authenticator=auth_class)),
         (r'/convertvm', ConvertVM, dict(executor=executor)),
         (r'/installstatus', InstallStatus, dict(executor=executor)),
@@ -1961,7 +2057,7 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/vmnetinfo', VMNetInfo, dict(executor=executor)),
         (r'/turntemplate', TurnTemplate, dict(executor=executor)),
         (r'/playbooks', Playbooks, dict(executor=executor)),
-        (r'/playbookoutput', GetPlaybookOutput, dict(executor=executor))
+        (r'/playbookoutput', GetPlaybookOutput, dict(executor=executor)),
         (r'/executeplaybook', ExecutePlaybook, dict(executor=executor))
 
     ], **settings)
@@ -2003,6 +2099,8 @@ def read_settings():
     define('ansible_pubkey', group='ansible', default='~/.ssh/id_rsa.pub')
     define('ansible_playbook', group='ansible', default='ansible-playbook')
     define('ansible_dir', group='ansible', default='./ansible')
+    define('ansible_logs', group='ansible', default='./ansible_logs')
+    define('ansible_networks', group='ansible', default='', multiple=True)
 
 
     from os import path
@@ -2050,18 +2148,18 @@ def main():
 
     read_settings()
     global URL
-    URL = "http://{0}:{1}".format(opts.vmemperor_host, opts.vmemperor_port)
-    print("Listening on: {0}".format(URL))
+    URL = f"http://{opts.vmemperor_host}:{opts.vmemperor_port}"
+    print(f"Listening on: {URL}")
 
     executor = ThreadPoolExecutor(max_workers = 2048)
     app = make_app(executor)
     server = tornado.httpserver.HTTPServer(app)
     server.listen(opts.vmemperor_port, address="0.0.0.0")
     ioloop = event_loop(executor, authenticator=app.auth_class)
-    print("Using authentication: {0}".format(app.auth_class.__name__))
+    print(f"Using authentication: {app.auth_class.__name__}")
     print("Loading playbooks...",end='')
     global playbooks
-    playbooks = {p.get_name() : p for p in Playbook.get_playbooks()}
+    playbooks = {p.get_id() : p for p in Playbook.get_playbooks()}
     print("loaded ", len(playbooks))
     ioloop.start()
 

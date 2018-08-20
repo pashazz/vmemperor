@@ -7,3 +7,4 @@ secret.ini
 make_request.ini
 rethinkdb_data
 yarn.lock
+ansible_logs/*

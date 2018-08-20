@@ -107,7 +107,7 @@ class VM (AbstractVM):
 
 
     @classmethod
-    def create(cls, auth, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, name_label ='', start=True, override_pv_args=None, iso=None,
+    def create(cls, insert_log_entry, auth, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, name_label ='', start=True, override_pv_args=None, iso=None,
                username=None, password=None, partition=None, fullname=None):
         '''1
         Creates a virtual machine and installs an OS
@@ -130,7 +130,7 @@ class VM (AbstractVM):
         :return: VM UUID
         '''
         #new_vm_uuid = self.clone_tmpl(tmpl_uuid, name_label, os_kind)
-
+        cls.insert_log_entry = lambda self, *args, **kwargs: insert_log_entry(new_vm_uuid, *args, **kwargs)
         vm = VM(auth, uuid=new_vm_uuid)
         vm.install = True
         vm.remove_tags('vmemperor')
@@ -166,7 +166,7 @@ class VM (AbstractVM):
                 from .network import Network
                 net = Network(auth, uuid=net_uuid)
             except XenAdapterAPIError as e:
-                auth.xen.insert_log_entry(new_vm_uuid, state="failed", message="Failed to connect VM to a network: %s" % e.message )
+                insert_log_entry(new_vm_uuid, state="failed", message="Failed to connect VM to a network: %s" % e.message )
                 return
 
             net.attach(vm)
@@ -184,7 +184,7 @@ class VM (AbstractVM):
                 _iso = ISO(auth, uuid=iso)
                 _iso.attach(vm)
             except XenAdapterAPIError as e:
-                auth.xen.insert_log_entry(new_vm_uuid, state="failed",
+                insert_log_entry(new_vm_uuid, state="failed",
                                           message="Failed to mount ISO for VM: %s" % e.message)
                 return
 
