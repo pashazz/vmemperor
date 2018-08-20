@@ -1941,7 +1941,7 @@ def read_settings():
     define('port', group = 'rethinkdb', type = int, default = 28015)
     define('delay', group = 'ioloop', type = int, default=5000)
     define('max_workers', group = 'executor', type = int, default=16)
-    define('vmemperor_host', group ='vmemperor', default = '10.10.10.102')
+    define('vmemperor_host', group ='vmemperor', default = 'localhost')
     define('vmemperor_port', group = 'vmemperor', type = int, default = 8888)
     define('authenticator', group='vmemperor', default='')
     define('log_events', group='ioloop', default='')
