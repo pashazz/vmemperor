@@ -8,5 +8,6 @@ esac
 
 mkdir /root/.ssh/
 echo "{{ pubkey }}" >> /root/.ssh/authorized_keys
-chmod -R 700 /root/.ssh
+chmod  700 /root/.ssh
+chmod -R 600 /root/.ssh/*
 

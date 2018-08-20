@@ -193,6 +193,11 @@ class Main():
         p.add_argument('--action', choices=['attach', 'detach'], required=True)
         p.set_defaults(func=self.networkaction)
 
+        #add parser for playbook output
+        p = self.subparsers.add_parser('pboutput', description="connect to websocket with playbook installation output")
+        p.add_argument('id', help="Task ID")
+        p.set_defaults(func=self.playbook_output)
+
         #add parser for everything else
         for method in inspect.getmembers(self, predicate=inspect.ismethod):
             if method[0].startswith('_') or method[0] in self.subparsers.choices:
@@ -366,6 +371,13 @@ class Main():
         pprint.pprint(r.json())
         print(r.status_code, file=sys.stderr)
 
+
+    @login
+    def playbooks(self, args):
+        r = requests.get("%s/playbooks" % self.url, cookies=self.jar)
+        pprint.pprint(r.json())
+        print(r.status_code, file=sys.stderr)
+
     @login
     def userinfo(self, args):
         r = requests.get("%s/userinfo" % self.url, cookies=self.jar)
@@ -377,6 +389,12 @@ class Main():
             while not ev.is_set():
                     msg = await socket.recv()
                     print(msg, end='\n\n')
+
+    async def _playbook_async(self, args):
+        async with websockets.connect(self.ws_url + "/playbookoutput?id=" + args.id, extra_headers=self.headers) as socket:
+            while not ev.is_set():
+                msg = await socket.recv()
+                print(msg, end='\n\n')
 
     async def _console_async(self, args):
         async with websockets.connect(args.url, extra_headers=self.headers) as socket:
@@ -391,6 +409,10 @@ class Main():
     @login
     def console(self, args):
         self._async_call(self._console_async, args)
+
+    @login
+    def playbook_output(self, args):
+        self._async_call(self._playbook_async, args)
 
 
     @login

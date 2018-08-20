@@ -13,6 +13,7 @@ from xenadapter.disk import ISO, VDI, VDIorISO
 from xenadapter.sr import SR
 from xenadapter.vbd import VBD
 from xenadapter.pool import Pool
+from playbook import Playbook, PlaybookEncoder
 import copy
 import traceback
 import select
@@ -45,7 +46,7 @@ from tornado.options import define, options as opts, parse_config_file
 import queue
 import threading
 import datetime
-
+import tempfile
 
 from xmlrpc.client import DateTime as xmldt
 from frozendict import frozendict, FrozenDictEncoder
@@ -64,6 +65,7 @@ need_exit = threading.Event()
 xen_events_run = threading.Event() # called by USR2 signal handler
 URL = ""
 ansible_pubkey = ""
+playbooks = {}
 
 
 def table_drop(db, table_name):
@@ -319,6 +321,11 @@ class LogOut(BaseHandler):
         #self.redirect(self.get_argument("next", "/login"))
         self.write({'status': 'ok'})
 
+class Playbooks(BaseHandler):
+    @auth_required
+    def get(self):
+        self.write(json.dumps(list(playbooks.values()), cls=PlaybookEncoder))
+
 class TurnTemplate(BaseHandler):
     @admin_required
     def post(self):
@@ -544,6 +551,18 @@ class VMList(BaseWSHandler):
 
             self.cur.close()
 
+
+class GetPlaybookOutput(BaseWSHandler):
+    @auth_required
+    @tornado.web.asynchronous
+    def open(self):
+        tornado.ioloop.IOLoop.current().spawn_callback(self.run_ansible)
+
+
+    def run_ansible(self):
+        self.write_message("Running ansible...")
+        self.write_message(self.get_argument('id'))
+        self.close()
 
 class PoolListPublic(BaseHandler):
     def get(self):
@@ -935,9 +954,39 @@ class ConnectVM(BaseHandler):
         self.try_xenadapter(lambda : xen.connect_vm(vm_uuid, net_uuid, ip))
 
 
-class AnsibleHooks:
-    # todo
-    pass
+class ExecutePlaybook(BaseHandler):
+    @auth_required
+    def post(self):
+        vms = self.get_argument('vms')
+        for _vm in vms:
+            vm = VM(self.user_authenticator, _vm)
+            try:
+                vm.check_access('launch')
+            except XenAdapterUnauthorizedActionException as e:
+                self.set_status(403)
+                self.write({'status':'access denied', 'message' : e.message})
+                return
+
+        _playbook = self.get_argument('playbook')
+        if not _playbook in playbooks:
+            self.set_status(400)
+            self.write({'status':'error', 'message' : 'no such playbook: {0}'.format(_playbook)})
+            return
+        p = playbooks[_playbook]
+
+
+
+        with tempfile.TemporaryDirectory(prefix='vmemperor', suffix='playbook-{0}'.format(_playbook)) as temp_dir:
+            self.log.info("Creating temporary directory {0}".format(temp_dir))
+            from distutils.dir_util import copy_tree
+            playbook_dir = p.get_config('playbook_dir')
+            self.log.info("Copying {0} into temporary directory")
+            copy_tree(p.get_config('playbook_dir'), temp_dir)
+            
+
+
+
+
 
 
 class ResourceAbstractHandler(BaseHandler):
@@ -1103,6 +1152,8 @@ class InstallStatus(VMAbstractHandler):
             self.log.error("Unable to get VM installation logs: uuid: {0}, error: {1}".format(self.uuid, e))
             self.write({'status': 'database error/no info'})
             return
+
+
 
 class VMInfo(VMAbstractHandler):
 
@@ -1778,6 +1829,7 @@ class ConsoleHandler(BaseWSHandler):
 
 
     connections = []
+    @auth_required
     @tornado.web.asynchronous
     def open(self):
         '''
@@ -1907,8 +1959,10 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/isoinfo', ISOInfo, dict(executor=executor)),
         (r'/vmdiskinfo', VMDiskInfo, dict(executor=executor)),
         (r'/vmnetinfo', VMNetInfo, dict(executor=executor)),
-        (r'/turntemplate', TurnTemplate, dict(executor=executor))
-
+        (r'/turntemplate', TurnTemplate, dict(executor=executor)),
+        (r'/playbooks', Playbooks, dict(executor=executor)),
+        (r'/playbookoutput', GetPlaybookOutput, dict(executor=executor))
+        (r'/executeplaybook', ExecutePlaybook, dict(executor=executor))
 
     ], **settings)
 
@@ -1947,6 +2001,8 @@ def read_settings():
     define('log_events', group='ioloop', default='')
     define('log_file_name', group='log',default='vmemperor.log')
     define('ansible_pubkey', group='ansible', default='~/.ssh/id_rsa.pub')
+    define('ansible_playbook', group='ansible', default='ansible-playbook')
+    define('ansible_dir', group='ansible', default='./ansible')
 
 
     from os import path
@@ -2003,7 +2059,10 @@ def main():
     server.listen(opts.vmemperor_port, address="0.0.0.0")
     ioloop = event_loop(executor, authenticator=app.auth_class)
     print("Using authentication: {0}".format(app.auth_class.__name__))
-
+    print("Loading playbooks...",end='')
+    global playbooks
+    playbooks = {p.get_name() : p for p in Playbook.get_playbooks()}
+    print("loaded ", len(playbooks))
     ioloop.start()
 
     return

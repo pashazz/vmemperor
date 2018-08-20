@@ -1,5 +1,5 @@
 all:
   hosts:
-    Ubuntu X11:
+    CentOS 6:
         ansible_user: root
-        ansible_host: 10.10.10.29
+        ansible_host: 10.10.10.20

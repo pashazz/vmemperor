@@ -13,8 +13,6 @@ jedi==0.10.2
 Jinja2==2.8
 jsonpickle==0.9.3
 ldap3==2.3
-locust==0.8
-locustio==0.8.1
 MarkupSafe==0.23
 msgpack-python==0.5.4
 netifaces==0.10.6

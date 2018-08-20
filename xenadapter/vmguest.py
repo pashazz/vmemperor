@@ -37,7 +37,7 @@ class VMGuest(XenObject):
                 for k,v in record['networks'].items():
                     try:
                         net_name, key, *rest = k.split('/')
-                        new_rec['networks'][net_name] = {key : v }
+                        new_rec['networks'][net_name] = {**new_rec['networks'][net_name], **{key: v}} if net_name in new_rec['networks'] else {key: v}
                     except ValueError:
                         auth.xen.log.warning("Can't get network information for VM {0}: {1}:{2}".format(vm_uuid, k, v))
 
