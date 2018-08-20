@@ -1,9 +1,9 @@
 import React from 'react';
 import T from 'prop-types';
 
-
-import {AvField, AvGroup, AvInput, AvFeedback } from 'availity-reactstrap-validation';
-import { InputGroup, InputGroupAddon, InputGroupText, Input } from 'reactstrap';
+import Input from 'components/Input';
+import {AvField, AvGroup, AvFeedback } from 'availity-reactstrap-validation';
+import { InputGroup, InputGroupAddon, InputGroupText } from 'reactstrap';
 import faMemory from '@fortawesome/fontawesome-free-solid/faMemory';
 import FontAwesomeIcon from '@fortawesome/react-fontawesome';
 
@@ -44,7 +44,7 @@ function RAM({ ram, onChange }) {
            <FontAwesomeIcon icon={faMemory}/>
          </InputGroupText>
        </InputGroupAddon>
-     <AvInput
+     <Input
        type="number"
        validate={{max: {value: 100000}, min: {value: 256}}}
        id="ram"

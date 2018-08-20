@@ -1,6 +1,7 @@
 import React, {PureComponent, Fragment} from 'react';
 import T from 'prop-types';
-import { InputGroup, InputGroupAddon, InputGroupText, Input } from 'reactstrap';
+import { InputGroup, InputGroupAddon, InputGroupText } from 'reactstrap';
+import Input from 'components/Input';
 import {AvField, AvGroup, AvInput, AvFeedback } from 'availity-reactstrap-validation';
 import faPassword from '@fortawesome/fontawesome-free-solid/faKey';
 import FontAwesomeIcon from '@fortawesome/react-fontawesome';
@@ -85,7 +86,7 @@ render()
           </InputGroupText>
         </InputGroupAddon>
 
-      <AvInput
+      <Input
         type="password"
         required
         validate={{myValidation: this.validator}}
@@ -100,7 +101,7 @@ render()
             <FontAwesomeIcon icon={faPassword}/>
           </InputGroupText>
         </InputGroupAddon>
-      <AvInput
+      <Input
         type="password"
         required
         validate={{myValidation: this.validator}}

@@ -5,8 +5,7 @@
 */
 import React from 'react';
 import T from 'prop-types';
-
-
+import autofill from  'react-autofill-innerref';
 import { FormattedMessage } from 'react-intl';
 import messages from './messages';
 import styles from './styles.css';
@@ -216,7 +215,7 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
   //  const currentHooks = getHooks(currentTemplate);
     console.log(form)
     return (
-      <AvForm ref={(ref) => {this.formRef = ref}} className={styles.vmForm} onValidSubmit={this.handleSubmit}>
+      <AvForm ref={(ref) => {this.formRef = ref}} autoComplete='new-password' className={styles.vmForm} onValidSubmit={this.handleSubmit}>
         <h4 style={{ margin: '20px'}}><FormattedMessage {...messages.infrastructure} /></h4>
         <VMInput.Pool pools={this.props.pools} selected={form['pool-select']} onChange={this.onInputTextChange} />
         {form['pool-select'] && (
@@ -285,4 +284,4 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
   }
 }
 
-export default VMForm;
+export default autofill(VMForm);

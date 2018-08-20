@@ -2,12 +2,13 @@ import React, { PureComponent } from 'react';
 import T from 'prop-types';
 import messages from '../messages';
 import InputMask from 'react-input-mask';
-import { InputGroup, InputGroupAddon, InputGroupText, Input, FormGroup,Label,Col } from 'reactstrap';
+import { InputGroup, InputGroupAddon, InputGroupText, FormGroup,Label,Col } from 'reactstrap';
 import {NetworkShape} from "../../../models/Network";
-import {AvField, AvGroup, AvInput, AvFeedback } from 'availity-reactstrap-validation';
+import {AvField, AvGroup, AvFeedback } from 'availity-reactstrap-validation';
+import Input from 'components/Input';
 const IPInput = (props) => (
   <AvGroup>
-  <AvInput {...props}/>
+  <Input {...props}/>
     <AvFeedback>
       This field is required
     </AvFeedback>

@@ -1,7 +1,8 @@
 import React from 'react';
 import T from 'prop-types';
 import { InputGroup, InputGroupAddon, InputGroupText } from 'reactstrap';
-import {AvField, AvGroup, AvInput, AvFeedback } from 'availity-reactstrap-validation';
+import Input from 'components/Input';
+import {AvField, AvGroup, AvFeedback } from 'availity-reactstrap-validation';
 import FontAwesomeIcon from '@fortawesome/react-fontawesome';
 import faDatabase from '@fortawesome/fontawesome-free-solid/faDatabase';
 function Template({ storages = [], selected, onChange }) {
@@ -16,7 +17,7 @@ function Template({ storages = [], selected, onChange }) {
           <FontAwesomeIcon icon={faDatabase}/>
         </InputGroupText>
       </InputGroupAddon>
-      <AvInput type="select"
+      <Input type="select"
         required
         className="form-control"
         id="storage-select"
@@ -29,7 +30,7 @@ function Template({ storages = [], selected, onChange }) {
           storages.map(storage =>
             <option key={storage.id} value={storage.id}>{storage.description}</option>)
         }
-      </AvInput>
+      </Input>
       <AvFeedback>Select a storage to install on</AvFeedback>
     </InputGroup>
     </AvGroup>

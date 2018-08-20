@@ -1,6 +1,6 @@
 import React from 'react';
 import T from 'prop-types';
-import { InputGroup, InputGroupAddon, Input, InputGroupText } from 'reactstrap';
+import { InputGroup, InputGroupAddon,  InputGroupText } from 'reactstrap';
 import faDesktop from '@fortawesome/fontawesome-free-solid/faCompactDisc';
 import FontAwesomeIcon from '@fortawesome/react-fontawesome';
 import SelectList from './SelectList';

@@ -1,7 +1,8 @@
 import React from 'react';
 import T from 'prop-types';
-import { InputGroup, InputGroupAddon, InputGroupText, Input } from 'reactstrap';
-import {AvField, AvGroup, AvInput, AvFeedback } from 'availity-reactstrap-validation';
+import { InputGroup, InputGroupAddon, InputGroupText } from 'reactstrap';
+import Input from 'components/Input';
+import {AvField, AvGroup, AvFeedback } from 'availity-reactstrap-validation';
 import faServer from '@fortawesome/fontawesome-free-solid/faServer';
 import FontAwesomeIcon from '@fortawesome/react-fontawesome';
 
@@ -14,13 +15,13 @@ const Pool = ({ pools, selected, onChange }) =>
         <FontAwesomeIcon icon={faServer}/>
       </InputGroupText>
     </InputGroupAddon>
-    <AvInput type="select" id="pool-select" name="pool-select" onChange={onChange} required>
+    <Input type="select" id="pool-select" name="pool-select" onChange={onChange} required>
       <option value="">Select where to deploy instance</option>
       {
         pools.map(pool =>
           <option key={pool.uuid} value={pool.uuid}>{pool.description}</option>)
       }
-    </AvInput>
+    </Input>
     <AvFeedback>Select a pool to install on</AvFeedback>
   </InputGroup>
   </AvGroup>;

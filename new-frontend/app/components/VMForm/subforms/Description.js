@@ -3,11 +3,11 @@ import T from 'prop-types';
 
 
 
-import {AvField, AvGroup, AvInput, AvFeedback } from 'availity-reactstrap-validation';
-import { InputGroup, InputGroupAddon, InputGroupText, Input } from 'reactstrap';
+import {AvField, AvGroup, AvFeedback } from 'availity-reactstrap-validation';
+import { InputGroup, InputGroupAddon, InputGroupText } from 'reactstrap';
 import icon  from '@fortawesome/fontawesome-free-solid/faStickyNote';
 import FontAwesomeIcon from '@fortawesome/react-fontawesome';
-
+import Input from 'components/Input';
 function Description({ description, onChange }) {
 
   return (
@@ -18,7 +18,7 @@ function Description({ description, onChange }) {
            <FontAwesomeIcon icon={icon}/>
          </InputGroupText>
        </InputGroupAddon>
-     <AvInput
+     <Input
        type="textarea"
        id="name_description"
        name="name_description"

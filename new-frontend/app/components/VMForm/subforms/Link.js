@@ -2,6 +2,9 @@ import React, {Fragment} from 'react';
 import T from 'prop-types';
 
 import {AvField, AvGroup, AvInput, AvFeedback } from 'availity-reactstrap-validation';
+import Input from 'components/Input';
+import { InputGroup, InputGroupAddon, InputGroupText } from 'reactstrap';
+
 function validateUser(value, ctx) {
   const {username} = ctx;
   if (username.length < 4) {
@@ -28,7 +31,14 @@ function validateHost(value, ctx) {
 function Link({ username, hostname, onChange, }) {
 return (
   <Fragment>
-  <AvField label="Username"
+    <AvGroup>
+      <InputGroup>
+        <InputGroupAddon style={ {"line-height": "1!important"}} addonType="prepend">
+          <InputGroupText style = { { height: '100%'}}>
+            <FontAwesomeIcon icon={icon}/>
+          </InputGroupText>
+        </InputGroupAddon>
+  <Input
            name="username"
            id="username"
            value={username}
@@ -36,7 +46,7 @@ return (
            placeholder="Your login for a new VM"
            validate={{myValidation: validateUser}}
            />
-    <AvField label="Host name"
+    <Input
              name="hostname"
              id="hostname"
              value={hostname}
@@ -44,6 +54,8 @@ return (
              placeholder="Your hostname for a new VM"
              validate={{myValidation: validateHost}}
     />
+      </InputGroup>
+    </AvGroup>
 
   </Fragment>
 );
