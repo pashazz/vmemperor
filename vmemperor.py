@@ -1581,7 +1581,7 @@ class EventLoop(Loggable):
             try:
                 authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
             except XenAdapterConnectionError as e:
-                raise XenAdapterAPIError("XenServer not reached", e.message)
+                raise XenAdapterAPIError(self.log, "XenServer not reached", e.message)
 
             self.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
             for obj in objects:
@@ -1802,7 +1802,11 @@ def event_loop(executor, authenticator=None, ioloop = None):
     if not ioloop:
         ioloop = tornado.ioloop.IOLoop.instance()
 
-    loop_object = EventLoop(executor, authenticator)
+    try:
+        loop_object = EventLoop(executor, authenticator)
+    except XenAdapterAPIError as e:
+        print(f'Launch error: {e.message}: {e.details}')
+        exit(2)
 
     #tornado.ioloop.PeriodicCallback(loop_object.vm_list_update, delay).start()  # read delay from ini
 

@@ -1,12 +1,17 @@
 from ruamel import yaml
-from pathlib import Path
+from pathlib import Path, PurePath
 import json
 from loggable import Loggable
 import traceback
 
 
 class Playbook (Loggable):
-    PLAYBOOK_VMEMPEROR_CONF = 'vmemperor.conf'
+    _PLAYBOOK_VMEMPEROR_CONF = 'vmemperor.conf'
+
+    _DEFAULT_CONFIG = {
+        "inventory": None,
+        "single": False,
+    }
 
     @staticmethod
     def get_playbooks():
@@ -28,7 +33,7 @@ class Playbook (Loggable):
             if not playbook_dir.is_dir():
                 raise ValueError(f'"{playbook_dir.absolute()}" does not exist or not a directory!')
 
-            config_file = playbook_dir.joinpath('vmemperor.conf')
+            config_file = playbook_dir.joinpath(self._PLAYBOOK_VMEMPEROR_CONF)
             if not config_file.is_file():
                 raise ValueError(f'"{config_file.absolute()}" does not exist or not a file!')
 
@@ -36,6 +41,12 @@ class Playbook (Loggable):
                 config_dict = yaml.safe_load(file)
 
                 self.config = config_dict
+
+            # Fill optional config parameters
+            for k,v  in self._DEFAULT_CONFIG.items():
+                if k not in self.config:
+                    self.config[k] = v
+
 
             # Find variables
             keys = self.config['variables'].keys()
@@ -101,13 +112,21 @@ class Playbook (Loggable):
     def get_variables_locations(self):
         return self.variables_locations
 
+    def get_single(self):
+        return self.config['single']
+
+    def get_inventory(self):
+        return self.config['inventory']
+
 
 
 class PlaybookEncoder(json.JSONEncoder):
+    _OMIT_KEYS = ['playbook', 'playbook_dir']
     def default(self, o):
         if isinstance(o, Playbook):
-            return o.get_config()
-
+            return {k:v for k, v in o.get_config().items() if k not in self._OMIT_KEYS}
+        if isinstance(o, PurePath):
+            return str(o)
         return super().default(o)
 
 
