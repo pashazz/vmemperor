@@ -9,6 +9,7 @@ import  VM from 'models/VM';
 
 import { FormattedMessage } from 'react-intl';
 import messages from  '../messages';
+import Playbooks from "../../../containers/Playbooks";
 
 class Power extends PureComponent {
   static propTypes = {
@@ -39,7 +40,7 @@ class Power extends PureComponent {
       let text= "";
       if (value.get('ip'))
       {
-        text = "IPv4: " +  value.get('ip') + " (Network " + key + ")\n"
+        text = "IPv4: " +  value.get('ip') + " (Network " + key + ")<br/>"
       }
       if (value.get('ipv6'))  {
 
@@ -141,6 +142,11 @@ class Power extends PureComponent {
                </CardText>
              </CardBody>
             </Card>
+          </Col>
+        </Row>
+        <Row>
+          <Col>
+            <Playbooks/>
           </Col>
         </Row>
       </React.Fragment>

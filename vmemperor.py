@@ -333,7 +333,12 @@ class LogOut(BaseHandler):
 class Playbooks(BaseHandler):
     @auth_required
     def get(self):
-        self.write(json.dumps(list(playbooks.values()), cls=PlaybookEncoder))
+
+        _playbooks = playbooks.values();
+        if not isinstance(self.user_authenticator, AdministratorAuthenticator):
+            _playbooks = filter(lambda playbook: not playbook.get_inventory(), _playbooks)
+        _playbooks = list(_playbooks)
+        self.write(json.dumps(list(_playbooks), cls=PlaybookEncoder))
 
 class TurnTemplate(BaseHandler):
     @admin_required

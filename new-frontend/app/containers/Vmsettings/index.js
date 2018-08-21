@@ -21,6 +21,7 @@ import { halt, run, reboot } from "../App/actions";
 import {requestInfo, vm_convert, vdi_detach, vdi_attach, vmWatch, iso_attach, requestResourceData, net_action} from "./actions";
 import {makeSelectDiskInfo, makeSelectNetInfo, makeSelectIsoList, makeSelectVdiList, makeSelectNetList } from "./selectors";
 
+
 class VMSettings extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
   constructor(props)
   {
@@ -163,6 +164,7 @@ class VMSettings extends React.PureComponent { // eslint-disable-line react/pref
     else {
       return (
         <div>
+
           <VmsettingsForm
             data={data}
             onHalt={this.onHalt}
