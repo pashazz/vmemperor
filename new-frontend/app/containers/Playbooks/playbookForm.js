@@ -4,13 +4,14 @@ import Field from 'components/Input/field';
 import Input from 'components/Input';
 import T from 'prop-types';
 import FullHeightCard from 'components/FullHeightCard';
-import { CardTitle, CardBody, CardSubtitle, CardText, Label, FormGroup, FormText } from 'reactstrap';
+import { CardTitle, CardBody, CardSubtitle, CardText, Label, FormGroup, FormText, Button } from 'reactstrap';
 
 
 export default class PlaybookForm extends PureComponent {
   static propTypes =
     {
       book: T.object.isRequired,
+      onSubmit: T.func.isRequired,
     };
 
   constructor(props)
@@ -22,6 +23,7 @@ export default class PlaybookForm extends PureComponent {
 
     this.onInputTextChange = this.onInputTextChange.bind(this);
     this.generateField = this.generateField.bind(this);
+    this.onSubmit = this.onSubmit.bind(this);
   }
   onInputTextChange(e) {
     console.log("Text change: ",e.target.name,  e.target.value);
@@ -29,7 +31,11 @@ export default class PlaybookForm extends PureComponent {
     form[e.target.name] = e.target.value;
     this.setState(form);
   }
-
+  onSubmit(e)
+  {
+    e.preventDefault();
+    this.props.onSubmit(this.state);
+  }
 
   render()
   {
@@ -40,11 +46,13 @@ export default class PlaybookForm extends PureComponent {
       <CardTitle>{book.name}</CardTitle>
         <CardSubtitle>{book.description}</CardSubtitle>
         <CardText>
-          <AvForm>
+          <AvForm onValidSubmit={this.onSubmit}>
             {
               Object.entries(book.variables).map(([k,v]) => this.generateField(k, v))
             }
-
+            <Button primary type="submit" block>
+              Play
+            </Button>
           </AvForm>
         </CardText>
       </CardBody>
@@ -119,6 +127,7 @@ export default class PlaybookForm extends PureComponent {
                name={id}
                id={id}
                helpMessage={id}
+               multiple={multiple}
                label={label}
 
         >

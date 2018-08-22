@@ -146,7 +146,8 @@ class Power extends PureComponent {
         </Row>
         <Row>
           <Col>
-            <Playbooks/>
+            <Playbooks
+            vmData={this.props.data}/>
           </Col>
         </Row>
       </React.Fragment>

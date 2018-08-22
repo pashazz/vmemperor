@@ -16,6 +16,8 @@ import { Map } from 'immutable';
 
 import { actions } from 'react-redux-toastr';
 
+import {execplaybook, pbstatus} from "../../api/playbook"
+import { EXECUTE_PLAYBOOK } from "../Playbooks/constants";
 
 
 const actionHandlers = Map({
@@ -58,6 +60,54 @@ const actionHandlers = Map({
 
 });
 
+function* watchPlaybook(playbook, taskId) {
+const timeout = ()  => { return new Promise((resolve, reject) => {
+  setTimeout(() => {
+    resolve(null);
+  }, 10)
+})};
+
+  const data = yield call(pbstatus, taskId);
+  console.log("Playbook status:", data);
+
+  yield call(timeout);
+
+
+
+}
+
+function* executePlaybook(action)
+{
+  console.log("Execute playbook ", action.playbook.id, "form ", action.form);
+  const selector = (state) => state.get('app').get('vm_data');
+  const vm_data_map = yield select(selector);
+  const names = action.uuids.map(uuid => vm_data_map.get(uuid).name_label)
+  let names_join = "VM";
+  if (names.length > 1)
+  {
+    names_join += 's ' + names.join('\n');
+  }
+  else
+  {
+    names_join += " " + names[0];
+  }
+  const returnData = yield execplaybook(action.playbook.id, action.uuids, action.form);
+  console.log("Playbook executed: ", returnData.data);
+  const taskId = returnData.data.task;
+  const options = {
+    id: taskId,
+    type: 'info',
+    title: 'Playing playbook: ' + action.playbook.name,
+    timeOut: 0,
+    message:  "on " + names_join,
+    options: {
+      showCloseButton: true,
+    }
+  };
+  yield put(actions.add(options));
+  yield watchPlaybook (action.playbook, taskId);
+
+}
 
 function* showNotification(title, uuids) { //Show a toastr notification. Return its notifyId
   //Select vm names from store by uuids
@@ -414,7 +464,7 @@ export default function* rootSaga () {
   yield takeEvery(VM_RUN_ERROR, handleVMErrors);
 
   yield takeEvery(REMOVE_FROM_WAIT_LIST, handleRemoveFromWaitList);
-
+  yield takeEvery(EXECUTE_PLAYBOOK, executePlaybook);
   yield all([ watchLoginFlow(),
     watchWebsocketFlow() ]);
   //VM_HALT_ERROR: todo!

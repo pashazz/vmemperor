@@ -62,11 +62,9 @@ class Template(AbstractVM):
 
             new_vm_ref = self.__getattr__('clone')(name_label)
             vm = VM(self.auth, ref=new_vm_ref)
-            self.insert_log_entry('cloned', 'Cloned to %s' % vm.uuid)
             self.log.info("New VM is created: UUID {0}".format(vm.uuid))
             return vm
         except XenAPI.Failure as f:
-            self.insert_log_entry('failed', f.details)
             raise XenAdapterAPIError(self.log, "Failed to clone template: {0}".format(f.details))
 
     @use_logger

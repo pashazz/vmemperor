@@ -213,9 +213,9 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
     const currentTemplate = this.props.templates.find(tmpl => tmpl.uuid === this.state.template);
     const currentNetwork = this.props.networks.find(net => net.uuid === this.state.network);
   //  const currentHooks = getHooks(currentTemplate);
-    console.log(form)
+    console.log(form);
     return (
-      <AvForm ref={(ref) => {this.formRef = ref}} autoComplete='new-password' className={styles.vmForm} onValidSubmit={this.handleSubmit}>
+      <AvForm ref={(ref) => {this.formRef = ref}}  className={styles.vmForm} onValidSubmit={this.handleSubmit}>
         <h4 style={{ margin: '20px'}}><FormattedMessage {...messages.infrastructure} /></h4>
         <VMInput.Pool pools={this.props.pools} selected={form['pool-select']} onChange={this.onInputTextChange} />
         {form['pool-select'] && (
@@ -284,4 +284,4 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
   }
 }
 
-export default autofill(VMForm);
+export default VMForm;

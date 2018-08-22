@@ -6,6 +6,7 @@
 
 import {
   SET_PLAYBOOKS,
+  EXECUTE_PLAYBOOK
 } from './constants';
 
 export function setPlaybooks(data) {
@@ -13,4 +14,13 @@ export function setPlaybooks(data) {
     type: SET_PLAYBOOKS,
     data: data
   };
+}
+
+export function executePlaybook(playbook, uuids, form){
+  return {
+    type: EXECUTE_PLAYBOOK,
+    playbook,
+    uuids,
+    form,
+  }
 }

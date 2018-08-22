@@ -193,14 +193,13 @@ class Main():
         p.add_argument('--action', choices=['attach', 'detach'], required=True)
         p.set_defaults(func=self.networkaction)
 
-        #add parser for playbook output
-        p = self.subparsers.add_parser('pboutput', description="connect to websocket with playbook installation output")
-        p.add_argument('id', help="Task ID")
-        p.set_defaults(func=self.playbook_output)
+        p = self.subparsers.add_parser('pbstatus', description="Check playbook execution status")
+        p.add_argument('taskid', help="Playbook Task ID")
+        p.set_defaults(func=self.pbstatus)
 
         #add parser for execute playbook
         p = self.subparsers.add_parser('execplaybook', description="Execute a playbook")
-        p.add_argument('playbook', help="Playbook ID", nargs=1)
+        p.add_argument('playbook', help="Playbook ID")
         p.add_argument('vms', help="VM UUIDs", nargs='+')
         p.set_defaults(func=self.execute_playbook)
 
@@ -373,8 +372,16 @@ class Main():
             name = name[1:].strip()
             value = value.strip().replace('"', '').replace("'", '')
             d[name] = value
-        r = requests.post(f'{self.url}/executeplaybook', cookies=self.jar, data=d)
+        r = requests.post(f'{self.url}/executeplaybook', cookies=self.jar, json=d)
         print(r.text)
+        print(r.status_code, file=sys.stderr)
+
+    @login
+    def pbstatus(self, args, unknown):
+        r = requests.post(f"{self.url}/playbookstatus", cookies=self.jar,
+                          data=dict(taskid=args.taskid))
+        js = json.loads(r.text)
+        pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
 
     @login

@@ -1,5 +1,7 @@
 import React, {Fragment} from 'react';
 import T from 'prop-types';
+import icon from '@fortawesome/fontawesome-free-solid/faAt';
+import FontAwesomeIcon from '@fortawesome/react-fontawesome';
 
 import {AvField, AvGroup, AvInput, AvFeedback } from 'availity-reactstrap-validation';
 import Input from 'components/Input';
@@ -33,11 +35,7 @@ return (
   <Fragment>
     <AvGroup>
       <InputGroup>
-        <InputGroupAddon style={ {"line-height": "1!important"}} addonType="prepend">
-          <InputGroupText style = { { height: '100%'}}>
-            <FontAwesomeIcon icon={icon}/>
-          </InputGroupText>
-        </InputGroupAddon>
+
   <Input
            name="username"
            id="username"
@@ -46,6 +44,11 @@ return (
            placeholder="Your login for a new VM"
            validate={{myValidation: validateUser}}
            />
+        <InputGroupAddon style={ {"line-height": "1!important"}} addonType="prepend">
+          <InputGroupText style = { { height: '100%'}}>
+            <FontAwesomeIcon icon={icon}/>
+          </InputGroupText>
+        </InputGroupAddon>
     <Input
              name="hostname"
              id="hostname"
