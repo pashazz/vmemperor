@@ -16,8 +16,9 @@ import { Map } from 'immutable';
 
 import { actions } from 'react-redux-toastr';
 
-import {execplaybook, pbstatus} from "../../api/playbook"
+import {execplaybook} from "../../api/playbook"
 import { EXECUTE_PLAYBOOK } from "../Playbooks/constants";
+import {taskstatus} from "../../api/task";
 
 
 const actionHandlers = Map({
@@ -60,20 +61,46 @@ const actionHandlers = Map({
 
 });
 
-function* watchPlaybook(playbook, taskId) {
+function* watchPlaybook(playbook, taskId, names_join) {
 const timeout = ()  => { return new Promise((resolve, reject) => {
   setTimeout(() => {
     resolve(null);
-  }, 10)
+  }, 1000)
 })};
 
-  const data = yield call(pbstatus, taskId);
-  console.log("Playbook status:", data);
+  let data = null;
+  while(true)
+  {
+    data = yield call(taskstatus, taskId);
+    console.log("Playbook status:", data);
+    if (data.data.returncode !== null)
+    {
+      break;
+    }
+    console.log("timeout");
+    yield call(timeout);
+  }
 
-  yield call(timeout);
+  yield put(actions.remove(taskId));
+  let options = {
+    id: taskId,
+    type: 'success',
 
-
-
+    timeOut: 0,
+    message: playbook.name + ' on ' + names_join,
+    options: {
+      showCloseButton: true,
+    }
+  };
+  if (data.data.returncode === 0) {
+    options.title = 'Playbook played successfully';
+    options.type = 'success';
+  }
+   else {
+     options.title = 'Playbook playing failed with code ' + data.data.returncode;
+     options.type = 'error';
+  }
+  yield put(actions.add(options));
 }
 
 function* executePlaybook(action)
@@ -105,7 +132,7 @@ function* executePlaybook(action)
     }
   };
   yield put(actions.add(options));
-  yield watchPlaybook (action.playbook, taskId);
+  yield watchPlaybook (action.playbook, taskId, names_join);
 
 }
 

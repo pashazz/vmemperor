@@ -193,9 +193,9 @@ class Main():
         p.add_argument('--action', choices=['attach', 'detach'], required=True)
         p.set_defaults(func=self.networkaction)
 
-        p = self.subparsers.add_parser('pbstatus', description="Check playbook execution status")
-        p.add_argument('taskid', help="Playbook Task ID")
-        p.set_defaults(func=self.pbstatus)
+        p = self.subparsers.add_parser('taskstatus', description="Check async task status")
+        p.add_argument('task', help="Task ID")
+        p.set_defaults(func=self.taskstatus)
 
         #add parser for execute playbook
         p = self.subparsers.add_parser('execplaybook', description="Execute a playbook")
@@ -377,9 +377,9 @@ class Main():
         print(r.status_code, file=sys.stderr)
 
     @login
-    def pbstatus(self, args, unknown):
-        r = requests.post(f"{self.url}/playbookstatus", cookies=self.jar,
-                          data=dict(taskid=args.taskid))
+    def taskstatus(self, args, unknown):
+        r = requests.post(f"{self.url}/taskstatus", cookies=self.jar,
+                          data=dict(task=args.task))
         js = json.loads(r.text)
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)

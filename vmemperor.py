@@ -72,7 +72,9 @@ URL = ""
 ansible_pubkey = ""
 playbooks = Dict[str, Playbook]
 
-ansible_finished = {}
+async_operations = {
+     "keys" : {}
+}
 
 
 def table_drop(db, table_name):
@@ -154,11 +156,15 @@ class HandlerMethods(Loggable):
 
 
 class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
+    _ASYNC_KEY = None
 
     def initialize(self, executor):
         self.init_executor(executor)
         self.user_authenticator = Optional[BasicAuthenticator]
         super().initialize()
+        if self._ASYNC_KEY is not None and self._ASYNC_KEY not in async_operations:
+            async_operations[self._ASYNC_KEY] = {}
+
 
     def prepare(self):
         super().prepare()
@@ -187,6 +193,11 @@ class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
 
     def get_current_user(self):
         return self.get_secure_cookie("user")
+
+    def before_run_in_executor(self):
+        if hasattr(self, '_run_task') and self._ASYNC_KEY:
+            async_operations["keys"][self._run_task] = self._ASYNC_KEY
+            async_operations[self._ASYNC_KEY][self._run_task] = {}
 
 
     def try_xenadapter(self, func, post_hook = None):
@@ -703,122 +714,106 @@ class ISOList(BaseHandler):
 
 
 class CreateVM(BaseHandler):
-    vms = {}
+    _ASYNC_KEY = 'createvm'
     @auth_required
     def post(self):
         print("CreateVM: Starting")
-        taskid = self.get_argument('taskid', '')
-        if not taskid:
-            try:
-                tmpl_name = self.get_argument('template')
-                self.sr_uuid = self.get_argument('storage')
-                self.net_uuid = self.get_argument('network')
-                self.vdi_size = self.get_argument('vdi_size')
-                self.ram_size = self.get_argument('ram_size')
-                self.hostname = self.get_argument('hostname')
-                self.name_label = self.get_argument('name_label')
-                self.mirror_url = self.get_argument('mirror_url', None)
+        try:
+            tmpl_name = self.get_argument('template')
+            self.sr_uuid = self.get_argument('storage')
+            self.net_uuid = self.get_argument('network')
+            self.vdi_size = self.get_argument('vdi_size')
+            self.ram_size = self.get_argument('ram_size')
+            self.hostname = self.get_argument('hostname')
+            self.name_label = self.get_argument('name_label')
+            self.mirror_url = self.get_argument('mirror_url', None)
 
-            except Exception as e:
+        except Exception as e:
+            self.set_status(400)
+            self.log.error("Exception: {0}".format(e))
+            self.write({'status': 'error', 'message': 'bad request'})
+            self.finish()
+            return
+
+        with self.conn:
+            db = r.db(opts.database)
+            tmpls = db.table('tmpls').run()
+            self.template = None
+            if not tmpl_name:
                 self.set_status(400)
-                self.log.error("Exception: {0}".format(e))
-                self.write({'status': 'error', 'message': 'bad request'})
+                self.write({'status': 'bad argument: template', 'message': 'bad request'})
+                self.log.error("Client supplied no template")
+                self.finish()
+
+            for tmpl in tmpls:
+                if tmpl['uuid'] == tmpl_name or \
+                        tmpl['name_label'] == tmpl_name:
+                    self.template = tmpl
+                    break
+
+            if not self.template:
+                self.set_status(400)
+                self.write({'status': 'no such template', 'message': 'template ' + tmpl_name})
+                self.log.error("Client supplied wrong template name: {0}".format(tmpl_name))
                 self.finish()
                 return
 
-            with self.conn:
-                db = r.db(opts.database)
-                tmpls = db.table('tmpls').run()
-                self.template = None
-                if not tmpl_name:
-                    self.set_status(400)
-                    self.write({'status': 'bad argument: template', 'message': 'bad request'})
-                    self.log.error("Client supplied no template")
-                    self.finish()
+            self.override_pv_args = self.get_argument('override_pv_args', None)
+            self.mode = 'hvm' if self.template['hvm'] else 'pv'
+            self.os_kind = self.template['os_kind'] if 'os_kind' in self.template and self.template['os_kind'] else None
+            self.log.info("Creating VM: name_label %s; os_kind: %s" % (self.name_label, self.os_kind))
+            if self.os_kind is None:
+                self.iso = self.get_argument('iso')
+                self.scenario_url = None
+                self.mirror_url = None
+                self.ip_tuple = None
+                self.hostname = None
+                self.username = None
+                self.password = None
+                self.fullname = None
+                self.partition = None
+            else:
+                self.iso = None
 
-                for tmpl in tmpls:
-                    if tmpl['uuid'] == tmpl_name or \
-                            tmpl['name_label'] == tmpl_name:
-                        self.template = tmpl
-                        break
-
-                if not self.template:
-                    self.set_status(400)
-                    self.write({'status': 'no such template', 'message': 'template ' + tmpl_name})
-                    self.log.error("Client supplied wrong template name: {0}".format(tmpl_name))
-                    self.finish()
-                    return
-
-                self.override_pv_args = self.get_argument('override_pv_args', None)
-                self.mode = 'hvm' if self.template['hvm'] else 'pv'
-                self.os_kind = self.template['os_kind'] if 'os_kind' in self.template and self.template['os_kind'] else None
-                self.log.info("Creating VM: name_label %s; os_kind: %s" % (self.name_label, self.os_kind))
-                if self.os_kind is None:
-                    self.iso = self.get_argument('iso')
-                    self.scenario_url = None
-                    self.mirror_url = None
+                ip = self.get_argument('ip', '')
+                gw = self.get_argument('gateway', '')
+                netmask = self.get_argument('netmask', '')
+                dns0 = self.get_argument('dns0', '')
+                dns1 = self.get_argument('dns1', '')
+                if not ip or not gw or not netmask:
                     self.ip_tuple = None
-                    self.hostname = None
-                    self.username = None
-                    self.password = None
-                    self.fullname = None
-                    self.partition = None
                 else:
-                    self.iso = None
+                    self.ip_tuple = [ip, gw, netmask]
 
-                    ip = self.get_argument('ip', '')
-                    gw = self.get_argument('gateway', '')
-                    netmask = self.get_argument('netmask', '')
-                    dns0 = self.get_argument('dns0', '')
-                    dns1 = self.get_argument('dns1', '')
-                    if not ip or not gw or not netmask:
-                        self.ip_tuple = None
-                    else:
-                        self.ip_tuple = [ip, gw, netmask]
+                if dns0:
+                    self.ip_tuple.append(dns0)
+                if dns1:
+                    self.ip_tuple.append(dns1)
 
-                    if dns0:
-                        self.ip_tuple.append(dns0)
-                    if dns1:
-                        self.ip_tuple.append(dns1)
-
-                    self.hostname = self.get_argument('hostname', default='xen_vm')
-                    self.username = self.get_argument('username', default='')
-                    self.password = self.get_argument('password')
-                    self.fullname = self.get_argument('fullname', default=None)
-                    self.partition = self.get_argument('partition', default='auto')
+                self.hostname = self.get_argument('hostname', default='xen_vm')
+                self.username = self.get_argument('username', default='')
+                self.password = self.get_argument('password')
+                self.fullname = self.get_argument('fullname', default=None)
+                self.partition = self.get_argument('partition', default='auto')
 
 
-                self.taskid = str(uuid.uuid4())
-                print("CreateVM: Spawning callback!")
-                tornado.ioloop.IOLoop.current().run_in_executor(self.executor,  self.createvm)
-                self.write({'task': self.taskid})
-                self.finish()
-
-        else:
-            if taskid not in self.vms:
-                self.set_status(404)
-                self.finish()
-                return
-            elif not isinstance(self.user_authenticator, AdministratorAuthenticator) and\
-                (self.user_authenticator.id != self.vms[taskid]['auth'].id or\
-                    type(self.user_authenticator) != type(self.vms[taskid]['auth'])):
+            self.taskid = str(uuid.uuid4())
+            print("CreateVM: Spawning callback!")
+            self._run_task = self.taskid  # for on_finish
+            self.before_run_in_executor()
+            tornado.ioloop.IOLoop.current().run_in_executor(self.executor,  self.createvm)
+            self.write({'task': self.taskid})
+            self.finish()
 
 
-                self.set_status(403)
-                self.finish()
-                return
-
-
-            try:
-                self.write({k:v for k,v  in self.vms[taskid].items() if k != 'auth'})
-            except Exception as e:
-                self.write({'status': 'error', 'details': 'no such taskid'})
-            finally:
-                self.finish()
 
     def insert_log_entry(self, uuid, state, message):
-        self.vms[self.taskid] = dict(uuid=uuid,state=state, message=message, auth=self.user_authenticator)
-        self.log.info(f"LOG ENTRY: uuid: {uuid}, state: {state}, message: {message}")
+        write_in = async_operations[self._ASYNC_KEY][self.taskid]
+        write_in['uuid'] = uuid
+        write_in['state'] = state
+        write_in['message'] = message
+        self.log.info(f"STATE CHANGE: uuid: {uuid}, state: {state}, message: {message}")
+
 
 
     def createvm(self):
@@ -956,6 +951,7 @@ class CreateVM(BaseHandler):
                         self.insert_log_entry(self.uuid, "failed", "failed to start after installation: %s" % e.message)
                     else:
                         self.insert_log_entry(self.uuid, "installed", "OS successfully installed")
+
                     break
 
 
@@ -981,39 +977,55 @@ class EnableDisableTemplate(BaseHandler):
 
         self.try_xenadapter( lambda auth: Template(auth, uuid=uuid).enable_disable(bool(enable)))
 
-class PlaybookExecutionStatus(BaseHandler):
+class TaskStatus(BaseHandler):
     @auth_required
     def post(self):
-        taskid = self.get_argument('taskid')
-        if taskid not in ansible_finished:
-            self.set_status(404)
-            return
+        task = self.get_argument('task')
 
-        else:
-            task_data = ansible_finished[taskid]
-            if task_data['returncode'] is None:
-                self.set_status(202) # 202 Accepted
+        operation = None
+        try:
+            operation = async_operations["keys"][task]
+        except KeyError:
+            self.set_status(404)
+            self.finish()
+
+
+
+        if 'auth' in  async_operations[operation][task] and\
+            not isinstance(self.user_authenticator, AdministratorAuthenticator):
+
+            authenticator = async_operations[operation][task]['auth']
+            if type(authenticator) != type(self.user_authenticator) or\
+                authenticator.get_id() != self.user_authenticator.get_id():
+
+                self.set_status(403)
+                self.finish()
                 return
-            else:
-                self.write({'code': task_data['returncode']})
-                return
+
+        try:
+            self.write({k: v for k, v in async_operations[operation][task].items() if k != 'auth'})
+        except Exception as e:
+            self.write({'status': 'error', 'details': 'no such task'})
+            self.set_status(400)
+        finally:
+            self.finish()
 
 
 class ExecutePlaybook(BaseHandler):
-
+    _ASYNC_KEY = 'pb'
     def run_ansible(self):
+        tasks = async_operations[self._ASYNC_KEY]
         self.log.info(f"Running: {self.cmd_line} in {self.cwd} as {self.cwd.name}")
         log_path = Path(opts.ansible_logs).joinpath(self.cwd.name)
         os.makedirs(log_path)
         with open(log_path.joinpath('stdout'), 'w') as _stdout:
             with open(log_path.joinpath('stderr'), 'w') as _stderr:
-                ansible_finished[self.cwd.name] = \
-                    {'returncode': None, 'auth': self.user_authenticator}
+                tasks[self.cwd.name]['returncode'] = None
                 proc = subprocess.run(self.cmd_line,
                                       cwd=self.cwd, stdout=_stdout, stderr=_stderr)
 
-                ansible_finished[self.cwd.name] = \
-                    {'returncode': proc.returncode, 'auth': self.user_authenticator}
+                tasks[self.cwd.name]['returncode'] = proc.returncode
+
 
         self.log.info(f'Finished {self.cwd.name} with return code {ansible_finished[self.cwd.name]["returncode"]}')
 
@@ -1087,27 +1099,31 @@ class ExecutePlaybook(BaseHandler):
                     self.finish()
                     return
 
-                self.log.info("Patching variables files...")
 
-                for key, vars in p.vars.items():
-                    vars_copy = vars.copy()
-                    for variable in  p.variables_locations[key]:
-                        value = self.get_argument(variable, p.config['variables'][variable]['value'])
-                        vars_copy['variable'] = value
-                    file_name = temp_path.joinpath(key, 'all')
-                    with open(file_name, 'w') as file:
-                        yaml.dump(vars_copy, file)
-
-                    self.log.info(f'File {file_name} patched')
             else:
                 hosts_file = p.get_inventory()
+
+            self.log.info("Patching variables files...")
+
+            for key, vars in p.vars.items():
+                vars_copy = vars.copy()
+                for variable in p.variables_locations[key]:
+                    value = self.get_argument(variable, p.config['variables'][variable]['value'])
+                    vars_copy[variable] = value
+                file_name = temp_path.joinpath(key, 'all')
+                with open(file_name, 'w') as file:
+                    yaml.dump(vars_copy, file)
+
+                self.log.info(f'File {file_name} patched')
 
             self.cmd_line = [opts.ansible_playbook, '-i', hosts_file, p.get_playbook_file()]
             self.cwd = temp_path
             ans['task'] = self.cwd.name
+            self._run_task = ans['task']
+
+            self.before_run_in_executor()
             ioloop = tornado.ioloop.IOLoop.instance()
             ioloop.run_in_executor(self.executor, self.run_ansible)
-
             self.write(ans)
             self.finish()
 
@@ -2081,7 +2097,7 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/turntemplate', TurnTemplate, dict(executor=executor)),
         (r'/playbooks', Playbooks, dict(executor=executor)),
         (r'/executeplaybook', ExecutePlaybook, dict(executor=executor)),
-        (r'/playbookstatus', PlaybookExecutionStatus, dict(executor=executor)),
+        (r'/taskstatus', TaskStatus, dict(executor=executor)),
 
     ], **settings)
 
