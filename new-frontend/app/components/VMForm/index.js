@@ -133,7 +133,7 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
   onISOOptionChange(option)
   {
     const form = this.state;
-    form['iso'] = option;
+    form['iso'] = option.value;
     this.setState(form)
   }
 
