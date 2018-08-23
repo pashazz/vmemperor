@@ -4,7 +4,6 @@ build
 log
 *.log*
 secret.ini
-make_request.ini
 rethinkdb_data
 yarn.lock
 ansible_logs/*

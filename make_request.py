@@ -48,8 +48,8 @@ class Main():
 
         p = argparse.ArgumentParser(description="VMEmperor CLI Utility")
         p.add_argument('--login', help='login as user (see sections in make_request.ini). If admin=True, we will try Administrator login')
-        p.add_argument('--host', help='VMEmperor host', default='localhost')
-        p.add_argument('-p','--port', help='VMEmperor port', default=8889, type=int)
+        p.add_argument('--host', help='VMEmperor host', default=config._sections['config']['host'])
+        p.add_argument('-p','--port', help='VMEmperor port', default=int(config._sections['config']['port']), type=int)
         p.set_defaults(login='login')
 
         self.subparsers = p.add_subparsers()
@@ -213,7 +213,7 @@ class Main():
             p.set_defaults(func=method[1])
 
         args, unknown = self.parser.parse_known_args(sys.argv[1:])
-        self.url = 'http://{0}:{1}'.format(args.host, args.port)
+        self.url = f'http://{args.host}:{args.port}'
         self.ws_url = self.url.replace('http://', 'ws://')
 
         if 'func' not in dir(args):
@@ -228,9 +228,9 @@ class Main():
 
     def _login(self):
         if 'admin' in self.login_opts and self.login_opts['admin'].lower() == 'true':
-            url = '{0}/adminauth'.format(self.url)
+            url = f'{self.url}/adminauth'
         else:
-            url = '{0}/login'.format(self.url)
+            url = f'{self.url}/login'
 
         r = requests.post(url, data=self.login_opts)
         self.jar = r.cookies

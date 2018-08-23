@@ -5,23 +5,27 @@
 File: `login.ini`
 
 ### Example
-    debug = True
-    username = 'root' # Xen username
-    password = 'password' # Xen password
-    url = 'http://10.10.10.18:80/' # XenServer URL
-    database = 'vmemperor' # RethinkDB DB name
-    host = '10.10.10.102' # RethinkDB host name
-    vmemperor_port = 8889 # My port, specify it in URL of VMEmperor CLI
-    authenticator='ispldap' # authenticator type, see later
-    ansible_pubkey = /opt/ansible_key.pub # This pubkey is used for Ansible access to VMs and will be added to each VM during automatic installation
-    ansible_dir='ansible' # directory with adapted Ansible playbooks
-    ansible_playbook='ansible-playbook' # ansible playbook executable
-    ansible_bin='ansible' # ansible executable
-
+```bash
+debug = True # Debug
+username = 'root' # XenServer root username
+password = '!QAZxsw2' # XenServer root password
+url = 'http://10.10.10.18:80/' # XenServer API URL
+database = 'vmemperor' # RethinkDB database name
+host = '127.0.0.1' # RethinkDB host
+vmemperor_host ="10.10.10.102" # Your host's IP as seen by VMs (for postinstall script URL)
+vmemperor_port = 8889 # VMEmperor API port
+authenticator = 'ispldap' # Authenticator class
+#authenticator='ispldap'
+#log_events = 'vm,vm_metrics,vm_appliance,vm_guest_metrics.sr,vdi'
+ansible_pubkey = '~/.ssh/id_rsa.pub' # Public key exported during auto installation for Ansible
+ansible_networks = ["920b8d47-9945-63d8-4b04-ad06c65d950a"] # Networks that your host and VMs all run on
+user_source_delay = 2 # How often VMEmperor asks external authenticator for user and group lists, in seconds
+```
 
 ## How to configure
+  0. Ensure at least Python 3.6 on your host machine
   1. Set Up XenServer and provide XenServer URL as `url` config parameter
-  2. Set up RethinkDB
+  2. [Set up RethinkDB](https://www.rethinkdb.com/docs/start-on-startup/). Don't forget `bind=127.0.0.1`
   3. Install ansible in order to use automation benefits
   4. Generate a SSH pubkey for ansible to use
   5. Set up config parameters as shown in Example
@@ -41,36 +45,61 @@ File: `login.ini`
   11. run frontend with `npm run start`
   12. Set up networks in your XenServer
   13. Set up CLI utility. Create a file `make_request.ini` with the following content:
-  ```
+  ```ini
 [admin]
 username=root
 password=your_root_password
 admin=True
   ```
   14. Provide access of desired networks to desired users using CLI:
-  ` ./make_request.py --login admin setaccess <network uuid> --type="Network" --action="all" --user '<userid>'  `
+  ` ./make_request.py --login admin setaccess <network uuid> --type="Network" --action="all" --user '<id>' `
+  Or to groups:
+  ` ./make_request.py --login admin setaccess <network uuid> --type="Network" --action="all" --groups '<id>' `
   To get user list, run
   `./make_request.py --login admin userlist`
   To get group list, run
   `./make_request.py --login admin grouplist`
   15. In XenCenter make desirable templates available to users by applying `vmemperor` tag
+  16. Adapt your Ansible playbooks, see example in `ansible` folder
 
-
-# CLI
-    make_request.py <action> <options>
+# CLI interface
+    ./make_request.py <action> <options>
 
 ## Configuration
-Specify `url` on line 16
+File `make_request.ini`
+
+Example:
+```ini
+[config] # Required section
+host = localhost # VMEmperor host
+port = 8889 # VMEmperor post
+
+[login] # This login is default
+username=john
+password=john
+
+[eva] # This login is specified as ./make_request.py --login eva <other arguments>
+username=eva
+password=eva
+
+[mike]  # This login is specified as ./make_request.py --login make <other arguments>
+username=mike
+password=mike
+
+[admin] # This login is specified as ./make_request.py --login admin <other arguments>
+username=root
+password=!QAZxsw2
+admin=True # This indicates administrator accout
+```
 
 
 ## Available actions
 * `createvm` - Create VM
 * `vminfo` - Get VM info
-* `installstatus` - Get install status
 * `start` - Start VM
 * `stop` - Stop VM
 * `destroy` - Destroy VM
-* `vnc` - Get VNC url (use HTTP CONNECT method with this URL)
+* `vnc` - Get VNC url (use WebSocket with this URL)
 ## Get help
     make_request.py <action> --help
 
