@@ -41,8 +41,8 @@ from loggable import Loggable
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 from exc import *
+import time
 import logging
-from netifaces import ifaddresses, AF_INET
 import uuid
 from tornado.options import define, options as opts, parse_config_file
 import queue
@@ -1242,6 +1242,17 @@ class UserInfo(BaseHandler):
             }
         )
 
+class UserList(BaseHandler):
+    @admin_required
+    def get(self):
+        with self.conn:
+            self.write(json.dumps(r.db(opts.database).table('users').coerce_to('array').run()))
+
+class GroupList (BaseHandler):
+    @admin_required
+    def get(self):
+        with self.conn:
+            self.write(json.dumps(r.db(opts.database).table('groups').coerce_to('array').run()))
 
 class GetAccessHandler(BaseHandler):
     @auth_required
@@ -1624,6 +1635,53 @@ class EventLoop(Loggable):
 
             del authenticator.xen
 
+    def do_user_table(self):
+        try:
+            conn = ReDBConnection().get_connection()
+            log = self.log
+            with conn:
+                self.db.table_create('users', durability='soft').run()
+                self.db.table_create('groups', durability='soft').run()
+                users = self.authenticator.get_all_users(log=log)
+                groups = self.authenticator.get_all_users(log=log)
+                self.db.table('users').insert(users, conflict='update').run()
+                self.db.table('groups').insert(groups, conflict='update').run()
+                while True:
+                    if need_exit.is_set():
+                        return
+                    delay = 0
+                    while True:
+                        if opts.user_source_delay <= delay:
+                            break
+                        if need_exit.is_set():
+                            return
+                        sleep_time = 2
+                        time.sleep(sleep_time)
+                        delay += sleep_time
+
+                    new_users = self.authenticator.get_all_users(log=log)
+                    new_groups = self.authenticator.get_all_users(log=log)
+                    self.db.table('users').insert(new_users, conflict='update').run()
+                    self.db.table('groups').insert(new_groups, conflict='update').run()
+
+                    new_users_set = set(map(lambda item: item['id'], new_users))
+                    users_set = set(map(lambda item: item['id'], users))
+                    difference = users_set.difference(new_users_set)
+                    if difference:
+                        self.db.table('users').get(*difference).delete().run()
+
+                    new_groups_set = set(map(lambda item: item['id'], new_users))
+                    groups_set = set(map(lambda item: item['id'], users))
+                    difference = groups_set.difference(new_groups_set)
+                    if difference:
+                        self.db.table('groups').get(*difference).delete().run()
+
+
+        except Exception as e:
+            self.log.error(f"Exception in user_table: {e}")
+            #tornado.ioloop.IOLoop.current().run_in_executor(self.executor, self.do_access_monitor)
+            raise e
+
 
     def do_access_monitor(self):
         try:
@@ -1846,7 +1904,7 @@ def event_loop(executor, authenticator=None, ioloop = None):
     #tornado.ioloop.PeriodicCallback(loop_object.vm_list_update, delay).start()  # read delay from ini
 
     ioloop.run_in_executor(executor, loop_object.do_access_monitor)
-
+    ioloop.run_in_executor(executor, loop_object.do_user_table)
     xen_events_run.set()
     ioloop.run_in_executor(executor, loop_object.process_xen_events)
 
@@ -2098,6 +2156,8 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/playbooks', Playbooks, dict(executor=executor)),
         (r'/executeplaybook', ExecutePlaybook, dict(executor=executor)),
         (r'/taskstatus', TaskStatus, dict(executor=executor)),
+        (r'/userlist', UserList, dict(executor=executor)),
+        (r'/grouplist', GroupList, dict(executor=executor))
 
     ], **settings)
 
@@ -2134,12 +2194,14 @@ def read_settings():
     define('vmemperor_port', group = 'vmemperor', type = int, default = 8888)
     define('authenticator', group='vmemperor', default='')
     define('log_events', group='ioloop', default='')
+    define('user_source_delay', group='ioloop', type=int, default=2)
     define('log_file_name', group='log',default='vmemperor.log')
     define('ansible_pubkey', group='ansible', default='~/.ssh/id_rsa.pub')
     define('ansible_playbook', group='ansible', default='ansible-playbook')
     define('ansible_dir', group='ansible', default='./ansible')
     define('ansible_logs', group='ansible', default='./ansible_logs')
     define('ansible_networks', group='ansible', default='', multiple=True)
+
 
 
     from os import path

@@ -105,7 +105,9 @@ class Network(ACLXenObject):
 
     @classmethod
     def filter_record(cls, record):
-        return record['bridge'] != 'xenapi'
+        return True
+        #return record['bridge'] != 'xenapi'
+
 
     @classmethod
     def get_access_data(cls, record, authenticator_name):

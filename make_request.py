@@ -407,8 +407,22 @@ class Main():
 
     @login
     def userinfo(self, args, unknown):
-        r = requests.get("%s/userinfo" % self.url, cookies=self.jar)
+        r = requests.get(f"{self.url}/userinfo", cookies=self.jar)
         pprint.pprint(r.json())
+        print(r.status_code, file=sys.stderr)
+
+    @login
+    def userlist(self, args, unknown):
+        r = requests.get(f"{self.url}/userlist", cookies=self.jar)
+        for name in r.json():
+            print(name)
+        print(r.status_code, file=sys.stderr)
+
+    @login
+    def grouplist(self, args, unknown):
+        r = requests.get(f"{self.url}/grouplist", cookies=self.jar)
+        for name in r.json():
+            print(name)
         print(r.status_code, file=sys.stderr)
 
     async def _vmlist_async(self):

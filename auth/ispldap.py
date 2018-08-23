@@ -26,9 +26,17 @@ class LDAPIspAuthenticator(BasicAuthenticator):
         search_filter = "(&(objectClass=group)(cn=*))"
 
         conn.search(search_base='dc=intra,dc=ispras,dc=ru', search_filter=search_filter,
-                attributes=['sAMAccountName', 'objectGUID'], search_scope=ldap3.SUBTREE)
+                attributes=['sAMAccountName', 'objectGUID', 'name'], search_scope=ldap3.SUBTREE)
         if conn.entries:
-            return {entry.objectGUID.value : entry.sAMAccountName.value for entry in conn.entries}
+            def return_data(entry):
+                return {
+                    "id" : entry.objectGUID.value,
+                    "username" : entry.sAMAccountName.value,
+                    "name": entry.name[0]
+                }
+
+            return [return_data(e) for e in conn.entries]
+
 
     @classmethod
     def get_group_name_by_id(cls, id, log=logging):
@@ -78,6 +86,28 @@ class LDAPIspAuthenticator(BasicAuthenticator):
         else:
             return self.given_name
 
+    @classmethod
+    def get_all_users(cls, log=logging):
+        server = ldap3.Server('10.10.12.9')
+        conn = ldap3.Connection(server, user='mailuser', password='mailuser', raise_exceptions=False)
+        if conn.bind():
+            log.debug("LDAP Connection established: server: {0}, user: {1}".format(server.host, conn.user))
+        else:
+            log.error("Unable to establish connection to LDAP server: {0}".format(server.host))
+
+        search_filter = "(&(objectClass=person)(!(objectClass=computer))(!(objectClass=group))(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(cn=*))"
+        conn.search(search_base='dc=intra,dc=ispras,dc=ru', search_filter=search_filter,
+                    attributes=['objectGUID', 'name', 'sAMAccountName'], search_scope=ldap3.SUBTREE)
+
+        if conn.entries:
+            def return_data(entry):
+                return {
+                    "id" : entry.objectGUID.value,
+                    "username" : entry.sAMAccountName.value,
+                    "name": entry.name[0]
+                }
+
+            return [return_data(e) for e in conn.entries]
 
     def check_credentials(self, password, username, log=logging):
         '''
@@ -96,7 +126,7 @@ class LDAPIspAuthenticator(BasicAuthenticator):
 
         self.username=username
         self.password = password
-        search_filter="(&(objectClass=person)(!(objectClass=computer))(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(cn=*)(sAMAccountName=%s))" % username
+        search_filter= f"(&(objectClass=person)(!(objectClass=computer))(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(cn=*)(sAMAccountName={username}))"
         conn.search(search_base='dc=intra,dc=ispras,dc=ru',search_filter=search_filter,
         attributes=['name', 'mail'], search_scope=ldap3.SUBTREE, paged_size=1)
         if conn.entries:
