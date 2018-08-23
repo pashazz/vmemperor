@@ -45,10 +45,11 @@ class Template(AbstractVM):
                 if 'os_kind' in record['other_config']:
                     new_rec['os_kind'] = record['other_config']['os_kind']
                 else:
-                    for OS in 'ubuntu','centos', 'debian':
-                        if record['reference_label'].startswith(OS):
-                            new_rec['os_kind'] = OS
-                            break
+                    if 'reference_label' in record:
+                        for OS in 'ubuntu','centos', 'debian':
+                            if record['reference_label'].startswith(OS):
+                                new_rec['os_kind'] = OS
+                                break
 
             return new_rec
 
