@@ -39,8 +39,9 @@ user_source_delay = 2 # How often VMEmperor asks external authenticator for user
         around line 38 and replace it with `http://localhost:vmemperor_port` (or another host if you plan to use frontend and backend on different hosts)
 
   7. Start RethinkDB
-  8. Install VMEmperor dependencies with `pip install -r requirements.txt` (optionally create a virtualenv ). Install npm for managing frontend                                                                     
-  8. Start VMEmperor with `python3 vmemperor.py`
+  8. Install VMEmperor dependencies with `pip install -r requirements.txt` (optionally create a virtualenv ). Install npm for managing frontend
+  8. For `ispldap` set up LDAP server IP in `auth/ispldap.py:12`, variable `SERVER_IP`                                                
+  9. Start VMEmperor with `python3 vmemperor.py`
   10. from `new-frontend` directory install dependencies with `npm install`
   11. run frontend with `npm run start`
   12. Set up networks in your XenServer
@@ -118,27 +119,3 @@ Line 2: HTTP status code
     ./make_request.py createvm --name_label "test13" --hostname "test13"
     904754ee-db21-0fd6-0a23-dfdaa34fdcc9
     200
-
-
-## Default options
-### `createvm`
-
-        "--template", help='Template UUID or name_label', default="Ubuntu Precise Pangolin 12.04 (64-bit)"
-        "--mode", help="VM mode: pv or hvm", default="pv", choices=['pv','hvm']
-        "--storage", help="Storage repository UUID",  default="88458f94-2e69-6332-423a-00eba8f2008c"
-        "--network", help="Network UUID", default="920b8d47-9945-63d8-4b04-ad06c65d950a"
-        "--vdi_size", help="Disk size in megabytes", default="20480"
-        "--ram_size", help="RAM size in megabytes", default="2048"
-        "--name_label", help="Human-readable VM name", required=True
-        "--hostname", help="Host name", required=True
-        "--ip", help="Static IP address"
-        "--netmask", help="Netmask"
-        "--gateway", help="Gateway"
-        "--dns0", help="DNS Server IP"
-        "--dns1", help="Second DNS Server IP"
-        "--os_kind", help="OS Type", default="ubuntu xenial"
-        "--fullname", help="User's full name", default="John Smith"
-        "--username", help="UNIX username", default='john'
-        "--password", help="UNIX password", default='john'
-        "--mirror_url", help="Repository URL (for network installation)", default="http://mirror.corbina.net/ubuntu"
-        "--partition", help="Disk partition map", default="/-15359--/home-4097-"

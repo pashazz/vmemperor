@@ -197,6 +197,18 @@ class VM (AbstractVM):
 
         return vm
 
+
+    def set_memory(self, memory : int):
+        try:
+            self._set_memory(memory)
+        except XenAPI.Failure as f:
+            if f.details[0] == "MESSAGE_METHOD_UNKNOWN":
+                self.set_memory_static_max(memory)
+                self.set_memory_dynamic_max(memory)
+                self.set_memory_dynamic_min(memory)
+            else:
+                raise f
+
     @use_logger
     def set_ram_size(self,  mbs):
         try:
