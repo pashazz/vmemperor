@@ -217,7 +217,7 @@ class VM (AbstractVM):
             static_min = self.get_memory_static_min()
 #            if bs <= static_min:
 #                self.set_memory_static_min(bs)
-            self.set_memory_limits(bs. bs, bs, bs)
+            self.set_memory_limits(bs, bs, bs, bs)
         except Exception as e:
             #self.destroy_vm(vm_uuid, force=True)
             try:
