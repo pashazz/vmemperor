@@ -19,6 +19,7 @@ netifaces==0.10.6
 numpy==1.14.5
 pexpect==4.2.1
 pickleshare==0.7.4
+pkg-resources==0.0.0
 prompt-toolkit==1.0.15
 ptyprocess==0.5.2
 pyasn1==0.3.2
@@ -31,7 +32,7 @@ ruamel.yaml==0.15.59
 simplegeneric==0.8.1
 six==1.10.0
 SQLAlchemy==1.2.2
-tornado==5.0.2
+tornado==5.1
 traitlets==4.3.2
 urllib3==1.22
 wcwidth==0.1.7
