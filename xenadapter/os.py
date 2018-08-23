@@ -156,7 +156,7 @@ class UbuntuOS(DebianOS):
     '''
     OS-specific parameters for Ubuntu
     '''
-    HVM_RELEASES = ['artful',  'zesty', 'yakkety']
+    HVM_RELEASES = ['artful',  'zesty', 'yakkety', 'bionic']
     def get_release(self, num):
         releases = {
             '12.04': 'precise',

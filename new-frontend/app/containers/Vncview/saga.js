@@ -9,7 +9,7 @@ function* onVncRequested(action)
 {
   try {
     const url = yield call(vnc, action.uuid);
-    yield put(vncAcquire(url.data));
+    yield put(vncAcquire(url.data, action.uuid));
   }
   catch (e)
   {

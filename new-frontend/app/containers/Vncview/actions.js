@@ -17,10 +17,11 @@ export function vncRequest(uuid) {
   };
 }
 
-export function vncAcquire(url) {
+export function vncAcquire(url, uuid) {
   return {
     type: VNC_URL_ACQUIRED,
-    url
+    url,
+    uuid
   }
 }
 

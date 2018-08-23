@@ -420,7 +420,6 @@ class VMList(BaseWSHandler):
     @tornado.web.asynchronous
     def open(self):
         self.connections.append(self)
-        print("Open VMList, connection ", len(self.connections))
         with self.conn:
             db  = r.db(opts.database)
             self.db = db
@@ -717,7 +716,6 @@ class CreateVM(BaseHandler):
     _ASYNC_KEY = 'createvm'
     @auth_required
     def post(self):
-        print("CreateVM: Starting")
         try:
             tmpl_name = self.get_argument('template')
             self.sr_uuid = self.get_argument('storage')
@@ -798,7 +796,7 @@ class CreateVM(BaseHandler):
 
 
             self.taskid = str(uuid.uuid4())
-            print("CreateVM: Spawning callback!")
+
             self._run_task = self.taskid  # for on_finish
             self.before_run_in_executor()
             tornado.ioloop.IOLoop.current().run_in_executor(self.executor,  self.createvm)
@@ -2030,7 +2028,7 @@ class ConsoleHandler(BaseWSHandler):
         This method proxies WebSocket calls to XenServer
         '''
         self.connections.append(self)
-        print("Opening console connection {0}", len(self.connections))
+
         self.sock = socket.create_connection((self.host, self.port))
         self.sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY,1)
         self.sock.setblocking(0)
