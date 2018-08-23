@@ -1710,7 +1710,8 @@ class EventLoop(Loggable):
                         else:
 
                             access_diff = set((frozendict(x) for x in access)) - \
-                                          set((frozendict(x) for x in record['old_val']['access']))
+                                          set((frozendict(x) for x in record['old_val']['access'])
+                                              if 'access' in record['old_val'] else [])
 
                             if access_diff:
                                 log.info("Adding access rights for %s (table %s): %s" %
