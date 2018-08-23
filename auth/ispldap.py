@@ -1,6 +1,7 @@
 from authentication import *
 import ldap3
 from ldap3.utils.conv import escape_bytes
+import ldap3.core.exceptions
 import uuid
 import logging
 from exc import *
@@ -8,7 +9,7 @@ from exc import *
 
 
 class LDAPIspAuthenticator(BasicAuthenticator):
-
+    SERVER_IP = '10.10.12.9'
     @classmethod
     def guid_to_search(cls, guid):
         return escape_bytes(uuid.UUID(guid).bytes_le)
@@ -16,12 +17,7 @@ class LDAPIspAuthenticator(BasicAuthenticator):
 
     @classmethod
     def get_all_groups(cls, log=logging):
-        server = ldap3.Server('10.10.12.9')
-        conn = ldap3.Connection(server, user='mailuser', password='mailuser', raise_exceptions=False)
-        if conn.bind():
-            log.debug("LDAP Connection established: server: {0}, user: {1}".format(server.host, conn.user))
-        else:
-            log.error("Unable to establish connection to LDAP server: {0}".format(server.host))
+        conn = cls.connect(log)
 
         search_filter = "(&(objectClass=group)(cn=*))"
 
@@ -40,13 +36,7 @@ class LDAPIspAuthenticator(BasicAuthenticator):
 
     @classmethod
     def get_group_name_by_id(cls, id, log=logging):
-        server = ldap3.Server('10.10.12.9')
-        conn = ldap3.Connection(server, user='mailuser', password='mailuser', raise_exceptions=False)
-        if conn.bind():
-            log.debug("LDAP Connection established: server: {0}, user: {1}".format(server.host, conn.user))
-        else:
-            log.error("Unable to establish connection to LDAP server: {0}".format(server.host))
-
+        conn = cls.connect(log)
 
         search_filter = "(&(objectGUID={0}))".format(cls.guid_to_search(id))
 
@@ -88,12 +78,7 @@ class LDAPIspAuthenticator(BasicAuthenticator):
 
     @classmethod
     def get_all_users(cls, log=logging):
-        server = ldap3.Server('10.10.12.9')
-        conn = ldap3.Connection(server, user='mailuser', password='mailuser', raise_exceptions=False)
-        if conn.bind():
-            log.debug("LDAP Connection established: server: {0}, user: {1}".format(server.host, conn.user))
-        else:
-            log.error("Unable to establish connection to LDAP server: {0}".format(server.host))
+        conn = cls.connect(log)
 
         search_filter = "(&(objectClass=person)(!(objectClass=computer))(!(objectClass=group))(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(cn=*))"
         conn.search(search_base='dc=intra,dc=ispras,dc=ru', search_filter=search_filter,
@@ -116,13 +101,7 @@ class LDAPIspAuthenticator(BasicAuthenticator):
         :param username:
         :param log: logger
         '''
-        server = ldap3.Server('10.10.12.9')
-        conn = ldap3.Connection(server, user='mailuser', password='mailuser', raise_exceptions=False)
-        if conn.bind():
-            log.debug("LDAP Connection established: server: {0}, user: {1}".format(server.host, conn.user))
-        else:
-            log.error("Unable to establish connection to LDAP server: {0}".format(server.host))
-
+        conn = self.connect(log)
 
         self.username=username
         self.password = password
@@ -174,6 +153,23 @@ class LDAPIspAuthenticator(BasicAuthenticator):
         else:
             raise AuthenticationUserNotFoundException(log,self)
 
+    @classmethod
+    def connect(cls, log):
+        server = ldap3.Server(cls.SERVER_IP)
+        conn = ldap3.Connection(server, user='mailuser', password='mailuser', raise_exceptions=False)
+
+        def print_error(arg):
+            log.error(f"Unable to establish connection to LDAP server {server.host}: {arg}")
+        try:
+            if conn.bind():
+                log.debug("LDAP Connection established: server: {0}, user: {1}".format(server.host, conn.user))
+            else:
+                print_error("Connection not bound")
+        except ldap3.core.exceptions.LDAPSocketOpenError as e:
+            print_error(str(e))
+
+
+        return conn
 
     def get_user_groups(self):
         '''
@@ -183,5 +179,3 @@ class LDAPIspAuthenticator(BasicAuthenticator):
 
     def set_user_groups(self):
         raise NotImplementedError()
-
-
