@@ -160,10 +160,9 @@ class LDAPIspAuthenticator(BasicAuthenticator):
 
         def print_error(arg):
             log.error(f"Unable to establish connection to LDAP server {server.host}: {arg}")
+            raise ConnectionError(conn)
         try:
-            if conn.bind():
-                log.debug("LDAP Connection established: server: {0}, user: {1}".format(server.host, conn.user))
-            else:
+            if not conn.bind():
                 print_error("Connection not bound")
         except ldap3.core.exceptions.LDAPSocketOpenError as e:
             print_error(str(e))
