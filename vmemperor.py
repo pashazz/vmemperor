@@ -1992,8 +1992,13 @@ class ConsoleHandler(BaseWSHandler):
 
     def select_subprotocol(self, subprotocols):
         if 'binary' in subprotocols:
-            return 'binary'
-        return subprotocols[0] if len(subprotocols) else ""
+            proto = 'binary'
+        else:
+            proto = subprotocols[0] if len(subprotocols) else ""
+
+        print("WebSocket Protocol:", proto)
+        return proto
+
 
     @gen.coroutine
     def server_reading(self):
