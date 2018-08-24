@@ -2082,7 +2082,6 @@ class ConsoleHandler(BaseWSHandler):
             pass
         finally:
             self.sock.close()
-            self.connections.remove(self)
 
 
 def make_app(executor, auth_class=None, debug=False):
