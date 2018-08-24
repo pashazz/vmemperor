@@ -1414,6 +1414,7 @@ class VNC(VMAbstractHandler):
             url_splitted[0] = 'ws'
             url_splitted[1] = opts.vmemperor_host + ":" + str(opts.vmemperor_port)
             url = urlunsplit(url_splitted)
+            self.log.debug(f"VNC Console URL for uuid: {vm_uuid}: {url}")
             return url
 
         self.try_xenadapter(get_vnc)
@@ -1990,7 +1991,9 @@ class ConsoleHandler(BaseWSHandler):
         self.sock.send(message)
 
     def select_subprotocol(self, subprotocols):
-        return 'binary'
+        if 'binary' in subprotocols:
+            return 'binary'
+        return subprotocols[0] if len(subprotocols) else ""
 
     @gen.coroutine
     def server_reading(self):

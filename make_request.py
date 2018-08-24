@@ -437,8 +437,8 @@ class Main():
                 msg = await socket.recv()
                 print(msg, end='\n\n')
 
-    async def _console_async(self, args, unknown):
-        async with websockets.connect(args.url, extra_headers=self.headers) as socket:
+    async def _console_async(self, args):
+        async with websockets.connect(args.url) as socket:
             while not ev.is_set():
                 msg = await socket.recv()
                 print(msg, end='\n\n')
@@ -447,7 +447,7 @@ class Main():
     def vmlist(self, args, unknown):
         self._async_call(self._vmlist_async)
 
-    @login
+
     def console(self, args, unknown):
         self._async_call(self._console_async, args)
 
