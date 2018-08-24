@@ -2,7 +2,7 @@
 mount "/dev/disk/by-label/XenServer\x20Tools" /mnt
 cd /mnt/Linux
 case $(uname -m) in
-*64) dpkg -i *amd64.deb ;;
+*64) dpkg -i *x86_64.deb ;;
 *) dpkg -i *i386.deb ;;
 esac
 
