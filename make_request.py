@@ -102,7 +102,7 @@ class Main():
         p.set_defaults(func=self.destroy)
 
         #add parser for vnc
-        p = self.subparsers.add_parser('vnc', description="Get VNC url (CONNECT method)")
+        p = self.subparsers.add_parser('vnc', description="Get VNC url (for WebSocket)")
         p.add_argument('uuid', help='VM UUID')
         p.set_defaults(func=self.vnc)
 

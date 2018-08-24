@@ -39,7 +39,7 @@ from rethinkdb.net import DefaultCursorEmpty
 from authentication import BasicAuthenticator
 from loggable import Loggable
 from pathlib import Path
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit, parse_qs, urlunsplit
 from exc import *
 import time
 import logging
@@ -58,6 +58,7 @@ from tornado.websocket import *
 import asyncio
 from tornado.platform.asyncio import AnyThreadEventLoopPolicy
 from typing import Dict, Optional, List
+from secrets import token_urlsafe
 
 POSTINST_ROUTE = r'/postinst'
 # Objects with ACL enabled
@@ -75,6 +76,7 @@ async_operations = {
     "keys": {}
 }
 
+secrets = {}
 
 def table_drop(db, table_name):
     try:
@@ -536,7 +538,10 @@ class VMList(BaseWSHandler):
 
                             valid_uuids.remove(change['old_val']['uuid'])
 
-                    self.write_message(json.dumps(change, cls=DateTimeEncoder))
+                    try:
+                        self.write_message(json.dumps(change, cls=DateTimeEncoder))
+                    except WebSocketClosedError:
+                        return
 
         except Exception as e:
             self.log.error("Exception in items_changes', user: {0}: {1}, restarting..."
@@ -1305,10 +1310,13 @@ class VMDiskInfo(VMAbstractHandler):
             vm_data = db.table('vms').get(self.uuid).do(lambda vm: vm['disks'].keys(). \
                                                         map(
                 lambda diskKey: r.expr([diskKey, vm['disks'][diskKey].merge(r.branch(
-                    vm['disks'][diskKey]['type'].eq('Disk'),
-                    db.table('vdis').get(vm['disks'][diskKey]['VDI']).without('uuid'),
-                    db.table('isos').get(vm['disks'][diskKey]['VDI']).without('uuid')))])). \
-                                                        filter(lambda item: item[1] != None).coerce_to('object')).run()
+                    vm['disks'][diskKey]['VDI'] != None, #if
+                    r.branch( #then
+                    vm['disks'][diskKey]['type'].eq('Disk'), #inner if
+                    db.table('vdis').get(vm['disks'][diskKey]['VDI']).without('uuid'), # inner then
+                    db.table('isos').get(vm['disks'][diskKey]['VDI']).without('uuid')), # inner else
+                    {} # else
+                    ))])).filter(lambda item: item[1] != None).coerce_to('object')).run()
             return vm_data
 
 
@@ -1397,7 +1405,6 @@ class RebootVM(VMAbstractHandler):
 
 class VNC(VMAbstractHandler):
     access = 'launch'
-
     def get_data(self):
         '''
         Get VNC console url that supports HTTP CONNECT method. Requires permission 'launch'
@@ -1409,11 +1416,12 @@ class VNC(VMAbstractHandler):
         vm_uuid = self.get_argument('uuid')
 
         def get_vnc(auth: BasicAuthenticator):
-            url = VM(auth, uuid=vm_uuid).get_vnc()
-            url_splitted = list(urlsplit(url))
-            url_splitted[0] = 'ws'
-            url_splitted[1] = opts.vmemperor_host + ":" + str(opts.vmemperor_port)
-            url = urlunsplit(url_splitted)
+            secret = token_urlsafe()
+            secrets[secret] = {
+                'uuid': vm_uuid,
+                'auth' : auth
+            }
+            url = f'ws://{opts.vmemperor_host}:{opts.vmemperor_port}/console?secret={secret}'
             self.log.debug(f"VNC Console URL for uuid: {vm_uuid}: {url}")
             return url
 
@@ -1944,46 +1952,73 @@ class ConsoleHandler(BaseWSHandler):
 
     def initialize(self, executor):
         super().initialize(executor)
-        url = urlparse(opts.url)
+
         username = opts.username
         password = opts.password
-        if ':' in url.netloc:
-            host, port = url.netloc.split(':')
-        else:
-            host = url.netloc
-            port = 80  # TODO: AS FOR NOW ONLY HTTP IS SUPPORTED
-
-        self.host = host
-        self.port = int(port)
         self.auth_token = base64.encodebytes('{0}:{1}'.format
                                              (username,
                                               password).encode())
 
-    connections = []
 
     @tornado.web.asynchronous
     def open(self):
         '''
         This method proxies WebSocket calls to XenServer
         '''
-        self.connections.append(self)
 
-        self.sock = socket.create_connection((self.host, self.port))
+
+        # Get VM vnc url
+        url_parsed = urlparse(self.request.uri)
+        try:
+            secret = parse_qs(url_parsed.query)['secret'][0]
+        except KeyError:
+            self.write_message("No argument secret")
+            self.close()
+            return
+
+
+        try:
+            data = secrets[secret]
+        except KeyError:
+            self.write_message("Invalid secret")
+            self.close()
+            return
+
+        try:
+            vm = VM(uuid=data['uuid'], auth=data['auth'])
+            vnc_url = vm.get_vnc()
+        except XenAdapterUnauthorizedActionException as ee:
+            self.set_status(403)
+            self.write(json.dumps({'status': 'not allowed', 'details': ee.message}))
+            self.finish()
+
+
+        except EmperorException as ee:
+            self.set_status(400)
+            self.write(json.dumps({'status': 'error', 'details': ee.message}))
+            self.finish()
+
+        vnc_url_parsed = urlsplit(vnc_url)
+        port = vnc_url_parsed.port
+        if port is None:
+            port = 80 # TODO: If scheme is HTTPS, use 443
+        self.sock = socket.create_connection((vnc_url_parsed.hostname, port))
         self.sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         self.sock.setblocking(0)
         self.halt = False
         self.translate = False
         self.key = None
 
-        uri = self.request.uri
+        uri = f'{vnc_url_parsed.path}?{vnc_url_parsed.query}'
         lines = [
             'CONNECT {0} HTTP/1.1'.format(uri),  # HTTP 1.1 creates Keep-alive connection
-            'Host: {0}'.format(self.host),
+            'Host: {0}'.format(opts.vmemperor_host),
             #   'Authorization: Basic {0}'.format(self.auth_token),
         ]
         self.sock.send('\r\n'.join(lines).encode())
         self.sock.send(b'\r\nAuthorization: Basic ' + self.auth_token)
         self.sock.send(b'\r\n\r\n')
+        del secrets[secret]
         tornado.ioloop.IOLoop.current().spawn_callback(self.server_reading)
 
     def on_message(self, message):
@@ -1998,7 +2033,6 @@ class ConsoleHandler(BaseWSHandler):
 
         print("WebSocket Protocol:", proto)
         return proto
-
 
     @gen.coroutine
     def server_reading(self):

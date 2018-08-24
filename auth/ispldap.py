@@ -9,7 +9,7 @@ from exc import *
 
 
 class LDAPIspAuthenticator(BasicAuthenticator):
-    SERVER_IP = '10.10.12.9'
+    SERVER_IP = '83.149.198.139'
     @classmethod
     def guid_to_search(cls, guid):
         return escape_bytes(uuid.UUID(guid).bytes_le)
@@ -119,7 +119,7 @@ class LDAPIspAuthenticator(BasicAuthenticator):
                raise AuthenticationUserNotFoundException(log,self)
 
            dn = conn.entries[0]
-           check_login = ldap3.Connection(server, user=dn.entry_dn, password=password)
+           check_login = ldap3.Connection(self.SERVER_IP, user=dn.entry_dn, password=password)
            try:
                if check_login.bind():
                    log.info("Authentication as {0} successful".format(username))
