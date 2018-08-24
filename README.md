@@ -117,5 +117,9 @@ Line 2: HTTP status code
 
 ### Example
     ./make_request.py createvm --name_label "test13" --hostname "test13"
-    904754ee-db21-0fd6-0a23-dfdaa34fdcc9
-    200
+
+
+# Use Auto-installation features
+You need to tune up your template configuration in order to use auto installation features.
+
+[Read more...](https://github.com/pashazz/vmemperor/wiki/XenServerTemplates)
