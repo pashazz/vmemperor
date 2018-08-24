@@ -253,5 +253,5 @@ d-i debian-installer/exit/poweroff boolean true
 d-i preseed/late_command string \
 in-target perl -pi -e 's/(err=remount-ro)/noatime,nodiratime,$1,barrier=1/' /etc/fstab ; \
 in-target wget -O /tmp/postinst.vmemperor.sh {{  postinst }} ; \
-in-target sh /tmp/postinst.vmemperor.sh ; \
+in-target bash /tmp/postinst.vmemperor.sh ; \
 in-target rm /tmp/postinst.vmemperor.sh
