@@ -16,8 +16,8 @@ import { Nav, NavItem, Badge, NavLink, TabContent, TabPane, Row, Col, Card, Card
 import classnames from 'classnames';
 
 import T from 'prop-types';
-
-//import Vncview from 'containers/Vncview/Loadable';
+import Vncview from 'containers/Vncview/Loadable';
+import VM from 'models/VM';
 
 
 class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/prefer-stateless-function
@@ -26,23 +26,30 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
   this.toggle = this.toggle.bind(this);
   this.state = {
     activeTab: 'power',
+    vncActivated: false,
   }
   }
 
 
    toggle(tab) {
+     console.log("Toggled tab", tab);
    if (this.state.activeTab !== tab) {
       this.setState({
         activeTab: tab
       });
+      if (tab === 'vnc' && !this.state.vncActivated)
+      {
+        this.setState({
+          vncActivated: true,
+        });
+      }
     }
-
 
   }
 
   render() {
     const data = this.props.data;
-
+    console.log("Current tab:", this.state.activeTab);
     return (
       <div>
         <h3 className="text-center">{data.name_label} <Badge color="primary">{data.power_state}</Badge>
@@ -63,7 +70,7 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
           <NavItem>
             <NavLink
               className={classnames({ active: this.state.activeTab === 'vnc' })}
-              onClick={() => { this.toggle('vnc'); }}
+              onClick={() => {console.log("CLOCK"); this.toggle('vnc'); }}
             >
               VNC
             </NavLink>
@@ -125,7 +132,11 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
             </Row>
           </TabPane>
           <TabPane tabId="vnc">
-            <h1>Use power tab for now</h1>
+            {
+              this.state.vncActivated && (
+                <Vncview uuid={this.props.data.uuid}/>
+              ) || (<h1>NO VNC HERE</h1>)
+            }
           </TabPane>
           <TabPane tabId="network">
             <Row>
@@ -164,7 +175,7 @@ class VmsettingsForm extends React.PureComponent { // eslint-disable-line react/
     );
     }
     static propTypes = {
-      data: T.any.isRequired,
+      data: T.instanceOf(VM).isRequired,
       diskInfo: T.any.isRequired,
       netInfo: T.array.isRequired,
       onHalt: T.func.isRequired,

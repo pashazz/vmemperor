@@ -10,7 +10,7 @@ import  VM from 'models/VM';
 import { FormattedMessage } from 'react-intl';
 import messages from  '../messages';
 import Playbooks from "../../../containers/Playbooks";
-
+import { Label } from 'reactstrap';
 class Power extends PureComponent {
   static propTypes = {
     onReboot: T.func.isRequired,
@@ -36,23 +36,7 @@ class Power extends PureComponent {
         uptime_text = "I'm " + data.power_state.toLowerCase() + ".";
     }
 
-    const addresses = data.networks.map((value, key) => {
-      let text= "";
-      if (value.get('ip'))
-      {
-        text = "IPv4: " +  value.get('ip') + " (Network " + key + ")<br/>"
-      }
-      if (value.get('ipv6'))  {
 
-        text += "IPv6:" + value.get('ipv6') + " (Network " + key + ")";
-      }
-      if (!text)
-      {
-        text = "Not available";
-      }
-
-      return text;
-    }).valueSeq().toArray();
     return(
       <React.Fragment>
       <Row>
@@ -78,33 +62,31 @@ class Power extends PureComponent {
       </FullHeightCard>
         </Col>
         <Col sm={6}>
-          <FullHeightCard>
+          {data.networks && (
+            <React.Fragment>
+                {
+                  data.networks.map((value, key) => {
+                    const ip = value.get('ip');
+                    const ipv6 = value.get('ipv6');
+                    return (<Card key={key}>
+                      <CardBody>
+                        <CardTitle>Network{" " + key}</CardTitle>
+                        <CardText>
+                        {ip && (<React.Fragment>
+                            <Label> IP: {ip}</Label><br/>
+                        </React.Fragment>)}
+                        {ipv6 && (<Label> IPv6: {ipv6}</Label>)}
+                        {(!ip && !ipv6) && (<Label>No data</Label>)}
+                        </CardText>
+                      </CardBody>
+                    </Card>)
 
-            <CardBody>
-              <CardTitle>Access</CardTitle>
-
-              {addresses && (
-                <React.Fragment>
-                  <CardSubtitle>IP addresses</CardSubtitle>
-                  <CardText>
-                    {addresses.map(address => <div>{address}</div>)}
-                  </CardText>
-                </React.Fragment>
-              ) || (
-                <CardSubtitle>Connect your VM to a network to access it </CardSubtitle>)
-              }
-            </CardBody>
-            <CardFooter>
-              <div>
-                <Button disabled={data.power_state !== 'Running'} size="lg" color="success"
-                onClick={() => {
-                  const win = window.open('/desktop/' + data.uuid, '_blank');
-                  win.focus();
-                }}>Go to Desktop</Button>
-              </div>
-            </CardFooter>
-          </FullHeightCard>
-
+                  }).valueSeq().toArray()
+                }
+            </React.Fragment>
+          ) || (
+            <h3>Connect your VM to a network to access it </h3>)
+          }
         </Col>
       </Row>
         <Row>

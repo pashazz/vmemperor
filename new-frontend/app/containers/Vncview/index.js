@@ -37,11 +37,9 @@ export class Vncview extends React.PureComponent { // eslint-disable-line react/
   render() {
     console.log(this.props.error);
     let label = null;
-    if (this.props.url)
+    if (this.props.match && this.props.url)
     {
-      console.log('label');
-      label =this.props.vmData.get(this.props.uuid_selected).name_label;
-
+      label = this.props.vmData.get(this.props.uuid_selected).name_label;
     }
 
 
@@ -55,9 +53,10 @@ export class Vncview extends React.PureComponent { // eslint-disable-line react/
           this.props.url ?
           (
             <Fragment>
+              {label &&
             <h2>{
               label
-            }</h2>
+            }</h2>}
             <VncDisplay url={this.props.url}/>
             </Fragment>
           ) : ( <Loader/>)

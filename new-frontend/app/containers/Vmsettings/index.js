@@ -150,6 +150,14 @@ class VMSettings extends React.PureComponent { // eslint-disable-line react/pref
 
 
   render() {
+    if (!this.props.vm_data)
+    {
+      return (
+        <h1>
+          LOADING
+        </h1>
+      );
+    }
     const data  = this.props.vm_data.get(this.props.match.params.uuid);
     if (!data) {
       return (
