@@ -2004,6 +2004,7 @@ class ConsoleHandler(BaseWSHandler):
     def server_reading(self):
         try:
             http_header_read = False
+            data_sent = False
             stream = tornado.iostream.IOStream(self.sock)
             while self.halt is False:
                 try:
@@ -2011,7 +2012,23 @@ class ConsoleHandler(BaseWSHandler):
                     if not http_header_read:
                         http_header_read = True
                         data = data[78:]
-                except StreamClosedError:
+                        if not data:
+                            continue
+                        #if new_data[0:3] == b'RFB':
+                        #    data = new_data
+                        #else:
+                        #    self.log.error(f"Unable to open VNC Console {self.request.uri}: Error: {data}")
+                        #    self.write_message(data)
+                        #    self.close()
+                    if not data_sent:
+                        if not data[0:3] == b'RFB':
+                            self.log.error(f"Unable to open VNC Console {self.request.uri}: Error: {data}")
+                            self.write_message(data)
+                            self.close()
+                        else:
+                            data_sent = True
+                except StreamClosedError as e:
+                    self.log.info(f"{self.request.uri}: Stream closed: {e}")
                     self.halt = True
                     self.close()
                     break
