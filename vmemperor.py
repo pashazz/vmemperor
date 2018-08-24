@@ -551,7 +551,6 @@ class VMList(BaseWSHandler):
             ioloop.run_in_executor(self.executor, self.items_changes)
 
     def on_close(self):
-        self.connections.remove(self)
         if hasattr(self, 'cur'):
             self.log.info("Closing websocket connection: {0}".format(self.ws_connection))
 
