@@ -21,6 +21,23 @@ ansible_pubkey = '~/.ssh/id_rsa.pub' # Public key exported during auto installat
 ansible_networks = ["920b8d47-9945-63d8-4b04-ad06c65d950a"] # Networks that your host and VMs all run on
 user_source_delay = 2 # How often VMEmperor asks external authenticator for user and group lists, in seconds
 ```
+## How to configure with Docker
+
+1. Configure `login.ini`.
+   Leave the following options default:
+      * `vmemperor_port` (Dockerfile assumes auto configuration of frontend and it uses default port)
+      * `host` (Dockerfile assumes RethinkDB is running in the same Docker container)
+2. Pay attention to `ansible_pubkey` variable: its default value assumes that you mount `/root` directory with `.ssh/id_rsa` and `.ssh/id_rsa.pub` files in container. If you change this value, correct `docker run` command accordingly
+3. [Adapt your Ansible playbooks](https://github.com/pashazz/vmemperor/wiki/AnsiblePlaybookConfigFormat), see example in `ansible` folder. You may want to add them to Docker image or mount them as volume
+3. Create Docker image:
+```bash
+docker build -t vmemperor .
+```
+3. Run Docker image:
+```bash
+docker run -d  -v ~/.ssh:/root/.ssh -p 3000:3000 vmemperor:latest
+```
+4. Open frontend at http://localhost:3000 (if no VMs are shown you probably should re-login)
 
 ## How to configure
   0. Ensure at least Python 3.6 on your host machine
@@ -61,7 +78,7 @@ admin=True
   To get group list, run
   `./make_request.py --login admin grouplist`
   15. In XenCenter make desirable templates available to users by applying `vmemperor` tag
-  16. Adapt your Ansible playbooks, see example in `ansible` folder
+  16. [Adapt your Ansible playbooks](https://github.com/pashazz/vmemperor/wiki/AnsiblePlaybookConfigFormat), see example in `ansible` folder
 
 # CLI interface
     ./make_request.py <action> <options>

@@ -1,4 +1,5 @@
 import pathlib
+from daemonize import Daemonize
 from collections import OrderedDict
 import signal
 import atexit
@@ -59,6 +60,8 @@ import asyncio
 from tornado.platform.asyncio import AnyThreadEventLoopPolicy
 from typing import Dict, Optional, List
 from secrets import token_urlsafe
+
+logger = None # global logger
 
 POSTINST_ROUTE = r'/postinst'
 # Objects with ACL enabled
@@ -1565,7 +1568,7 @@ class EventLoop(Loggable):
         self.log.info("Using database {0}".format(opts.database))
         conn = ReDBConnection().get_connection()
         with conn:
-            print("Creating databases", end='...')
+            self.log.debug("Creating databases...")
             if opts.database in r.db_list().run():
                 r.db_drop(opts.database).run()
 
@@ -2030,7 +2033,7 @@ class ConsoleHandler(BaseWSHandler):
         else:
             proto = subprotocols[0] if len(subprotocols) else ""
 
-        print("WebSocket Protocol:", proto)
+
         return proto
 
     @gen.coroutine
@@ -2197,7 +2200,7 @@ def read_settings():
     ansible_pubkey = path.expanduser(opts.ansible_pubkey)
     ReDBConnection().set_options(opts.host, opts.port)
     if not os.access(ansible_pubkey, os.R_OK):
-        print("WARNING: Ansible pubkey {0} (ansible_pubkey config option) is not readable".format(ansible_pubkey))
+        logger.warning("WARNING: Ansible pubkey {0} (ansible_pubkey config option) is not readable".format(ansible_pubkey))
 
     def on_exit():
         xen_events_run.set()
@@ -2228,27 +2231,36 @@ def main():
     """ reads settings in ini configures and starts system"""
     asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
 
-    read_settings()
     global URL
     URL = f"http://{opts.vmemperor_host}:{opts.vmemperor_port}"
-    print(f"Listening on: {URL}")
+    logger.debug(f"Listening on: {URL}")
 
     executor = ThreadPoolExecutor(max_workers=2048)
     app = make_app(executor)
     server = tornado.httpserver.HTTPServer(app)
     server.listen(opts.vmemperor_port, address="0.0.0.0")
     ioloop = event_loop(executor, authenticator=app.auth_class)
-    print(f"Using authentication: {app.auth_class.__name__}")
-    print("Loading playbooks...", end='')
+    logger.debug(f"Using authentication: {app.auth_class.__name__}")
+    logger.debug("Loading playbooks...")
     global playbooks
     playbooks = {p.get_id(): p for p in Playbook.get_playbooks()}
-    print("loaded ", len(playbooks))
+    logger.debug(f"loaded  {len(playbooks)}")
     ioloop.start()
 
     return
 
 
 if __name__ == '__main__':
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
+
+    sh = logging.StreamHandler(sys.stdout)
+    sh.setLevel(logging.DEBUG)
+    logger.addHandler(sh)
+
+    read_settings()
+
     try:
         main()
     except KeyboardInterrupt:

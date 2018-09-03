@@ -7,3 +7,4 @@ secret.ini
 rethinkdb_data
 yarn.lock
 ansible_logs/*
+nohup.out
