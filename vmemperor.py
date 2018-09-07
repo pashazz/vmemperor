@@ -700,9 +700,8 @@ class CreateVM(BaseHandler):
             self.net_uuid = self.get_argument('network')
             self.vdi_size = self.get_argument('vdi_size')
             self.ram_size = self.get_argument('ram_size')
-            self.hostname = self.get_argument('hostname')
             self.name_label = self.get_argument('name_label')
-            self.mirror_url = self.get_argument('mirror_url', None)
+
 
         except Exception as e:
             self.set_status(400)
@@ -750,7 +749,8 @@ class CreateVM(BaseHandler):
                 self.partition = None
             else:
                 self.iso = None
-
+                self.hostname = self.get_argument('hostname')
+                self.mirror_url = self.get_argument('mirror_url', None)
                 ip = self.get_argument('ip', '')
                 gw = self.get_argument('gateway', '')
                 netmask = self.get_argument('netmask', '')
@@ -766,8 +766,7 @@ class CreateVM(BaseHandler):
                 if dns1:
                     self.ip_tuple.append(dns1)
 
-                self.hostname = self.get_argument('hostname', default='xen_vm')
-                self.username = self.get_argument('username', default='')
+                self.username = self.get_argument('username')
                 self.password = self.get_argument('password')
                 self.fullname = self.get_argument('fullname', default=None)
                 self.partition = self.get_argument('partition', default='auto')
@@ -1423,6 +1422,8 @@ class VNC(VMAbstractHandler):
                 'uuid': vm_uuid,
                 'auth' : auth
             }
+
+
             url = f'ws://{opts.vmemperor_host}:{opts.vmemperor_port}/console?secret={secret}'
             self.log.debug(f"VNC Console URL for uuid: {vm_uuid}: {url}")
             return url
@@ -2039,30 +2040,34 @@ class ConsoleHandler(BaseWSHandler):
     @gen.coroutine
     def server_reading(self):
         try:
-            http_header_read = False
             data_sent = False
+            http_header_read = False
             stream = tornado.iostream.IOStream(self.sock)
             while self.halt is False:
                 try:
-                    data = yield stream.read_bytes(1024, partial=True)
-                    if not http_header_read:
-                        http_header_read = True
-                        data = data[78:]
-                        if not data:
-                            continue
-                        #if new_data[0:3] == b'RFB':
-                        #    data = new_data
-                        #else:
-                        #    self.log.error(f"Unable to open VNC Console {self.request.uri}: Error: {data}")
-                        #    self.write_message(data)
-                        #    self.close()
                     if not data_sent:
-                        if not data[0:3] == b'RFB':
-                            self.log.error(f"Unable to open VNC Console {self.request.uri}: Error: {data}")
-                            self.write_message(data)
-                            self.close()
-                        else:
-                            data_sent = True
+                        data = yield stream.read_bytes(100, partial=True)
+                        if not http_header_read:
+                            notok = b'200 OK' not in data
+                            if notok:
+                                self.log.error(f"Unable to open VNC Console {self.request.uri}: Error: {data}")
+                                self.write_message(data)
+                                self.close()
+                                return
+                            else:
+                                http_header_read = True
+
+                        try:
+                            index = data.index(b'RFB')
+                        except ValueError:
+                            self.log.warning("server_reading: 200 OK returned, but no RFB in first data message. Continuing")
+                            continue
+
+
+                        data = data[index:]
+                        data_sent = True
+                    else:
+                        data = yield stream.read_bytes(1024, partial=True)
                 except StreamClosedError as e:
                     self.log.info(f"{self.request.uri}: Stream closed: {e}")
                     self.halt = True

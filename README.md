@@ -35,8 +35,9 @@ docker build -t vmemperor .
 ```
 3. Run Docker image:
 ```bash
-docker run -d  -v ~/.ssh:/root/.ssh -p 3000:3000 vmemperor:latest
+docker run -d  -v ~/.ssh:/root/.ssh -p 3000:3000 -p 8889:8889 vmemperor:latest
 ```
+Warning: You must expose both frontend and API ports for remote desktop and post-installation to work.
 4. Open frontend at http://localhost:3000 (if no VMs are shown you probably should re-login)
 
 ## How to configure
@@ -57,7 +58,7 @@ docker run -d  -v ~/.ssh:/root/.ssh -p 3000:3000 vmemperor:latest
 
   7. Start RethinkDB
   8. Install VMEmperor dependencies with `pip install -r requirements.txt` (optionally create a virtualenv ). Install npm for managing frontend
-  8. For `ispldap` set up LDAP server IP in `auth/ispldap.py:12`, variable `SERVER_IP`                                                
+  8. For `ispldap` set up LDAP server IP in `auth/ispldap.py:12`, variable `SERVER_IP`
   9. Start VMEmperor with `python3 vmemperor.py`
   10. from `new-frontend` directory install dependencies with `npm install`
   11. run frontend with `npm run start`
