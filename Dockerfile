@@ -8,11 +8,11 @@ ENV DOCKER True
 
 RUN apt update && apt install -y \
     python3 python3-pip wget gdebi-core git
-RUN  apt-get update\
-&&  apt-get install software-properties-common\
-&&  apt-add-repository ppa:ansible/ansible\
-&&  apt-get update\
-&&  apt-get install ansible
+RUN  apt-get update \
+&&  apt-get install -y software-properties-common \
+&&  apt-add-repository ppa:ansible/ansible \
+&&  apt-get update \
+&&  apt-get install -y ansible
 
 RUN pip3 install --upgrade pip
 
