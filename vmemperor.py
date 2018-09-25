@@ -699,13 +699,15 @@ class CreateVM(BaseHandler):
             self.sr_uuid = self.get_argument('storage')
             self.net_uuid = self.get_argument('network')
             self.vdi_size = self.get_argument('vdi_size')
+            int(self.vdi_size)
             self.ram_size = self.get_argument('ram_size')
+            int(self.ram_size)
             self.name_label = self.get_argument('name_label')
 
 
         except Exception as e:
             self.set_status(400)
-            self.log.error("Exception: {0}".format(e))
+            self.log.error(f"Exception: {e}")
             self.write({'status': 'error', 'message': 'bad request'})
             self.finish()
             return
@@ -897,6 +899,7 @@ class CreateVM(BaseHandler):
                                       "failed to start VM for installation (low resources?). State: %s" % state)
                 return
 
+            self.insert_log_entry(self.uuid, 'installing','installing OS')
             cur = db.table('vms').get(self.uuid).changes().run()
             while True:
                 try:
@@ -908,7 +911,7 @@ class CreateVM(BaseHandler):
                         continue
                 except ReqlDriverError as e:
                     self.log.error(
-                        "ReQL error while trying to retreive VM {1} install status: {0}".format(e, self.uuid))
+                        f"ReQL error while trying to retrieve VM '{self.uuid}': install status: {e}")
                     return
 
                 if change['new_val']['power_state'] == 'Halted':
@@ -917,13 +920,13 @@ class CreateVM(BaseHandler):
                         other_config = vm.get_other_config()
                         if 'convert-to-hvm' in other_config and other_config['convert-to-hvm']:
                             vm.convert('hvm')
+
                         vm.start_stop_vm(True)
+                        self.insert_log_entry(self.uuid, "installed", "OS successfully installed")
                     except XenAdapterAPIError as e:
                         self.insert_log_entry(self.uuid, "failed", "failed to start after installation: %s" % e.message)
-                    else:
-                        self.insert_log_entry(self.uuid, "installed", "OS successfully installed")
-
-                    break
+                    finally:
+                        break
 
 
 class ConvertVM(BaseHandler):

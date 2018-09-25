@@ -167,7 +167,7 @@ class VM (AbstractVM):
                 net = Network(auth, uuid=net_uuid)
             except XenAdapterAPIError as e:
                 insert_log_entry(new_vm_uuid, state="failed", message="Failed to connect VM to a network: %s" % e.message )
-                return
+                raise e
 
             net.attach(vm)
         else:
@@ -186,7 +186,7 @@ class VM (AbstractVM):
             except XenAdapterAPIError as e:
                 insert_log_entry(new_vm_uuid, state="failed",
                                           message="Failed to mount ISO for VM: %s" % e.message)
-                return
+                raise e
 
 
         vm.os_install(install_url)

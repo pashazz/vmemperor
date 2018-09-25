@@ -83,7 +83,7 @@ class Storage extends PureComponent {
       const vdi = this.props.diskInfo.filter(row => {return  row.key === ref})[0]['VDI'];
       this.props.onDetachVdi(vdi);
     }
-    this.refreshWidgets();
+
   }
   toggleIsoAttach()
   {
