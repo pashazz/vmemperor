@@ -1218,14 +1218,14 @@ class UserInfo(BaseHandler):
 
 
 class UserList(BaseHandler):
-    @admin_required
+    @auth_required
     def get(self):
         with self.conn:
             self.write(json.dumps(r.db(opts.database).table('users').coerce_to('array').run()))
 
 
 class GroupList(BaseHandler):
-    @admin_required
+    @auth_required
     def get(self):
         with self.conn:
             self.write(json.dumps(r.db(opts.database).table('groups').coerce_to('array').run()))
@@ -1601,7 +1601,7 @@ class EventLoop(Loggable):
                 self.db.table_create('users', durability='soft').run()
                 self.db.table_create('groups', durability='soft').run()
                 users = self.authenticator.get_all_users(log=log)
-                groups = self.authenticator.get_all_users(log=log)
+                groups = self.authenticator.get_all_groups(log=log)
                 self.db.table('users').insert(users, conflict='update').run()
                 self.db.table('groups').insert(groups, conflict='update').run()
                 while True:
@@ -1618,7 +1618,7 @@ class EventLoop(Loggable):
                         delay += sleep_time
 
                     new_users = self.authenticator.get_all_users(log=log)
-                    new_groups = self.authenticator.get_all_users(log=log)
+                    new_groups = self.authenticator.get_all_groups(log=log)
                     self.db.table('users').insert(new_users, conflict='update').run()
                     self.db.table('groups').insert(new_groups, conflict='update').run()
 

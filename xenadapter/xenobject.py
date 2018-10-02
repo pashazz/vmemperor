@@ -90,7 +90,7 @@ class XenObject(metaclass=XenObjectMeta):
                 getattr(self, 'ref') #uuid check
             except XenAPI.Failure as f:
                 raise  XenAdapterAPIError(auth.xen.log,
-                                          f"Failed to initialize object of type {self.__class__.__name__} with UUID {self.uuid}: {f.details}")
+                                          f"Failed to initialize object of type {self.__class__.__name__} with UUID {self.uuid}",f.details)
 
 
 
