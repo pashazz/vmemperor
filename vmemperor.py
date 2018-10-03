@@ -197,7 +197,8 @@ class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
     def before_run_in_executor(self):
         if hasattr(self, '_run_task') and self._ASYNC_KEY:
             async_operations["keys"][self._run_task] = self._ASYNC_KEY
-            async_operations[self._ASYNC_KEY][self._run_task] = {}
+            async_operations[self._ASYNC_KEY][self._run_task] =\
+                {"auth" : self.user_authenticator}
 
     def try_xenadapter(self, func, post_hook=None):
         '''
@@ -995,11 +996,12 @@ class ExecutePlaybook(BaseHandler):
             with open(log_path.joinpath('stderr'), 'w') as _stderr:
                 tasks[self.cwd.name]['returncode'] = None
                 proc = subprocess.run(self.cmd_line,
-                                      cwd=self.cwd, stdout=_stdout, stderr=_stderr)
+                                      cwd=self.cwd, stdout=_stdout, stderr=_stderr,
+                                      env={"ANSIBLE_HOST_KEY_CHECKING":"False"})
 
                 tasks[self.cwd.name]['returncode'] = proc.returncode
 
-        self.log.info(f'Finished {self.cwd.name} with return code {ansible_finished[self.cwd.name]["returncode"]}')
+        self.log.info(f'Finished {self.cwd.name} with return code {tasks[self.cwd.name]["returncode"]}')
 
     @auth_required
     def post(self):
