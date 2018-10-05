@@ -203,6 +203,10 @@ class Main():
         p.add_argument('vms', help="VM UUIDs", nargs='+')
         p.set_defaults(func=self.execute_playbook)
 
+        #add parser for alltemplates
+        p = self.subparsers.add_parser('alltemplates', description="List all templates. including disabled")
+        p.set_defaults(func=self.alltemplates)
+
 
         #add parser for everything else
         for method in inspect.getmembers(self, predicate=inspect.ismethod):
@@ -487,6 +491,12 @@ class Main():
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
 
+    @login
+    def alltemplates(self, args, unknown):
+        r = requests.get(f"{self.url}/alltemplates", cookies=self.jar)
+        js = json.loads(r.text)
+        pprint.pprint(js)
+        print(r.status_code, file=sys.stderr)
 
 if __name__ == '__main__':
     try:
