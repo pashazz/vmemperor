@@ -364,6 +364,13 @@ class TurnTemplate(BaseHandler):
 
         self.write({'status': 'ok'})
 
+class AllTemplates(BaseHandler):
+    @admin_required
+    def get(self):
+        tmpl = Template.get_all_records(self.user_authenticator)
+        self.write(json.dumps(tmpl, cls=DateTimeEncoder ))
+
+
 
 class ResourceList(BaseHandler):
     @auth_required
@@ -2156,7 +2163,8 @@ def make_app(executor, auth_class=None, debug=False):
         (r'/executeplaybook', ExecutePlaybook, dict(executor=executor)),
         (r'/taskstatus', TaskStatus, dict(executor=executor)),
         (r'/userlist', UserList, dict(executor=executor)),
-        (r'/grouplist', GroupList, dict(executor=executor))
+        (r'/grouplist', GroupList, dict(executor=executor)),
+        (r'/alltemplates', AllTemplates, dict(executor=executor))
 
     ], **settings)
 
