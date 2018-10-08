@@ -230,6 +230,12 @@ class XenObject(metaclass=XenObjectMeta):
             return self.ref
 
 
+        if name.startswith('async_'):
+            async = getattr(self.xen.api, 'Async')
+            api = getattr(async, self.api_class)
+            name = name[6:]
+
+
         if name[0] == '_':
             name=name[1:]
         attr = getattr(api, name)

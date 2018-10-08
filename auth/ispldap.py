@@ -1,3 +1,4 @@
+import traceback
 from authentication import *
 import ldap3
 from ldap3.utils.conv import escape_bytes
@@ -164,8 +165,9 @@ class LDAPIspAuthenticator(BasicAuthenticator):
         try:
             if not conn.bind():
                 print_error("Connection not bound")
-        except ldap3.core.exceptions.LDAPSocketOpenError as e:
+        except Exception as e:
             print_error(str(e))
+            traceback.print_exc()
 
 
         return conn

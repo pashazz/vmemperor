@@ -14,6 +14,7 @@ from xenadapter.network import Network, VIF
 from xenadapter.disk import ISO, VDI, VDIorISO
 from xenadapter.sr import SR
 from xenadapter.vbd import VBD
+from xenadapter.task import Task
 from xenadapter.pool import Pool
 from playbook import Playbook, PlaybookEncoder
 import copy
@@ -194,11 +195,42 @@ class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
     def get_current_user(self):
         return self.get_secure_cookie("user")
 
+
+    def async_run(self, task_ref):
+        self._run_task = task_ref
+        self.before_run_in_executor()
+        ioloop = tornado.ioloop.IOLoop.instance()
+        ioloop.run_in_executor(self.executor, self.run_async_task)
+
+
+    def run_async_task(self):
+        task = Task(auth=self.user_authenticator, ref=self._run_task)
+        write_in = async_operations[self._ASYNC_KEY][self._run_task]
+        write_in['created'] = task.get_created()
+        while task.get_status() == 'pending':
+            write_in['status'] = task.get_status()
+            write_in['progress'] =  task.get_progress()
+            time.sleep(1)
+
+        write_in['finished'] = task.get_finished()
+        write_in['status'] = task.get_status()
+        write_in['progress'] = task.get_progress()
+
+        if write_in['status'] == 'failure':
+            write_in['error_info'] = task.get_error_info()
+
+        task.destroy()
+
+
+
+
     def before_run_in_executor(self):
         if hasattr(self, '_run_task') and self._ASYNC_KEY:
             async_operations["keys"][self._run_task] = self._ASYNC_KEY
             async_operations[self._ASYNC_KEY][self._run_task] =\
                 {"auth" : self.user_authenticator}
+
+
 
     def try_xenadapter(self, func, post_hook=None):
         '''
@@ -786,7 +818,7 @@ class CreateVM(BaseHandler):
             self._run_task = self.taskid  # for on_finish
             self.before_run_in_executor()
             tornado.ioloop.IOLoop.current().run_in_executor(self.executor, self.createvm)
-            self.write({'task': self.taskid})
+            self.write(json.dumps({'task': self.taskid}))
             self.finish()
 
     def insert_log_entry(self, uuid, state, message):
@@ -983,7 +1015,8 @@ class TaskStatus(BaseHandler):
                 return
 
         try:
-            self.write({k: v for k, v in async_operations[operation][task].items() if k != 'auth'})
+            self.write(json.dumps({k: v for k, v in async_operations[operation][task].items() if k != 'auth'},
+                       cls=DateTimeEncoder))
         except Exception as e:
             self.write({'status': 'error', 'details': 'no such task'})
             self.set_status(400)
@@ -1372,6 +1405,7 @@ class VDIInfo(VDIAbstractHandler):
             return
 
 
+
 class ISOInfo(ISOAbstractHandler):
     def get_data(self):
         db = r.db(opts.database)
@@ -1387,16 +1421,35 @@ class ISOInfo(ISOAbstractHandler):
 
 class DestroyVM(VMAbstractHandler):
     access = 'destroy'
-
+    _ASYNC_KEY = 'destroyvm'
     def get_data(self):
         uuid = self.get_argument('uuid')
 
-        self.try_xenadapter(lambda auth: VM(auth, uuid=uuid).destroy_vm())
+        def run(auth):
+            task = VM(auth, uuid=uuid).async_destroy()
+            if task:
+                self.async_run(task)
+                return {'task': task}
 
+        self.try_xenadapter(run)
+
+class DestroyVDI(VDIAbstractHandler):
+    access = 'destroy'
+    _ASYNC_KEY = 'destroyvdi'
+    def get_data(self):
+        uuid = self.get_argument('uuid')
+
+        def run(auth):
+            task = VDI(auth, uuid=uuid).async_destroy()
+            if task:
+                self.async_run(task)
+                return {'task': task}
+
+        self.try_xenadapter(run)
 
 class StartStopVM(VMAbstractHandler):
     access = 'launch'
-
+    _ASYNC_KEY = 'startstopvm'
     def get_data(self):
         uuid = self.get_argument('uuid')
         enable = self.get_argument('enable')
@@ -1404,7 +1457,13 @@ class StartStopVM(VMAbstractHandler):
         if isinstance(enable, str) and enable.lower() == "false":
             enable = False
 
-        self.try_xenadapter(lambda auth: VM(auth, uuid=uuid).start_stop_vm(enable))
+        def run(auth):
+            task = VM(auth, uuid=uuid).start_stop_vm(enable)
+            if task:
+                self.async_run(task)
+                return {'task': task}
+
+        self.try_xenadapter(run)
 
 
 class RebootVM(VMAbstractHandler):
@@ -1646,6 +1705,7 @@ class EventLoop(Loggable):
 
         except Exception as e:
             self.log.error(f"Exception in user_table: {e}")
+            traceback.print_exc()
             # tornado.ioloop.IOLoop.current().run_in_executor(self.executor, self.do_access_monitor)
             raise e
 
@@ -2164,7 +2224,8 @@ def make_app(executor, auth_class=None, debug=False):
         (r'/taskstatus', TaskStatus, dict(executor=executor)),
         (r'/userlist', UserList, dict(executor=executor)),
         (r'/grouplist', GroupList, dict(executor=executor)),
-        (r'/alltemplates', AllTemplates, dict(executor=executor))
+        (r'/alltemplates', AllTemplates, dict(executor=executor)),
+        (r'/destroyvdi', DestroyVDI, dict(executor=executor))
 
     ], **settings)
 

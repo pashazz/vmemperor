@@ -372,13 +372,17 @@ class VM (AbstractVM):
         :return:
         """
         try:
+            task = None
             ps = self.get_power_state()
             if ps != 'Running' and enable:
-                self.start( False, True)
-                self.log.info("Started".format(self.uuid))
+                task = self.async_start(False, True)
+
+
             if ps == 'Running' and not enable:
-                self.shutdown()
-                self.log.info("Shutted down")
+                task = self.async_shutdown()
+
+            return task
+
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self.log, "Failed to start/stop VM", f.details)
 

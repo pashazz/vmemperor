@@ -101,6 +101,11 @@ class Main():
         p.add_argument('uuid', help='VM UUID')
         p.set_defaults(func=self.destroy)
 
+        # add parser for destroy
+        p = self.subparsers.add_parser('destroyvdi', description="Destroy VDI")
+        p.add_argument('uuid', help='VDI UUID')
+        p.set_defaults(func=self.destroyvdi)
+
         #add parser for vnc
         p = self.subparsers.add_parser('vnc', description="Get VNC url (for WebSocket)")
         p.add_argument('uuid', help='VM UUID')
@@ -368,6 +373,11 @@ class Main():
         print(r.text)
         print(r.status_code, file=sys.stderr)
 
+    @login
+    def destroyvdi(self, args, unknown):
+        r = requests.post(f"{self.url}/destroyvdi", cookies=self.jar, data=dict(uuid=args.uuid))
+        print(r.text)
+        print(r.status_code, file=sys.stderr)
     @login
     def execute_playbook(self, args, unknown):
         d = {'vms': args.vms, 'playbook': args.playbook}
