@@ -1468,11 +1468,17 @@ class StartStopVM(VMAbstractHandler):
 
 class RebootVM(VMAbstractHandler):
     access = 'launch'
-
+    _ASYNC_KEY = 'rebootvm'
     def get_data(self):
         uuid = self.get_argument('uuid')
 
-        self.try_xenadapter(lambda auth: VM(auth, uuid=uuid).clean_reboot())
+        def run(auth):
+            task = VM(auth, uuid=uuid).async_clean_reboot()
+            if task:
+                self.async_run(task)
+                return {'task': task}
+
+        self.try_xenadapter(run)
 
 
 class VNC(VMAbstractHandler):
