@@ -10,7 +10,7 @@ class VBD(XenObject):
     def process_event(cls, auth, event, db, authenticator_name):
         from .vm import VM
         from .disk import ISO, VDI
-        from vmemperor import CHECK_ER
+        from rethinkdb_helper import CHECK_ER
         from XenAPI import Failure
         cls.create_db(db)
 

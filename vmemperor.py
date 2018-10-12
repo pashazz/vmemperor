@@ -1,11 +1,10 @@
 import pathlib
-from daemonize import Daemonize
 from collections import OrderedDict
 import signal
 import atexit
 from connman import ReDBConnection
 import subprocess
-from auth import dummy
+from rethinkdb_helper import CHECK_ER
 from xenadapter import XenAdapter, XenAdapterPool
 from xenadapter.template import Template
 from xenadapter.vm import VM
@@ -15,25 +14,19 @@ from xenadapter.disk import ISO, VDI, VDIorISO
 from xenadapter.sr import SR
 from xenadapter.vbd import VBD
 from xenadapter.task import Task
-from xenadapter.pool import Pool
 from playbook import Playbook, PlaybookEncoder
+from tasks import Operations
 import copy
 import traceback
-import select
-import inspect
 import tornado.web
-from tornado.escape import json_encode, json_decode
 import tornado.httpserver
 import tornado.iostream
-import json
 from dynamicloader import DynamicLoader
-import configparser
 import socket
-from tornado import gen, ioloop
+from tornado import ioloop
 from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
-import base64
 import pickle
 import rethinkdb as r
 from rethinkdb.errors import ReqlDriverError, ReqlTimeoutError
@@ -41,13 +34,12 @@ from rethinkdb.net import DefaultCursorEmpty
 from authentication import BasicAuthenticator
 from loggable import Loggable
 from pathlib import Path
-from urllib.parse import urlsplit, parse_qs, urlunsplit
+from urllib.parse import urlsplit, parse_qs
 from exc import *
 import time
 import logging
 import uuid
 from tornado.options import define, options as opts, parse_config_file
-import queue
 import threading
 import datetime
 import tempfile
@@ -59,7 +51,7 @@ from authentication import AdministratorAuthenticator
 from tornado.websocket import *
 import asyncio
 from tornado.platform.asyncio import AnyThreadEventLoopPolicy
-from typing import Dict, Optional, List
+from typing import Dict, Optional
 from secrets import token_urlsafe
 
 logger = None # global logger
@@ -76,9 +68,7 @@ URL = ""
 ansible_pubkey = ""
 playbooks = Dict[str, Playbook]
 
-async_operations = {
-    "keys": {}
-}
+
 
 secrets = {}
 
@@ -101,13 +91,6 @@ class DateTimeEncoder(json.JSONEncoder):
             return o.isoformat()
 
         return super().default(o)
-
-
-def CHECK_ER(ret):
-    if ret['errors']:
-        raise ValueError('Failed to modify data: {0}'.format(ret['first_error']))
-    if ret['skipped']:
-        raise ValueError('Failed to modify data: skipped - {0}'.format(ret['skipped']))
 
 
 def auth_required(method):
@@ -163,9 +146,11 @@ class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
     def initialize(self, executor):
         self.init_executor(executor)
         self.user_authenticator = Optional[BasicAuthenticator]
+
+        self.op = Operations(r.db(opts.database))
+
         super().initialize()
-        if self._ASYNC_KEY is not None and self._ASYNC_KEY not in async_operations:
-            async_operations[self._ASYNC_KEY] = {}
+
 
     def prepare(self):
         super().prepare()
@@ -198,38 +183,33 @@ class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
 
     def async_run(self, task_ref):
         self._run_task = task_ref
-        self.before_run_in_executor()
         ioloop = tornado.ioloop.IOLoop.instance()
         ioloop.run_in_executor(self.executor, self.run_async_task)
 
 
     def run_async_task(self):
         task = Task(auth=self.user_authenticator, ref=self._run_task)
-        write_in = async_operations[self._ASYNC_KEY][self._run_task]
-        write_in['created'] = task.get_created()
-        while task.get_status() == 'pending':
+
+        with ReDBConnection().get_connection():
+            write_in = {'id' : self._run_task}
+            self.op.set_operation(self.user_authenticator, write_in)
+            write_in['created'] = task.get_created()
+            while task.get_status() == 'pending':
+                write_in['status'] = task.get_status()
+                write_in['progress'] =  task.get_progress()
+                self.op.set_operation(None, write_in)
+                time.sleep(1)
+
+            write_in['finished'] = task.get_finished()
             write_in['status'] = task.get_status()
-            write_in['progress'] =  task.get_progress()
-            time.sleep(1)
+            write_in['progress'] = task.get_progress()
 
-        write_in['finished'] = task.get_finished()
-        write_in['status'] = task.get_status()
-        write_in['progress'] = task.get_progress()
+            if write_in['status'] == 'failure':
+                write_in['error_info'] = task.get_error_info()
 
-        if write_in['status'] == 'failure':
-            write_in['error_info'] = task.get_error_info()
 
+            self.op.set_operation(None, write_in)
         task.destroy()
-
-
-
-
-    def before_run_in_executor(self):
-        if hasattr(self, '_run_task') and self._ASYNC_KEY:
-            async_operations["keys"][self._run_task] = self._ASYNC_KEY
-            async_operations[self._ASYNC_KEY][self._run_task] =\
-                {"auth" : self.user_authenticator}
-
 
 
     def try_xenadapter(self, func, post_hook=None):
@@ -816,16 +796,18 @@ class CreateVM(BaseHandler):
             self.taskid = str(uuid.uuid4())
 
             self._run_task = self.taskid  # for on_finish
-            self.before_run_in_executor()
+
             tornado.ioloop.IOLoop.current().run_in_executor(self.executor, self.createvm)
             self.write(json.dumps({'task': self.taskid}))
             self.finish()
 
     def insert_log_entry(self, uuid, state, message):
-        write_in = async_operations[self._ASYNC_KEY][self.taskid]
+        write_in = {'id': self._run_task}
         write_in['uuid'] = uuid
         write_in['state'] = state
         write_in['message'] = message
+
+        self.op.set_operation(None, write_in)
         self.log.info(f"STATE CHANGE: uuid: {uuid}, state: {state}, message: {message}")
 
     def createvm(self):
@@ -859,7 +841,7 @@ class CreateVM(BaseHandler):
         """
         with ReDBConnection().get_connection():
             try:
-
+                self.op.set_operation(self.user_authenticator, {'id': self.taskid})
                 def clone_post_hook(return_value, auth):
                     vm = VM.create(self.insert_log_entry, auth, return_value, self.sr_uuid, self.net_uuid,
                                    self.vdi_size, self.ram_size,
@@ -999,23 +981,15 @@ class TaskStatus(BaseHandler):
 
         operation = None
         try:
-            operation = async_operations["keys"][task]
+            operation = self.op.get_operation(self.user_authenticator, task)
         except KeyError:
             self.set_status(404)
             self.finish()
+            return
 
-        if 'auth' in async_operations[operation][task] and \
-                not isinstance(self.user_authenticator, AdministratorAuthenticator):
-
-            authenticator = async_operations[operation][task]['auth']
-            if type(authenticator) != type(self.user_authenticator) or \
-                    authenticator.get_id() != self.user_authenticator.get_id():
-                self.set_status(403)
-                self.finish()
-                return
 
         try:
-            self.write(json.dumps({k: v for k, v in async_operations[operation][task].items() if k != 'auth'},
+            self.write(json.dumps({k: v for k, v in operation.items() if k != 'auth'},
                        cls=DateTimeEncoder))
         except Exception as e:
             self.write({'status': 'error', 'details': 'no such task'})
@@ -1028,20 +1002,24 @@ class ExecutePlaybook(BaseHandler):
     _ASYNC_KEY = 'pb'
 
     def run_ansible(self):
-        tasks = async_operations[self._ASYNC_KEY]
-        self.log.info(f"Running: {self.cmd_line} in {self.cwd} as {self.cwd.name}")
-        log_path = Path(opts.ansible_logs).joinpath(self.cwd.name)
-        os.makedirs(log_path)
-        with open(log_path.joinpath('stdout'), 'w') as _stdout:
-            with open(log_path.joinpath('stderr'), 'w') as _stderr:
-                tasks[self.cwd.name]['returncode'] = None
-                proc = subprocess.run(self.cmd_line,
-                                      cwd=self.cwd, stdout=_stdout, stderr=_stderr,
-                                      env={"ANSIBLE_HOST_KEY_CHECKING":"False"})
+        with ReDBConnection().get_connection():
+            self.log.info(f"Running: {self.cmd_line} in {self.cwd} as {self.cwd.name}")
+            task = {'id': self.cwd.name}
 
-                tasks[self.cwd.name]['returncode'] = proc.returncode
+            log_path = Path(opts.ansible_logs).joinpath(self.cwd.name)
+            os.makedirs(log_path)
+            with open(log_path.joinpath('stdout'), 'w') as _stdout:
+                with open(log_path.joinpath('stderr'), 'w') as _stderr:
+                    task['returncode'] = None
+                    self.op.set_operation(self.user_authenticator, task)
+                    proc = subprocess.run(self.cmd_line,
+                                          cwd=self.cwd, stdout=_stdout, stderr=_stderr,
+                                          env={"ANSIBLE_HOST_KEY_CHECKING":"False"})
 
-        self.log.info(f'Finished {self.cwd.name} with return code {tasks[self.cwd.name]["returncode"]}')
+                    task['returncode'] = proc.returncode
+                    self.op.set_operation(None, task)
+
+            self.log.info(f'Finished {self.cwd.name} with return code {tasks[self.cwd.name]["returncode"]}')
 
     @auth_required
     def post(self):
@@ -1134,8 +1112,6 @@ class ExecutePlaybook(BaseHandler):
             self.cwd = temp_path
             ans['task'] = self.cwd.name
             self._run_task = ans['task']
-
-            self.before_run_in_executor()
             ioloop = tornado.ioloop.IOLoop.instance()
             ioloop.run_in_executor(self.executor, self.run_ansible)
             self.write(ans)
@@ -1653,8 +1629,9 @@ class EventLoop(Loggable):
             r.db_create(opts.database).run()
             self.db = r.db(opts.database)
 
-            self.db.table_create('vm_logs', durability='soft').run()
-            self.db.table('vm_logs').wait()
+            # create database for async tasks
+            self.db.table_create('tasks', durability='soft').run()
+            self.db.table('tasks').wait()
 
             try:
                 authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
@@ -1825,7 +1802,6 @@ class EventLoop(Loggable):
             raise e
 
     def process_xen_events(self):
-        from xenadapter.abstractvm import AbstractVM
         self.log.debug("Started process_xen_events in thread {0}".format(threading.get_ident()))
         from XenAPI import Failure
 

@@ -145,7 +145,7 @@ class ISO(XenObject, Attachable):
                 new_rec['SR'] = SR['uuid']
                 new_rec['VMs'] = Attachable.get_vbd_vms(record, auth)
 
-                from vmemperor import CHECK_ER
+                from rethinkdb_helper import CHECK_ER
                 CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
 
 
@@ -227,8 +227,7 @@ class VDI(ACLXenObject, Attachable):
                 new_rec['SR'] = SR['uuid']
                 new_rec['VMs'] = Attachable.get_vbd_vms(record, auth)
 
-
-                from vmemperor import CHECK_ER
+                from rethinkdb_helper import CHECK_ER
                 CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
 
 

@@ -14,7 +14,7 @@ class VMGuest(XenObject):
         :param authenticator_name: authenticator class name - used by access control
         :return: nothing
         '''
-        from vmemperor import CHECK_ER
+        from rethinkdb_helper import CHECK_ER
         from .vm import VM
 
 
