@@ -792,6 +792,11 @@ class CreateVM(BaseHandler):
                 self.password = self.get_argument('password')
                 self.fullname = self.get_argument('fullname', default=None)
                 self.partition = self.get_argument('partition', default='auto')
+                try:
+                    self.vcpus = self.get_argument('vcpus', default=1)
+                except ValueError:
+                    self.vcpus = 1
+
 
             self.taskid = str(uuid.uuid4())
 
@@ -849,7 +854,7 @@ class CreateVM(BaseHandler):
                                    install_url=self.mirror_url,
                                    name_label=self.name_label, override_pv_args=self.override_pv_args, iso=self.iso,
                                    username=self.username, password=self.password, partition=self.partition,
-                                   fullname=self.fullname)
+                                   fullname=self.fullname, vcpus=self.vcpus)
 
                     ioloop = tornado.ioloop.IOLoop.current()
                     self.uuid = vm.uuid

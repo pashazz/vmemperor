@@ -15,7 +15,7 @@ from urllib.parse import urlencode
 class VM (AbstractVM):
 
     db_table_name = 'vms'
-    PROCESS_KEYS = ['power_state', 'name_label', 'uuid',  'metrics', 'guest_metrics', 'domain_type']
+    PROCESS_KEYS = ['power_state', 'name_label', 'uuid',  'metrics', 'guest_metrics', 'domain_type', 'VCPUs_at_startup', 'VCPUs_max']
 
     def __init__(self, auth, uuid=None, ref=None):
         super().__init__(auth, uuid, ref)
@@ -108,7 +108,7 @@ class VM (AbstractVM):
 
     @classmethod
     def create(cls, insert_log_entry, auth, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, name_label ='', start=True, override_pv_args=None, iso=None,
-               username=None, password=None, partition=None, fullname=None):
+               username=None, password=None, partition=None, fullname=None, vcpus=1):
         '''1
         Creates a virtual machine and installs an OS
 
@@ -138,6 +138,8 @@ class VM (AbstractVM):
             vm.manage_actions('all',  user=auth.get_id())
 
         vm.set_ram_size(ram_size)
+        vm.set_VCPUs_max(vcpus)
+        vm.set_VCPUs_at_startup(vcpus)
         vm.set_disks(sr_uuid, vdi_size)
         # After provision. manage disks actions
 
@@ -208,6 +210,7 @@ class VM (AbstractVM):
                 self.set_memory_dynamic_min(memory)
             else:
                 raise f
+
 
     @use_logger
     def set_ram_size(self,  mbs):

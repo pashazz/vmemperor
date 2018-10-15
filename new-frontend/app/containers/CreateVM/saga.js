@@ -78,6 +78,7 @@ export function* runCreateVM(action) {
     req_data['vdi_size'] = form['hdd'] * 1024; //Disk size in megabytes
     req_data['partition'] = "/-" +  req_data['vdi_size'] + "-";
     req_data['ram_size'] = form['ram'];
+    req_data['vcpus'] = form['vcpus'];
 
     if (form.networkType === 'static') {
       req_data.ip = form.ip;
