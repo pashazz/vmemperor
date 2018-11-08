@@ -15,7 +15,7 @@ from urllib.parse import urlencode
 class VM (AbstractVM):
 
     db_table_name = 'vms'
-    PROCESS_KEYS = ['power_state', 'name_label', 'uuid',  'metrics', 'guest_metrics', 'domain_type', 'VCPUs_at_startup', 'VCPUs_max']
+    PROCESS_KEYS = ['power_state', 'name_label', 'uuid',  'metrics', 'guest_metrics', 'domain_type', 'VCPUs_at_startup', 'VCPUs_max', 'memory_static_max', 'memory_static_min', 'memory_dynamic_max', 'memory_dynamic_min', 'name_description']
 
     def __init__(self, auth, uuid=None, ref=None):
         super().__init__(auth, uuid, ref)

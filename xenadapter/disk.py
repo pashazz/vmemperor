@@ -168,7 +168,8 @@ class VDI(ACLXenObject, Attachable):
     api_class = 'VDI'
     db_table_name = 'vdis'
     EVENT_CLASSES = ['vdi']
-    PROCESS_KEYS = ['uuid', 'name_label', 'name_description', 'virtual_size', 'physical_utlilisation']
+    PROCESS_KEYS = ['uuid', 'name_label', 'name_description', 'physical_utlilisation']
+    PROCESS_TYPED_KEYS = {'virtual_size': int}
     @classmethod
     def create(cls, auth, sr_uuid, size, name_label = None):
         """

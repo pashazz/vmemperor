@@ -5,6 +5,7 @@ import atexit
 from connman import ReDBConnection
 import subprocess
 from rethinkdb_helper import CHECK_ER
+from quota import Quota
 from xenadapter import XenAdapter, XenAdapterPool
 from xenadapter.template import Template
 from xenadapter.vm import VM
@@ -13,7 +14,9 @@ from xenadapter.network import Network, VIF
 from xenadapter.disk import ISO, VDI, VDIorISO
 from xenadapter.sr import SR
 from xenadapter.vbd import VBD
+from xenadapter.pool import Pool
 from xenadapter.task import Task
+from xenadapter.host import Host
 from playbook import Playbook, PlaybookEncoder
 from tasks import Operations
 import copy
@@ -66,6 +69,7 @@ need_exit = threading.Event()
 xen_events_run = threading.Event()  # called by USR2 signal handler
 URL = ""
 ansible_pubkey = ""
+auth_class_name = ""
 playbooks = Dict[str, Playbook]
 
 
@@ -381,6 +385,32 @@ class AllTemplates(BaseHandler):
     def get(self):
         tmpl = Template.get_all_records(self.user_authenticator)
         self.write(json.dumps(tmpl, cls=DateTimeEncoder ))
+
+class SetQuota(BaseHandler):
+    @admin_required
+    def post(self):
+        userid = self.get_argument('userid')
+        name = self.get_argument('name')
+        value = self.get_argument('value')
+        quota = Quota(self.user_authenticator, auth_class_name)
+        if name == 'storage':
+            quota.set_storage_quota(userid, int(value))
+
+        self.write({'status':'ok'})
+
+class GetQuota(BaseHandler):
+    @admin_required
+    def post(self):
+        userid = self.get_argument('userid', None)
+        with self.conn:
+            quota = Quota(self.user_authenticator, auth_class_name)
+            self.write(json.dumps(quota.get_storage_usage(userid)))
+
+    @auth_required
+    def get(self):
+        with self.conn:
+            quota = Quota(self.user_authenticator, auth_class_name)
+            self.write(json.dumps(quota.get_storage_usage()))
 
 
 
@@ -734,6 +764,15 @@ class CreateVM(BaseHandler):
 
         with self.conn:
             db = r.db(opts.database)
+            if not isinstance(self.user_authenticator, AdministratorAuthenticator): # Prevent provisioning if quotas are not met
+                quota = Quota(self.user_authenticator)
+                usage  = quota.space_left_after_disk_creation(int(self.vdi_size)*1024*1024, 'users/'+ self.user_authenticator.get_id())
+                if usage < 0:
+                    self.write({'status': 'storage quota exceeded', 'message': f'storage limit will be exceeded by {-usage} bytes'})
+                    self.finish()
+                    return
+
+
             tmpls = db.table('tmpls').run()
             self.template = None
             if not tmpl_name:
@@ -1624,7 +1663,7 @@ class EventLoop(Loggable):
         self.executor = executor
         self.authenticator = authenticator
 
-        self.log.info("Using database {0}".format(opts.database))
+        self.log.info(f"Using database {opts.database}")
         conn = ReDBConnection().get_connection()
         with conn:
             self.log.debug("Creating databases...")
@@ -1648,6 +1687,8 @@ class EventLoop(Loggable):
                 obj.create_db(self.db)
 
             del authenticator.xen
+
+
 
     def do_user_table(self):
         try:
@@ -1696,6 +1737,7 @@ class EventLoop(Loggable):
             traceback.print_exc()
             # tornado.ioloop.IOLoop.current().run_in_executor(self.executor, self.do_access_monitor)
             raise e
+
 
     def do_access_monitor(self):
         try:
@@ -1762,16 +1804,6 @@ class EventLoop(Loggable):
                         access = record['new_val'].get('access', [])
                         table_user = table + '_user'
 
-                        # if record['old_val']:
-                        #    access_to_remove = \
-                        #        set((frozendict(x) for x in record['old_val']['access'])) -\
-                        #         set((frozendict(x) for x in access))
-                        #    if access_to_remove:
-                        #        log.info("Removing access rights for {0} (table {1}): {2}"
-                        #        .format(uuid, table, json.dumps(access_to_remove, cls=FrozenDictEncoder)))
-
-                        #    for item in access_to_remove:
-                        #        CHECK_ER(self.db.table(table_user).get_all([record['old_val']['uuid'], item['userid']], index='uuid_and_userid').delete().run())
 
                         if 'old_val' not in record or not record['old_val']:
                             if access:
@@ -1869,6 +1901,10 @@ class EventLoop(Loggable):
                             ev_class = VMGuest
                         elif event['class'] == 'vbd':
                             ev_class = VBD
+                        elif event['class'] == 'pool':
+                            ev_class = Pool
+                        elif event['class'] == 'host':
+                            ev_class = Host
 
                         else:  # Implement ev_classes for all types of events
                             if log_this:
@@ -1906,7 +1942,7 @@ def event_loop(executor, authenticator=None, ioloop=None):
     try:
         loop_object = EventLoop(executor, authenticator)
     except XenAdapterAPIError as e:
-        print(f'Launch error: {e.message}: {e.details}')
+        print(f'Launch error: {e.message}')
         exit(2)
 
     # tornado.ioloop.PeriodicCallback(loop_object.vm_list_update, delay).start()  # read delay from ini
@@ -1915,6 +1951,7 @@ def event_loop(executor, authenticator=None, ioloop=None):
     ioloop.run_in_executor(executor, loop_object.do_user_table)
     xen_events_run.set()
     ioloop.run_in_executor(executor, loop_object.process_xen_events)
+
 
     def usr2_signal_handler(num, stackframe):
         if xen_events_run.is_set():
@@ -2212,7 +2249,9 @@ def make_app(executor, auth_class=None, debug=False):
         (r'/userlist', UserList, dict(executor=executor)),
         (r'/grouplist', GroupList, dict(executor=executor)),
         (r'/alltemplates', AllTemplates, dict(executor=executor)),
-        (r'/destroyvdi', DestroyVDI, dict(executor=executor))
+        (r'/destroyvdi', DestroyVDI, dict(executor=executor)),
+        (r'/setquota', SetQuota, dict(executor=executor)),
+        (r'/getquota', GetQuota, dict(executor=executor)),
 
     ], **settings)
 
@@ -2298,6 +2337,7 @@ def main():
     asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
 
     global URL
+    global auth_class_name
     URL = f"http://{opts.vmemperor_host}:{opts.vmemperor_port}"
     logger.debug(f"Listening on: {URL}")
 
@@ -2307,6 +2347,7 @@ def main():
     server.listen(opts.vmemperor_port, address="0.0.0.0")
     ioloop = event_loop(executor, authenticator=app.auth_class)
     logger.debug(f"Using authentication: {app.auth_class.__name__}")
+    auth_class_name = app.auth_class.__name__
     logger.debug("Loading playbooks...")
     global playbooks
     playbooks = {p.get_id(): p for p in Playbook.get_playbooks()}

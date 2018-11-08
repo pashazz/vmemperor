@@ -59,9 +59,9 @@ class XenObject(metaclass=XenObjectMeta):
     db_table_name = ''
     EVENT_CLASSES=[]
     PROCESS_KEYS=[]
+    PROCESS_TYPED_KEYS = {}
     _db_created = False
     db = None
-
 
 
 
@@ -155,6 +155,12 @@ class XenObject(metaclass=XenObjectMeta):
 
     @classmethod
     def create_db(cls, db, indexes=None):
+        '''
+        Creates a DB table named cls.db_table_name and specified indexes
+        :param db:
+        :param indexes:
+        :return:
+        '''
         if not cls.db_table_name:
             return
         def index_yielder():
@@ -192,9 +198,18 @@ class XenObject(metaclass=XenObjectMeta):
         : default: return record as-is, adding a 'ref' field with current opaque ref
         '''
         if cls.PROCESS_KEYS:
-            record = {k:v for k,v in record.items() if k in cls.PROCESS_KEYS}
-        record['ref'] = ref
-        return record
+            new_record = {k:v for k,v in record.items() if k in cls.PROCESS_KEYS}
+        else:
+            new_record = record
+
+        new_record['ref'] = ref
+        if cls.PROCESS_TYPED_KEYS:
+            for k, v in cls.PROCESS_TYPED_KEYS.items():
+                new_record[k] = v(record[k])
+
+
+
+        return new_record
 
     @classmethod
     def filter_record(cls, record):
@@ -206,9 +221,9 @@ class XenObject(metaclass=XenObjectMeta):
         return True
 
     @classmethod
-    def get_all_records(cls, xen):
+    def get_all_records(cls, auth):
         method = getattr(cls, '_get_all_records')
-        return {k: v for k, v in method(xen).items()
+        return {k: v for k, v in method(auth).items()
                 if cls.filter_record(v)}
 
     @classmethod

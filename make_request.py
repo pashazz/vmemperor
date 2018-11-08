@@ -209,9 +209,22 @@ class Main():
         p.add_argument('vms', help="VM UUIDs", nargs='+')
         p.set_defaults(func=self.execute_playbook)
 
+        #add parser for setquota
+        p = self.subparsers.add_parser('setquota', description="Set resource quota")
+        p.add_argument('name', help='quota name')
+        p.add_argument('value', help='quota value')
+        p.add_argument('userid', help='quota user or group')
+        p.set_defaults(func=self.setquota)
+
+        p = self.subparsers.add_parser('getquota', description="Get resource quota")
+        p.add_argument('userid', nargs='?', default=None)
+        p.set_defaults(func=self.getquota)
+
+
         #add parser for alltemplates
         p = self.subparsers.add_parser('alltemplates', description="List all templates. including disabled")
         p.set_defaults(func=self.alltemplates)
+
 
 
         #add parser for everything else
@@ -239,7 +252,9 @@ class Main():
     def _login(self):
         if 'admin' in self.login_opts and self.login_opts['admin'].lower() == 'true':
             url = f'{self.url}/adminauth'
+            self.admin = True
         else:
+            self.admin = False
             url = f'{self.url}/login'
 
         r = requests.post(url, data=self.login_opts)
@@ -497,10 +512,34 @@ class Main():
 
     @login
     def vdilist(self, args, unknown):
-        r = requests.get("%s/vdilist" % self.url, cookies=self.jar, data=dict(page=args.page, page_size=args.pageSize))
+        r = requests.get(f"{self.url}/vdilist", cookies=self.jar, data=dict(page=args.page, page_size=args.pageSize))
         js = json.loads(r.text)
         pprint.pprint(js)
         print(r.status_code, file=sys.stderr)
+
+    @login
+    def setquota(self, args, unknown):
+        r = requests.post(f'{self.url}/setquota', cookies=self.jar, data=dict\
+        (userid=args.userid, name=args.name, value=args.value))
+        js = json.loads(r.text)
+        pprint.pprint(js)
+        print(r.status_code, file=sys.stderr)
+
+    @login
+    def getquota(self, args, unknown):
+        if not self.admin:
+            r = requests.get(f'{self.url}/getquota', cookies=self.jar)
+        else:
+            if args.userid:
+                r = requests.post(f'{self.url}/getquota', cookies=self.jar,
+                              data=dict(userid=args.userid))
+            else:
+                r = requests.post(f'{self.url}/getquota', cookies=self.jar)
+
+        js = json.loads(r.text)
+        pprint.pprint(js)
+        print(r.status_code, file=sys.stderr)
+
 
     @login
     def alltemplates(self, args, unknown):
