@@ -6,24 +6,65 @@ class Authentication(metaclass=ABCMeta):
 
 
     @abstractmethod
-    def check_credentials(self, password, username):
-        """asserts credentials using inner db, or some outer authentication system"""
+    def check_credentials(self, password, username, log=logging):
+        """
+        asserts credentials using inner db, or some outer authentication system
+        You should set username to self.username
+        You should set password to self.password
+        :param log: logging-like vmemperor logger
+        :return None
+        :raise AuthenticationUserNotFoundException if user is not found
+        :raise AuthenticationPasswordException if password is wrong
+        :raise AuthenticationWithEmptyPasswordException if password is empty
+        All exceptions are in exc.py
+        """
         return
 
     @abstractmethod
     def get_user_groups(self):
-        """gets list of user groups"""
+        """
+        Return a dict of user's groups with id as key and name as value"
+        """
         return
 
+    @classmethod
     @abstractmethod
-    def set_user_group(self, group):
-        """adds user to group"""
+    def get_all_users(cls, log=logging):
+        '''
+        Return a list of all users available in format of a list of dicts with the following fields:
+        {
+        "id": Unique id for an user
+        "username": Unique username that the user uses for login and this username is checked in check_credentials
+        "name": User's full name
+        }
+
+        This may be an resource-intensive method that is being called each N seconds and its results are uploaded to a cache database
+        :param log:
+        :return: list
+
+        '''
         return
 
+    @classmethod
     @abstractmethod
-    def set_user(self, username):
-        """creates cookie given username"""
+    def get_all_groups(cls, log=logging):
+        '''
+        Return a list of all groups available in format of a list of dicts with the following fields:
+        {
+        "id": Unique id for a group
+        "username": Unique username that the group user uses for login and this username is checked in check_credentials if your realm supports login into a group OR you can use the same value as ID
+        "name": Group's full name
+        }
+
+        This may be an resource-intensive method that is being called each N seconds and its results are uploaded to a cache database
+        :param log:
+        :return: list
+
+        '''
         return
+
+
+
 
 
 

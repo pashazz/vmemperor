@@ -178,5 +178,5 @@ class LDAPIspAuthenticator(BasicAuthenticator):
         '''
         return self.groups
 
-    def set_user_groups(self):
+    def set_user_group(self):
         raise NotImplementedError()
