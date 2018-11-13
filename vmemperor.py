@@ -1238,6 +1238,23 @@ class SetAccessHandler(BaseHandler):
                 group = self.get_argument('group')
             else:
                 group = None
+
+            #check if user or group do exist
+            db = r.db(opts.database)
+            if user:
+                id = db.table('users').get(user).run()
+                if not id:
+                    self.set_status(400)
+                    self.write({'status': 'bad request', 'message': f'no such user: {id}'})
+                    return
+
+            else:
+                id = db.table('groups').get(group).run()
+                if not id:
+                    self.set_status(400)
+                    self.write({'status': 'bad request', 'message': f'no such group: {id}'})
+                    return
+
             type_obj = None
             for obj in objects:
                 if obj.__name__ == _type:
@@ -1250,7 +1267,7 @@ class SetAccessHandler(BaseHandler):
 
             try:
                 self.target = type_obj(self.user_authenticator, uuid=uuid)
-                self.log.info("Checking object {0} access for action {1}, revoke: {2}".format(_type, action, revoke))
+                self.log.info(f"Checking object {_type} access for action {action}, revoke: {revoke}")
                 self.target.check_access(action)
                 self.log.debug("Access granted, performing changes")
                 self.target.manage_actions(action, revoke, user, group)
