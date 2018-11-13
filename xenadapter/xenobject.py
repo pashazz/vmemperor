@@ -279,9 +279,7 @@ class ACLXenObject(XenObject):
         :param is_group:
         :return:
         '''
-        return '{3}/{0}/{1}/{2}'.format(self.auth.class_name(),
-                                                               'groups' if is_group else 'users',
-                                                        username, self.access_prefix)
+        return f'{self.access_prefix}/{self.auth.class_name()}/{"groups" if is_group else "users"}/{username}'
 
     ALLOW_EMPTY_XENSTORE = False # Empty xenstore for some objects might treat them as for-all-by-default
 

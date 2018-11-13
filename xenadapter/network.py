@@ -184,9 +184,9 @@ class Network(ACLXenObject):
 
 
         if user:
-            real_name = 'users/' + user
+            real_name = f'users/{user}'
         elif group:
-            real_name = 'groups/' + group
+            real_name = f'groups/{group}'
 
 
 

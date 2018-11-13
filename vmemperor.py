@@ -1234,9 +1234,18 @@ class SetAccessHandler(BaseHandler):
             if revoke:
                 revoke = True
             user = self.get_argument('user', default=None)
+
             if not user:
                 group = self.get_argument('group')
+                try:
+                    group = int(group)
+                except:
+                    pass
             else:
+                try:
+                    user = int(user)
+                except:
+                    pass
                 group = None
 
             #check if user or group do exist
@@ -1245,14 +1254,14 @@ class SetAccessHandler(BaseHandler):
                 id = db.table('users').get(user).run()
                 if not id:
                     self.set_status(400)
-                    self.write({'status': 'bad request', 'message': f'no such user: {id}'})
+                    self.write({'status': 'bad request', 'message': f"no such user: '{user}'"})
                     return
 
             else:
                 id = db.table('groups').get(group).run()
                 if not id:
                     self.set_status(400)
-                    self.write({'status': 'bad request', 'message': f'no such group: {id}'})
+                    self.write({'status': 'bad request', 'message': f"no such group: '{group}'"})
                     return
 
             type_obj = None
