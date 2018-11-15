@@ -18,10 +18,10 @@ import 'sanitize.css/sanitize.css';
 import 'bootstrap/dist/css/bootstrap.css';
 
 // Import root app
-import App from 'containers/App';
+import App from './containers/App';
 
 // Import Language Provider
-import LanguageProvider from 'containers/LanguageProvider';
+import LanguageProvider from './containers/LanguageProvider';
 
 // Load the favicon, the manifest.json file and the .htaccess file
 /* eslint-disable import/no-unresolved, import/extensions */
@@ -47,7 +47,7 @@ import { translationMessages } from './i18n';
 import './global-styles';
 
 //Import application-level sagas (login flow)
-import appSaga from 'containers/App/saga'
+import appSaga from './containers/App/saga'
 
 //import toastr
 import 'react-redux-toastr/lib/css/react-redux-toastr.min.css'
@@ -91,6 +91,12 @@ if (module.hot) {
     ReactDOM.unmountComponentAtNode(MOUNT_NODE);
     render(translationMessages);
   });
+}
+
+declare global{
+  interface Window {
+    Intl: any,
+  }
 }
 
 // Chunked polyfill for browsers without Intl support
