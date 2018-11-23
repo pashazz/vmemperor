@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "esModuleInterop": true,
+    "resolveJsonModule": true,
     "noEmit": true,
     "target": "es6",
     "module": "commonjs",

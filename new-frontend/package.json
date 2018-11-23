@@ -283,6 +283,7 @@
     "@types/react-dom": "^16.0.9",
     "@types/react-intl": "^2.3.12",
     "@types/react-redux": "^6.0.9",
+    "@types/react-redux-toastr": "^7.4.0",
     "@types/react-router": "^4.4.1",
     "@types/react-router-redux": "^5.0.16",
     "@types/webpack-env": "^1.13.6",

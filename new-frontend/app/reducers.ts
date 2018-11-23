@@ -6,8 +6,8 @@ import { combineReducers } from 'redux-immutable';
 import { fromJS } from 'immutable';
 import { LOCATION_CHANGE, routerReducer } from 'react-router-redux';
 import {reducer as toastrReducer } from 'react-redux-toastr';
-
-import languageProviderReducer from 'containers/LanguageProvider/reducer';
+import Redux from 'redux';
+import languageProviderReducer from './containers/LanguageProvider/reducer';
 
 /*
  * routeReducer
@@ -33,7 +33,7 @@ const routerReducer =  (state = routeInitialState, action) => {
 /**
  * Creates the main reducer with the dynamically injected ones
  */
-export default function createReducer(injectedReducers) {
+export default function createReducer(injectedReducers : Redux.ReducersMapObject = {}) : Redux.Reducer<any> {
   return combineReducers({
     route: routerReducer,
     language: languageProviderReducer,

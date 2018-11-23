@@ -11,8 +11,9 @@ import uuid from 'uuid';
 import {startStopVm, destroyVm, reboot } from 'api/vm';
 import {VM_DELETE, VM_HALT,  VM_RUN, VM_RUN_ERROR, VM_REBOOT} from "./constants";
 import {vm_run_error, vmNotificationDecrease, vmNotificationIncrease, vm_deselect} from "./actions";
-import React from 'react';
+
 import { Map } from 'immutable';
+
 
 import { actions } from 'react-redux-toastr';
 
@@ -136,7 +137,8 @@ function* executePlaybook(action)
 
 }
 
-function* showNotification(title, uuids) { //Show a toastr notification. Return its notifyId
+function* showNotification(title, uuids) {
+  //Show a toastr notification. Return its notifyId
   //Select vm names from store by uuids
   const selector = (state) => state.get('app').get('vm_data');
   const vm_data_map = yield select(selector);

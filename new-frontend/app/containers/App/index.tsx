@@ -16,19 +16,19 @@ import React from 'react';
 import { Switch, Route } from 'react-router-dom';
 //import { ToastContainer } from 'react-toastify';
 
-import HomePage from 'containers/HomePage/Loadable';
-import NotFoundPage from 'containers/NotFoundPage/Loadable';
+import HomePage from '../../containers/HomePage/Loadable';
+import NotFoundPage from '../../containers/NotFoundPage/Loadable';
 import Navbar from "../../components/Navbar";
-import PrivateRoute from 'containers/PrivateRoute';
-import VMs from 'containers/Vms/Loadable';
-import LoginPage from 'containers/LoginPage/Loadable';
+import PrivateRoute from '../../containers/PrivateRoute';
+import VMs from '../../containers/Vms/Loadable';
+import LoginPage from '../../containers/LoginPage/Loadable';
 import CreateVM from "../CreateVM";
-import Logout from 'containers/Logout/Loadable';
-import VncView from 'containers/Vncview/Loadable';
+import Logout from '../../containers/Logout/Loadable';
+import VncView from '../../containers/Vncview/Loadable';
 
 
 import { compose } from 'redux';
-import injectReducer from 'utils/injectReducer';
+import injectReducer from '../../utils/injectReducer';
 import reducer from './reducer';
 import VMSettings from "../Vmsettings";
 import {AccessController} from "../AccessController";

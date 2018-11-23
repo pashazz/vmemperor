@@ -10,8 +10,15 @@ import {
   ONCE_TILL_UNMOUNT,
   RESTART_ON_REMOUNT,
 } from './constants';
+import {Task} from "redux-saga";
 
 const allowedModes = [RESTART_ON_REMOUNT, DAEMON, ONCE_TILL_UNMOUNT];
+
+export interface SagaDescriptor {
+  mode? : RESTART_ON_REMOUNT | DAEMON | ONCE_TILL_UNMOUNT,
+  saga?: (any) => any,
+  task?: Task
+}
 
 const checkKey = (key) => invariant(
   isString(key) && !isEmpty(key),
@@ -30,7 +37,7 @@ const checkDescriptor = (descriptor) => {
 };
 
 export function injectSagaFactory(store, isValid) {
-  return function injectSaga(key, descriptor = {}, args) {
+  return function injectSaga(key, descriptor : SagaDescriptor = {}, args) {
     if (!isValid) checkStore(store);
 
     const newDescriptor = { ...descriptor, mode: descriptor.mode || RESTART_ON_REMOUNT };

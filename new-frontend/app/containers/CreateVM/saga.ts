@@ -7,7 +7,7 @@ import { info, suc, err } from 'containers/App/actions';
 import localStorage from 'store';
 import poollist from 'api/poollist';
 import isolist from 'api/isolist';
-import createvm from 'api/createvm';
+import createvm, {CreateVM} from 'api/createvm';
 import {netlist} from 'api/net';
 import tmpllist from 'api/tmpllist';
 
@@ -64,9 +64,9 @@ export function* runCreateVM(action) {
   const { form } =  action;
   console.log(`Trying to create ${form.hostname}`);
   try {
-    let req_data = {};
-    req_data['template'] = form.template;
-    req_data['name_label'] = form.name_label;
+    let req_data = {} as CreateVM;
+    //req_data['template'] = form.template;
+    req_data.name_label = form.name_label;
     req_data['name_description'] = form.name_description;
     req_data['storage'] = form['storage-select'];
     req_data['network'] = form['network'];

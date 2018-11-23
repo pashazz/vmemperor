@@ -4,7 +4,7 @@ import {
   LOGOUT,
   SET_SESSION,
   VMLIST_MESSAGE,
-  VM_RUN_ERROR, VM_NOTIFICATION_INCREASE, VM_NOTIFICATION_DECREASE,
+  VM_RUN_ERROR,
   VM_DELETE, VM_HALT, VM_RUN, ADD_TO_WAIT_LIST, REMOVE_FROM_WAIT_LIST, VM_REBOOT
 } from './constants';
 
@@ -13,7 +13,7 @@ function timestamp() {
 }
 
 
-export function run(uuids)
+export function run(uuids : string[])
 {
   return {
     type: VM_RUN,
@@ -22,7 +22,7 @@ export function run(uuids)
   }
 }
 
-export function halt(uuids) {
+export function halt(uuids : string[]) {
   return {
     type: VM_HALT,
     uuids,
@@ -36,19 +36,20 @@ export function reboot(uuids) {
   }
 }
 
-export function vm_delete(uuids) {
+export function vm_delete(uuids: string[]) {
   return {
     type: VM_DELETE,
     uuids
   }
 }
-
+/*
 export function vm_convert(uuids) {
   return {
     type: VM_CONVERT,
     uuids
   }
 }
+*/
 export function addToWaitList(uuid, action, notifyId) {
   return {
     type: ADD_TO_WAIT_LIST,

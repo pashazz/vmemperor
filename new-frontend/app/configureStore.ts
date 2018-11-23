@@ -2,16 +2,25 @@
  * Create the store with dynamic reducers
  */
 
-import { createStore, applyMiddleware, compose } from 'redux';
-import { fromJS } from 'immutable';
-import { routerMiddleware } from 'react-router-redux';
+import Redux, {applyMiddleware, compose, createStore} from 'redux';
+import {fromJS} from 'immutable';
+import {routerMiddleware} from 'react-router-redux';
 import createSagaMiddleware from 'redux-saga';
 import createReducer from './reducers';
 import logger from 'redux-log-diff';
+import {IStore} from "./types";
+
 
 const sagaMiddleware = createSagaMiddleware();
 
-export default function configureStore(initialState = {}, history) {
+
+
+declare interface IWindow extends Window {
+  __REDUX_DEVTOOLS_EXTENSION_COMPOSE__: any;
+}
+declare const window: IWindow;
+
+export default function configureStore<T>(initialState : object = {}, history) : IStore<T>{
   // Create the store with two middlewares
   // 1. sagaMiddleware: Makes redux-sagas work
   // 2. routerMiddleware: Syncs the location/URL path to the state
@@ -39,7 +48,7 @@ export default function configureStore(initialState = {}, history) {
       : compose;
   /* eslint-enable */
 
-  const store = createStore(
+  const store : IStore<T> = createStore(
     createReducer(),
     fromJS(initialState),
     composeEnhancers(...enhancers)
