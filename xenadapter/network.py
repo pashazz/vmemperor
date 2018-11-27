@@ -29,12 +29,12 @@ class VIF(XenObject, metaclass=XenObjectMeta):
             if event['operation'] == 'del':
                 # Find VIF REF on RethinkDB server (fast)
                 try:
-                    arr = db.table(VM.db_table_name).coerce_to('array').filter(lambda vm: vm['networks'].values().get_field('VIF').contains(event['ref'])).run()
+                    arr = db.table(VM.db_table_name).coerce_to('array').filter(lambda vm: vm['interfaces'].values().get_field('VIF').contains(event['ref'])).run()
                     doc = arr[0]
                 except:
                     return
 
-                for k,v in doc['networks'].items():
+                for k,v in doc['interfaces'].items():
                     if 'VIF' in v and v['VIF'] == event['ref']:
                         del doc['networks'][k]
                         break
@@ -48,7 +48,7 @@ class VIF(XenObject, metaclass=XenObjectMeta):
             if event['operation'] in ('mod', 'add'):
                 vm = VM(auth=auth, ref=record['VM'])
                 net = Network(auth=auth, ref=record['network'])
-                new_rec = {'uuid': vm.uuid, 'networks' : {record['device']:
+                new_rec = {'uuid': vm.uuid, 'interfaces' : {record['device']:
                 {'VIF':event['ref'], 'network': net.uuid, 'attached': record['currently_attached'], 'MAC': record['MAC'], 'status': record['status_detail']}} }
                 CHECK_ER(db.table(vm.db_table_name).insert(new_rec, conflict='update').run())
 
@@ -61,7 +61,7 @@ class Network(ACLXenObject):
     api_class = "network"
     db_table_name = 'nets'
     EVENT_CLASSES = ['network']
-    PROCESS_KEYS =  ['name_label', 'name_description', 'PIFs',  'uuid', 'ref', 'other_config']
+    PROCESS_KEYS =  ['name_label', 'name_description',  'uuid', 'ref', 'other_config']
 
     def __init__(self, auth, uuid=None, ref=None):
         super().__init__(auth, uuid=uuid, ref=ref)

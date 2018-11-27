@@ -2,8 +2,18 @@ import pathlib
 from collections import OrderedDict
 import signal
 import atexit
+
+from graphene_tornado.tornado_graphql_handler import TornadoGraphQLHandler
+
+import constants
 from connman import ReDBConnection
 import subprocess
+
+from constants import logger, POSTINST_ROUTE, objects, user_table_ready, first_batch_of_events, need_exit, \
+    xen_events_run, URL, ansible_pubkey, auth_class_name, playbooks, secrets
+from handlers.graphql.graphql_handler import GraphQLHandler
+from handlers.rest import RESTHandler, BaseWSHandler, auth_required, admin_required
+from handlers.graphql import schema
 from rethinkdb_helper import CHECK_ER
 from quota import Quota
 from xenadapter import XenAdapter, XenAdapterPool
@@ -15,10 +25,8 @@ from xenadapter.disk import ISO, VDI, VDIorISO
 from xenadapter.sr import SR
 from xenadapter.vbd import VBD
 from xenadapter.pool import Pool
-from xenadapter.task import Task
 from xenadapter.host import Host
 from playbook import Playbook, PlaybookEncoder
-from tasks import Operations
 import copy
 import traceback
 import tornado.web
@@ -54,28 +62,7 @@ from authentication import AdministratorAuthenticator
 from tornado.websocket import *
 import asyncio
 from tornado.platform.asyncio import AnyThreadEventLoopPolicy
-from typing import Dict, Optional
 from secrets import token_urlsafe
-
-logger = None # global logger
-
-POSTINST_ROUTE = r'/postinst'
-# Objects with ACL enabled
-objects = [VM, Network, VDI]
-
-user_table_ready = threading.Event()
-first_batch_of_events = threading.Event()
-need_exit = threading.Event()
-xen_events_run = threading.Event()  # called by USR2 signal handler
-URL = ""
-ansible_pubkey = ""
-auth_class_name = ""
-playbooks = Dict[str, Playbook]
-
-
-
-secrets = {}
-
 def table_drop(db, table_name):
     try:
         db.table_drop(table_name).run()
@@ -97,179 +84,15 @@ class DateTimeEncoder(json.JSONEncoder):
         return super().default(o)
 
 
-def auth_required(method):
-    def decorator(self, *args, **kwargs):
-        user = HandlerMethods.get_current_user(self)
-        if not user:
-            self.set_status(401)
-            self.write({'status': 'error', 'message': 'not authorized'})
-        else:
-            self.user_authenticator = pickle.loads(user)
-            self.user_authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
-            self.xen = self.user_authenticator.xen
-            return method(self)
+class AuthHandler(RESTHandler):
 
-    return decorator
-
-
-def admin_required(method):
-    def decorator(self, *args, **kwargs):
-        user = HandlerMethods.get_current_user(self)
-        if not user:
-            self.set_status(401)
-            self.write({'status': 'error', 'message': 'not authorized'})
-        else:
-            self.user_authenticator = pickle.loads(user)
-            if not isinstance(self.user_authenticator, AdministratorAuthenticator):
-                self.set_status(403)
-                self.write({'status': 'error', 'message': 'administrator required'})
-                return
-            self.user_authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
-            self.xen = self.user_authenticator.xen
-            return method(self)
-
-    return decorator
-
-
-class HandlerMethods(Loggable):
-    def init_executor(self, executor):
-        self.executor = executor
-        self.debug = opts.debug
-        self.init_log()
-        self.conn = ReDBConnection().get_connection()
-        first_batch_of_events.wait()
-        self.actions_log = self.create_additional_log('actions')
-
-    def get_current_user(self):
-        return self.get_secure_cookie("user")
-
-
-class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
-    _ASYNC_KEY = None
-
-    def initialize(self, executor):
-        self.init_executor(executor)
-        self.user_authenticator = Optional[BasicAuthenticator]
-
-        self.op = Operations(r.db(opts.database))
-
-        super().initialize()
-
-
-    def prepare(self):
-        super().prepare()
-        if not 'Content-Type' in self.request.headers:
-            return
-        content_type = self.request.headers['Content-Type'].split(';')
-        if content_type[0] == 'application/json':
-            encoding = 'utf-8'
-            try:
-                encoding = content_type[1].split('=')[1]
-            except:
-                pass
-
-            body = self.request.body.decode(encoding=encoding).strip()
-            if body:
-                json_data = json.loads(body)
-                json_data_lists = {k: [v] for k, v in json_data.items()}
-                self.request.arguments.update(json_data_lists)
-
-                # monkey-patch decode argument
-                self.decode_argument = lambda value, name: value
-
-                # monkey-patch _get_arguments
-                old_get_arguments = self._get_arguments
-                self._get_arguments = lambda name, source, strip: old_get_arguments(name, source, False)
-
-    def get_current_user(self):
-        return self.get_secure_cookie("user")
-
-
-    def async_run(self, task_ref):
-        self._run_task = task_ref
-        ioloop = tornado.ioloop.IOLoop.instance()
-        ioloop.run_in_executor(self.executor, self.run_async_task)
-
-
-    def run_async_task(self):
-        task = Task(auth=self.user_authenticator, ref=self._run_task)
-
-        with ReDBConnection().get_connection():
-            write_in = {'id' : self._run_task}
-            self.op.set_operation(self.user_authenticator, write_in)
-            write_in['created'] = task.get_created()
-            while task.get_status() == 'pending':
-                write_in['status'] = task.get_status()
-                write_in['progress'] =  task.get_progress()
-                self.op.set_operation(None, write_in)
-                time.sleep(1)
-
-            write_in['finished'] = task.get_finished()
-            write_in['status'] = task.get_status()
-            write_in['progress'] = task.get_progress()
-
-            if write_in['status'] == 'failure':
-                write_in['error_info'] = task.get_error_info()
-
-
-            self.op.set_operation(None, write_in)
-        task.destroy()
-
-
-    def try_xenadapter(self, func, post_hook=None):
+    def initialize(self, pool_executor, authenticator):
         '''
-        Call a xenadapter method, handle exceptions
-        :param func:
-        :param post_hook: call this function with a xenadapter method's return value and an authenticator object  as arguments argument (optional)        :return:
-        '''
-        auth = self.user_authenticator
-
-        try:
-            ret = func(auth)
-
-        except XenAdapterUnauthorizedActionException as ee:
-            self.set_status(403)
-            self.write(json.dumps({'status': 'not allowed', 'details': ee.message}))
-            self.finish()
-
-
-        except EmperorException as ee:
-            self.set_status(400)
-            self.write(json.dumps({'status': 'error', 'details': ee.message}))
-            self.finish()
-
-
-
-        else:
-            if ret:
-                self.write(ret)
-            else:
-                self.write(json.dumps({'status': 'ok'}))
-
-            self.finish()
-            try:
-                if post_hook:
-                    post_hook(ret, auth)
-            except EmperorException as e:
-                self.log.error("try_xenadapter: exception catched in post_hook: %s" % e.message)
-
-
-class BaseWSHandler(WebSocketHandler, HandlerMethods):
-    def initialize(self, executor):
-        self.init_executor(executor)
-        super().initialize()
-
-
-class AuthHandler(BaseHandler):
-
-    def initialize(self, executor, authenticator):
-        '''
-
         :param executor:
         :param authenticator: authentication object derived from BasicAuthenticator
         :return:
         '''
-        super().initialize(executor)
+        super().initialize(pool_executor=pool_executor)
         self.authenticator = authenticator()
 
     def post(self):
@@ -307,7 +130,7 @@ errors should be returned in next format: {'status': 'error', 'details': string,
 """
 
 
-class Test(BaseHandler):
+class Test(RESTHandler):
 
     @run_on_executor
     def heavy_task(self):
@@ -319,9 +142,9 @@ class Test(BaseHandler):
         self.write(json.dumps(res))
 
 
-class AdminAuth(BaseHandler):
-    def initialize(self, executor, authenticator):
-        super().initialize(executor)
+class AdminAuth(RESTHandler):
+    def initialize(self, pool_executor, authenticator):
+        super().initialize(pool_executor)
         self.user_auth = authenticator
 
     def post(self):
@@ -344,24 +167,25 @@ class AdminAuth(BaseHandler):
         self.set_secure_cookie("user", pickle.dumps(authenticator))
 
 
-class LogOut(BaseHandler):
+class LogOut(RESTHandler):
     def get(self):
         self.clear_cookie('user')
         # self.redirect(self.get_argument("next", "/login"))
         self.write({'status': 'ok'})
 
 
-class Playbooks(BaseHandler):
+class Playbooks(RESTHandler):
     @auth_required
     def get(self):
-        _playbooks = playbooks.values();
+
+        _playbooks = playbooks.values()
         if not isinstance(self.user_authenticator, AdministratorAuthenticator):
             _playbooks = filter(lambda playbook: not playbook.get_inventory(), _playbooks)
         _playbooks = list(_playbooks)
         self.write(json.dumps(list(_playbooks), cls=PlaybookEncoder))
 
 
-class TurnTemplate(BaseHandler):
+class TurnTemplate(RESTHandler):
     @admin_required
     def post(self):
         uuid = self.get_argument('uuid')
@@ -380,13 +204,13 @@ class TurnTemplate(BaseHandler):
 
         self.write({'status': 'ok'})
 
-class AllTemplates(BaseHandler):
+class AllTemplates(RESTHandler):
     @admin_required
     def get(self):
         tmpl = Template.get_all_records(self.user_authenticator)
         self.write(json.dumps(tmpl, cls=DateTimeEncoder ))
 
-class SetQuota(BaseHandler):
+class SetQuota(RESTHandler):
     @admin_required
     def post(self):
         userid = self.get_argument('userid')
@@ -398,7 +222,7 @@ class SetQuota(BaseHandler):
 
         self.write({'status':'ok'})
 
-class GetQuota(BaseHandler):
+class GetQuota(RESTHandler):
     @admin_required
     def post(self):
         userid = self.get_argument('userid', None)
@@ -414,7 +238,7 @@ class GetQuota(BaseHandler):
 
 
 
-class ResourceList(BaseHandler):
+class ResourceList(RESTHandler):
     @auth_required
     def get(self):
         with self.conn:
@@ -610,7 +434,7 @@ class VMList(BaseWSHandler):
             self.cur.close()
 
 
-class PoolListPublic(BaseHandler):
+class PoolListPublic(RESTHandler):
     def get(self):
         '''
 
@@ -619,7 +443,7 @@ class PoolListPublic(BaseHandler):
         self.write(json.dumps([{'id': 1}]))
 
 
-class PoolList(BaseHandler):
+class PoolList(RESTHandler):
     @auth_required
     def get(self):
         """
@@ -698,7 +522,7 @@ class PoolList(BaseHandler):
         self.write(json.dumps([pool_info]))
 
 
-class TemplateList(BaseHandler):
+class TemplateList(RESTHandler):
     @auth_required
     def get(self):
         """
@@ -719,7 +543,7 @@ class TemplateList(BaseHandler):
             self.write(json.dumps(list))
 
 
-class ISOList(BaseHandler):
+class ISOList(RESTHandler):
     @auth_required
     def get(self):
         """
@@ -739,7 +563,7 @@ class ISOList(BaseHandler):
             self.write(json.dumps(list))
 
 
-class CreateVM(BaseHandler):
+class CreateVM(RESTHandler):
     _ASYNC_KEY = 'createvm'
 
     @auth_required
@@ -766,8 +590,8 @@ class CreateVM(BaseHandler):
             db = r.db(opts.database)
             if not isinstance(self.user_authenticator, AdministratorAuthenticator): # Prevent provisioning if quotas are not met
                 quota = Quota(self.user_authenticator)
-                usage  = quota.space_left_after_disk_creation(int(self.vdi_size)*1024*1024, 'users/'+ self.user_authenticator.get_id())
-                if usage < 0:
+                usage  = quota.space_left_after_disk_creation(int(self.vdi_size)*1024*1024, f'users/{self.user_authenticator.get_id()}')
+                if usage and  usage < 0:
                     self.write({'status': 'storage quota exceeded', 'message': f'storage limit will be exceeded by {-usage} bytes'})
                     self.finish()
                     return
@@ -995,7 +819,7 @@ class CreateVM(BaseHandler):
                         break
 
 
-class ConvertVM(BaseHandler):
+class ConvertVM(RESTHandler):
     @auth_required
     def post(self):
         vm_uuid = self.get_argument('uuid')
@@ -1003,7 +827,7 @@ class ConvertVM(BaseHandler):
         self.try_xenadapter(lambda auth: VM(auth, uuid=vm_uuid).convert(mode))
 
 
-class EnableDisableTemplate(BaseHandler):
+class EnableDisableTemplate(RESTHandler):
     @auth_required
     def post(self):
         """
@@ -1018,7 +842,7 @@ class EnableDisableTemplate(BaseHandler):
         self.try_xenadapter(lambda auth: Template(auth, uuid=uuid).enable_disable(bool(enable)))
 
 
-class TaskStatus(BaseHandler):
+class TaskStatus(RESTHandler):
     @auth_required
     def post(self):
         task = self.get_argument('task')
@@ -1042,7 +866,7 @@ class TaskStatus(BaseHandler):
             self.finish()
 
 
-class ExecutePlaybook(BaseHandler):
+class ExecutePlaybook(RESTHandler):
     _ASYNC_KEY = 'pb'
 
     def run_ansible(self):
@@ -1162,7 +986,7 @@ class ExecutePlaybook(BaseHandler):
             self.finish()
 
 
-class ResourceAbstractHandler(BaseHandler):
+class ResourceAbstractHandler(RESTHandler):
     '''
     Abstact handler for resource requests
     requires: function self.get_data returning something we can write
@@ -1220,7 +1044,7 @@ class ISOAbstractHandler(ResourceAbstractHandler):
     resource = ISO
 
 
-class SetAccessHandler(BaseHandler):
+class SetAccessHandler(RESTHandler):
     @auth_required
     def post(self):
         with self.conn:
@@ -1291,7 +1115,7 @@ class SetAccessHandler(BaseHandler):
                 return
 
 
-class UserInfo(BaseHandler):
+class UserInfo(RESTHandler):
     @auth_required
     def get(self):
         auth = self.user_authenticator
@@ -1305,21 +1129,21 @@ class UserInfo(BaseHandler):
         )
 
 
-class UserList(BaseHandler):
+class UserList(RESTHandler):
     @auth_required
     def get(self):
         with self.conn:
             self.write(json.dumps(r.db(opts.database).table('users').coerce_to('array').run()))
 
 
-class GroupList(BaseHandler):
+class GroupList(RESTHandler):
     @auth_required
     def get(self):
         with self.conn:
             self.write(json.dumps(r.db(opts.database).table('groups').coerce_to('array').run()))
 
 
-class GetAccessHandler(BaseHandler):
+class GetAccessHandler(RESTHandler):
     @auth_required
     def post(self):
         with self.conn:
@@ -1351,7 +1175,7 @@ class GetAccessHandler(BaseHandler):
             self.write(db.table(type_obj.db_table_name).get(uuid).pluck('access').run())
 
 
-class InstallStatus(BaseHandler):
+class InstallStatus(RESTHandler):
     @auth_required
     def post(self):
         taskid = self.get_argument('taskid')
@@ -1990,7 +1814,7 @@ def event_loop(executor, authenticator=None, ioloop=None):
     return ioloop
 
 
-class Postinst(BaseHandler):
+class Postinst(RESTHandler):
     def get(self):
         os = self.get_argument("os")
         pubkey_path = pathlib.Path(ansible_pubkey)
@@ -1998,7 +1822,7 @@ class Postinst(BaseHandler):
         self.render('templates/installation-scenarios/postinst/{0}'.format(os), pubkey=pubkey)
 
 
-class AutoInstall(BaseHandler):
+class AutoInstall(RESTHandler):
     def get(self, os_kind):
         '''
         This is used by CreateVM
@@ -2075,8 +1899,8 @@ class ConsoleHandler(BaseWSHandler):
     def check_origin(self, origin):
         return True
 
-    def initialize(self, executor):
-        super().initialize(executor)
+    def initialize(self, pool_executor):
+        super().initialize(pool_executor=pool_executor)
 
         username = opts.username
         password = opts.password
@@ -2234,50 +2058,54 @@ def make_app(executor, auth_class=None, debug=False):
 
     app = tornado.web.Application([
 
-        (r"/login", AuthHandler, dict(executor=executor, authenticator=auth_class)),
-        (r"/logout", LogOut, dict(executor=executor)),
-        (r'/test', Test, dict(executor=executor)),
-        (XenAdapter.AUTOINSTALL_PREFIX + r'/([^/]+)', AutoInstall, dict(executor=executor)),
-        (POSTINST_ROUTE + r'.*', Postinst, dict(executor=executor)),
-        (r'/console.*', ConsoleHandler, dict(executor=executor)),
-        (r'/createvm', CreateVM, dict(executor=executor)),
-        (r'/startstopvm', StartStopVM, dict(executor=executor)),
-        (r'/rebootvm', RebootVM, dict(executor=executor)),
-        (r'/vmlist', VMList, dict(executor=executor)),
-        (r'/poollist', PoolList, dict(executor=executor)),
-        (r'/list_pools', PoolListPublic, dict(executor=executor)),
-        (r'/tmpllist', TemplateList, dict(executor=executor)),
-        (r'/netlist', NetworkList, dict(executor=executor)),
-        (r'/enabledisabletmpl', EnableDisableTemplate, dict(executor=executor)),
-        (r'/vnc', VNC, dict(executor=executor)),
-        (r'/attachdetachvdi', AttachDetachVDI, dict(executor=executor)),
-        (r'/attachdetachiso', AttachDetachIso, dict(executor=executor)),
-        (r'/netaction', NetworkAction, dict(executor=executor)),
-        (r'/destroyvm', DestroyVM, dict(executor=executor)),
-        (r'/adminauth', AdminAuth, dict(executor=executor, authenticator=auth_class)),
-        (r'/convertvm', ConvertVM, dict(executor=executor)),
-        (r'/installstatus', InstallStatus, dict(executor=executor)),
-        (r'/vminfo', VMInfo, dict(executor=executor)),
-        (r'/isolist', ISOList, dict(executor=executor)),
-        (r'/vdilist', VDIList, dict(executor=executor)),
-        (r'/setaccess', SetAccessHandler, dict(executor=executor)),
-        (r'/getaccess', GetAccessHandler, dict(executor=executor)),
-        (r'/netinfo', NetworkInfo, dict(executor=executor)),
-        (r'/userinfo', UserInfo, dict(executor=executor)),
-        (r'/vdiinfo', VDIInfo, dict(executor=executor)),
-        (r'/isoinfo', ISOInfo, dict(executor=executor)),
-        (r'/vmdiskinfo', VMDiskInfo, dict(executor=executor)),
-        (r'/vmnetinfo', VMNetInfo, dict(executor=executor)),
-        (r'/turntemplate', TurnTemplate, dict(executor=executor)),
-        (r'/playbooks', Playbooks, dict(executor=executor)),
-        (r'/executeplaybook', ExecutePlaybook, dict(executor=executor)),
-        (r'/taskstatus', TaskStatus, dict(executor=executor)),
-        (r'/userlist', UserList, dict(executor=executor)),
-        (r'/grouplist', GroupList, dict(executor=executor)),
-        (r'/alltemplates', AllTemplates, dict(executor=executor)),
-        (r'/destroyvdi', DestroyVDI, dict(executor=executor)),
-        (r'/setquota', SetQuota, dict(executor=executor)),
-        (r'/getquota', GetQuota, dict(executor=executor)),
+        (r"/login", AuthHandler, dict(pool_executor=executor, authenticator=auth_class)),
+        (r"/logout", LogOut, dict(pool_executor=executor)),
+        (r'/test', Test, dict(pool_executor=executor)),
+        (XenAdapter.AUTOINSTALL_PREFIX + r'/([^/]+)', AutoInstall, dict(pool_executor=executor)),
+        (POSTINST_ROUTE + r'.*', Postinst, dict(pool_executor=executor)),
+        (r'/console.*', ConsoleHandler, dict(pool_executor=executor)),
+        (r'/createvm', CreateVM, dict(pool_executor=executor)),
+        (r'/startstopvm', StartStopVM, dict(pool_executor=executor)),
+        (r'/rebootvm', RebootVM, dict(pool_executor=executor)),
+        (r'/vmlist', VMList, dict(pool_executor=executor)),
+        (r'/poollist', PoolList, dict(pool_executor=executor)),
+        (r'/list_pools', PoolListPublic, dict(pool_executor=executor)),
+        (r'/tmpllist', TemplateList, dict(pool_executor=executor)),
+        (r'/netlist', NetworkList, dict(pool_executor=executor)),
+        (r'/enabledisabletmpl', EnableDisableTemplate, dict(pool_executor=executor)),
+        (r'/vnc', VNC, dict(pool_executor=executor)),
+        (r'/attachdetachvdi', AttachDetachVDI, dict(pool_executor=executor)),
+        (r'/attachdetachiso', AttachDetachIso, dict(pool_executor=executor)),
+        (r'/netaction', NetworkAction, dict(pool_executor=executor)),
+        (r'/destroyvm', DestroyVM, dict(pool_executor=executor)),
+        (r'/adminauth', AdminAuth, dict(pool_executor=executor, authenticator=auth_class)),
+        (r'/convertvm', ConvertVM, dict(pool_executor=executor)),
+        (r'/installstatus', InstallStatus, dict(pool_executor=executor)),
+        (r'/vminfo', VMInfo, dict(pool_executor=executor)),
+        (r'/isolist', ISOList, dict(pool_executor=executor)),
+        (r'/vdilist', VDIList, dict(pool_executor=executor)),
+        (r'/setaccess', SetAccessHandler, dict(pool_executor=executor)),
+        (r'/getaccess', GetAccessHandler, dict(pool_executor=executor)),
+        (r'/netinfo', NetworkInfo, dict(pool_executor=executor)),
+        (r'/userinfo', UserInfo, dict(pool_executor=executor)),
+        (r'/vdiinfo', VDIInfo, dict(pool_executor=executor)),
+        (r'/isoinfo', ISOInfo, dict(pool_executor=executor)),
+        (r'/vmdiskinfo', VMDiskInfo, dict(pool_executor=executor)),
+        (r'/vmnetinfo', VMNetInfo, dict(pool_executor=executor)),
+        (r'/turntemplate', TurnTemplate, dict(pool_executor=executor)),
+        (r'/playbooks', Playbooks, dict(pool_executor=executor)),
+        (r'/executeplaybook', ExecutePlaybook, dict(pool_executor=executor)),
+        (r'/taskstatus', TaskStatus, dict(pool_executor=executor)),
+        (r'/userlist', UserList, dict(pool_executor=executor)),
+        (r'/grouplist', GroupList, dict(pool_executor=executor)),
+        (r'/alltemplates', AllTemplates, dict(pool_executor=executor)),
+        (r'/destroyvdi', DestroyVDI, dict(pool_executor=executor)),
+        (r'/setquota', SetQuota, dict(pool_executor=executor)),
+        (r'/getquota', GetQuota, dict(pool_executor=executor)),
+
+        (r'/graphql', GraphQLHandler, dict(pool_executor=executor, graphiql=False, schema=schema)),
+        (r'/graphql/batch', GraphQLHandler, dict(pool_executor=executor, graphiql=True, schema=schema, batch=True)),
+        (r'/graphql/graphiql', GraphQLHandler, dict(pool_executor=executor, graphiql=True, schema=schema))
 
     ], **settings)
 
@@ -2327,11 +2155,11 @@ def read_settings():
 
     file_path = path.join(path.dirname(path.realpath(__file__)), 'login.ini')
     parse_config_file(file_path)
-    global ansible_pubkey
-    ansible_pubkey = path.expanduser(opts.ansible_pubkey)
+    constants.ansible_pubkey = path.expanduser(opts.ansible_pubkey)
     ReDBConnection().set_options(opts.host, opts.port)
-    if not os.access(ansible_pubkey, os.R_OK):
-        logger.warning("WARNING: Ansible pubkey {0} (ansible_pubkey config option) is not readable".format(ansible_pubkey))
+    if not os.access(constants.ansible_pubkey, os.R_OK):
+        logger.warning(
+            f"WARNING: Ansible pubkey {constants.ansible_pubkey} (ansible_pubkey config option) is not readable")
 
     def on_exit():
         xen_events_run.set()
@@ -2362,10 +2190,8 @@ def main():
     """ reads settings in ini configures and starts system"""
     asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
 
-    global URL
-    global auth_class_name
-    URL = f"http://{opts.vmemperor_host}:{opts.vmemperor_port}"
-    logger.debug(f"Listening on: {URL}")
+    constants.URL = f"http://{opts.vmemperor_host}:{opts.vmemperor_port}"
+    logger.debug(f"Listening on: {constants.URL}")
 
     executor = ThreadPoolExecutor(max_workers=2048)
     app = make_app(executor)
@@ -2373,11 +2199,10 @@ def main():
     server.listen(opts.vmemperor_port, address="0.0.0.0")
     ioloop = event_loop(executor, authenticator=app.auth_class)
     logger.debug(f"Using authentication: {app.auth_class.__name__}")
-    auth_class_name = app.auth_class.__name__
+    constants.auth_class_name = app.auth_class.__name__
     logger.debug("Loading playbooks...")
-    global playbooks
-    playbooks = {p.get_id(): p for p in Playbook.get_playbooks()}
-    logger.debug(f"loaded  {len(playbooks)}")
+    constants.playbooks = {p.get_id(): p for p in Playbook.get_playbooks()}
+    logger.debug(f"loaded {len(constants.playbooks)}")
     ioloop.start()
 
     return

@@ -32,12 +32,12 @@ class VMGuest(XenObject):
                     auth.xen.log.warning("VMGuest::process_event: Cannot find a VM (or theres more than one) for guest metrics {0}".format(event['ref']))
                     return
                 vm_uuid = rec[0]['uuid']
-                new_rec = {'uuid': vm_uuid, 'os_version': record['os_version'],'networks': {},
+                new_rec = {'uuid': vm_uuid, 'os_version': record['os_version'],'interfaces': {},
                            'PV_drivers_version': record['PV_drivers_version'], 'PV_drivers_up_to_date': record['PV_drivers_up_to_date']}
                 for k,v in record['networks'].items():
                     try:
                         net_name, key, *rest = k.split('/')
-                        new_rec['networks'][net_name] = {**new_rec['networks'][net_name], **{key: v}} if net_name in new_rec['networks'] else {key: v}
+                        new_rec['interfaces'][net_name] = {**new_rec['interfaces'][net_name], **{key: v}} if net_name in new_rec['interfaces'] else {key: v}
                     except ValueError:
                         auth.xen.log.warning("Can't get network information for VM {0}: {1}:{2}".format(vm_uuid, k, v))
 

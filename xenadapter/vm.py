@@ -16,6 +16,8 @@ class VM (AbstractVM):
 
     db_table_name = 'vms'
     PROCESS_KEYS = ['power_state', 'name_label', 'uuid',  'metrics', 'guest_metrics', 'domain_type', 'VCPUs_at_startup', 'VCPUs_max', 'memory_static_max', 'memory_static_min', 'memory_dynamic_max', 'memory_dynamic_min', 'name_description']
+    #from handlers.graphql.types.vm import VM as VMType
+    #PROCESS_KEYS = list(VMType._meta.fields)
 
     def __init__(self, auth, uuid=None, ref=None):
         super().__init__(auth, uuid, ref)
@@ -80,7 +82,7 @@ class VM (AbstractVM):
         '''
         from xenadapter.network import VIF, Network
         new_rec = super().process_record(auth, ref, record)
-        new_rec['networks'] = {}
+        new_rec['interfaces'] = {}
         new_rec['disks'] = {}
         #for vbd in record['VBDs']:
         #    vdi_ref = auth.xen.api.VBD.get_VDI(vbd)

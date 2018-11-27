@@ -73,7 +73,7 @@ class Quota:
 
         else:
             userid = self.auth.get_id()
-            entities = list(map(lambda n: 'groups/' + n, self.auth.get_user_groups()))
+            entities = list(map(lambda n: f'groups/{n}', self.auth.get_user_groups()))
             entities.append('users/' + userid)
             data = self.pool.db.table('vdis_user').get_all(*entities, index='userid').merge(
                 lambda rec: {'virtual_size':
@@ -87,15 +87,16 @@ class Quota:
 
     def space_left_after_disk_creation(self, size, userid):
         '''
-        :param size:
-        :return:
+        return how much space will be left after we create a disk there
+        :param size: disk size, in bytes
+        :return: free space, in bytes or None if no quota for this user
         '''
         resources = self.get_storage_usage(userid)
         for i in resources:
             if i['userid'] == userid:
                 return i['storage'] - i['storage_usage'] - size
 
-        raise ValueError(f"No such userid: {userid}")
+        return None
 
 
 
