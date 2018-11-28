@@ -9,7 +9,7 @@ class Template(AbstractVM):
     ALLOW_EMPTY_XENSTORE = True
     VMEMPEROR_TEMPLATE_PREFIX = 'vm/data/vmemperor/template'
     db_table_name = 'tmpls'
-
+    PROCESS_KEYS = ['hvm', 'name_label', 'name_description', 'uuid']
     @classmethod
     def filter_record(cls, record):
         return record['is_a_template']
@@ -28,10 +28,8 @@ class Template(AbstractVM):
         :param record:
         :return:
         '''
-        record = super().process_record(auth, ref, record)
+        new_rec = super().process_record(auth, ref, record)
 
-        keys = ['hvm', 'name_label', 'uuid', 'ref']
-        new_rec = {k: v for k, v in record.items() if k in keys}
         if record['HVM_boot_policy'] == '':
             new_rec['hvm'] = False
         else:
@@ -40,7 +38,6 @@ class Template(AbstractVM):
         #read xenstore data
         xenstore_data = record['xenstore_data']
         if not self.VMEMPEROR_TEMPLATE_PREFIX in xenstore_data:
-            # TODO: Try to detect os_kind from other_config
             if new_rec['hvm'] is False:
                 if 'os_kind' in record['other_config']:
                     new_rec['os_kind'] = record['other_config']['os_kind']
@@ -60,7 +57,6 @@ class Template(AbstractVM):
     @use_logger
     def clone(self, name_label):
         try:
-
             new_vm_ref = self.__getattr__('clone')(name_label)
             vm = VM(self.auth, ref=new_vm_ref)
             self.log.info("New VM is created: UUID {0}".format(vm.uuid))

@@ -232,9 +232,3 @@ class Network(ACLXenObject):
 
         other_config['vmemperor'] = json.dumps(emperor)
         self.set_other_config(other_config)
-
-
-
-
-
-

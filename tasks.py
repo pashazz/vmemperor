@@ -13,11 +13,9 @@ class Operations:
 
     def set_operation(self, auth, operation):
         if auth: # replace
-            dump_auth = copy(auth)
-            del dump_auth.xen
-            auth_s = pickle.dumps(dump_auth)
+            user_id = auth.get_id()
 
-            CHECK_ER(self.table.insert({**XenObjectDict(operation), **{'auth': auth_s}}, conflict='replace').run())
+            CHECK_ER(self.table.insert({**XenObjectDict(operation), **{'userid': user_id}}, conflict='replace').run())
         else: # update
             CHECK_ER(self.table.insert(XenObjectDict(operation), conflict='update').run())
 
@@ -25,9 +23,8 @@ class Operations:
         operation = self.table.get(id).run()
         if not operation:
             raise KeyError("No operation")
-        auth_op = pickle.loads(operation['auth'])
-        if auth.get_id() == auth_op.get_id() and type(auth) == type(auth_op):
-            del operation['auth']
+        if auth.get_id() == operation['userid']:
+            del operation['userid']
             return operation
         else:
             raise KeyError('Wrong authentication object')

@@ -34,6 +34,8 @@ class QueryRoot(ObjectType):
                          description="Information about a single ISO image")
 
 
+
+
 class MutationRoot(ObjectType):
     write_test = graphene.Field(QueryRoot)
 
