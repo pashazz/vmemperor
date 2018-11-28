@@ -153,15 +153,11 @@ class Network(ACLXenObject):
             return
 
 
-        def vif_to_vm_uuid(vif_ref):
-            from .vm import VM
-
+        def vif_to_vm_ref(vif_ref):
             vif = VIF(auth=auth, ref=vif_ref)
-            vm = VM(auth=auth, ref=vif.get_VM())
-            return vm.uuid
+            return vif.get_VM()
 
-
-        new_rec['VMs'] = [vif_to_vm_uuid(vif_ref) for vif_ref in record['VIFs']]
+        new_rec['VMs'] = [vif_to_vm_ref(vif_ref) for vif_ref in record['VIFs']]
 
 
         return new_rec

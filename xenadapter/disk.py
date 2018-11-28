@@ -96,15 +96,13 @@ class Attachable:
     @classmethod
     def get_vbd_vms(self, record, auth):
 
-        def vbd_to_vm_uuid(vbd_ref):
+        def vbd_to_vm_ref(vbd_ref):
             from .vbd import VBD
-            from .vm import VM
 
             vbd = VBD(auth=auth, ref=vbd_ref)
-            vm = VM(auth=auth, ref=vbd.get_VM())
-            return vm.uuid
+            return vbd.get_VM()
 
-        return [vbd_to_vm_uuid(ref) for ref in record['VBDs']]
+        return [vbd_to_vm_ref(ref) for ref in record['VBDs']]
 
 
 class ISO(XenObject, Attachable):
