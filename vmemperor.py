@@ -11,7 +11,7 @@ import subprocess
 
 from constants import logger, POSTINST_ROUTE, objects, user_table_ready, first_batch_of_events, need_exit, \
     xen_events_run, URL, ansible_pubkey, auth_class_name, playbooks, secrets
-from handlers.graphql.graphql_handler import GraphQLHandler
+import handlers.graphql.graphql_handler as gql_handler
 from handlers.rest import RESTHandler, BaseWSHandler, auth_required, admin_required
 from handlers.graphql import schema
 from rethinkdb_helper import CHECK_ER
@@ -2103,9 +2103,9 @@ def make_app(executor, auth_class=None, debug=False):
         (r'/setquota', SetQuota, dict(pool_executor=executor)),
         (r'/getquota', GetQuota, dict(pool_executor=executor)),
 
-        (r'/graphql', GraphQLHandler, dict(pool_executor=executor, graphiql=False, schema=schema)),
-        (r'/graphql/batch', GraphQLHandler, dict(pool_executor=executor, graphiql=True, schema=schema, batch=True)),
-        (r'/graphql/graphiql', GraphQLHandler, dict(pool_executor=executor, graphiql=True, schema=schema))
+        (r'/graphql', gql_handler.GraphQLHandler, dict(pool_executor=executor, graphiql=False, schema=schema)),
+        (r'/graphql/batch', gql_handler.GraphQLHandler, dict(pool_executor=executor, graphiql=True, schema=schema, batch=True)),
+        (r'/graphql/graphiql', gql_handler.GraphQLHandler, dict(pool_executor=executor, graphiql=True, schema=schema))
 
     ], **settings)
 

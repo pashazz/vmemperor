@@ -1,7 +1,12 @@
 import graphene
 
-from handlers.graphql.interfaces.diskimage import DiskImage
+
+
 from handlers.graphql.resolvers.diskimage import resolve_vdi
+
+def diskImageType():
+    from handlers.graphql.interfaces.diskimage import DiskImage
+    return DiskImage
 
 
 class BlockDevice(graphene.ObjectType):
@@ -11,4 +16,4 @@ class BlockDevice(graphene.ObjectType):
     device = graphene.Field(graphene.String, required=True)
     mode = graphene.Field(graphene.String, required=True)
     type = graphene.Field(graphene.String, required=True)
-    VDI = graphene.Field(DiskImage, resolver=resolve_vdi)
+    VDI = graphene.Field(diskImageType, resolver=resolve_vdi)

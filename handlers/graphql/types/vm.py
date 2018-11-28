@@ -1,5 +1,6 @@
+from typing import List, Any
+
 import graphene
-from handlers.graphql.resolvers.blockdevice import resolve_disks
 from handlers.graphql.resolvers.interface import resolve_interfaces
 from handlers.graphql.types.blockdevice import BlockDevice
 from handlers.graphql.types.interface import Interface
@@ -38,6 +39,13 @@ class OSVersion(graphene.ObjectType):
     minor = graphene.Int()
 
 
+def resolve_disks(root, info, **args) -> List[Any]:
+    from handlers.graphql.types.blockdevice import BlockDevice
+    def resolve_disk(key, value):
+        return BlockDevice(**{'id': key, **value})
+
+    return [resolve_disk(k, v) for k,v in root.disks.items()]
+
 
 class VM(XenObjectType):
     import xenadapter.vm
@@ -66,18 +74,4 @@ class VM(XenObjectType):
     os_version = graphene.Field(OSVersion)
     power_state = graphene.Field(graphene.String, required=True)
     start_time = graphene.Field(graphene.DateTime, required=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

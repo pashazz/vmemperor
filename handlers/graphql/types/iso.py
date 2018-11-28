@@ -2,9 +2,12 @@ import graphene
 
 from handlers.graphql.interfaces import ACLObject
 from handlers.graphql.interfaces.diskimage import DiskImage, vmType
+from handlers.graphql.types.xen import XenObjectType
 
 
-class ISO(graphene.ObjectType):
+class ISO(XenObjectType):
+    import xenadapter.disk as disk
+    XenClass = disk.ISO
     class Meta:
         interfaces = (ACLObject, DiskImage)
 

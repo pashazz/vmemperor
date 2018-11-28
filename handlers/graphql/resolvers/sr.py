@@ -1,10 +1,3 @@
-from handlers.graphql.resolvers import with_connection
-from tornado.options import options as opts
-import rethinkdb as r
-
-@with_connection
-def resolve_sr(root, info, **args):
+def resolve_sr(*args, **kwargs):
     from ..types.sr import SR
-    db = r.db(opts.database)
-    sr_record = db.table('srs').get(root.SR).run()
-    return SR(**sr_record)
+    return SR.one()(*args, **kwargs)
