@@ -2,23 +2,8 @@ import XenAPI
 from loggable import Loggable
 from .singleton import Singleton
 from exc import *
-import logging
 import rethinkdb as r
 import threading
-
-def use_logger(method):
-    def decorator(self, *args, **kwargs):
-        oldFormatter = self.xen.fileHandler.formatter
-        self.xen.fileHandler.setFormatter(
-            logging.Formatter(
-                "%(levelname)-10s [%(asctime)s] {0}: {1}: %(message)s".format(self.__class__.__name__,
-                                                                                             self.uuid))
-        )
-        ret = method(self, *args, **kwargs)
-        self.xen.fileHandler.setFormatter(oldFormatter)
-        return ret
-
-    return decorator
 
 
 
@@ -27,8 +12,6 @@ class XenAdapter(Loggable, metaclass=Singleton):
     AUTOINSTALL_PREFIX = '/autoinstall'
     VMEMPEROR_ACCESS_PREFIX='vm-data/vmemperor/access'
 
-    from .vm import VM
-    from .template import Template
 
 
     def __init__(self, settings):
@@ -108,46 +91,6 @@ class XenAdapter(Loggable, metaclass=Singleton):
         except StopIteration:
             return ""
 
-
-    assets = [VM, Template]
-
-
-
-
-    def access_list(self, authenticator_name) -> list:
-        from .xenobject import ACLXenObject
-        def read_xenstore_access_rights(xenstore_data : dict, asset : ACLXenObject):
-            filtered_iterator = filter(lambda keyvalue : keyvalue[1] and  keyvalue[0].startswith(self.VMEMPEROR_ACCESS_PREFIX),
-                                       xenstore_data.items())
-
-            for k, v in filtered_iterator:
-                key_components= k[len(self.VMEMPEROR_ACCESS_PREFIX) + 1:].split('/')
-                if key_components[0] == authenticator_name:
-
-                    yield {'userid' :  '%s/%s' % (key_components[1], key_components[2]), 'access' : v}
-
-            else:
-                if asset.ALLOW_EMPTY_XENSTORE:
-                    yield  {'userid' : 'any', 'access' : 'all'}
-
-        # Repeat procedure for VM objects and VDI objects
-        final_list = []
-        for asset in self.assets:
-
-            recs = asset.get_all_records(self)
-            result_dict = {}
-            for k,v in recs.items():
-                xenstore_data = v['xenstore_data']
-                for d in read_xenstore_access_rights(xenstore_data, asset):
-                    if d['userid'] in result_dict:
-                        result_dict[d['userid']].append({'uuid' : v['uuid'], 'access' : d['access']})
-                    else:
-                        result_dict[d['userid']] = [{'uuid' : v['uuid'], 'access' : d['access']}]
-
-
-            print(asset.api_class)
-            final_list.extend([{'userid' : k, 'type' : asset.api_class, 'items' : v} for k, v in result_dict.items()])
-        return final_list
 
 
     log_entry_init = False

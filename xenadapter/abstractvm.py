@@ -1,6 +1,6 @@
 from .xenobject import ACLXenObject
 
-from . import use_logger
+from xenadapter.helpers import use_logger
 import XenAPI
 from authentication import BasicAuthenticator
 import provision

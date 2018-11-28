@@ -1,6 +1,8 @@
 from graphene_tornado.tornado_graphql_handler import TornadoGraphQLHandler
-
+import pickle
 from handlers.base import BaseHandler
+from xenadapter import XenAdapter
+from tornado.options import options as opts
 
 class GraphQLHandler(BaseHandler, TornadoGraphQLHandler):
     def initialize(self, *args, **kwargs):
@@ -15,6 +17,9 @@ class GraphQLHandler(BaseHandler, TornadoGraphQLHandler):
         self.request.async_run = self.async_run
         self.request.op = self.op
         self.request._ASYNC_KEY = self._ASYNC_KEY
-        self.request.user_authenticator = self.user_authenticator
+        user = self.get_current_user()
+        if user:
+            self.request.user_authenticator = pickle.loads(user)
+            self.request.user_authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
         self.request.conn = self.conn
 

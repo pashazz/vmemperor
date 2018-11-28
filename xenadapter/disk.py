@@ -1,16 +1,15 @@
 from xenadapter.sr import SR
 from xenadapter.vbd import VBD
 from .xenobject import *
-from . import use_logger
+from xenadapter.helpers import use_logger
 from exc import *
 import XenAPI
 
 
 class Attachable:
-    from .vm import VM
-
+    import xenadapter.vm
     @use_logger
-    def _attach(self : XenObject, vm: VM, type : str, mode: str, empty=False) -> str:
+    def _attach(self : XenObject, vm: xenadapter.vm.VM, type : str, mode: str, empty=False) -> str:
         '''
         Attach self (XenObject - either ISO or Disk) to vm VM with disk type type
         :param vm:VM to attach to
@@ -63,7 +62,7 @@ class Attachable:
         return vbd_uuid
 
     @use_logger
-    def _detach(self : XenObject, vm : VM):
+    def _detach(self : XenObject, vm):
         #vm.check_access('attach') #done by vmemperor
         vbds = vm.get_VBDs()
         for vbd_ref in vbds:

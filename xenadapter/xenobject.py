@@ -4,10 +4,10 @@ from authentication import BasicAuthenticator, AdministratorAuthenticator
 from tornado.concurrent import run_on_executor
 import traceback
 import rethinkdb as r
-from . import use_logger
+from xenadapter.helpers import use_logger
 from .xenobjectdict import XenObjectDict
 import threading
-
+import graphene
 
 def dict_deep_convert(d):
     def convert_to_bool(v):
@@ -64,6 +64,8 @@ class XenObject(metaclass=XenObjectMeta):
     db = None
 
 
+    def __str__(self):
+        return f"<{self.__class__.__name__} \"{self.uuid}\">"
 
     def __init__(self, auth : BasicAuthenticator,  uuid:str=None , ref : str =None):
         '''
@@ -323,9 +325,9 @@ class ACLXenObject(XenObject):
     @use_logger
     def check_access(self,  action):
         '''
-        Check if it's possible to do 'action' with specified VM
-        :param action: action to perform. If action is None, check for the fact that user can see this VM
-        for 'VM'  these are
+        Check if it's possible to do 'action' with specified Xen Object
+        :param action: action to perform. If action is None, check for the fact that user can view this Xen object
+        for 'Xen object'  these are
 
         - launch: can start/stop vm
         - destroy: can destroy vm
@@ -338,7 +340,8 @@ class ACLXenObject(XenObject):
         if issubclass(self.auth.__class__, AdministratorAuthenticator):
             return True # admin can do it all
 
-        self.log.info("Checking %s %s rights for user %s: action %s" % (self.__class__.__name__, self.uuid, self.auth.get_id(), action))
+        self.log.info(
+            f"Checking {self.__class__.__name__} {self.uuid} rights for user {self.auth.get_id()}: action {action}")
         from rethinkdb.errors import ReqlNonExistenceError
 
         db = self.auth.xen.db
@@ -352,7 +355,8 @@ class ACLXenObject(XenObject):
             if self.ALLOW_EMPTY_XENSTORE:
                     return True
             raise XenAdapterUnauthorizedActionException(self.log,
-                                                    "Unauthorized attempt (no info on access rights): needs privilege '%s'" % action)
+                                                        f"Unauthorized attempt "
+                                                        f"on object {self} (no info on access rights) by {self.auth.get_id()}: {'requested action {action}' if action else ''}")
 
 
         username = 'users/%s'  % self.auth.get_id()
@@ -361,16 +365,14 @@ class ACLXenObject(XenObject):
             if ((action in item['access'] or 'all' in item['access'])\
                     or (action is None and len(item['access']) > 0))and\
                     (username == item['userid'] or (item['userid'].startswith('groups/') and item['userid'] in groupnames)):
-                self.log.info('User %s is allowed to perform action %s on %s %s' % (self.auth.get_id(), action, self.__class__.__name__,  self.uuid))
+                self.log.info(
+                    f'User {self.auth.get_id()} is allowed to perform action {action} on {self.__class__.__name__} {self.uuid}')
                 return True
 
 
-        if action:
-            raise XenAdapterUnauthorizedActionException(self.log,\
-                        "Unauthorized attempt by {0}: requested action '{1}'".format(self.auth.get_id(), action))
-        else:
-            raise XenAdapterUnauthorizedActionException(self.log,
-                        "Unauthorized attempt by {0}".format(self.auth.get_id()))
+
+        raise XenAdapterUnauthorizedActionException(self.log,
+            f"Unauthorized attempt on object {self} by {self.auth.get_id()}{': requested action {action}' if action else ''}")
 
 
     def manage_actions(self, action,  revoke=False, user=None, group=None):

@@ -1,5 +1,6 @@
 from .xenobject import *
-from . import use_logger
+from xenadapter.helpers import use_logger
+
 
 class VIF(XenObject, metaclass=XenObjectMeta):
     api_class = 'VIF'

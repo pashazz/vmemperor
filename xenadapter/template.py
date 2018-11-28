@@ -2,7 +2,7 @@ from .abstractvm import AbstractVM
 from exc import *
 import XenAPI
 from .vm import VM
-from . import use_logger
+from xenadapter.helpers import use_logger
 
 
 class Template(AbstractVM):

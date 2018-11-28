@@ -3,6 +3,7 @@ from handlers.graphql.resolvers.blockdevice import resolve_disks
 from handlers.graphql.resolvers.interface import resolve_interfaces
 from handlers.graphql.types.blockdevice import BlockDevice
 from handlers.graphql.types.interface import Interface
+from handlers.graphql.types.xen import XenObjectType
 from ..interfaces import ACLObject
 from graphene.types.resolver import dict_resolver
 
@@ -38,8 +39,9 @@ class OSVersion(graphene.ObjectType):
 
 
 
-class VM(graphene.ObjectType):
-
+class VM(XenObjectType):
+    import xenadapter.vm
+    XenClass = xenadapter.vm.VM
     class Meta:
         interfaces = (ACLObject, )
 

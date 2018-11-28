@@ -8,6 +8,7 @@ from tornado.escape import to_unicode
 from .types.vm import VM
 from .types.iso import ISO
 from .types.vdi import VDI
+import xenadapter.vm
 from .resolvers.vm import resolve_all_vms
 
 class QueryRoot(ObjectType):
@@ -16,6 +17,8 @@ class QueryRoot(ObjectType):
     request = graphene.String(required=True)
     test = graphene.String(who=graphene.String())
     vms = graphene.List(VM, required=True, resolver=resolve_all_vms)
+    vm = graphene.Field(VM, required=True, uuid=graphene.ID(), resolver=VM.one())
+
 
 
     def resolve_thrower(self, info):
