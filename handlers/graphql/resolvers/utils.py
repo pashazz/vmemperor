@@ -7,6 +7,17 @@ class NotAuthenticatedException(Exception):
     def __init__(self):
         super().__init__("You are not authenticated")
 
+def with_authentication(method):
+    def decorator(root, info, *args, **kwargs):
+        if not hasattr(info.context, 'user_authenticator'):
+            raise NotAuthenticatedException()
+
+        return method(root, info, *args, **kwargs)
+    return decorator
+
+
+
+
 def resolve_one(cls, graphql_type, field_name=None, index=None):
     '''
     Use this method to resolve one XenObject that appears in tables as its uuid under its name
@@ -112,6 +123,10 @@ def resolve_all(cls, graphql_type):
 
         :return:
         '''
+
+
+
+
         from xenadapter.xenobject import ACLXenObject
         auth = info.context.user_authenticator
         if not issubclass(cls, ACLXenObject) or isinstance(auth, AdministratorAuthenticator): #return all
@@ -120,15 +135,11 @@ def resolve_all(cls, graphql_type):
         else:
             user_table_ready.wait()
             user_id = auth.get_id()
+            entities = (f'users/{user_id}', 'any', *(f'groups/{group_id}' for group_id in auth.get_user_groups()))
             query = \
-            cls.db.table(f'{cls.db_table_name}_user').get_all(f'users/{user_id}', index='userid'). \
+            cls.db.table(f'{cls.db_table_name}_user').get_all(*entities, index='userid'). \
                 pluck('uuid').coerce_to('array'). \
                 merge(cls.db.table(cls.db_table_name).get(r.row['uuid']).without('uuid'))
-
-            for group in auth.get_user_groups():
-                query = query.union(cls.db.table(f'{cls.db_table_name}_user').get_all(f'groups/{group}', index='userid'). \
-                                    without('id').coerce_to('array'). \
-                                    merge(cls.db.table(cls.db_table_name).get(r.row['uuid']).without('uuid')))
 
         if 'page' in kwargs:
             page_size = kwargs['page_size']

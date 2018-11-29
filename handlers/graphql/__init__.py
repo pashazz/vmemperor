@@ -5,7 +5,10 @@ import graphene
 from graphene import ObjectType, Schema
 
 from tornado.escape import to_unicode
+
+from handlers.graphql.types.input.createvm import CreateVM
 from handlers.graphql.types.iso import ISO
+from handlers.graphql.types.template import Template
 from handlers.graphql.types.vm import VM
 from handlers.graphql.types.sr import SR
 from handlers.graphql.types.network import Network
@@ -33,14 +36,13 @@ class QueryRoot(ObjectType):
     iso = graphene.Field(VDI, required=True, uuid=graphene.ID(), resolver=ISO.one(),
                          description="Information about a single ISO image")
 
+    templates = graphene.List(Template,required=True, resolver=Template.all(), description="All templates")
+
 
 
 
 class MutationRoot(ObjectType):
-    write_test = graphene.Field(QueryRoot)
-
-    def resolve_write_test(self, info):
-        return QueryRoot()
+    create_VM = CreateVM.Field()
 
 
 schema = Schema(query=QueryRoot, mutation=MutationRoot, types=[ISO, VDI])
