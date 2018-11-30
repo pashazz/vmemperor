@@ -1,13 +1,14 @@
 import uuid
 
 import graphene
+import rethinkdb as r
 
 from handlers.graphql.resolvers import with_connection
 from handlers.graphql.resolvers.utils import with_authentication
 from handlers.graphql.types.input.createvdi import NewVDI
 from handlers.graphql.types.tasks.createvm import CreateVMTask
 from xenadapter.template import Template
-
+import tornado.ioloop
 
 class NetworkConfiguration(graphene.InputObjectType):
     ip = graphene.InputField(graphene.String, required=True)
@@ -26,6 +27,29 @@ class AutoInstall(graphene.InputObjectType):
     fullname = graphene.InputField(graphene.String, description="User's full name")
     partition = graphene.InputField(graphene.String, required=True, description="Partition scheme (TODO)")
     static_ip_config  = graphene.InputField(NetworkConfiguration, description="Static IP configuration, if needed")
+
+def createvm(ctx, task_id, template, VCPUs, disks, ram, name_label, name_description, network, iso=None, install_params=None):
+    with ctx.conn:
+
+
+
+        tmpl = Template(ctx.user_authenticator, uuid=template)
+        vm = tmpl.clone(name_label)
+
+        ctx.set_task_status(
+            **CreateVMTask(id=task_id, uuid=vm.uuid, state='cloned', message=f'cloned from {tmpl.uuid}'))
+        vm.set_name_description(name_description)
+        vm.create(
+            insert_log_entry=lambda uuid, state, message: ctx.set_task_status(**CreateVMTask(id=task_id, uuid=uuid, state=state, message=message)),
+            provision_config=disks,
+            ram_size=ram
+
+        )
+
+
+
+
+
 
 
 class CreateVM(graphene.Mutation):
@@ -46,23 +70,12 @@ class CreateVM(graphene.Mutation):
     @staticmethod
     @with_authentication
     @with_connection
-    def mutate(root, info, template, VCPUs, disks, ram, name_label, name_description, network, iso=None, install_params=None,):
+    def mutate(root, info, *args, **kwargs):
         task_id  = str(uuid.uuid4())
         ctx = info.context
-        ctx.set_task_status(**CreateVMTask(id=task_id))
-        tmpl = Template(ctx.user_authenticator, uuid=template)
-        vm = tmpl.clone(name_label)
-
-        ctx.set_task_status(**CreateVMTask(id=task_id, uuid=vm.uuid, state='cloned', message=f'cloned from {tmpl.uuid}'))
-
-
-
-
-
-
-
-
-
-        return CreateVM(task_id=vm.uuid)
+        ctx.set_task_status(**CreateVMTask(id=task_id, state='cloning'))
+        tornado.ioloop.IOLoop.current().run_in_executor(ctx.executor,
+                                                        lambda: createvm(ctx, task_id, *args, **kwargs))
+        return CreateVM(task_id=task_id)
 
 

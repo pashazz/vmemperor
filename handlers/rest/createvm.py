@@ -166,8 +166,12 @@ class CreateVM(RESTHandler):
         with ReDBConnection().get_connection():
             try:
                 self.op.set_operation(self.user_authenticator, {'id': self.taskid})
-                def clone_post_hook(return_value, auth):
-                    vm = VM.create(self.insert_log_entry, auth, return_value, self.sr_uuid, self.net_uuid,
+
+                def do_clone(auth):
+                    tmpl = Template(auth, uuid=self.template['uuid'])
+                    vm = tmpl.clone(self.name_label)
+                    self.insert_log_entry(vm.uuid, 'cloned', f'cloned from {tmpl.uuid}')
+                    vm.create(self.insert_log_entry,  self.sr_uuid, self.net_uuid,
                                    self.vdi_size, self.ram_size,
                                    self.hostname, self.mode, os_kind=self.os_kind, ip=self.ip_tuple,
                                    install_url=self.mirror_url,
@@ -180,21 +184,21 @@ class CreateVM(RESTHandler):
                     # ioloop.add_callback(self.do_finalize_install)
                     ioloop.run_in_executor(self.executor, self.finalize_install)
                     log_message = """
-                    Created VM: UUID {return_value}
-                    Created by: {user} (of {auth})
-                    Name: {name_label}
-                    Full name: {fullname}
-                    SR: {sr_uuid}
-                    Network: {net_uuid}
-                    IP, Gateway, Netmask, DNS: {ip}
-                    VDI Size: {vdi_size}
-                    RAM Size: {ram_size}
-                    Hostname: {hostname}
-                    Username: {username}
-                    Password: {password}
-                    ISO: {iso}
-                    Partition scheme: {partition}
-                    """
+                                       Created VM: UUID {uuid}
+                                       Created by: {user} (of {auth})
+                                       Name: {name_label}
+                                       Full name: {fullname}
+                                       SR: {sr_uuid}
+                                       Network: {net_uuid}
+                                       IP, Gateway, Netmask, DNS: {ip}
+                                       VDI Size: {vdi_size}
+                                       RAM Size: {ram_size}
+                                       Hostname: {hostname}
+                                       Username: {username}
+                                       Password: {password}
+                                       ISO: {iso}
+                                       Partition scheme: {partition}
+                                       """
                     self.actions_log.info(log_message.format(user=self.user_authenticator.get_name(),
                                                              auth=self.user_authenticator.__class__.__name__,
                                                              name_label=self.name_label, fullname=self.fullname,
@@ -203,13 +207,7 @@ class CreateVM(RESTHandler):
                                                              hostname=self.hostname, username=self.username,
                                                              password=self.password,
                                                              iso=self.iso, partition=self.partition, ip=self.ip_tuple,
-                                                             return_value=return_value))
-
-                def do_clone(auth):
-                    tmpl = Template(auth, uuid=self.template['uuid'])
-                    vm = tmpl.clone(self.name_label)
-                    self.insert_log_entry(vm.uuid, 'cloned', f'cloned from {tmpl.uuid}')
-                    clone_post_hook(vm.uuid, auth)
+                                                             uuid=vm.uuid))
 
                 do_clone(self.user_authenticator)
             except XenAdapterUnauthorizedActionException as ee:

@@ -132,32 +132,6 @@ class XenAdapter(Loggable, metaclass=Singleton):
 
 
 
-    def get_vnc(self, vm_uuid) -> str:
-        """
-        Get VNC Console
-        :param vm_uuid: VM UUID
-        :return: URL console location
-        """
-        vm_ref = self.api.VM.get_by_uuid(vm_uuid)
-        self.start_stop_vm(True)
-        consoles = self.api.VM.get_consoles(vm_ref) #references
-        if (len(consoles) == 0):
-            self.log.error('Failed to find console of VM UUID {0}'.format(vm_uuid))
-            return ""
-        try:
-            cons_ref = consoles[0]
-            console = self.api.console.get_record(cons_ref)
-            url = self.api.console.get_location(cons_ref)
-            self.log.info ("Console location {0} of VM UUID {1}".format(url, vm_uuid))
-        except XenAPI.Failure as f:
-            raise XenAdapterAPIError(self, "Failed to get console location: {0}".format(f.details))
-
-        return url
-
-
-
-
-
 
 
     def hard_shutdown(self, vm_uuid):

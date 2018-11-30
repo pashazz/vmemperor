@@ -1,10 +1,12 @@
+from typing import List
+
+from handlers.graphql.types.input.createvdi import NewVDI
 from .abstractvm import AbstractVM
 from xenadapter.helpers import use_logger
 import XenAPI
 from authentication import BasicAuthenticator
 import provision
 from .xenobjectdict import XenObjectDict
-
 
 from .os import OSChooser
 from exc import *
@@ -105,16 +107,16 @@ class VM (AbstractVM):
         return XenObjectDict({k: v for k, v in record.items() if k in keys})
 
 
-    @classmethod
-    def create(cls, insert_log_entry, auth, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, name_label ='', start=True, override_pv_args=None, iso=None,
-               username=None, password=None, partition=None, fullname=None, vcpus=1):
+
+    def create(self, insert_log_entry, provision_config, net_uuid,  ram_size,  mode, os_kind=None, ip=None, install_url=None, override_pv_args=None, iso=None,
+               username=None, password=None, hostname=None, partition=None, fullname=None, vcpus=1):
         '''1
         Creates a virtual machine and installs an OS
 
-        :param new_vm_uuid: Cloned template UUID (use clone_templ)
-        :param sr_uuid: Storage Repository UUID
+        :param insert_log_entry: A function of signature (uuid : str, state : str, message : str) -> None to insert log entries into task status
+        :param provision_config: For help see self.set_disks
         :param net_uuid: Network UUID
-        :param vdi_size: Size of disk
+        :param ram_size: RAM size in megabytes
         :param hostname: Host name
         :param os_kind: OS kind (used for automatic installation. Default: manual installation)
         :param ip: IP configuration. Default: auto configuration. Otherwise expects a tuple of the following format
@@ -128,75 +130,72 @@ class VM (AbstractVM):
         :param iso: ISO Image UUID. If specified, will be mounted
         :return: VM UUID
         '''
-        #new_vm_uuid = self.clone_tmpl(tmpl_uuid, name_label, os_kind)
-        cls.insert_log_entry = lambda self, *args, **kwargs: insert_log_entry(new_vm_uuid, *args, **kwargs)
-        vm = VM(auth, uuid=new_vm_uuid)
-        vm.install = True
-        vm.remove_tags('vmemperor')
-        if isinstance(auth, BasicAuthenticator):
-            vm.manage_actions('all',  user=auth.get_id())
+        self.insert_log_entry = lambda self, *args, **kwargs: insert_log_entry(self.uuid, *args, **kwargs)
+        self.install = True
+        self.remove_tags('vmemperor')
+        if isinstance(self.auth, BasicAuthenticator):
+            self.manage_actions('all',  user=self.auth.get_id())
 
-        vm.set_ram_size(ram_size)
-        vm.set_VCPUs_max(vcpus)
-        vm.set_VCPUs_at_startup(vcpus)
-        vm.set_disks(sr_uuid, vdi_size)
+        self.set_ram_size(ram_size)
+        self.set_VCPUs_max(vcpus)
+        self.set_VCPUs_at_startup(vcpus)
+        self.set_disks(provision_config)
         # After provision. manage disks actions
 
-        if isinstance(auth, BasicAuthenticator):
-            for vbd_ref in vm.get_VBDs():
+        if isinstance(self, BasicAuthenticator):
+            for vbd_ref in self.get_VBDs():
                 from .vbd import VBD
                 from .disk import VDI
 
-                vbd = VBD(auth=auth, ref=vbd_ref)
+                vbd = VBD(auth=self.auth, ref=vbd_ref)
                 if vbd.get_type() != 'Disk':
                     continue
-                vdi = VDI(auth=auth, ref=vbd.get_VDI())
-                vdi.manage_actions('all', user=auth.get_id())
+                vdi = VDI(auth=self.auth, ref=vbd.get_VDI())
+                vdi.manage_actions('all', user=self.auth.get_id())
 
 
-        vm.install_guest_tools()
+        self.install_guest_tools()
 
 
-        #self.connect_vm(new_vm_uuid, net_uuid, ip)
+
         if mode == 'pv':
-            vm.convert('pv')
+            self.convert('pv')
 
 
         if net_uuid:
             try:
                 from .network import Network
-                net = Network(auth, uuid=net_uuid)
+                net = Network(auth=self.auth, uuid=net_uuid)
             except XenAdapterAPIError as e:
-                insert_log_entry(new_vm_uuid, state="failed", message="Failed to connect VM to a network: %s" % e.message )
+                self.insert_log_entry(self=self, state="failed", message=f"Failed to connect VM to network {net_uuid}: {e.message}")
                 raise e
 
-            net.attach(vm)
+            net.attach(self)
         else:
             if os_kind:
-                auth.xen.log.warning("os_kind specified as {0}, but no network specified. The OS won't install".format(os_kind))
+                self.xen.log.warning(f"os_kind specified as {os_kind}, but no network specified. The OS won't install")
 
 
         if os_kind:
-            vm.os_detect(os_kind, ip, hostname, install_url, override_pv_args, fullname, username, password, partition)
+            self.os_detect(os_kind, ip, hostname, install_url, override_pv_args, fullname, username, password, partition)
 
         if iso:
             try:
                 from .disk import ISO
-                _iso = ISO(auth, uuid=iso)
-                _iso.attach(vm)
+                _iso = ISO(auth=self.auth, uuid=iso)
+                _iso.attach(self)
             except XenAdapterAPIError as e:
-                insert_log_entry(new_vm_uuid, state="failed",
-                                          message="Failed to mount ISO for VM: %s" % e.message)
+                self.insert_log_entry(self=self, state="failed", message=f"Failed to mount ISO for VM: {e.message}")
                 raise e
 
 
-        vm.os_install(install_url)
-        vm.convert(mode)
+        self.os_install(install_url)
+        self.convert(mode)
 
-        del vm.install
+        del self.install
         #subscribe to changefeed
 
-        return vm
+
 
 
     def set_memory(self, memory : int):
@@ -225,29 +224,26 @@ class VM (AbstractVM):
             try:
                 raise e
             except XenAPI.Failure as f:
-                self.insert_log_entry('failed', 'Failed to assign %s Mb of memory: %s' % (self.uuid, f.details))
-                raise XenAdapterAPIError(self.log, "Failed to set ram size: {0} bytes".format(bs), f.details)
+                self.insert_log_entry('failed', f'Failed to assign {mbs} Mb of memory: {f.details}')
+                raise XenAdapterAPIError(self.log, f"Failed to set ram size: {mbs} Mb", f.details)
 
 
 
 
     @use_logger
-    def set_disks(self, sr_uuid, sizes):
-        if type(sizes) != list:
-            sizes = [sizes]
-        for size in sizes:
+    def set_disks(self, provision_config : List[NewVDI]):
+        for entry in provision_config:
             try:
-
                 specs = provision.ProvisionSpec()
-                size = str(1048576 * int(size))
-                specs.disks.append(provision.Disk('0', size, sr_uuid, True))
+                size = str(1048576 * int(entry.size))
+                specs.disks.append(provision.Disk('0', size, entry.SR, True))
                 provision.setProvisionSpec(self.auth.xen.session, self.ref, specs)
             except Exception as e:
                 try:
                     raise e
                 except XenAPI.Failure as f:
-                    self.insert_log_entry('failed', 'Failed to assign provision specification: %s' % f.details)
-                    raise XenAdapterAPIError(self.log, "Failed to set disk: {0}".format(f.details))
+                    self.insert_log_entry('failed', f'Failed to assign provision specification: {f.details}')
+                    raise XenAdapterAPIError(self.log, f"Failed to set disk: {f.details}")
                 finally:
                     pass
                     #self.destroy_vm(vm_uuid, force=True)
@@ -255,20 +251,17 @@ class VM (AbstractVM):
 
         try:
             self.provision()
-
-
         except Exception as e:
-
             try:
                 raise e
             except XenAPI.Failure as f:
-                self.insert_log_entry('failed', 'Failed to perform provision: %s' % f.details)
-                raise XenAdapterAPIError(self.log, "Failed to provision: {0}".format(f.details))
+                self.insert_log_entry('failed', f'Failed to perform provision: {f.details}')
+                raise XenAdapterAPIError(self.log, f"Failed to provision: {f.details}")
             finally:
                 pass
                 #self.destroy_vm(vm_uuid, force=True)
         else:
-            self.insert_log_entry('provisioned',str(specs))
+            self.insert_log_entry(status='provisioned',message=str(specs))
 
 
     @use_logger
@@ -333,7 +326,7 @@ class VM (AbstractVM):
             try:
                 raise e
             except XenAPI.Failure as f:
-                self.insert_log_entry('failed', 'Failed to start OS installation:  %s' % f.details)
+                self.insert_log_entry('failed', f'Failed to start OS installation:  {f.details}')
                 raise XenAdapterAPIError(self.log, 'Failed to start OS installation', f.details)
 
     @use_logger
