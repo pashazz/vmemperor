@@ -5,7 +5,7 @@ import graphene
 from handlers.graphql.resolvers.diskimage import resolve_vdi
 
 def diskImageType():
-    from handlers.graphql.interfaces.diskimage import DiskImage
+    from xenadapter.disk import DiskImage
     return DiskImage
 
 

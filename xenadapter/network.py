@@ -1,3 +1,7 @@
+import graphene
+
+from handlers.graphql.resolvers.vm import resolve_vms, vmType
+from xenadapter.xenobject import GXenObjectType, GAclXenObject
 from .xenobject import *
 from xenadapter.helpers import use_logger
 
@@ -23,7 +27,6 @@ class VIF(XenObject, metaclass=XenObjectMeta):
         '''
         from rethinkdb_helper import CHECK_ER
         from .vm import VM
-        from .network import Network
         cls.create_db(db)
 
         if event['class'] in cls.EVENT_CLASSES:
@@ -48,21 +51,26 @@ class VIF(XenObject, metaclass=XenObjectMeta):
 
             if event['operation'] in ('mod', 'add'):
                 vm = VM(auth=auth, ref=record['VM'])
-                net = Network(auth=auth, ref=record['network'])
                 new_rec = {'uuid': vm.uuid, 'interfaces' : {record['device']:
-                {'VIF':event['ref'], 'network': net.uuid, 'attached': record['currently_attached'], 'MAC': record['MAC'], 'status': record['status_detail']}} }
+                {'VIF':event['ref'], 'network': record['network'], 'attached': record['currently_attached'], 'MAC': record['MAC'], 'status': record['status_detail']}} }
                 CHECK_ER(db.table(vm.db_table_name).insert(new_rec, conflict='update').run())
 
 
 
 
+class GNetwork(GXenObjectType):
+    class Meta:
+        interfaces = (GAclXenObject,)
+
+    VMs = graphene.List(vmType,resolver=resolve_vms)
+    other_config = graphene.JSONString()
 
 class Network(ACLXenObject):
     from .vm import VM
     api_class = "network"
     db_table_name = 'nets'
     EVENT_CLASSES = ['network']
-    PROCESS_KEYS =  ['name_label', 'name_description',  'uuid', 'ref', 'other_config']
+    GraphQLType = GNetwork
 
     def __init__(self, auth, uuid=None, ref=None):
         super().__init__(auth, uuid=uuid, ref=ref)
@@ -232,3 +240,4 @@ class Network(ACLXenObject):
 
         other_config['vmemperor'] = json.dumps(emperor)
         self.set_other_config(other_config)
+

@@ -1,7 +1,18 @@
-from xenadapter.xenobject import XenObject
+import graphene
+
+from handlers.graphql.resolvers.diskimage import resolve_vdis, vdiType
+from xenadapter.xenobject import XenObject, GXenObjectType, GXenObject
+
+class GSR(GXenObjectType):
+    class Meta:
+        interfaces = (GXenObject,)
+    PBDs = graphene.List(graphene.ID)
+    VDIs = graphene.Field(graphene.List(vdiType), resolver=resolve_vdis)
+    content_type = graphene.Field(graphene.String, required=True)
 
 class SR(XenObject):
     api_class = "SR"
     db_table_name = "srs"
     EVENT_CLASSES=["sr"]
-    PROCESS_KEYS = ["uuid", "name_label", "name_description", "content_type", "VDIs", "PBDs"]
+    GraphQLType = GSR
+

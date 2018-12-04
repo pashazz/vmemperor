@@ -1,5 +1,10 @@
+import graphene
+
+from handlers.graphql.resolvers.sr import resolve_sr, srType
+from handlers.graphql.resolvers.vm import resolve_vms, vmType
 from xenadapter.sr import SR
 from xenadapter.vbd import VBD
+from xenadapter.xenobject import GXenObject
 from .xenobject import *
 from xenadapter.helpers import use_logger
 from exc import *
@@ -104,12 +109,26 @@ class Attachable:
 
         return [vbd_to_vm_ref(ref) for ref in record['VBDs']]
 
+class DiskImage(GXenObject):
+    SR = graphene.Field(srType, resolver=resolve_sr)
+    VMs = graphene.List(vmType)
+    virtual_size = graphene.Field(graphene.Float, required=True)
+
+class GISO(GXenObjectType):
+    class Meta:
+        interfaces = (GAclXenObject, DiskImage)
+
+    from handlers.graphql.resolvers.vm import resolve_vms
+    VMs = graphene.Field(graphene.List(vmType), resolver=resolve_vms)
+    location = graphene.Field(graphene.String, required=True)
+
 
 class ISO(XenObject, Attachable):
     api_class = 'VDI'
     db_table_name = 'isos'
     EVENT_CLASSES = ['vdi']
-    PROCESS_KEYS = ['uuid', 'name_label', 'name_description', 'location', 'virtual_size', 'physical_utilization']
+    #PROCESS_KEYS = ['uuid', 'name_label', 'name_description', 'location', 'virtual_size', 'physical_utilization']
+    GraphQLType = GISO
 
     from .vm import VM
 
@@ -160,13 +179,19 @@ class ISO(XenObject, Attachable):
         self._detach(vm)
 
 
+class GVDI(GXenObjectType):
+    class Meta:
+        interfaces = (GAclXenObject, DiskImage)
+    VMs = graphene.Field(graphene.List(vmType), resolver=resolve_vms)
+
+
 
 class VDI(ACLXenObject, Attachable):
     api_class = 'VDI'
     db_table_name = 'vdis'
     EVENT_CLASSES = ['vdi']
-    PROCESS_KEYS = ['uuid', 'name_label', 'name_description', 'physical_utlilisation']
-    PROCESS_TYPED_KEYS = {'virtual_size': int}
+    GraphQLType = GVDI
+
     @classmethod
     def create(cls, auth, sr_uuid, size, name_label = None):
         """
@@ -268,4 +293,5 @@ class VDIorISO:
                 return VDI(auth, uuid, ref)
             else:
                 return None
+
 

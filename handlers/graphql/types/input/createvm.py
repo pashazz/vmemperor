@@ -4,7 +4,7 @@ import graphene
 import rethinkdb as r
 
 from handlers.graphql.resolvers import with_connection
-from handlers.graphql.resolvers.utils import with_authentication
+from authentication import with_authentication
 from handlers.graphql.types.input.createvdi import NewVDI
 from handlers.graphql.types.tasks.createvm import CreateVMTask
 from xenadapter.template import Template

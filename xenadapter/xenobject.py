@@ -1,9 +1,12 @@
 import XenAPI
 from exc import *
-from authentication import BasicAuthenticator, AdministratorAuthenticator
+from authentication import BasicAuthenticator, AdministratorAuthenticator, NotAuthenticatedException, \
+    with_authentication
 from tornado.concurrent import run_on_executor
 import traceback
 import rethinkdb as r
+
+from handlers.graphql.resolvers.utils import resolve_one, resolve_many, resolve_all
 from xenadapter.helpers import use_logger
 from .xenobjectdict import XenObjectDict
 import threading
@@ -43,8 +46,7 @@ class XenObjectMeta(type):
                     ret = dict_deep_convert(ret)
                 return ret
             except XenAPI.Failure as f:
-                raise XenAdapterAPIError(auth.xen.log, "Failed to execute static method %s::%s"
-                                         % (api_class, item ), f.details)
+                raise XenAdapterAPIError(auth.xen.log, f"Failed to execute static method {api_class}::{item}", f.details)
         return method
 
     def __init__(cls, what, bases=None, dict=None):
@@ -53,8 +55,29 @@ class XenObjectMeta(type):
         cls.db_ready.clear()
 
 
+class GXenObject(graphene.Interface):
+    name_label = graphene.Field(graphene.String, required=True, description="a human-readable name")
+    name_description = graphene.Field(graphene.String, required=True, description="a human-readable description")
+    ref = graphene.Field(graphene.ID, required=True, description="Unique constant identifier/object reference")
+    uuid = graphene.Field(graphene.ID, required=True, description="Unique session-dependent identifier/object reference")
+
+class GXenObjectType(graphene.ObjectType):
+    @classmethod
+    def get_type(cls, field_name: str):
+        type = cls._meta.fields[field_name].type
+        while True:
+            if not hasattr(type, "of_type"):
+                if hasattr(type, 'serialize'):
+                    return type
+                else:
+                    return graphene.ID # Complex objects represented in DB by their refs, i.e. unique string IDs
+            else:
+                type = type.of_type
+
+
 class XenObject(metaclass=XenObjectMeta):
     api_class = None
+    GraphQLType : GXenObjectType = None # Specify GraphQL type to access Rethinkdb cache
     REF_NULL = "OpaqueRef:NULL"
     db_table_name = ''
     EVENT_CLASSES=[]
@@ -110,6 +133,122 @@ class XenObject(metaclass=XenObjectMeta):
 
         self.access_prefix = 'vm-data/vmemperor/access'
 
+
+    @classmethod
+    def resolve_one(cls, field_name=None, index=None):
+        '''
+        Use this method to resolve one XenObject that appears in tables as its uuid under its name
+        :param field_name: root's field name to use (by default - this class' name)
+        :return resolver for one object that either gets one named argument uuid or
+        gets uuid from root's field named after XenObject class, e.g. for VM it will be
+        root.VM
+        :param index - table's index to use. OVERRIDE WITH CARE, internally we use refs as links between docs, so to use with linked field, call
+        resolve_one(index='ref'). Default is resolving via uuid, as uuid is a primary key there
+        :sa handlers/graphql/resolvers directory - they use index='ref' and load object classes in them to avoid circular dependencies
+        '''
+
+        if not field_name:
+            field_name = cls.__name__
+
+        from handlers.graphql.resolvers import with_connection
+        @with_connection
+        def resolver(root, info, **kwargs):
+            if 'uuid' in kwargs:
+                uuid = kwargs['uuid']
+            else:
+                uuid = getattr(root, field_name)
+            try:
+                obj = cls(uuid=uuid, auth=info.context.user_authenticator)
+            except AttributeError:
+                raise NotAuthenticatedException()
+
+            obj.check_access(action=None)
+
+            if index is None:
+                record = cls.db.table(cls.db_table_name).get(uuid).run()
+            else:
+                record = cls.db.table(cls.db_table_name).get_all(uuid, index=index).coerce_to('array').run()[0]
+
+            return cls.GraphQLType(**record)
+
+        return resolver
+
+    @classmethod
+    def resolve_many(cls,field_name=None, index=None):
+        '''
+           Use this method to many one XenObject that appears in tables as their  uuids under its name
+           :param cls: XenObject class
+           :param graphql_type: graphene type
+           :return resolver for many object that either gets one named argument uuids with list of uuids or
+           gets uuids from root's field named after XenObject class in plural form , e.g. for VM it will be
+           root.VMs
+
+           If user does not have access for one of these objects, returns None in its place
+           '''
+
+        if not field_name:
+            field_name = f'{cls.__name__}s'
+        from handlers.graphql.resolvers import with_connection
+        @with_connection
+        @with_authentication
+        def resolver(root, info, **kwargs):
+            if 'uuids' in kwargs:
+                uuids = kwargs['uuids']
+            else:
+                uuids = getattr(root, field_name)
+            if not index:
+                records = cls.db.table(cls.db_table_name).get_all(*uuids).run()
+            else:
+                records = cls.db.table(cls.db_table_name).get_all(*uuids, index=index).run()
+
+            def create_graphql_type(record):
+                try:
+                    obj = cls(uuid=record['uuid'], auth=info.context.user_authenticator)
+                except AttributeError:
+                    raise NotAuthenticatedException()
+                try:
+                    obj.check_access(action=None)
+                except:
+                    return None
+                return cls.GraphQLType(**record)
+
+            return [create_graphql_type(record) for record in records]
+
+        return resolver
+
+    @classmethod
+    def resolve_all(cls):
+        '''
+        Resolves all objects belonging to a user
+        :param cls:
+
+        :return:
+        '''
+        assert issubclass(cls.GraphQLType, GXenObjectType)
+        from handlers.graphql.resolvers import with_connection
+        @with_connection
+        @with_authentication
+        def resolver(root, info, **kwargs):
+            '''
+
+            :param root:
+            :param info:
+            :param kwargs: Optional keyword arguments for pagination: "page" and "page_size"
+
+            :return:
+            '''
+
+            query =  cls.db.table(cls.db_table_name).coerce_to('array')
+
+
+            if 'page' in kwargs:
+                page_size = kwargs['page_size']
+                query = query.slice((kwargs['page'] - 1) * page_size, page_size)
+
+            records = query.run()
+            return [cls.GraphQLType(**record) for record in records]
+
+        return resolver
     @classmethod
     def is_hidden(self, record):
         '''
@@ -199,8 +338,8 @@ class XenObject(metaclass=XenObjectMeta):
         :return: dict suitable for document-oriented DB
         : default: return record as-is, adding a 'ref' field with current opaque ref
         '''
-        if cls.PROCESS_KEYS:
-            new_record = {k:v for k,v in record.items() if k in cls.PROCESS_KEYS}
+        if cls.GraphQLType:
+            new_record = {k:cls.GraphQLType.get_type(k).serialize(v) for k,v in record.items() if k in cls.GraphQLType._meta.fields.keys()}
         else:
             new_record = record
 
@@ -268,11 +407,18 @@ class XenObject(metaclass=XenObjectMeta):
         return method
 
 
+class GAccessEntry(graphene.ObjectType):
+    access = graphene.List(graphene.String, required=True)
+    userid = graphene.String(required=True)
+
+class GAclXenObject(GXenObject):
+    access = graphene.List(GAccessEntry, required=True)
 
 
 
 class ACLXenObject(XenObject):
     VMEMPEROR_ACCESS_PREFIX = 'vm-data/vmemperor/access'
+    GraphQLType = GAclXenObject
 
     def get_access_path(self, username=None, is_group=False):
         '''
@@ -285,6 +431,48 @@ class ACLXenObject(XenObject):
 
     ALLOW_EMPTY_XENSTORE = False # Empty xenstore for some objects might treat them as for-all-by-default
 
+    @classmethod
+    def resolve_all(cls):
+        '''
+        Resolves all objects belonging to a user
+        :param cls:
+        :return:
+        '''
+
+        from handlers.graphql.resolvers import with_connection
+        @with_connection
+        def resolver(root, info, **kwargs):
+            '''
+
+            :param root:
+            :param info:
+            :param kwargs: Optional keyword arguments for pagination: "page" and "page_size"
+
+            :return:
+            '''
+            from constants import user_table_ready
+
+            auth = info.context.user_authenticator
+            if isinstance(auth, AdministratorAuthenticator):  # return all
+                query = \
+                    cls.db.table(cls.db_table_name).coerce_to('array')
+            else:
+                user_table_ready.wait()
+                user_id = auth.get_id()
+                entities = (f'users/{user_id}', 'any', *(f'groups/{group_id}' for group_id in auth.get_user_groups()))
+                query = \
+                    cls.db.table(f'{cls.db_table_name}_user').get_all(*entities, index='userid'). \
+                        pluck('uuid').coerce_to('array'). \
+                        merge(cls.db.table(cls.db_table_name).get(r.row['uuid']).without('uuid'))
+
+            if 'page' in kwargs:
+                page_size = kwargs['page_size']
+                query = query.slice((kwargs['page'] - 1) * page_size, page_size)
+
+            records = query.run()
+            return [cls.GraphQLType(**record) for record in records]
+
+        return resolver
     @classmethod
     def process_record(cls, auth, ref, record):
         '''
@@ -315,7 +503,7 @@ class ACLXenObject(XenObject):
             for k, v in filtered_iterator:
                 key_components = k[len(cls.VMEMPEROR_ACCESS_PREFIX) + 1:].split('/')
                 if key_components[0] == authenticator_name:
-                    yield {'userid': '%s/%s' % (key_components[1], key_components[2]), 'access': v.split(';')}
+                    yield {'userid': f'{key_components[1]}/{key_components[2]}', 'access': v.split(';')}
 
             else:
                 if cls.ALLOW_EMPTY_XENSTORE:
@@ -359,8 +547,8 @@ class ACLXenObject(XenObject):
                                                         f"on object {self} (no info on access rights) by {self.auth.get_id()}: {'requested action {action}' if action else ''}")
 
 
-        username = 'users/%s'  % self.auth.get_id()
-        groupnames = ['groups/%s' %  group for group in self.auth.get_user_groups()]
+        username = f'users/{self.auth.get_id()}'
+        groupnames = [f'groups/{group}' for group in self.auth.get_user_groups()]
         for item in access_info:
             if ((action in item['access'] or 'all' in item['access'])\
                     or (action is None and len(item['access']) > 0))and\
@@ -390,13 +578,10 @@ class ACLXenObject(XenObject):
             raise XenAdapterArgumentError(self.log, 'Specify user or group for XenObject::manage_actions')
 
 
-
-
         if user:
             real_name = self.get_access_path(user, False)
         elif group:
             real_name = self.get_access_path(group, True)
-
 
 
 
@@ -430,6 +615,5 @@ class ACLXenObject(XenObject):
         xenstore_data[real_name] = actions
 
         self.set_xenstore_data(xenstore_data)
-
 
 

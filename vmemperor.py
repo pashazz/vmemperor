@@ -11,7 +11,7 @@ from constants import logger, POSTINST_ROUTE, objects, user_table_ready, first_b
     xen_events_run, URL, ansible_pubkey, auth_class_name, playbooks, secrets
 import handlers.graphql.graphql_handler as gql_handler
 from handlers.rest.base import RESTHandler, BaseWSHandler, auth_required, admin_required
-from handlers.graphql import schema
+from handlers.graphql.root import schema
 from handlers.rest.createvm import CreateVM
 from rethinkdb_helper import CHECK_ER
 from quota import Quota

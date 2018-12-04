@@ -1,21 +1,7 @@
 import graphene
-from constants import user_table_ready
-from authentication import AdministratorAuthenticator
+
+from authentication import AdministratorAuthenticator, NotAuthenticatedException
 import rethinkdb as r
-
-class NotAuthenticatedException(Exception):
-    def __init__(self):
-        super().__init__("You are not authenticated")
-
-def with_authentication(method):
-    def decorator(root, info, *args, **kwargs):
-        if not hasattr(info.context, 'user_authenticator'):
-            raise NotAuthenticatedException()
-
-        return method(root, info, *args, **kwargs)
-    return decorator
-
-
 
 
 def resolve_one(cls, graphql_type, field_name=None, index=None):
@@ -123,7 +109,7 @@ def resolve_all(cls, graphql_type):
 
         :return:
         '''
-
+        from constants import user_table_ready
 
 
 

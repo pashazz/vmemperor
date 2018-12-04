@@ -5,16 +5,15 @@ from tornado.options import options
 from typing import Optional, List, Union
 
 def resolve_vdi(root, info, **args):
-    from ..types.vdi import VDI
-    from ..types.iso import ISO
+    from xenadapter.disk import VDI, ISO
     if not root:
         return None
     uuid = root.VDI
 
     if root.type == 'Disk':
-        return VDI.one()(root, info, uuid=uuid)
+        return ISO.resolve_one()(root, info, uuid=uuid)
     elif root.type == 'CD':
-        return ISO.one()(root, info, uuid=uuid)
+        return VDI.resolve_one()(root, info, uuid=uuid)
 
 def resolve_vdis(root, info, **args):
     '''
@@ -24,11 +23,13 @@ def resolve_vdis(root, info, **args):
     :param args:
     :return:
     '''
-    from ..types.vdi import VDI
-    from ..types.iso import ISO
+    from xenadapter.disk import VDI, ISO
     if root.content_type == 'iso':
-        return ISO.many(field_name='VDIs', index='ref')(root, info, **args)
+        return ISO.resolve_many(field_name='VDIs', index='ref')(root, info, **args)
     else:
-        return VDI.many(field_name='VDIs', index='ref')(root, info, **args)
+        return VDI.resolve_many(field_name='VDIs', index='ref')(root, info, **args)
 
 
+def vdiType():
+    from xenadapter.disk import DiskImage
+    return DiskImage

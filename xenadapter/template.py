@@ -1,15 +1,28 @@
+import graphene
+
+from xenadapter.xenobject import GXenObjectType, GAclXenObject
 from .abstractvm import AbstractVM
 from exc import *
 import XenAPI
 from .vm import VM
 from xenadapter.helpers import use_logger
 
+class GTemplate(GXenObjectType):
+
+
+    class Meta:
+        interfaces = (GAclXenObject,)
+
+    os_kind = graphene.Field(graphene.String, description="If a template supports auto-installation, here a distro name is provided")
+    hvm = graphene.Field(graphene.Boolean, required=True, description="True if this template works with hardware assisted virtualization")
 
 class Template(AbstractVM):
     ALLOW_EMPTY_XENSTORE = True
     VMEMPEROR_TEMPLATE_PREFIX = 'vm/data/vmemperor/template'
     db_table_name = 'tmpls'
-    PROCESS_KEYS = ['hvm', 'name_label', 'name_description', 'uuid']
+    GraphQLType = GTemplate
+
+
     @classmethod
     def filter_record(cls, record):
         return record['is_a_template']
@@ -81,4 +94,5 @@ class Template(AbstractVM):
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self.log, "Failed to {0} template: {1}".format(
                 'enable' if enable else 'disable', f.details))
+
 

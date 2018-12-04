@@ -147,3 +147,17 @@ class DummyAuth(BasicAuthenticator):
 
     def get_name(self):
         return self.name
+
+
+class NotAuthenticatedException(Exception):
+    def __init__(self):
+        super().__init__("You are not authenticated")
+
+
+def with_authentication(method):
+    def decorator(root, info, *args, **kwargs):
+        if not hasattr(info.context, 'user_authenticator'):
+            raise NotAuthenticatedException()
+
+        return method(root, info, *args, **kwargs)
+    return decorator
