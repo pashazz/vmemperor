@@ -14,7 +14,6 @@ class NetworkConfiguration(graphene.InputObjectType):
     ip = graphene.InputField(graphene.String, required=True)
     gateway = graphene.InputField(graphene.String, required=True)
     netmask = graphene.InputField(graphene.String, required=True)
-
     dns0 = graphene.InputField(graphene.String, required=True)
     dns1 = graphene.InputField(graphene.String)
 
@@ -28,12 +27,14 @@ class AutoInstall(graphene.InputObjectType):
     partition = graphene.InputField(graphene.String, required=True, description="Partition scheme (TODO)")
     static_ip_config  = graphene.InputField(NetworkConfiguration, description="Static IP configuration, if needed")
 
-def createvm(ctx, task_id, template, VCPUs, disks, ram, name_label, name_description, network, iso=None, install_params=None):
+def createvm(ctx, task_id, template, VCPUs, disks, ram, name_label, name_description, network, iso=None, install_params : AutoInstall=None):
+    from xenadapter.network import Network
+    from xenadapter.disk import ISO
     with ctx.conn:
+        auth = ctx.user_authenticator
 
 
-
-        tmpl = Template(ctx.user_authenticator, uuid=template)
+        tmpl = Template(auth, uuid=template)
         vm = tmpl.clone(name_label)
 
         ctx.set_task_status(
@@ -42,7 +43,12 @@ def createvm(ctx, task_id, template, VCPUs, disks, ram, name_label, name_descrip
         vm.create(
             insert_log_entry=lambda uuid, state, message: ctx.set_task_status(**CreateVMTask(id=task_id, uuid=uuid, state=state, message=message)),
             provision_config=disks,
-            ram_size=ram
+            ram_size=ram,
+            net=Network(auth=auth, uuid=network),
+            template=tmpl,
+            iso=ISO(auth=auth, uuid=iso) if iso else None,
+            hostname=install_params.hostname,
+            ip=install_params.static_ip_config,
 
         )
 

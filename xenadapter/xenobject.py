@@ -7,6 +7,7 @@ import traceback
 import rethinkdb as r
 
 from handlers.graphql.resolvers.utils import resolve_one, resolve_many, resolve_all
+from handlers.graphql.types.dicttype import ObjectType
 from xenadapter.helpers import use_logger
 from .xenobjectdict import XenObjectDict
 import threading
@@ -61,7 +62,7 @@ class GXenObject(graphene.Interface):
     ref = graphene.Field(graphene.ID, required=True, description="Unique constant identifier/object reference")
     uuid = graphene.Field(graphene.ID, required=True, description="Unique session-dependent identifier/object reference")
 
-class GXenObjectType(graphene.ObjectType):
+class GXenObjectType(ObjectType):
     @classmethod
     def get_type(cls, field_name: str):
         type = cls._meta.fields[field_name].type

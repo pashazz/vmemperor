@@ -167,27 +167,26 @@ class VM (AbstractVM):
 
 
 
-    def create(self, insert_log_entry, provision_config, net_uuid,  ram_size,  mode, os_kind=None, ip=None, install_url=None, override_pv_args=None, iso=None,
+    def create(self, insert_log_entry, provision_config, net,  ram_size,   template=None, ip=None, install_url=None, override_pv_args=None, iso=None,
                username=None, password=None, hostname=None, partition=None, fullname=None, vcpus=1):
-        '''1
+        '''
         Creates a virtual machine and installs an OS
 
         :param insert_log_entry: A function of signature (uuid : str, state : str, message : str) -> None to insert log entries into task status
         :param provision_config: For help see self.set_disks
-        :param net_uuid: Network UUID
+        :param net: Network object
         :param ram_size: RAM size in megabytes
         :param hostname: Host name
-        :param os_kind: OS kind (used for automatic installation. Default: manual installation)
-        :param ip: IP configuration. Default: auto configuration. Otherwise expects a tuple of the following format
-        (ip, mask, gateway, dns1(optional), dns2(optional))
+        :param template: Template object from which this VM was cloned
+        :param ip: IP configuration as in AutoInstall object. Default: auto configuration
         :param install_url: URL to install OS from
         :scenario_url: preseed/kickstart file url. It's Preseed for debian-based systems, Kickstart for RedHat. If os_kind is ubuntu and scenario_url is kickstart, provide a tuple (url, 'ks')
         :param mode: 'pv' or 'hvm'. Refer to http://xapi-project.github.io/xen-api/vm-lifecycle
         :param name_label: Name for created VM
         :param start: if True, start VM immediately
         :param override_pv_args: if specified, overrides all pv_args for Linux kernel
-        :param iso: ISO Image UUID. If specified, will be mounted
-        :return: VM UUID
+        :param iso: ISO Image object. If specified, will be mounted
+
         '''
         self.insert_log_entry = lambda self, *args, **kwargs: insert_log_entry(self.uuid, *args, **kwargs)
         self.install = True
@@ -217,42 +216,37 @@ class VM (AbstractVM):
 
 
 
-        if mode == 'pv':
+        if not template.hvm:
             self.convert('pv')
 
 
-        if net_uuid:
+        if net:
             try:
-                from .network import Network
-                net = Network(auth=self.auth, uuid=net_uuid)
+                net.attach(self)
             except XenAdapterAPIError as e:
-                self.insert_log_entry(self=self, state="failed", message=f"Failed to connect VM to network {net_uuid}: {e.message}")
+                self.insert_log_entry(self=self, state="failed", message=f"Failed to connect VM to network {net.uuid}: {e.message}")
                 raise e
 
-            net.attach(self)
         else:
-            if os_kind:
-                self.xen.log.warning(f"os_kind specified as {os_kind}, but no network specified. The OS won't install")
+            if template.os_kind:
+                self.xen.log.warning(f"os_kind specified as {template.os_kind}, but no network specified. The OS won't install")
 
 
-        if os_kind:
-            self.os_detect(os_kind, ip, hostname, install_url, override_pv_args, fullname, username, password, partition)
+        if template.os_kind:
+            self.os_detect(template.os_kind, ip, hostname, install_url, override_pv_args, fullname, username, password, partition)
 
         if iso:
             try:
-                from .disk import ISO
-                _iso = ISO(auth=self.auth, uuid=iso)
-                _iso.attach(self)
+                iso.attach(self)
             except XenAdapterAPIError as e:
                 self.insert_log_entry(self=self, state="failed", message=f"Failed to mount ISO for VM: {e.message}")
                 raise e
 
 
         self.os_install(install_url)
-        self.convert(mode)
+        #self.convert(mode)
 
         del self.install
-        #subscribe to changefeed
 
 
 
@@ -324,11 +318,11 @@ class VM (AbstractVM):
 
 
     @use_logger
-    def os_detect(self, os_kind, net_tuple, hostname,  install_url,  override_pv_args, fullname, username, password, partition):
+    def os_detect(self, os_kind, net_conf, hostname, install_url, override_pv_args, fullname, username, password, partition):
         '''
         call only during install
         :param os_kind:
-        :param ip:
+        :param net_conf: NetworkConfiguration object
         :param hostname:
         :param scenario_url:
         :param override_pv_args:
@@ -342,8 +336,8 @@ class VM (AbstractVM):
 
         if os:
 
-            if net_tuple:
-                os.set_network_parameters(*net_tuple)
+            if net_conf:
+                os.set_network_parameters(**net_conf)
 
             os.set_hostname(hostname)
 

@@ -81,9 +81,9 @@ class GenericOS:
     def set_hostname(self, hostname):
         self.hostname = hostname
 
-    def set_network_parameters(self, ip=None, gw=None, netmask=None, dns0=None, dns1=None):
+    def set_network_parameters(self, ip=None, gateway=None, netmask=None, dns0=None, dns1=None):
         self.ip = ip
-        self.gateway = gw
+        self.gateway = gateway
         self.netmask = netmask
         self.dns0 = dns0
         self.dns1 = dns1
