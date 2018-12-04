@@ -66,6 +66,25 @@ class GXenObjectType(graphene.ObjectType):
     def get_type(cls, field_name: str):
         type = cls._meta.fields[field_name].type
         while True:
+            if isinstance(type, graphene.List):
+                class ListSerializer:
+                    def __init__(self):
+                        self.type = type.of_type
+                        while True:
+                            if not hasattr(self.type, 'of_type'):
+                                if hasattr(self.type, 'serialize'):
+                                    break
+                                else:
+                                    self.type = graphene.ID
+                            else:
+                                self.type = self.type.of_type
+
+                    def serialize(self, value):
+                        return [self.type.serialize(item) for item in value]
+
+                return ListSerializer()
+
+
             if not hasattr(type, "of_type"):
                 if hasattr(type, 'serialize'):
                     return type
@@ -197,9 +216,9 @@ class XenObject(metaclass=XenObjectMeta):
             else:
                 uuids = getattr(root, field_name)
             if not index:
-                records = cls.db.table(cls.db_table_name).get_all(*uuids).run()
+                records = cls.db.table(cls.db_table_name).get_all(*uuids).coerce_to('array').run()
             else:
-                records = cls.db.table(cls.db_table_name).get_all(*uuids, index=index).run()
+                records = cls.db.table(cls.db_table_name).get_all(*uuids, index=index).coerce_to('array').run()
 
             def create_graphql_type(record):
                 try:
@@ -379,11 +398,32 @@ class XenObject(metaclass=XenObjectMeta):
     def __getattr__(self, name):
         api = getattr(self.xen.api, self.api_class)
         if name == 'uuid': #ленивое вычисление uuid по ref
-            self.uuid = api.get_uuid(self.ref)
+            if self.db_table_name:
+                try:
+                    self.uuid = self.db.table(self.db_table_name).get_all(self.ref, index='ref').pluck('uuid').coerce_to('array').run()[0]['uuid']
+                except IndexError: # this object is filtered out by DB cache (i.e. for VM can be filtered for being a control domain)
+                    self.uuid = api.get_uuid() # no error -> uuid exists
+                    self.db_table_name = "" # No DB caching from now on
+            else:
+                self.uuid = api.get_uuid(self.ref)
+
             return self.uuid
         elif name == 'ref': #ленивое вычисление ref по uuid
-            self.ref = api.get_by_uuid(self.uuid)
+            if self.db_table_name:
+                self.ref = self.db.table(self.db_table_name).get(self.uuid).pluck('ref').run()['ref']
+                if not self.ref:
+                    self.ref = api.get_by_uuid(self.uuid)
+                    self.db_table_name = ""
+            else:
+                self.ref = api.get_by_uuid(self.uuid)
             return self.ref
+        if self.GraphQLType: #возьми из базы
+            if name in self.GraphQLType._meta.fields:
+                return self.db.table(self.db_table_name).get(self.uuid).pluck(name).run()[name]
+
+
+
+
 
 
         if name.startswith('async_'):
@@ -418,7 +458,6 @@ class GAclXenObject(GXenObject):
 
 class ACLXenObject(XenObject):
     VMEMPEROR_ACCESS_PREFIX = 'vm-data/vmemperor/access'
-    GraphQLType = GAclXenObject
 
     def get_access_path(self, username=None, is_group=False):
         '''
