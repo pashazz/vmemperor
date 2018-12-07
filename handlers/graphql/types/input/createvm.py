@@ -47,8 +47,15 @@ def createvm(ctx, task_id, template, VCPUs, disks, ram, name_label, name_descrip
             net=Network(auth=auth, uuid=network),
             template=tmpl,
             iso=ISO(auth=auth, uuid=iso) if iso else None,
-            hostname=install_params.hostname,
-            ip=install_params.static_ip_config,
+            hostname=install_params.hostname if install_params else None,
+            ip=install_params.static_ip_config if install_params else None,
+            install_url=install_params.mirror_url if install_params else None,
+            username=install_params.username if install_params else None,
+            password=install_params.password if install_params else None,
+            partition=install_params.partition if install_params else None,
+            fullname=install_params.fullname if install_params else None,
+            vcpus = VCPUs,
+
 
         )
 

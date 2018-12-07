@@ -41,7 +41,7 @@ Warning: You must expose both frontend and API ports for remote desktop and post
 4. Open frontend at http://localhost:3000 (if no VMs are shown you probably should re-login)
 
 ## How to configure
-  0. Ensure at least Python 3.6 on your host machine
+  0. Ensure at least Python 3.7 on your host machine
   1. Set Up XenServer and provide XenServer URL as `url` config parameter
   2. [Set up RethinkDB](https://www.rethinkdb.com/docs/start-on-startup/). Don't forget `bind=127.0.0.1`
   3. Install ansible in order to use automation benefits

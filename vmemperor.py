@@ -122,26 +122,12 @@ different users should see different info (i.e. only vms created by that user)
 
 
 views should return info in json format
-errors should be returned in next format: {'status': 'error', 'details': string, 'reason': string}
-
 """
-
-
-class Test(RESTHandler):
-
-    @run_on_executor
-    def heavy_task(self):
-        return {'status': 'ok'}
-
-    @gen.coroutine
-    def get(self):
-        res = yield self.heavy_task()
-        self.write(json.dumps(res))
 
 
 class AdminAuth(RESTHandler):
     def initialize(self, pool_executor, authenticator):
-        super().initialize(pool_executor)
+        super().initialize(pool_executor=pool_executor)
         self.user_auth = authenticator
 
     def post(self):
@@ -1570,14 +1556,15 @@ class AutoInstall(RESTHandler):
         :param os_kind:
         :return:
         '''
+        filename = None
         if os_kind == 'test':
             self.render("templates/installation-scenarios/test.cfg")
             return
         hostname = self.get_argument('hostname', default='xen_vm')
         username = self.get_argument('username', default='')
-        password = self.get_argument('password')
-        mirror_url = self.get_argument('mirror_url')
-        fullname = self.get_argument('fullname')
+        password = self.get_argument('password', default='')
+        mirror_url = self.get_argument('mirror_url', default='')
+        fullname = self.get_argument('fullname', default='')
         ip = self.get_argument('ip', default='')
         gateway = self.get_argument('gateway', default='')
         netmask = self.get_argument('netmask', default='')
@@ -1629,7 +1616,7 @@ class AutoInstall(RESTHandler):
         if not filename:
             raise ValueError("OS {0} doesn't support autoinstallation".format(os_kind))
         # filename = 'raid10.cfg'
-        self.render("templates/installation-scenarios/{0}".format(filename), hostname=hostname, username=username,
+        self.render(f"templates/installation-scenarios/{filename}", hostname=hostname, username=username,
                     fullname=fullname, password=password, mirror_url=mirror_url, mirror_path=mirror_path,
                     ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, partition=partition, pubkey=pubkey,
                     postinst=URL + POSTINST_ROUTE + "?" + urlencode({'os': 'debian'}, doseq=True)
@@ -1787,21 +1774,17 @@ def make_app(executor, auth_class=None, debug=False):
         if not auth_class:
             auth_class = d.load_class(class_base=BasicAuthenticator, module=module)[0]
 
-    classes = [auth_class, Test, AutoInstall, ConsoleHandler]
-
     settings = {
         "cookie_secret": "SADFccadaeqw221fdssdvxccvsdf",
         "login_url": "/login",
         "debug": debug
     }
-    for cls in classes:
-        cls.debug = debug
+
 
     app = tornado.web.Application([
 
         (r"/login", AuthHandler, dict(pool_executor=executor, authenticator=auth_class)),
         (r"/logout", LogOut, dict(pool_executor=executor)),
-        (r'/test', Test, dict(pool_executor=executor)),
         (XenAdapter.AUTOINSTALL_PREFIX + r'/([^/]+)', AutoInstall, dict(pool_executor=executor)),
         (POSTINST_ROUTE + r'.*', Postinst, dict(pool_executor=executor)),
         (r'/console.*', ConsoleHandler, dict(pool_executor=executor)),

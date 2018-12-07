@@ -137,19 +137,13 @@ class VM (AbstractVM):
         Creates a (shortened) dict record from long XenServer record. If no record could be created, return false
         :param record:
         :return: record for DB
+        interfaces are filled in network.py
+
         '''
         from xenadapter.network import VIF, Network
         new_rec = super().process_record(auth, ref, record)
         new_rec['interfaces'] = {}
         new_rec['disks'] = {}
-        #for vbd in record['VBDs']:
-        #    vdi_ref = auth.xen.api.VBD.get_VDI(vbd)
-        #    try:
-        #        vdi_uuid = auth.xen.api.VDI.get_uuid(vdi_ref)
-        #        new_rec['disks'].append(vdi_uuid)
-        #    except XenAPI.Failure as f:
-        #        if f.details[1] != 'VDI':
-        #            raise f
         return new_rec
 
     @classmethod
@@ -188,7 +182,7 @@ class VM (AbstractVM):
         :param iso: ISO Image object. If specified, will be mounted
 
         '''
-        self.insert_log_entry = lambda self, *args, **kwargs: insert_log_entry(self.uuid, *args, **kwargs)
+        self.insert_log_entry = lambda *args, **kwargs: insert_log_entry(self.uuid, *args, **kwargs)
         self.install = True
         self.remove_tags('vmemperor')
         if isinstance(self.auth, BasicAuthenticator):
@@ -277,7 +271,7 @@ class VM (AbstractVM):
             try:
                 raise e
             except XenAPI.Failure as f:
-                self.insert_log_entry('failed', f'Failed to assign {mbs} Mb of memory: {f.details}')
+                self.insert_log_entry(state='failed',message= f'Failed to assign {mbs} Mb of memory: {f.details}')
                 raise XenAdapterAPIError(self.log, f"Failed to set ram size: {mbs} Mb", f.details)
 
 
@@ -285,21 +279,27 @@ class VM (AbstractVM):
 
     @use_logger
     def set_disks(self, provision_config : List[NewVDI]):
+        from xenadapter.vbd import VBD
+        from xenadapter.disk import VDIorISO
+        from xenadapter.disk import VDI
+        i = 0
+        specs = provision.ProvisionSpec()
         for entry in provision_config:
+            size = str(1048576 * int(entry.size))
+            specs.disks.append(provision.Disk(f'{i}', size, entry.SR, True))
+            i += 1
+        try:
+            provision.setProvisionSpec(self.auth.xen.session, self.ref, specs)
+        except Exception as e:
             try:
-                specs = provision.ProvisionSpec()
-                size = str(1048576 * int(entry.size))
-                specs.disks.append(provision.Disk('0', size, entry.SR, True))
-                provision.setProvisionSpec(self.auth.xen.session, self.ref, specs)
-            except Exception as e:
-                try:
-                    raise e
-                except XenAPI.Failure as f:
-                    self.insert_log_entry('failed', f'Failed to assign provision specification: {f.details}')
-                    raise XenAdapterAPIError(self.log, f"Failed to set disk: {f.details}")
-                finally:
-                    pass
-                    #self.destroy_vm(vm_uuid, force=True)
+                raise e
+            except XenAPI.Failure as f:
+                msg = f'Failed to assign provision specification: {f.details}'
+                self.insert_log_entry(state='failed', message=msg)
+                raise XenAdapterAPIError(self.log, msg)
+            finally:
+                pass
+                #self.destroy_vm(vm_uuid, force=True)
 
 
         try:
@@ -308,13 +308,20 @@ class VM (AbstractVM):
             try:
                 raise e
             except XenAPI.Failure as f:
-                self.insert_log_entry('failed', f'Failed to perform provision: {f.details}')
+                self.insert_log_entry(state='failed', message=f'Failed to perform provision: {f.details}')
                 raise XenAdapterAPIError(self.log, f"Failed to provision: {f.details}")
             finally:
                 pass
                 #self.destroy_vm(vm_uuid, force=True)
         else:
-            self.insert_log_entry(status='provisioned',message=str(specs))
+            self.insert_log_entry(state='provisioned',message=str(specs))
+
+            for item in self.get_VBDs():
+                vbd = VBD(auth=self.auth, ref=item)
+                vdi = VDIorISO(self.auth, ref=vbd.get_VDI())
+                if isinstance(vdi, VDI):
+                    vdi.set_name_description(f"Created by VMEmperor for VM {self.uuid}")
+
 
 
     @use_logger

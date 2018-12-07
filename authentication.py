@@ -153,6 +153,9 @@ class NotAuthenticatedException(Exception):
     def __init__(self):
         super().__init__("You are not authenticated")
 
+class NotAuthenticatedAsAdminException(Exception):
+    def __init__(self):
+        super().__init__("You are not authenticated as administrator")
 
 def with_authentication(method):
     def decorator(root, info, *args, **kwargs):
@@ -161,3 +164,12 @@ def with_authentication(method):
 
         return method(root, info, *args, **kwargs)
     return decorator
+
+def with_admin_authentication(method):
+    def decorator(root, info, *args, **kwargs):
+        if not hasattr(info.context, 'user_authenticator'):
+            raise NotAuthenticatedException()
+
+        return method(root, info, *args, **kwargs)
+    return decorator
+

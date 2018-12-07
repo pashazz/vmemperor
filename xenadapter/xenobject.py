@@ -5,7 +5,7 @@ from authentication import BasicAuthenticator, AdministratorAuthenticator, NotAu
 from tornado.concurrent import run_on_executor
 import traceback
 import rethinkdb as r
-
+from typing import List, Dict
 from handlers.graphql.resolvers.utils import resolve_one, resolve_many, resolve_all
 from handlers.graphql.types.dicttype import ObjectType
 from xenadapter.helpers import use_logger
@@ -101,10 +101,9 @@ class XenObject(metaclass=XenObjectMeta):
     REF_NULL = "OpaqueRef:NULL"
     db_table_name = ''
     EVENT_CLASSES=[]
-    PROCESS_KEYS=[]
-    PROCESS_TYPED_KEYS = {}
     _db_created = False
     db = None
+    FAIL_ON_NON_EXISTENCE = True # Fail if object does not exist in cache database. Usable if you know for sure that filter_record is always true
 
 
     def __str__(self):
@@ -118,7 +117,6 @@ class XenObject(metaclass=XenObjectMeta):
         :param uuid: object uuid
         :param ref: object ref or object
         '''
-        '''Set  self.api to Xen object class name before calling this'''
         self.auth = auth
         # if not isinstance(xen, XenAdapter):
         #          raise AttributeError("No XenAdapter specified")
@@ -136,9 +134,6 @@ class XenObject(metaclass=XenObjectMeta):
             except XenAPI.Failure as f:
                 raise  XenAdapterAPIError(auth.xen.log,
                                           f"Failed to initialize object of type {self.__class__.__name__} with UUID {self.uuid}",f.details)
-
-
-
         elif ref:
             if isinstance(ref, str):
                 self.ref = ref
@@ -269,13 +264,6 @@ class XenObject(metaclass=XenObjectMeta):
             return [cls.GraphQLType(**record) for record in records]
 
         return resolver
-    @classmethod
-    def is_hidden(self, record):
-        '''
-        Return true if this object is not supposed to be cached to a DB even if filter_record returns true
-        :return:
-        '''
-        return False
 
 
     def check_access(self,  action):
@@ -305,9 +293,6 @@ class XenObject(metaclass=XenObjectMeta):
 
             record = event['snapshot']
             if not cls.filter_record(record):
-                return
-            if cls.is_hidden(record):
-                CHECK_ER(db.table(cls.db_table_name).get_all(event['ref'], index='ref').delete().run())
                 return
 
             if event['operation'] in ('mod', 'add'):
@@ -364,9 +349,6 @@ class XenObject(metaclass=XenObjectMeta):
             new_record = record
 
         new_record['ref'] = ref
-        if cls.PROCESS_TYPED_KEYS:
-            for k, v in cls.PROCESS_TYPED_KEYS.items():
-                new_record[k] = v(record[k])
 
 
 
@@ -375,7 +357,7 @@ class XenObject(metaclass=XenObjectMeta):
     @classmethod
     def filter_record(cls, record):
         '''
-        Used by get_all_records (my implementation)
+        Returns true if record is suitable for a class
         :param record: record from get_all_records (pure XenAPI method)
         :return: true if record is suitable for this class
         '''
@@ -399,22 +381,35 @@ class XenObject(metaclass=XenObjectMeta):
     def __getattr__(self, name):
         api = getattr(self.xen.api, self.api_class)
         if name == 'uuid': #ленивое вычисление uuid по ref
+            def fallback():
+                self.uuid = api.get_uuid(self.ref)
+                self.db_table_name = ""
             if self.db_table_name:
                 try:
                     self.uuid = self.db.table(self.db_table_name).get_all(self.ref, index='ref').pluck('uuid').coerce_to('array').run()[0]['uuid']
-                except IndexError: # this object is filtered out by DB cache (i.e. for VM can be filtered for being a control domain)
-                    self.uuid = api.get_uuid() # no error -> uuid exists
-                    self.db_table_name = "" # No DB caching from now on
+                except IndexError as e: # this object is filtered out by DB cache (i.e. for VM can be filtered for being a control domain)
+                    if not self.FAIL_ON_NON_EXISTENCE:
+                        fallback()
+                    else:
+                        raise e
             else:
                 self.uuid = api.get_uuid(self.ref)
 
             return self.uuid
         elif name == 'ref': #ленивое вычисление ref по uuid
+            def fallback():
+                self.ref = api.get_by_uuid(self.uuid)
+                self.db_table_name = ""
             if self.db_table_name:
-                self.ref = self.db.table(self.db_table_name).get(self.uuid).pluck('ref').run()['ref']
+                try:
+                    self.ref = self.db.table(self.db_table_name).get(self.uuid).pluck('ref').run()['ref']
+                except r.ReqlNonExistenceError as e:
+                    if not self.FAIL_ON_NON_EXISTENCE:
+                        fallback()
+                    else:
+                        raise e
                 if not self.ref:
-                    self.ref = api.get_by_uuid(self.uuid)
-                    self.db_table_name = ""
+                    fallback()
             else:
                 self.ref = api.get_by_uuid(self.uuid)
             return self.ref
@@ -428,8 +423,8 @@ class XenObject(metaclass=XenObjectMeta):
 
 
         if name.startswith('async_'):
-            async = getattr(self.xen.api, 'Async')
-            api = getattr(async, self.api_class)
+            async_method = getattr(self.xen.api, 'Async')
+            api = getattr(async_method, self.api_class)
             name = name[6:]
 
 
@@ -527,7 +522,7 @@ class ACLXenObject(XenObject):
         return new_rec
 
     @classmethod
-    def get_access_data(cls, record, authenticator_name):
+    def get_access_data(cls, record, authenticator_name) -> List[Dict]:
         '''
         Obtain access data
         :param record:

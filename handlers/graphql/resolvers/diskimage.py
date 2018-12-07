@@ -8,12 +8,11 @@ def resolve_vdi(root, info, **args):
     from xenadapter.disk import VDI, ISO
     if not root:
         return None
-    uuid = root.VDI
 
     if root.type == 'Disk':
-        return ISO.resolve_one()(root, info, uuid=uuid)
+        return ISO.resolve_one(index='ref', field_name='VDI')(root, info)
     elif root.type == 'CD':
-        return VDI.resolve_one()(root, info, uuid=uuid)
+        return VDI.resolve_one(index='ref', field_name='VDI')(root, info)
 
 def resolve_vdis(root, info, **args):
     '''

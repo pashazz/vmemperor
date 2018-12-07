@@ -7,7 +7,7 @@ ADD . /app
 ENV DOCKER True
 
 RUN apt update && apt install -y \
-    python3 python3-pip wget gdebi-core git
+    python3.7 python3.7-pip wget gdebi-core git
 RUN  apt-get update \
 &&  apt-get install -y software-properties-common \
 &&  apt-add-repository ppa:ansible/ansible \

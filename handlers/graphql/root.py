@@ -13,6 +13,8 @@ from xenadapter.sr import SR, GSR
 from xenadapter.vm import VM, GVM
 from xenadapter.network import Network, GNetwork
 
+from handlers.graphql.types.input.template import TemplateMutation
+
 class QueryRoot(ObjectType):
 
     vms = graphene.List(GVM, required=True, resolver=VM.resolve_all(), description="All VMs available to user")
@@ -39,7 +41,9 @@ class QueryRoot(ObjectType):
 
 
 class MutationRoot(ObjectType):
-    create_VM = CreateVM.Field()
+    create_VM = CreateVM.Field(description="Create a new VM")
+    template = TemplateMutation.Field(description="Edit template options")
+
 
 
 schema = Schema(query=QueryRoot, mutation=MutationRoot, types=[GISO, GVDI])
