@@ -59,7 +59,7 @@ class Quota:
         :return:
         '''
         import rethinkdb as r
-        if isinstance(self.auth, AdministratorAuthenticator):
+        if self.auth.is_admin():
             if userid:
                 data = self.pool.db.table(Pool.quotas_table_name).get(userid)\
                     .merge({'storage_usage': self.pool.db.table('vdis_user').merge(lambda rec: {'virtual_size': self.pool.db.table('vdis').get(rec['uuid'])['virtual_size']})\

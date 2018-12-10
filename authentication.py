@@ -63,6 +63,13 @@ class Authentication(metaclass=ABCMeta):
         '''
         return
 
+    @abstractmethod
+    def is_admin(self) -> bool:
+        '''
+        Checks if this user is an administrator
+        :return:
+        '''
+        ...
 
 
 
@@ -80,10 +87,11 @@ class BasicAuthenticator:
     def get_user_groups(self):
         return {}
 
+    def is_admin(self):
+        return False
 
 
 class AdministratorAuthenticator(BasicAuthenticator):
-    # TODO Implement check_credentials
 
     def __init__(self, user_auth: type):
         self.auth = False
@@ -115,8 +123,8 @@ class AdministratorAuthenticator(BasicAuthenticator):
     def class_name(self):
         return self.user_auth.__name__
 
-
-
+    def is_admin(self):
+        return True
 
 
 

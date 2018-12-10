@@ -560,7 +560,7 @@ class ACLXenObject(XenObject):
         Implementation details:
         looks for self.db_table_name and then in db to table $(self.db_table_name)_access
         '''
-        if issubclass(self.auth.__class__, AdministratorAuthenticator):
+        if self.auth.is_admin():
             return True # admin can do it all
 
         self.log.info(

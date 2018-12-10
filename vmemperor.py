@@ -283,24 +283,18 @@ class VMList(BaseWSHandler):
                 # Get all changes from VMS table (only changes, not removals) and mark them as 'state' changes
                 # Plus get all initial values and changes from vms_user table and mark them as 'access' changes
                 #
+                groups = [f'groups/{group}' for group in self.user_authenticator.get_user_groups()]
                 self.changes_query = self.db.table('vms').changes(include_types=True).filter(
                     r.row['type'].eq(r.expr('change')).or_(r.row['type'].eq('remove'))) \
                     .union(
-                    self.db.table('vms_user').get_all('users/%s' % userid, index='userid').without('id').
+                    self.db.table('vms_user').get_all(f'users/{userid}', *groups,
+                                                      index='userid').without('id').
                         changes(include_types=True, include_initial=True).
                         merge(r.branch((r.row['type'] == 'initial') | (r.row['type'] == 'add'),
                                        self.db.table('vms').get(r.row['new_val']['uuid']),
                                        {})))
 
-                for group in self.user_authenticator.get_user_groups():
-                    group = str(group)
 
-                    self.changes_query = self.changes_query.union(
-                        self.db.table('vms_user').get_all('groups/%s' % group, index='userid')
-                        .without('id').changes(include_types=True, include_initial=True)
-                        .merge(r.branch((r.row['type'] == 'initial') | (r.row['type'] == 'add'),
-                                        self.db.table('vms').get(r.row['new_val']['uuid']),
-                                        {})))
 
             ioloop = tornado.ioloop.IOLoop.instance()
             ioloop.run_in_executor(self.executor, self.items_changes)
@@ -336,7 +330,7 @@ class VMList(BaseWSHandler):
 
                     return False
 
-                self.log.debug('Changes query: {0}'.format(self.changes_query))
+                #self.log.debug('Changes query: {0}'.format(self.changes_query))
                 create_cursor()
                 self.cur = cur
 
