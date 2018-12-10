@@ -231,9 +231,7 @@ class CreateVM(RESTHandler):
 
         conn = ReDBConnection().get_connection()
         with conn:
-            self.log.debug("Set access rights for VM disks")
             db = r.db(opts.database)
-            disks = db.table('vms').get(self.uuid).pluck('disks').run()['disks']
 
             self.log.info("Finalizing installation of VM %s" % self.uuid)
 

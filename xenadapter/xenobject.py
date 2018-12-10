@@ -103,7 +103,7 @@ class XenObject(metaclass=XenObjectMeta):
     EVENT_CLASSES=[]
     _db_created = False
     db = None
-    FAIL_ON_NON_EXISTENCE = True # Fail if object does not exist in cache database. Usable if you know for sure that filter_record is always true
+    FAIL_ON_NON_EXISTENCE = False # Fail if object does not exist in cache database. Usable if you know for sure that filter_record is always true
 
 
     def __str__(self):

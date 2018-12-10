@@ -7,8 +7,6 @@ import constants
 from connman import ReDBConnection
 import subprocess
 
-from constants import logger, POSTINST_ROUTE, objects, user_table_ready, first_batch_of_events, need_exit, \
-    xen_events_run, URL, ansible_pubkey, auth_class_name, playbooks, secrets
 import handlers.graphql.graphql_handler as gql_handler
 from handlers.rest.base import RESTHandler, BaseWSHandler, auth_required, admin_required
 from handlers.graphql.root import schema
@@ -161,7 +159,7 @@ class Playbooks(RESTHandler):
     @auth_required
     def get(self):
 
-        _playbooks = playbooks.values()
+        _playbooks = constants.playbooks.values()
         if not isinstance(self.user_authenticator, AdministratorAuthenticator):
             _playbooks = filter(lambda playbook: not playbook.get_inventory(), _playbooks)
         _playbooks = list(_playbooks)
@@ -199,7 +197,7 @@ class SetQuota(RESTHandler):
         userid = self.get_argument('userid')
         name = self.get_argument('name')
         value = self.get_argument('value')
-        quota = Quota(self.user_authenticator, auth_class_name)
+        quota = Quota(self.user_authenticator, constants.auth_class_name)
         if name == 'storage':
             quota.set_storage_quota(userid, int(value))
 
@@ -210,13 +208,13 @@ class GetQuota(RESTHandler):
     def post(self):
         userid = self.get_argument('userid', None)
         with self.conn:
-            quota = Quota(self.user_authenticator, auth_class_name)
+            quota = Quota(self.user_authenticator, constants.auth_class_name)
             self.write(json.dumps(quota.get_storage_usage(userid)))
 
     @auth_required
     def get(self):
         with self.conn:
-            quota = Quota(self.user_authenticator, auth_class_name)
+            quota = Quota(self.user_authenticator, constants.auth_class_name)
             self.write(json.dumps(quota.get_storage_usage()))
 
 
@@ -226,7 +224,7 @@ class ResourceList(RESTHandler):
     def get(self):
         with self.conn:
             db = r.db(opts.database)
-            user_table_ready.wait()
+            constants.user_table_ready.wait()
             try:
                 if isinstance(self.user_authenticator, AdministratorAuthenticator):
                     query = db.table(self.table).coerce_to('array')
@@ -278,7 +276,7 @@ class VMList(BaseWSHandler):
                 self.changes_query = db.table('vms').changes(include_types=True, include_initial=True)
 
             else:
-                user_table_ready.wait()
+                constants.user_table_ready.wait()
                 userid = str(self.user_authenticator.get_id())
                 # Get all changes from VMS table (only changes, not removals) and mark them as 'state' changes
                 # Plus get all initial values and changes from vms_user table and mark them as 'access' changes
@@ -338,12 +336,12 @@ class VMList(BaseWSHandler):
                     try:
                         change = cur.next(1)
                     except (ReqlTimeoutError, DefaultCursorEmpty) as e:  # Monitor if we need to exit
-                        if not self.ws_connection or need_exit.is_set():
+                        if not self.ws_connection or constants.need_exit.is_set():
                             return
                         else:
                             continue
 
-                    if not self.ws_connection or need_exit.is_set():
+                    if not self.ws_connection or constants.need_exit.is_set():
                         return
 
                     if isinstance(self.user_authenticator, AdministratorAuthenticator):
@@ -608,7 +606,7 @@ class ExecutePlaybook(RESTHandler):
                     task['returncode'] = proc.returncode
                     self.op.set_operation(None, task)
 
-            self.log.info(f'Finished {self.cwd.name} with return code {tasks[self.cwd.name]["returncode"]}')
+            self.log.info(f'Finished {self.cwd.name} with return code {constants.tasks[self.cwd.name]["returncode"]}')
 
     @auth_required
     def post(self):
@@ -625,11 +623,11 @@ class ExecutePlaybook(RESTHandler):
                     return
 
             _playbook = self.get_argument('playbook')
-            if not _playbook in playbooks:
+            if not _playbook in constants.playbooks:
                 self.set_status(400)
                 self.write({'status': 'error', 'message': 'no such playbook: {0}'.format(_playbook)})
                 return
-            p = playbooks[_playbook]
+            p = constants.playbooks[_playbook]
 
             temp_dir = tempfile.mkdtemp(prefix='vmemperor-', suffix=f'-playbook-{_playbook}')
             self.log.info(f"Creating temporary directory {temp_dir}")
@@ -810,7 +808,7 @@ class SetAccessHandler(RESTHandler):
                     return
 
             type_obj = None
-            for obj in objects:
+            for obj in constants.objects:
                 if obj.__name__ == _type:
                     type_obj = obj
                     break
@@ -872,7 +870,7 @@ class GetAccessHandler(RESTHandler):
             uuid = self.get_argument('uuid')
             type = self.get_argument('type')
             type_obj = None
-            for obj in objects:
+            for obj in constants.objects:
                 if obj.__name__ == type:
                     type_obj = obj
                     break
@@ -1086,7 +1084,7 @@ class VNC(VMAbstractHandler):
 
         def get_vnc(auth: BasicAuthenticator):
             secret = token_urlsafe()
-            secrets[secret] = {
+            constants.secrets[secret] = {
                 'uuid': vm_uuid,
                 'auth' : auth
             }
@@ -1254,7 +1252,7 @@ class EventLoop(Loggable):
                 raise XenAdapterAPIError(self.log, "XenServer not reached", e.message)
 
             self.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
-            for obj in objects:
+            for obj in constants.objects:
                 obj.create_db(self.db)
 
             del authenticator.xen
@@ -1273,13 +1271,13 @@ class EventLoop(Loggable):
                 self.db.table('users').insert(users, conflict='update').run()
                 self.db.table('groups').insert(groups, conflict='update').run()
                 while True:
-                    if need_exit.is_set():
+                    if constants.need_exit.is_set():
                         return
                     delay = 0
                     while True:
                         if opts.user_source_delay <= delay:
                             break
-                        if need_exit.is_set():
+                        if constants.need_exit.is_set():
                             return
                         sleep_time = 2
                         time.sleep(sleep_time)
@@ -1318,8 +1316,8 @@ class EventLoop(Loggable):
             with conn:
                 table_list = self.db.table_list().run()
 
-                query = self.db.table(objects[0].db_table_name).pluck('uuid', 'access') \
-                    .merge({'table': objects[0].db_table_name}).changes(include_initial=True, include_types=True)
+                query = self.db.table(constants.objects[0].db_table_name).pluck('uuid', 'access') \
+                    .merge({'table': constants.objects[0].db_table_name}).changes(include_initial=True, include_types=True)
 
                 def initial_merge(table):
                     nonlocal table_list
@@ -1340,18 +1338,18 @@ class EventLoop(Loggable):
                     # self.db.table(table_user).index_wait('uuid').run()
 
                 i = 0
-                while i < len(objects):
+                while i < len(constants.objects):
 
-                    initial_merge(objects[i].db_table_name)
+                    initial_merge(constants.objects[i].db_table_name)
 
                     if i > 0:
-                        query = query.union(self.db.table(objects[i].db_table_name).pluck('uuid', 'access') \
-                                            .merge({'table': objects[i].db_table_name}).changes(include_initial=True,
+                        query = query.union(self.db.table(constants.objects[i].db_table_name).pluck('uuid', 'access') \
+                                            .merge({'table': constants.objects[i].db_table_name}).changes(include_initial=True,
                                                                                                 include_types=True))
                     i += 1
 
                 # indicate that vms_user table is ready
-                user_table_ready.set()
+                constants.user_table_ready.set()
                 self.log.debug("Changes query: {0}".format(query))
                 cur = query.run()
                 self.log.debug("Started access_monitor in thread {0}".format(threading.get_ident()))
@@ -1363,7 +1361,7 @@ class EventLoop(Loggable):
                     try:
                         record = cur.next(1)
                     except ReqlTimeoutError as e:
-                        if need_exit.is_set():
+                        if constants.need_exit.is_set():
                             self.log.debug("Exiting access_monitor")
                             return
                         else:
@@ -1431,15 +1429,15 @@ class EventLoop(Loggable):
         with conn:
             self.log.debug("Started process_xen_events. You can kill this thread and 'freeze'"
                            " cache databases (except for access) by sending signal USR2")
-            first_batch_of_events.clear()
+            constants.first_batch_of_events.clear()
 
             while True:
                 try:
-                    if not xen_events_run.is_set():
+                    if not constants.xen_events_run.is_set():
                         self.log.debug("Freezing process_xen_events")
-                        xen_events_run.wait()
+                        constants.xen_events_run.wait()
                         self.log.debug("Unfreezing process_xen_events")
-                    if need_exit.is_set():
+                    if constants.need_exit.is_set():
                         self.log.debug("Exiting process_xen_events")
                         return
 
@@ -1451,7 +1449,7 @@ class EventLoop(Loggable):
                         if event['class'] == 'message':
                             continue  # temporary hardcode to fasten event handling
                         log_this = opts.log_events and event['class'] in opts.log_events.split(',') \
-                                   or not opts.log_events
+                        or not opts.log_events
 
                         # similarly to list_vms -> process
                         if event['class'] == 'vm_metrics':
@@ -1496,8 +1494,8 @@ class EventLoop(Loggable):
                             self.log.error("Failed to process event: class %s, error: %s" % (ev_class, e))
                             traceback.print_exc()
 
-                    if not first_batch_of_events.is_set():
-                        first_batch_of_events.set()
+                    if not constants.first_batch_of_events.is_set():
+                        constants.first_batch_of_events.set()
 
 
                 except Failure as f:
@@ -1520,15 +1518,15 @@ def event_loop(executor, authenticator=None, ioloop=None):
 
     ioloop.run_in_executor(executor, loop_object.do_access_monitor)
     ioloop.run_in_executor(executor, loop_object.do_user_table)
-    xen_events_run.set()
+    constants.xen_events_run.set()
     ioloop.run_in_executor(executor, loop_object.process_xen_events)
 
 
     def usr2_signal_handler(num, stackframe):
-        if xen_events_run.is_set():
-            xen_events_run.clear()
+        if constants.xen_events_run.is_set():
+            constants.xen_events_run.clear()
         else:
-            xen_events_run.set()
+            constants.xen_events_run.set()
 
     signal.signal(signal.SIGUSR2, usr2_signal_handler)
 
@@ -1538,9 +1536,9 @@ def event_loop(executor, authenticator=None, ioloop=None):
 class Postinst(RESTHandler):
     def get(self):
         os = self.get_argument("os")
-        pubkey_path = pathlib.Path(ansible_pubkey)
+        pubkey_path = pathlib.Path(constants.ansible_pubkey)
         pubkey = pubkey_path.read_text()
-        self.render('templates/installation-scenarios/postinst/{0}'.format(os), pubkey=pubkey)
+        self.render(f'templates/installation-scenarios/postinst/{os}', pubkey=pubkey)
 
 
 class AutoInstall(RESTHandler):
@@ -1605,7 +1603,7 @@ class AutoInstall(RESTHandler):
                     part['name'] = part['mp'].replace('/', '')
             filename = 'centos-ks.cfg'
             mirror_path = ''
-            pubkey_path = pathlib.Path(ansible_pubkey)
+            pubkey_path = pathlib.Path(constants.ansible_pubkey)
             pubkey = pubkey_path.read_text()
         if not filename:
             raise ValueError("OS {0} doesn't support autoinstallation".format(os_kind))
@@ -1613,7 +1611,7 @@ class AutoInstall(RESTHandler):
         self.render(f"templates/installation-scenarios/{filename}", hostname=hostname, username=username,
                     fullname=fullname, password=password, mirror_url=mirror_url, mirror_path=mirror_path,
                     ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, partition=partition, pubkey=pubkey,
-                    postinst=URL + POSTINST_ROUTE + "?" + urlencode({'os': 'debian'}, doseq=True)
+                    postinst=constants.URL + constants.POSTINST_ROUTE + "?" + urlencode({'os': 'debian'}, doseq=True)
                     )
 
 
@@ -1649,7 +1647,7 @@ class ConsoleHandler(BaseWSHandler):
 
 
         try:
-            data = secrets[secret]
+            data = constants.secrets[secret]
         except KeyError:
             self.write_message("Invalid secret")
             self.close()
@@ -1689,7 +1687,7 @@ class ConsoleHandler(BaseWSHandler):
         self.sock.send('\r\n'.join(lines).encode())
         self.sock.send(b'\r\nAuthorization: Basic ' + self.auth_token)
         self.sock.send(b'\r\n\r\n')
-        del secrets[secret]
+        del constants.secrets[secret]
         tornado.ioloop.IOLoop.current().spawn_callback(self.server_reading)
 
     def on_message(self, message):
@@ -1780,7 +1778,7 @@ def make_app(executor, auth_class=None, debug=False):
         (r"/login", AuthHandler, dict(pool_executor=executor, authenticator=auth_class)),
         (r"/logout", LogOut, dict(pool_executor=executor)),
         (XenAdapter.AUTOINSTALL_PREFIX + r'/([^/]+)', AutoInstall, dict(pool_executor=executor)),
-        (POSTINST_ROUTE + r'.*', Postinst, dict(pool_executor=executor)),
+        (constants.POSTINST_ROUTE + r'.*', Postinst, dict(pool_executor=executor)),
         (r'/console.*', ConsoleHandler, dict(pool_executor=executor)),
         (r'/createvm', CreateVM, dict(pool_executor=executor)),
         (r'/startstopvm', StartStopVM, dict(pool_executor=executor)),
@@ -1880,8 +1878,8 @@ def read_settings():
             f"WARNING: Ansible pubkey {constants.ansible_pubkey} (ansible_pubkey config option) is not readable")
 
     def on_exit():
-        xen_events_run.set()
-        need_exit.set()
+        constants.xen_events_run.set()
+        constants.need_exit.set()
 
     atexit.register(on_exit)
     # do log rotation

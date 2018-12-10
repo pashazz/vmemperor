@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import NewType, Callable, Sequence, Any
+from typing import NewType, Callable, Sequence, Any, Optional
 import graphene
 from authentication import AdministratorAuthenticator, NotAuthenticatedAsAdminException
 
@@ -16,7 +16,7 @@ class MutationMethod:
     '''
     #func : Callable[[ContextProtocol, XenObject,  ...], None]
     func : Callable
-    action_name : str
+    action_name : Optional[str]
 
 
 

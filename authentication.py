@@ -1,12 +1,14 @@
 from abc import ABCMeta, abstractmethod
 
 import logging
+from typing import Union, Sequence
+
 
 class Authentication(metaclass=ABCMeta):
 
 
     @abstractmethod
-    def check_credentials(self, password, username, log=logging):
+    def check_credentials(self, password, username, log=logging) -> None:
         """
         asserts credentials using inner db, or some outer authentication system
         You should set username to self.username
@@ -18,18 +20,18 @@ class Authentication(metaclass=ABCMeta):
         :raise AuthenticationWithEmptyPasswordException if password is empty
         All exceptions are in exc.py
         """
-        return
+        ...
 
     @abstractmethod
     def get_user_groups(self):
         """
         Return a dict of user's groups with id as key and name as value"
         """
-        return
+        ...
 
     @classmethod
     @abstractmethod
-    def get_all_users(cls, log=logging):
+    def get_all_users(cls, log=logging) -> Sequence:
         '''
         Return a list of all users available in format of a list of dicts with the following fields:
         {
@@ -43,11 +45,11 @@ class Authentication(metaclass=ABCMeta):
         :return: list
 
         '''
-        return
+        ...
 
     @classmethod
     @abstractmethod
-    def get_all_groups(cls, log=logging):
+    def get_all_groups(cls, log=logging) -> Sequence:
         '''
         Return a list of all groups available in format of a list of dicts with the following fields:
         {
@@ -61,7 +63,7 @@ class Authentication(metaclass=ABCMeta):
         :return: list
 
         '''
-        return
+        ...
 
     @abstractmethod
     def is_admin(self) -> bool:
@@ -71,6 +73,13 @@ class Authentication(metaclass=ABCMeta):
         '''
         ...
 
+    @abstractmethod
+    def get_id(self) -> Union[str, int]:
+        '''
+        Return user id
+        :return:
+        '''
+        ...
 
 
 
@@ -89,6 +98,7 @@ class BasicAuthenticator:
 
     def is_admin(self):
         return False
+
 
 
 class AdministratorAuthenticator(BasicAuthenticator):

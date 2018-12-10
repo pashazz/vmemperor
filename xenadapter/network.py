@@ -40,7 +40,7 @@ class VIF(XenObject, metaclass=XenObjectMeta):
 
                 for k,v in doc['interfaces'].items():
                     if 'VIF' in v and v['VIF'] == event['ref']:
-                        del doc['networks'][k]
+                        del doc['interfaces'][k]
                         break
 
                 CHECK_ER(db.table(VM.db_table_name).insert(doc, conflict='replace').run())

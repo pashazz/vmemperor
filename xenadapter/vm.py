@@ -1,7 +1,9 @@
-from typing import List
+from typing import Sequence
 
 import graphene
 from graphene.types.resolver import dict_resolver
+from rethinkdb import ReqlTimeoutError, ReqlDriverError
+
 
 from handlers.graphql.resolvers.interface import resolve_interfaces
 from handlers.graphql.types.blockdevice import BlockDevice
@@ -16,11 +18,24 @@ import XenAPI
 from authentication import BasicAuthenticator
 import provision
 from .xenobjectdict import XenObjectDict
+from dataclasses import dataclass
+from xenadapter.xenobject import XenObject
 
 from .os import OSChooser
 from exc import *
 
 from urllib.parse import urlencode
+
+@dataclass
+class SetDisksEntry:
+    '''
+    New disk entry
+    '''
+
+    SR : XenObject # Storage repository
+    size: int # disk size in megabytes
+
+
 
 class PvDriversVersion(graphene.ObjectType):
     '''
@@ -161,7 +176,7 @@ class VM (AbstractVM):
 
 
 
-    def create(self, insert_log_entry, provision_config, net,  ram_size,   template=None, ip=None, install_url=None, override_pv_args=None, iso=None,
+    def create(self, insert_log_entry, provision_config : Sequence[SetDisksEntry], net, ram_size, template=None, ip=None, install_url=None, override_pv_args=None, iso=None,
                username=None, password=None, hostname=None, partition=None, fullname=None, vcpus=1):
         '''
         Creates a virtual machine and installs an OS
@@ -185,45 +200,27 @@ class VM (AbstractVM):
         self.insert_log_entry = lambda *args, **kwargs: insert_log_entry(self.uuid, *args, **kwargs)
         self.install = True
         self.remove_tags('vmemperor')
-        if isinstance(self.auth, BasicAuthenticator):
+        if not self.auth.is_admin():
             self.manage_actions('all',  user=self.auth.get_id())
 
         self.set_ram_size(ram_size)
         self.set_VCPUs_max(vcpus)
         self.set_VCPUs_at_startup(vcpus)
         self.set_disks(provision_config)
-        # After provision. manage disks actions
-
-        if isinstance(self, BasicAuthenticator):
-            for vbd_ref in self.get_VBDs():
-                from .vbd import VBD
-                from .disk import VDI
-
-                vbd = VBD(auth=self.auth, ref=vbd_ref)
-                if vbd.get_type() != 'Disk':
-                    continue
-                vdi = VDI(auth=self.auth, ref=vbd.get_VDI())
-                vdi.manage_actions('all', user=self.auth.get_id())
-
-
         self.install_guest_tools()
 
-
-
-        if not template.hvm:
-            self.convert('pv')
 
 
         if net:
             try:
                 net.attach(self)
             except XenAdapterAPIError as e:
-                self.insert_log_entry(self=self, state="failed", message=f"Failed to connect VM to network {net.uuid}: {e.message}")
+                self.insert_log_entry(self=self, state="failed-network", message=e.message)
                 raise e
 
         else:
             if template.os_kind:
-                self.xen.log.warning(f"os_kind specified as {template.os_kind}, but no network specified. The OS won't install")
+                self.xen.log.warning(f"os_kind specified as {template.os_kind}, but no network specified. The OS won't install automatically")
 
 
         if template.os_kind:
@@ -233,12 +230,57 @@ class VM (AbstractVM):
             try:
                 iso.attach(self)
             except XenAdapterAPIError as e:
-                self.insert_log_entry(self=self, state="failed", message=f"Failed to mount ISO for VM: {e.message}")
+                self.insert_log_entry(self=self, state="failed-iso", message=e.message)
                 raise e
 
 
-        self.os_install(install_url)
-        #self.convert(mode)
+
+        self.insert_log_entry('installing', f'The OS is installing')
+        try:
+            self.start(False, True)
+        except Exception as e:
+            try:
+                raise e
+            except XenAPI.Failure as f:
+                self.insert_log_entry('failed', f'Failed to start OS installation:  {f.details}')
+                raise XenAdapterAPIError(self.log, 'Failed to start OS installation', f.details)
+
+        # Wait for installation to finish
+        self.log.info(f"Finalizing installation of VM {self.uuid}")
+        from constants import need_exit
+
+        state = self.db.table(VM.db_table_name).get(self.uuid).pluck('power_state').run()['power_state']
+        if state != 'Running':
+            self.insert_log_entry(self.uuid, 'failed',
+                                  f"failed to start VM for installation (low resources?). State: {state}")
+            return
+
+        cur = self.db.table('vms').get(self.uuid).changes().run()
+        while True:
+            try:
+                change = cur.next(wait=1)
+            except ReqlTimeoutError:
+                if need_exit.is_set():
+                    return
+                else:
+                    continue
+            except ReqlDriverError as e:
+                self.log.error(
+                    f"ReQL error while trying to retrieve VM '{self.uuid}': install status: {e}")
+                return
+
+            if change['new_val']['power_state'] == 'Halted':
+                try:
+                    other_config = self.get_other_config()
+                    if 'convert-to-hvm' in other_config and other_config['convert-to-hvm']:
+                        self.convert('hvm')
+
+                    self.start_stop_vm(True)
+                    self.insert_log_entry(self.uuid, "installed", "OS successfully installed")
+                except XenAdapterAPIError as e:
+                    self.insert_log_entry(self.uuid, "failed-after-install", e.message)
+                finally:
+                    break
 
         del self.install
 
@@ -271,14 +313,19 @@ class VM (AbstractVM):
             try:
                 raise e
             except XenAPI.Failure as f:
-                self.insert_log_entry(state='failed',message= f'Failed to assign {mbs} Mb of memory: {f.details}')
+                self.insert_log_entry(state='failed-ram',message= f.details)
                 raise XenAdapterAPIError(self.log, f"Failed to set ram size: {mbs} Mb", f.details)
 
 
 
 
     @use_logger
-    def set_disks(self, provision_config : List[NewVDI]):
+    def set_disks(self, provision_config : Sequence[SetDisksEntry]):
+        '''
+        Generates a provision XML, does provision, sets appropriate access rights to current user
+        :param provision_config:
+        :return:
+        '''
         from xenadapter.vbd import VBD
         from xenadapter.disk import VDIorISO
         from xenadapter.disk import VDI
@@ -286,7 +333,7 @@ class VM (AbstractVM):
         specs = provision.ProvisionSpec()
         for entry in provision_config:
             size = str(1048576 * int(entry.size))
-            specs.disks.append(provision.Disk(f'{i}', size, entry.SR, True))
+            specs.disks.append(provision.Disk(f'{i}', size, entry.SR.uuid, True))
             i += 1
         try:
             provision.setProvisionSpec(self.auth.xen.session, self.ref, specs)
@@ -295,7 +342,7 @@ class VM (AbstractVM):
                 raise e
             except XenAPI.Failure as f:
                 msg = f'Failed to assign provision specification: {f.details}'
-                self.insert_log_entry(state='failed', message=msg)
+                self.insert_log_entry(state='failed-provision-spec', message=f.details)
                 raise XenAdapterAPIError(self.log, msg)
             finally:
                 pass
@@ -308,7 +355,7 @@ class VM (AbstractVM):
             try:
                 raise e
             except XenAPI.Failure as f:
-                self.insert_log_entry(state='failed', message=f'Failed to perform provision: {f.details}')
+                self.insert_log_entry(state='failed-provision', message=f.details)
                 raise XenAdapterAPIError(self.log, f"Failed to provision: {f.details}")
             finally:
                 pass
@@ -320,7 +367,11 @@ class VM (AbstractVM):
                 vbd = VBD(auth=self.auth, ref=item)
                 vdi = VDIorISO(self.auth, ref=vbd.get_VDI())
                 if isinstance(vdi, VDI):
+
                     vdi.set_name_description(f"Created by VMEmperor for VM {self.uuid}")
+                    # After provision. manage disks actions
+                    if not self.auth.is_admin():
+                        vdi.manage_actions('all', user=self.auth.get_id())
 
 
 
@@ -364,30 +415,6 @@ class VM (AbstractVM):
 
             self.log.info("Set PV args: {0}".format(pv_args))
 
-
-
-
-
-    @use_logger
-    def os_install(self,  install_url):
-        '''
-        call only during install
-        :param install_url:
-        :return:
-        '''
-        if not hasattr(self, 'install'):
-            raise RuntimeError("Not an installation process")
-        message = 'Installing OS'
-
-        self.insert_log_entry('installing', message)
-        try:
-            self.start(False, True)
-        except Exception as e:
-            try:
-                raise e
-            except XenAPI.Failure as f:
-                self.insert_log_entry('failed', f'Failed to start OS installation:  {f.details}')
-                raise XenAdapterAPIError(self.log, 'Failed to start OS installation', f.details)
 
     @use_logger
     def install_guest_tools(self):
@@ -497,5 +524,3 @@ class VM (AbstractVM):
             raise XenAdapterAPIError(self, "Failed to destroy VDI: {0}".format(f.details))
 
         return
-
-

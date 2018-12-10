@@ -1,14 +1,19 @@
 import uuid
+from typing import Sequence
 
 import graphene
 import rethinkdb as r
 
+from handlers.graphql.graphql_handler import ContextProtocol
 from handlers.graphql.resolvers import with_connection
 from authentication import with_authentication
 from handlers.graphql.types.input.createvdi import NewVDI
 from handlers.graphql.types.tasks.createvm import CreateVMTask
 from xenadapter.template import Template
 import tornado.ioloop
+
+from xenadapter.vm import SetDisksEntry
+
 
 class NetworkConfiguration(graphene.InputObjectType):
     ip = graphene.InputField(graphene.String, required=True)
@@ -27,26 +32,35 @@ class AutoInstall(graphene.InputObjectType):
     partition = graphene.InputField(graphene.String, required=True, description="Partition scheme (TODO)")
     static_ip_config  = graphene.InputField(NetworkConfiguration, description="Static IP configuration, if needed")
 
-def createvm(ctx, task_id, template, VCPUs, disks, ram, name_label, name_description, network, iso=None, install_params : AutoInstall=None):
+def createvm(ctx : ContextProtocol, task_id : str, template: str, VCPUs : int, disks : Sequence[NewVDI], ram : int, name_label : str, name_description : str, network : str, iso : str =None, install_params : AutoInstall=None):
     from xenadapter.network import Network
     from xenadapter.disk import ISO
+    from xenadapter.sr import SR
     with ctx.conn:
         auth = ctx.user_authenticator
 
 
         tmpl = Template(auth, uuid=template)
+        net = Network(auth=auth, uuid=network)
+        iso = ISO(auth=auth, uuid=iso) if iso else None
+        # TODO: Check quotes here as well as in create vdi method
+        provision_config = [SetDisksEntry(SR=SR(auth=auth, uuid=entry.SR), size=entry.size)
+                            for entry in disks]
+
         vm = tmpl.clone(name_label)
+
+
 
         ctx.set_task_status(
             **CreateVMTask(id=task_id, uuid=vm.uuid, state='cloned', message=f'cloned from {tmpl.uuid}'))
         vm.set_name_description(name_description)
         vm.create(
             insert_log_entry=lambda uuid, state, message: ctx.set_task_status(**CreateVMTask(id=task_id, uuid=uuid, state=state, message=message)),
-            provision_config=disks,
+            provision_config=provision_config,
             ram_size=ram,
-            net=Network(auth=auth, uuid=network),
+            net=net,
             template=tmpl,
-            iso=ISO(auth=auth, uuid=iso) if iso else None,
+            iso=iso,
             hostname=install_params.hostname if install_params else None,
             ip=install_params.static_ip_config if install_params else None,
             install_url=install_params.mirror_url if install_params else None,
@@ -55,7 +69,6 @@ def createvm(ctx, task_id, template, VCPUs, disks, ram, name_label, name_descrip
             partition=install_params.partition if install_params else None,
             fullname=install_params.fullname if install_params else None,
             vcpus = VCPUs,
-
 
         )
 

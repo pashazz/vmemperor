@@ -155,7 +155,7 @@ class UbuntuOS(DebianOS):
     '''
     OS-specific parameters for Ubuntu
     '''
-    HVM_RELEASES = ['artful',  'zesty', 'yakkety', 'bionic']
+    HVM_RELEASES = ['artful',  'zesty', 'yakkety', 'bionic', 'cosmic', 'disco']
     def get_release(self, num):
         releases = {
             '12.04': 'precise',
@@ -167,6 +167,9 @@ class UbuntuOS(DebianOS):
             '16.10': 'yakkety',
             '17.04': 'zesty',
             '17.10': 'artful',
+            '18.04': 'bionic',
+            '18.10': 'cosmic',
+            '19.04': 'disco',
         }
         if num in releases.keys():
             return releases[num]
@@ -219,12 +222,12 @@ class CentOS(GenericOS):
             #        net_config = net_config + ",{0}".format(self.dns1)
 
             # These options are new
-            net_config = " ip=%s::%s:%s" % (self.ip, self.gateway, self.netmask)
+            net_config = f" ip={self.ip}::{self.gateway}:{self.netmask}"
 
             if self.dns0:
-                net_config = net_config + ":::off:%s" % self.dns0
+                net_config = net_config + f":::off:{self.dns0}"
                 if self.dns1:
-                    net_config = net_config + ":%s" % self.dns1
+                    net_config = net_config + f":{self.dns1}"
 
 
         # scenario set up
