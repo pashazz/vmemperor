@@ -1536,9 +1536,10 @@ def event_loop(executor, authenticator=None, ioloop=None):
 class Postinst(RESTHandler):
     def get(self):
         os = self.get_argument("os")
+        device = self.get_argument("device")
         pubkey_path = pathlib.Path(constants.ansible_pubkey)
         pubkey = pubkey_path.read_text()
-        self.render(f'templates/installation-scenarios/postinst/{os}', pubkey=pubkey)
+        self.render(f'templates/installation-scenarios/postinst/{os}', pubkey=pubkey, device=device)
 
 
 class AutoInstall(RESTHandler):
@@ -1549,10 +1550,8 @@ class AutoInstall(RESTHandler):
         :return:
         '''
         filename = None
-        if os_kind == 'test':
-            self.render("templates/installation-scenarios/test.cfg")
-            return
-        hostname = self.get_argument('hostname', default='xen_vm')
+        hostname = self.get_argument('hostname')
+        device = self.get_argument('device')
         username = self.get_argument('username', default='')
         password = self.get_argument('password', default='')
         mirror_url = self.get_argument('mirror_url', default='')
@@ -1610,9 +1609,8 @@ class AutoInstall(RESTHandler):
         # filename = 'raid10.cfg'
         self.render(f"templates/installation-scenarios/{filename}", hostname=hostname, username=username,
                     fullname=fullname, password=password, mirror_url=mirror_url, mirror_path=mirror_path,
-                    ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, partition=partition, pubkey=pubkey,
-                    postinst=constants.URL + constants.POSTINST_ROUTE + "?" + urlencode({'os': 'debian'}, doseq=True)
-                    )
+                    ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, partition=partition, pubkey=pubkey,device=device,
+                    postinst=f"{constants.URL}{constants.POSTINST_ROUTE}?{urlencode({'os': 'debian', 'device':device})}")
 
 
 class ConsoleHandler(BaseWSHandler):

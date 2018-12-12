@@ -33,3 +33,19 @@ class VBD(XenObject):
                     auth.log.error(f"Failed to process VBD event due to XenAPI Failure: {f.details}")
 
 
+
+    def delete(self) -> bool:
+        '''
+
+        :return: False if unable to unplug device from running VM
+        '''
+        from .vm import VM
+        vm = VM(auth=self.auth, ref=self.get_VM())
+
+        if vm.get_power_state() == 'Running' and self.get_unpluggable():
+            self.unplug()
+        else:
+            return False
+
+        self.destroy()
+        return True

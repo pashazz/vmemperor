@@ -1,10 +1,11 @@
 #!/bin/bash
 #mount "/dev/disk/by-label/XenServer\x20Tools" /mnt
-mount /dev/sr0 /mnt
+ls /dev
+mount /dev/{{ device }} /mnt
 cd /mnt/Linux
 ./install.sh -n
 
-mkdir /root/.ssh/
+mkdir -p /root/.ssh/
 echo "{{ pubkey }}" >> /root/.ssh/authorized_keys
 chmod  700 /root/.ssh
 chmod -R 600 /root/.ssh/*

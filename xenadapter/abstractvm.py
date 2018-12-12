@@ -6,7 +6,7 @@ from authentication import BasicAuthenticator
 import provision
 from .xenobjectdict import XenObjectDict
 
-from .os import *
+from .osdetect import *
 
 class AbstractVM(ACLXenObject):
     api_class = 'VM'

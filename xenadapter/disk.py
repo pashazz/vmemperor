@@ -32,7 +32,7 @@ class Attachable:
             for vdi_vbd in my_vbds:
                 if vm_vbd == vdi_vbd:
                     vbd_uuid = self.auth.xen.api.VBD.get_uuid(vm_vbd)
-                    self.log.warning ("Disk is already attached with VBD UUID {0}".format(vbd_uuid))
+                    self.log.warning (f"Disk is already attached with VBD UUID {vbd_uuid}")
                     return vbd_uuid
             try:
                 userdevice = int(self.auth.xen.api.VBD.get_userdevice(vm_vbd))
@@ -59,10 +59,10 @@ class Attachable:
             try:
                 self.auth.xen.api.VBD.plug(vbd_ref)
             except Exception as e:
-                self.auth.xen.log.warning("Disk will be attached after reboot with VBD UUID {0}".format(vbd_uuid))
+                self.auth.xen.log.warning(f"Disk will be attached after reboot with VBD UUID {vbd_uuid}")
                 return vbd_uuid
 
-        self.auth.xen.log.info ("Disk is attached with VBD UUID: {0}".format(vbd_uuid))
+        self.auth.xen.log.info (f"Disk is attached with VBD UUID: {vbd_uuid}")
 
         return vbd_uuid
 
@@ -88,7 +88,7 @@ class Attachable:
                 vbd.unplug()
             except Exception as e:
                 self.log.warning("Failed to detach disk from running VM")
-                return 1
+                return
 
         try:
             vbd.destroy()
@@ -96,7 +96,7 @@ class Attachable:
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self.log, "Failed to detach disk: {0}".format(f.details))
 
-        return
+
 
     @classmethod
     def get_vbd_vms(self, record, auth):

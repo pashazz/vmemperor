@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Sequence, Optional
 
 import graphene
 from graphene.types.resolver import dict_resolver
@@ -12,17 +12,18 @@ from handlers.graphql.types.input.createvdi import NewVDI
 from handlers.graphql.types.interface import Interface
 from handlers.graphql.types.vm import resolve_disks
 from xenadapter.xenobject import GAclXenObject, GXenObjectType
-from .abstractvm import AbstractVM
+from xenadapter.abstractvm import AbstractVM
 from xenadapter.helpers import use_logger
 import XenAPI
 from authentication import BasicAuthenticator
 import provision
-from .xenobjectdict import XenObjectDict
+from xenadapter.xenobjectdict import XenObjectDict
 from dataclasses import dataclass
 from xenadapter.xenobject import XenObject
 
-from .os import OSChooser
+from .osdetect import OSChooser
 from exc import *
+from enum import  Enum, auto
 
 from urllib.parse import urlencode
 
@@ -34,6 +35,38 @@ class SetDisksEntry:
 
     SR : XenObject # Storage repository
     size: int # disk size in megabytes
+
+
+class XenEnum(graphene.Enum):
+    def __str__(self):
+        return self.name
+
+class VBDMode(XenEnum):
+    RO = auto()
+    RW = auto()
+
+    def __repr__(self):
+        if self.name == 'RO':
+            return 'Read-only device'
+        elif self.name == 'RW':
+            return 'Read-write device'
+
+class VBDType(XenEnum):
+    CD = auto()
+    Disk = auto()
+    Floppy = auto()
+
+    def __repr__(self):
+        if self.name == 'CD':
+            return 'Optical disc device'
+        elif self.name == 'Disk':
+            return 'Hard disk device'
+        elif self.name == 'Floppy':
+            return 'Floppy device'
+
+
+
+
 
 
 
@@ -207,7 +240,7 @@ class VM (AbstractVM):
         self.set_VCPUs_max(vcpus)
         self.set_VCPUs_at_startup(vcpus)
         self.set_disks(provision_config)
-        self.install_guest_tools()
+        device = self.install_guest_tools()
 
 
 
@@ -219,12 +252,12 @@ class VM (AbstractVM):
                 raise e
 
         else:
-            if template.os_kind:
-                self.xen.log.warning(f"os_kind specified as {template.os_kind}, but no network specified. The OS won't install automatically")
+            if template.get_os_kind():
+                self.xen.log.warning(f"os_kind specified as {template.get_os_kind()}, but no network specified. The OS won't install automatically")
 
 
-        if template.os_kind:
-            self.os_detect(template.os_kind, ip, hostname, install_url, override_pv_args, fullname, username, password, partition)
+        if template.get_os_kind():
+            self.os_detect(template.get_os_kind(), device, ip, hostname, install_url, override_pv_args, fullname, username, password, partition)
 
         if iso:
             try:
@@ -376,9 +409,61 @@ class VM (AbstractVM):
 
 
     @use_logger
-    def os_detect(self, os_kind, net_conf, hostname, install_url, override_pv_args, fullname, username, password, partition):
+    def create_VBD(self, vdi : Optional[XenObject] = None, type : Optional[VBDType] = None, mode : Optional[VBDMode] = None, bootable : bool = True) -> XenObject:
+        from xenadapter.vbd import VBD
+        from xenadapter.disk import VDI, ISO
+        userdevice_max = -1
+        if vdi:
+            vdi_vbds = vdi.get_VBDs()
+            if not type:
+                type = VBDType.CD if isinstance(vdi, ISO) else VBDType.Disk
+            if not mode:
+                mode = VBDMode.RO if isinstance(vdi, ISO) else VBDMode.RW
+        else:
+            vdi_vbds = []
+            assert mode is not None
+            assert mode is not None
+        for vbd in self.get_VBDs():
+            vbd_obj = VBD(auth=self.auth, ref=vbd)
+            if vbd in vdi_vbds:
+
+                self.log.warning(f"Disk {vdi.uuid} is already attached to VBD {vbd_obj.uuid}")
+                return vbd_obj
+            try:
+                userdevice = int(vbd_obj.get_userdevice())
+            except ValueError:
+                userdevice = -1
+
+            if userdevice_max < userdevice:
+                userdevice_max = userdevice
+
+        userdevice_max += 1
+
+
+        args = {'VM': self.ref, 'VDI': vdi.ref if vdi else self.REF_NULL,
+                'userdevice': str(userdevice_max),
+                'bootable' : bootable, 'mode' : str(mode), 'type' : str(type), 'empty' : vdi is None,
+                'other_config' : {},'qos_algorithm_type': '', 'qos_algorithm_params': {}}
+
+        try:
+            new_vbd = VBD.create(self.auth, args)
+        except XenAPI.Failure as f:
+            raise XenAdapterAPIError(self.auth.xen.log, "Failed to create VBD", f.details)
+
+        return VBD(auth=self.auth, ref=new_vbd)
+
+
+
+
+
+
+
+
+    @use_logger
+    def os_detect(self, os_kind, guest_device, net_conf, hostname, install_url, override_pv_args, fullname, username, password, partition):
         '''
         call only during install
+        :param guest_device: Guest CD device name as seen by guest
         :param os_kind:
         :param net_conf: NetworkConfiguration object
         :param hostname:
@@ -406,6 +491,7 @@ class VM (AbstractVM):
             os.username = username
             os.password = password
             os.partition = partition
+            os.device = guest_device
 
             if not override_pv_args:
                 pv_args = os.pv_args()
@@ -417,7 +503,11 @@ class VM (AbstractVM):
 
 
     @use_logger
-    def install_guest_tools(self):
+    def install_guest_tools(self) -> str:
+        '''
+        Inserts Guest CD and returns Unix device name for this CD
+        :return:
+        '''
         from .disk import ISO
         from xenadapter.sr import SR
         for ref in SR.get_all(self.auth):
@@ -426,8 +516,11 @@ class VM (AbstractVM):
                 for vdi_ref in sr.get_VDIs():
                     vdi = ISO(ref=vdi_ref, auth=self.auth)
                     if vdi.get_is_tools_iso():
-                        vdi.attach(self)
-                        return
+                        vbd = vdi.attach(self)
+                        #get_device won't work here so we'll hack based on our vdi.attach implementation
+                        device = chr(ord('a') + int(vbd.get_userdevice()))
+
+                        return f'xvd{device}'
 
     def convert(self,  mode):
         """
@@ -512,15 +605,5 @@ class VM (AbstractVM):
 
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self.log, "Failed to destroy VM",f.details)
-
-        return
-
-    @use_logger
-    def destroy_disk(self, vdi_uuid):
-        vdi_ref = self.api.VDI.get_by_uuid(vdi_uuid)
-        try:
-            self.api.VDI.destroy(vdi_ref)
-        except XenAPI.Failure as f:
-            raise XenAdapterAPIError(self, "Failed to destroy VDI: {0}".format(f.details))
 
         return

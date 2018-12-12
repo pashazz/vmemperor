@@ -413,13 +413,17 @@ class XenObject(metaclass=XenObjectMeta):
             else:
                 self.ref = api.get_by_uuid(self.uuid)
             return self.ref
-        if self.GraphQLType: #возьми из базы
-            if name in self.GraphQLType._meta.fields:
-                return self.db.table(self.db_table_name).get(self.uuid).pluck(name).run()[name]
+        if self.GraphQLType and self.db_table_name: #возьми из базы
+            if name.startswith("get_"):
+                field_name = name[4:]
 
 
-
-
+                if field_name in self.GraphQLType._meta.fields:
+                    try:
+                        data = self.db.table(self.db_table_name).get(self.uuid).pluck(field_name).run()[field_name]
+                        return lambda: data
+                    except r.ReqlNonExistenceError as e:
+                        pass
 
 
         if name.startswith('async_'):

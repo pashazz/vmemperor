@@ -1,6 +1,3 @@
-from exc import *
-
-
 from urllib.parse import urlencode
 
 class GenericOS:
@@ -23,6 +20,7 @@ class GenericOS:
         self.dns0 = None
         self.dns1 = None
         self.partition = None
+        self.device = None # Guest iso device name
 
     def pv_args(self) -> str:
         '''
@@ -55,6 +53,7 @@ class GenericOS:
         from vmemperor import opts
         from xenadapter import XenAdapter
         args = dict(
+            device=self.device,
             hostname=self.hostname,
             username=self.username,
             password=self.password,
@@ -66,6 +65,7 @@ class GenericOS:
             dns0=self.dns0,
             dns1=self.dns1,
             partition=self.partition
+
         )
 
         return 'http://' + opts.vmemperor_host + ':' + str(
