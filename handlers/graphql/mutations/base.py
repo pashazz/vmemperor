@@ -14,7 +14,7 @@ class MutationMethod:
     Here, action_name = None has a special meaning: if action_name is None, then it is checked whether the user is an administrator, thus this
     value is suitable for administrator actions
     '''
-    #func : Callable[[ContextProtocol, XenObject,  ...], None]
+    #func : Callable[[ContextProtocol, XenObject, InputObject, OutputObject, ...], None]
     func : Callable
     action_name : Optional[str]
 

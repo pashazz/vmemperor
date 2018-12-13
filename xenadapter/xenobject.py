@@ -297,7 +297,7 @@ class XenObject(metaclass=XenObjectMeta):
 
             if event['operation'] in ('mod', 'add'):
                 new_rec = cls.process_record(auth, event['ref'], record)
-                CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
+                CHECK_ER(db.table(cls.db_table_name).insert(new_rec.data, conflict='update').run())
 
     @classmethod
     def create_db(cls, db, indexes=None):
@@ -352,7 +352,7 @@ class XenObject(metaclass=XenObjectMeta):
 
 
 
-        return new_record
+        return XenObjectDict(new_record)
 
     @classmethod
     def filter_record(cls, record):
@@ -368,10 +368,6 @@ class XenObject(metaclass=XenObjectMeta):
         method = getattr(cls, '_get_all_records')
         return {k: v for k, v in method(auth).items()
                 if cls.filter_record(v)}
-
-    @classmethod
-    def init_db(cls, auth):
-        return [cls.process_record(auth, ref, record) for ref, record in cls.get_all_records(auth).items()]
 
     def set_other_config(self, config):
         config = {k : str(v) for k,v in config.items()}

@@ -14,6 +14,7 @@ from handlers.rest.createvm import CreateVM
 from rethinkdb_helper import CHECK_ER
 from quota import Quota
 from xenadapter import XenAdapter, XenAdapterPool
+from xenadapter.task import Task
 from xenadapter.template import Template
 from xenadapter.vm import VM
 from xenadapter.vmguest import VMGuest
@@ -1474,7 +1475,8 @@ class EventLoop(Loggable):
                             ev_class = Pool
                         elif event['class'] == 'host':
                             ev_class = Host
-
+                        elif event['class'] == 'task':
+                            ev_class = Task
                         else:  # Implement ev_classes for all types of events
                             if log_this:
                                 self.log.debug(

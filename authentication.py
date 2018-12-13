@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod
-
+from functools import wraps
 import logging
 from typing import Union, Sequence
 
@@ -175,18 +175,32 @@ class NotAuthenticatedAsAdminException(Exception):
     def __init__(self):
         super().__init__("You are not authenticated as administrator")
 
-def with_authentication(method):
-    def decorator(root, info, *args, **kwargs):
-        if not hasattr(info.context, 'user_authenticator'):
-            raise NotAuthenticatedException()
+def with_authentication(access_class : type = None, access_action : str = None):
+    def decorator(method):
+        from xenadapter.xenobject import ACLXenObject
+        @wraps(method)
+        def wrapper(root, info, *args, **kwargs):
+            if not hasattr(info.context, 'user_authenticator'):
+                raise NotAuthenticatedException()
 
-        return method(root, info, *args, **kwargs)
+            if access_class:
+                obj : ACLXenObject = access_class(auth=info.context.user_authenticator, uuid=kwargs['uuid'])
+                obj.check_access(access_action)
+
+
+            return method(root, info, *args, **kwargs)
+        return wrapper
     return decorator
 
+with_default_authentication = with_authentication()
+
 def with_admin_authentication(method):
+    @wraps(method)
     def decorator(root, info, *args, **kwargs):
         if not hasattr(info.context, 'user_authenticator'):
             raise NotAuthenticatedException()
+        if not info.context.user_authenticator.is_admin():
+            raise NotAuthenticatedAsAdminException()
 
         return method(root, info, *args, **kwargs)
     return decorator

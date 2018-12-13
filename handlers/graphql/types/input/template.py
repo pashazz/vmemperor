@@ -3,7 +3,7 @@ import graphene
 from handlers.graphql.graphql_handler import ContextProtocol
 from handlers.graphql.mutations.base import MutationMethod, MutationHelper
 from handlers.graphql.resolvers import with_connection
-from authentication import with_authentication
+from authentication import with_authentication, with_default_authentication
 from handlers.graphql.types.dicttype import InputObjectType
 from xenadapter.template import Template
 
@@ -17,6 +17,8 @@ def set_enabled(ctx : ContextProtocol, template : Template, changes : TemplateIn
         template.set_enabled(changes.enabled)
 
 
+
+
 class TemplateMutation(graphene.Mutation):
     success = graphene.Field(graphene.Boolean, required=True)
 
@@ -26,7 +28,7 @@ class TemplateMutation(graphene.Mutation):
 
 
     @staticmethod
-    @with_authentication
+    @with_default_authentication
     @with_connection
     def mutate(root, info, template):
         ctx : ContextProtocol = info.context

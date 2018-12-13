@@ -7,6 +7,7 @@ from graphene import ObjectType, Schema
 from tornado.escape import to_unicode
 
 from handlers.graphql.types.input.createvm import CreateVM
+from handlers.graphql.types.input.vm import VMMutation, VMStartMutation, VMShutdownMutation
 from xenadapter.disk import GISO, GVDI, ISO, VDI
 from xenadapter.template import Template, GTemplate
 from xenadapter.sr import SR, GSR
@@ -43,6 +44,9 @@ class QueryRoot(ObjectType):
 class MutationRoot(ObjectType):
     create_VM = CreateVM.Field(description="Create a new VM")
     template = TemplateMutation.Field(description="Edit template options")
+    vm = VMMutation.Field(description="Edit VM options")
+    vm_start = VMStartMutation.Field(description="Start VM")
+    vm_shutdown = VMShutdownMutation.Field(description="Shut down VM")
 
 
 

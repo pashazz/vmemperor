@@ -6,7 +6,7 @@ import rethinkdb as r
 
 from handlers.graphql.graphql_handler import ContextProtocol
 from handlers.graphql.resolvers import with_connection
-from authentication import with_authentication
+from authentication import with_authentication, with_default_authentication
 from handlers.graphql.types.input.createvdi import NewVDI
 from handlers.graphql.types.tasks.createvm import CreateVMTask
 from xenadapter.template import Template
@@ -94,7 +94,7 @@ class CreateVM(graphene.Mutation):
 
 
     @staticmethod
-    @with_authentication
+    @with_default_authentication
     @with_connection
     def mutate(root, info, *args, **kwargs):
         task_id  = str(uuid.uuid4())
