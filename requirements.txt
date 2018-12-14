@@ -1,4 +1,5 @@
 aniso8601==4.0.1
+rx
 graphene==2.1.3
 graphene-tornado==2.0.1
 graphql-core==2.1
