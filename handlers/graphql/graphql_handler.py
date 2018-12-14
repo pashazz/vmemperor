@@ -1,10 +1,11 @@
 from __future__ import annotations
-from graphene_tornado.tornado_graphql_handler import TornadoGraphQLHandler
+#from graphene_tornado.tornado_graphql_handler import TornadoGraphQLHandler as BaseGQLHandler
+from tornadoql.tornadoql import GraphQLSubscriptionHandler as BaseGQLSubscriptionHandler, GraphQLHandler as BaseGQLHandler
 import pickle
 
 from authentication import BasicAuthenticator
 from connman import ReDBConnection
-from handlers.base import BaseHandler
+from handlers.base import BaseHandler, BaseWSHandler
 from xenadapter import XenAdapter
 from tornado.options import options as opts
 from typing import _Protocol, Mapping, Any, ContextManager
@@ -46,16 +47,12 @@ class ContextProtocol(_Protocol):
 
 
 
-
-
-
-
-class GraphQLHandler(BaseHandler, TornadoGraphQLHandler):
+class GraphQLHandler(BaseHandler, BaseGQLHandler):
     request : ContextProtocol
     def initialize(self, *args, **kwargs):
         BaseHandler.initialize(self, *args, **kwargs)
         del kwargs['pool_executor']
-        TornadoGraphQLHandler.initialize(self, *args, **kwargs)
+        BaseGQLHandler.initialize(self, *args, **kwargs)
 
     def prepare(self):
         super().prepare()
@@ -75,3 +72,21 @@ class GraphQLHandler(BaseHandler, TornadoGraphQLHandler):
             self.request.get_task_status = lambda id: self.op.get_operation(self.request.user_authenticator, id)
         self.request.conn = self.conn
 
+
+class GraphQLSubscriptionHandler(BaseWSHandler, BaseGQLSubscriptionHandler):
+    request: ContextProtocol
+
+    def initialize(self, *args, **kwargs):
+        BaseWSHandler.initialize(self, *args, **kwargs)
+        del kwargs['pool_executor']
+        BaseGQLSubscriptionHandler.initialize(self, *args, **kwargs)
+
+    def prepare(self):
+        super().prepare()
+
+        # copy some members to context, we'll use then in a resolvers
+        #self.request.async_run = self.async_run
+
+        self.request.log = self.log
+        self.request.actions_log = self.actions_log
+        self.request.executor = self.executor

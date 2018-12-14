@@ -2,13 +2,14 @@ import pathlib
 from collections import OrderedDict
 import signal
 import atexit
-
+import tornadoql
 import constants
 from connman import ReDBConnection
 import subprocess
 
 import handlers.graphql.graphql_handler as gql_handler
-from handlers.rest.base import RESTHandler, BaseWSHandler, auth_required, admin_required
+from handlers.rest.base import RESTHandler, auth_required, admin_required
+from handlers.base import BaseWSHandler
 from handlers.graphql.root import schema
 from handlers.rest.createvm import CreateVM
 from rethinkdb_helper import CHECK_ER
@@ -1820,8 +1821,14 @@ def make_app(executor, auth_class=None, debug=False):
         (r'/getquota', GetQuota, dict(pool_executor=executor)),
 
         (r'/graphql', gql_handler.GraphQLHandler, dict(pool_executor=executor, graphiql=False, schema=schema)),
-        (r'/graphql/batch', gql_handler.GraphQLHandler, dict(pool_executor=executor, graphiql=True, schema=schema, batch=True)),
-        (r'/graphql/graphiql', gql_handler.GraphQLHandler, dict(pool_executor=executor, graphiql=True, schema=schema))
+        #(r'/graphql/batch', gql_handler.GraphQLHandler, dict(pool_executor=executor, graphiql=True, schema=schema, batch=True)),
+        (r'/graphiql', gql_handler.GraphQLHandler, dict(pool_executor=executor, graphiql=True, schema=schema)),
+        #(r'/graphql', tornadoql.GraphQLHandler, dict(pool_executor=executor, schema=schema)),
+        #(r'/graphql/graphiql', tornadoql.GraphiQLHandler, dict(pool_executor=executor, schema=schema)),
+        (r'/subscriptions', gql_handler.GraphQLSubscriptionHandler, dict(pool_executor=executor, schema=schema))
+
+
+
 
     ], **settings)
 

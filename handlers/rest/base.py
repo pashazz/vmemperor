@@ -2,7 +2,6 @@ import json
 import pickle
 
 from tornado.options import options as opts
-from tornado.websocket import WebSocketHandler
 
 from authentication import AdministratorAuthenticator
 from handlers.base import BaseHandler, HandlerMethods
@@ -37,13 +36,6 @@ class RESTHandler(BaseHandler):
                 # monkey-patch _get_arguments
                 old_get_arguments = self._get_arguments
                 self._get_arguments = lambda name, source, strip: old_get_arguments(name, source, False)
-
-
-class BaseWSHandler(WebSocketHandler, HandlerMethods):
-    def initialize(self, *args, **kwargs):
-        self.init_executor(kwargs['pool_executor'])
-        del kwargs['pool_executor']
-        super().initialize()
 
 
 def auth_required(method):

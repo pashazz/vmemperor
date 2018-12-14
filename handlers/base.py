@@ -6,6 +6,8 @@ import rethinkdb as r
 import tornado.ioloop
 import tornado.web
 from tornado.options import options as opts
+from tornado.websocket import WebSocketHandler
+
 from authentication import BasicAuthenticator
 from connman import ReDBConnection
 from constants import first_batch_of_events
@@ -123,3 +125,17 @@ class BaseHandler(RequestHandler, HandlerMethods):
                     post_hook(ret, auth)
             except EmperorException as e:
                 self.log.error("try_xenadapter: exception catched in post_hook: %s" % e.message)
+
+
+class BaseWSHandler(WebSocketHandler, HandlerMethods):
+    def initialize(self, *args, **kwargs):
+        self.init_executor(kwargs['pool_executor'])
+        del kwargs['pool_executor']
+        super().initialize()
+
+
+        self.user_authenticator = Optional[BasicAuthenticator]
+        self.op = Operations(r.db(opts.database))
+
+    def check_origin(self, origin):
+        return True

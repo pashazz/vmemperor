@@ -1,5 +1,5 @@
 from graphene_tornado.tornado_graphql_handler import TornadoGraphQLHandler
-
+from rx import Observable
 import graphene
 
 from graphene import ObjectType, Schema
@@ -50,4 +50,45 @@ class MutationRoot(ObjectType):
 
 
 
-schema = Schema(query=QueryRoot, mutation=MutationRoot, types=[GISO, GVDI])
+
+def MakeSubscription(_class : type) -> type:
+    class Subscription(ObjectType):
+        changeType = graphene.Field(graphene.String, required=True, description="Change type: one of")
+        value = graphene.Field(_class)
+
+    return Subscription
+
+class SubscriptionRoot(ObjectType):
+    '''
+    All subscriptions must return  Observable
+    '''
+    vm = graphene.Field(MakeSubscription(GVM), required=True)
+
+    def resolve_vm(root, info): #temp
+        import rethinkdb as r
+        db = r.db('vmemperor')
+
+        changes = db.table('vms').changes(include_types=True, include_initial=True).run()
+
+        def iterable_to_vm():
+            for change in changes:
+                if change['type'] == 'remove':
+                    value = change['old_val']
+                else:
+                    value = change['new_val']
+
+                value = GVM(**value)
+                yield MakeSubscription(GVM)(changeType=change['type'], value=value)
+
+
+
+        return Observable.from_iterable(iterable_to_vm())
+
+
+
+
+
+
+
+
+schema = Schema(query=QueryRoot, mutation=MutationRoot, types=[GISO, GVDI], subscription=SubscriptionRoot)
