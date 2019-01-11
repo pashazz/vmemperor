@@ -37,9 +37,7 @@ from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
 import pickle
-import rethinkdb as r
-from rethinkdb.errors import ReqlTimeoutError
-from rethinkdb.net import DefaultCursorEmpty
+from rethinkdb.errors import ReqlTimeoutError, ReqlCursorEmpty
 from authentication import BasicAuthenticator
 from loggable import Loggable
 from pathlib import Path
@@ -60,6 +58,10 @@ from tornado.websocket import *
 import asyncio
 from tornado.platform.asyncio import AnyThreadEventLoopPolicy
 from secrets import token_urlsafe
+
+from rethinkdb import RethinkDB
+r = RethinkDB()
+
 def table_drop(db, table_name):
     try:
         db.table_drop(table_name).run()
@@ -337,7 +339,7 @@ class VMList(BaseWSHandler):
                 while True:
                     try:
                         change = cur.next(1)
-                    except (ReqlTimeoutError, DefaultCursorEmpty) as e:  # Monitor if we need to exit
+                    except (ReqlTimeoutError, ReqlCursorEmpty) as e:  # Monitor if we need to exit
                         if not self.ws_connection or constants.need_exit.is_set():
                             return
                         else:

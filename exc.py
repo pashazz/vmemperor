@@ -1,5 +1,6 @@
 import json
-import rethinkdb as r
+from  rethinkdb import  RethinkDB
+r = RethinkDB()
 import tornado.options as opts
 class EmperorException(Exception):
     def __init__(self, log, message):

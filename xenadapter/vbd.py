@@ -1,6 +1,7 @@
 from xenadapter.xenobject import XenObject
-import rethinkdb as r
 
+from rethinkdb import RethinkDB
+r = RethinkDB()
 
 class VBD(XenObject):
     api_class = 'VBD'

@@ -1,7 +1,10 @@
 import graphene
 
 from authentication import AdministratorAuthenticator, NotAuthenticatedException
-import rethinkdb as r
+from rethinkdb import RethinkDB
+r = RethinkDB()
+
+
 
 
 def resolve_one(cls, graphql_type, field_name=None, index=None):

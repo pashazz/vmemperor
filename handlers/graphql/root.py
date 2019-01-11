@@ -65,13 +65,18 @@ class SubscriptionRoot(ObjectType):
     vm = graphene.Field(MakeSubscription(GVM), required=True)
 
     def resolve_vm(root, info): #temp
-        import rethinkdb as r
-        db = r.db('vmemperor')
+        async def iterable_to_vm():
+            from rethinkdb import RethinkDB
+            r = RethinkDB()
 
-        changes = db.table('vms').changes(include_types=True, include_initial=True).run()
-
-        def iterable_to_vm():
-            for change in changes:
+            r.set_loop_type("asyncio")
+            db = r.db('vmemperor')
+            conn = await r.connect()
+            changes = await db.table('vms').changes(include_types=True, include_initial=True).run(conn)
+            while True:
+                change = await changes.next()
+                if not change:
+                    break
                 if change['type'] == 'remove':
                     value = change['old_val']
                 else:
@@ -82,7 +87,7 @@ class SubscriptionRoot(ObjectType):
 
 
 
-        return Observable.from_iterable(iterable_to_vm())
+        return Observable.from_future(iterable_to_vm())
 
 
 

@@ -2,7 +2,8 @@ import uuid
 from typing import Sequence
 
 import graphene
-import rethinkdb as r
+from rethinkdb import RethinkDB
+r = RethinkDB()
 
 from handlers.graphql.graphql_handler import ContextProtocol
 from handlers.graphql.resolvers import with_connection

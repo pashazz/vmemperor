@@ -2,8 +2,9 @@ import XenAPI
 from loggable import Loggable
 from .singleton import Singleton
 from exc import *
-import rethinkdb as r
 import threading
+from rethinkdb import RethinkDB
+r = RethinkDB()
 
 
 

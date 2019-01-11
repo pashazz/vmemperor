@@ -2,7 +2,7 @@ from typing import Sequence, Optional
 
 import graphene
 from graphene.types.resolver import dict_resolver
-from rethinkdb import ReqlTimeoutError, ReqlDriverError
+from rethinkdb.errors import ReqlTimeoutError, ReqlDriverError
 
 
 from handlers.graphql.resolvers.interface import resolve_interfaces

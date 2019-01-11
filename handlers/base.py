@@ -2,7 +2,8 @@ import json
 import time
 from typing import Optional
 
-import rethinkdb as r
+from rethinkdb import RethinkDB
+r = RethinkDB()
 import tornado.ioloop
 import tornado.web
 from tornado.options import options as opts

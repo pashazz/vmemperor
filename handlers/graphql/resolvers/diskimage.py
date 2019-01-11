@@ -1,5 +1,4 @@
 from handlers.graphql.resolvers import with_connection
-import rethinkdb as r
 from tornado.options import options
 
 from typing import Optional, List, Union

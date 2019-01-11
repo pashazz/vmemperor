@@ -58,7 +58,8 @@ class Quota:
         Else returns stats for specified user and all his groups, ignoring userid
         :return:
         '''
-        import rethinkdb as r
+        from rethinkdb import  RethinkDB
+        r = RethinkDB()
         if self.auth.is_admin():
             if userid:
                 data = self.pool.db.table(Pool.quotas_table_name).get(userid)\

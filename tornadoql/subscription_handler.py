@@ -8,7 +8,9 @@ from tornado import websocket
 from tornado.escape import json_decode, json_encode
 from tornado.log import app_log
 from rx import Observer, Observable
+from graphql.execution.executors.asyncio import AsyncioExecutor
 
+import asyncio
 
 GRAPHQL_WS = 'graphql-ws'
 WS_PROTOCOL = GRAPHQL_WS
@@ -126,7 +128,8 @@ class GQLSubscriptionHandler(websocket.WebSocketHandler):
 
     def on_close(self):
         app_log.info('close socket %s', self)
-        self.sockets.remove(self)
+        if self in self.sockets:
+            self.sockets.remove(self)
         for i in self.subscriptions:
             self.subscriptions[i].dispose()
         self.subscriptions = {}
@@ -170,7 +173,7 @@ class GQLSubscriptionHandler(websocket.WebSocketHandler):
     def on_start(self, op_id, params):
         try:
             execution_result = graphql(
-                self.schema, **params, allow_subscriptions=True
+                self.schema, **params, allow_subscriptions=True, executor=AsyncioExecutor(loop=asyncio.get_event_loop())
             )
             assert isinstance(
                 execution_result, Observable), "A subscription must return an observable"

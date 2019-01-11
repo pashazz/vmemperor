@@ -1,4 +1,6 @@
-import rethinkdb as r
+from rethinkdb import RethinkDB
+r = RethinkDB()
+
 import queue
 from xenadapter import singleton
 from loggable import Loggable

@@ -4,7 +4,8 @@ from authentication import BasicAuthenticator, AdministratorAuthenticator, NotAu
     with_authentication
 from tornado.concurrent import run_on_executor
 import traceback
-import rethinkdb as r
+from rethinkdb import RethinkDB
+r = RethinkDB()
 from typing import List, Dict
 from handlers.graphql.resolvers.utils import resolve_one, resolve_many, resolve_all
 from handlers.graphql.types.dicttype import ObjectType

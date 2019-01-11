@@ -1,4 +1,4 @@
-import rethinkdb as r
+
 import pickle
 from rethinkdb_helper import  CHECK_ER
 from copy import copy

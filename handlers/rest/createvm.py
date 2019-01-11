@@ -2,9 +2,10 @@ import copy
 import json
 import uuid
 
-import rethinkdb as r
+from rethinkdb import RethinkDB
+r = RethinkDB()
 import tornado.ioloop
-from rethinkdb import ReqlTimeoutError, ReqlDriverError
+from rethinkdb.errors import ReqlTimeoutError, ReqlDriverError
 from tornado import gen
 from tornado.options import options as opts
 
