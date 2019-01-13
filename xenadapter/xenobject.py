@@ -1,7 +1,7 @@
 import XenAPI
 from exc import *
 from authentication import BasicAuthenticator, AdministratorAuthenticator, NotAuthenticatedException, \
-    with_authentication
+    with_default_authentication
 from tornado.concurrent import run_on_executor
 import traceback
 from rethinkdb import RethinkDB
@@ -167,7 +167,9 @@ class XenObject(metaclass=XenObjectMeta):
             field_name = cls.__name__
 
         from handlers.graphql.resolvers import with_connection
+
         @with_connection
+        @with_default_authentication
         def resolver(root, info, **kwargs):
             if 'uuid' in kwargs:
                 uuid = kwargs['uuid']
@@ -205,8 +207,9 @@ class XenObject(metaclass=XenObjectMeta):
         if not field_name:
             field_name = f'{cls.__name__}s'
         from handlers.graphql.resolvers import with_connection
+
         @with_connection
-        @with_authentication
+        @with_default_authentication
         def resolver(root, info, **kwargs):
             if 'uuids' in kwargs:
                 uuids = kwargs['uuids']
@@ -243,7 +246,7 @@ class XenObject(metaclass=XenObjectMeta):
         assert issubclass(cls.GraphQLType, GXenObjectType)
         from handlers.graphql.resolvers import with_connection
         @with_connection
-        @with_authentication
+        @with_default_authentication
         def resolver(root, info, **kwargs):
             '''
 
