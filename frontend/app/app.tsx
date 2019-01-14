@@ -63,13 +63,27 @@ const history = createHistory();
 const store = configureStore(initialState, history);
 const MOUNT_NODE = document.getElementById('app');
 
+
+//Import apollo
+import ApolloClient from "apollo-boost";
+import { ApolloProvider } from "react-apollo";
+
+
+const client = new ApolloClient(
+  {
+    uri: "/api/graphql"
+  }
+);
+
 const render = (messages) => {
   ReactDOM.render(
     <Provider store={store}>
       <div>
       <LanguageProvider messages={messages}>
         <ConnectedRouter history={history}>
+          <ApolloProvider client={client}>
           <App />
+        </ApolloProvider>
         </ConnectedRouter>
       </LanguageProvider>
       <ReduxToastr
