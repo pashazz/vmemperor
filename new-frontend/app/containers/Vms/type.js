@@ -6,3 +6,4 @@ export const VMRecord = T.shape(
     name_label: T.string.isRequired,
     power_state: T.oneOf(['Halted', 'Running']).isRequired
   });
+

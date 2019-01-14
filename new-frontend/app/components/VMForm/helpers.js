@@ -14,6 +14,9 @@ import CPU from './subforms/CPU';
 import RAM from './subforms/RAM';
 import HDD from './subforms/HDD';
 import Hook from './subforms/Hook';
+import Connection from './subforms/Connection';
+import ISO from './subforms/ISO';
+import Name from './subforms/Name';
 
 const firstTouchWrapper = (WrappedComponent) =>
   class InputWraper extends React.Component {
@@ -50,18 +53,22 @@ const firstTouchWrapper = (WrappedComponent) =>
   };
 
 const exportObject = {
-  Pool: firstTouchWrapper(Pool),
-  Template: firstTouchWrapper(Template),
-  Storage: firstTouchWrapper(Storage),
-  Network: firstTouchWrapper(Network),
-  Fullname: firstTouchWrapper(Fullname),
-  Link: firstTouchWrapper(Link),
-  Passwords: firstTouchWrapper(Passwords),
-  Description: firstTouchWrapper(Description),
-  CPU: firstTouchWrapper(CPU),
-  RAM: firstTouchWrapper(RAM),
-  HDD: firstTouchWrapper(HDD),
+  Pool: Pool,
+  Template:Template,
+  Storage: Storage,
+  Network: Network,
+  Fullname: Fullname,
+  Link: Link,
+  Passwords: Passwords,
+  Description: Description,
+  CPU: CPU,
+  RAM: RAM,
+  HDD: HDD,
   Hook,
+  Connection: Connection,
+  ISO,
+  Name: Name,
+
 };
 
 export default exportObject;

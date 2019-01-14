@@ -6,6 +6,9 @@ class EmperorException(Exception):
         self.message = message
         self.log = log
 
+    def __str__(self):
+        return "<{0}>: {1}".format(self.__class__.__name__, self.message)
+
 
 class XenAdapterException(EmperorException):
     pass
@@ -35,18 +38,18 @@ class AuthenticationRealmException(AuthenticationException):
 
 class AuthenticationUserNotFoundException(AuthenticationException):
     def __init__(self, log, realm):
-        super().__init__(log, "Realm {0} can't find user {1}".format(type(realm).__name__, realm.username))
+        super().__init__(log, f"Realm {type(realm).__name__} can't find user {realm.username}")
 
 
 class AuthenticationPasswordException(AuthenticationException):
     def __init__(self, log, realm):
-        super().__init__(log, "Realm {0} can't find authenticate user {1}: incorrect password".format(type(realm).__name__, realm.get_id()))
+        super().__init__(log,
+                         f"Realm {type(realm).__name__} can't find authenticate user {realm.get_id()}: incorrect password")
 
 class AuthenticationWithEmptyPasswordException(AuthenticationException):
     def __init__(self, log, realm):
         super().__init__(log,
-                         "Realm {0} can't find authenticate user {1}: empty password".format(type(realm).__name__,
-                                                                                                 realm.username))
+                         f"Realm {type(realm).__name__} can't find authenticate user {realm.username}: empty password")
 
 class UnauthorizedException(AuthenticationException):
     pass

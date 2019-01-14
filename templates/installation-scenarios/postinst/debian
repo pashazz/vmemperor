@@ -1,0 +1,14 @@
+#!/bin/bash
+mount "/dev/disk/by-label/XenServer\x20Tools" /mnt
+cd /mnt/Linux
+source versions.deb
+case $(uname -m) in
+*64) dpkg -i $XE_GUEST_UTILITIES_PKG_FILE_amd64 ;;
+*) dpkg -i $XE_GUEST_UTILITIES_PKG_FILE_i386 ;;
+esac
+
+mkdir /root/.ssh/
+echo "{{ pubkey }}" >> /root/.ssh/authorized_keys
+chmod  700 /root/.ssh
+chmod -R 600 /root/.ssh/*
+

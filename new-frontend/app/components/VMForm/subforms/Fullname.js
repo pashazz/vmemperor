@@ -1,44 +1,35 @@
 import React from 'react';
 import T from 'prop-types';
 
-import classNames from 'classnames';
+import {AvField, AvGroup, AvInput, AvFeedback } from 'availity-reactstrap-validation';
+import { InputGroup, InputGroupAddon, InputGroupText } from 'reactstrap';
+import icon  from '@fortawesome/fontawesome-free-solid/faUser';
+import FontAwesomeIcon from '@fortawesome/react-fontawesome';
+import Input from 'components/Input';
 
-function validate(fullname) {
-  if (fullname.length < 4) {
-    return 'Full name should have at least 4 symbols';
-  }
-  return '';
-}
+function Fullname({ fullname, onChange}) {
 
-function Fullname({ fullname, onChange, touched }) {
-  const validation = validate(fullname);
-  const isValid = validation === '';
 
-  const mainClassName = classNames('form-group', {
-    'has-success': touched && isValid,
-    'has-error': touched && !isValid,
-  });
-
-  const errorText = touched && !isValid ?
-    <span className="help-block">{ validation }</span> : null;
 
   return (
-    <div className={mainClassName}>
-      <div className="input-group">
-        <span className="input-group-addon"><i className="icon-address"></i></span>
-        <input
+    <AvGroup>
+      <InputGroup>
+          <InputGroupAddon style={ {"line-height": "1!important"}} addonType="prepend">
+         <InputGroupText style = { { height: '100%'}}>
+           <FontAwesomeIcon icon={icon}/>
+         </InputGroupText>
+          </InputGroupAddon>
+        <Input
           type="text"
           className="form-control"
-          placeholder="Your full name (e.g. John Smith)"
+          placeholder="Your full name (e.g. John Smith, optional)"
           id="fullname"
           name="fullname"
-          required="true"
           value={fullname}
           onChange={onChange}
         />
-      </div>
-      { errorText }
-    </div>
+      </InputGroup>
+    </AvGroup>
   );
 }
 

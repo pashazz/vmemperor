@@ -1,51 +1,38 @@
 import React from 'react';
 import T from 'prop-types';
-import classNames from 'classnames';
 
-export function validate(cpu) {
-  if (cpu < 1 || cpu > 16) {
-    return 'should be between 1 and 16';
-  }
-  return '';
-}
-
-function CPU({ vcpus, onChange, className, touched }) {
-  const validation = validate(vcpus);
-  const isValid = validation === '';
-
-  const mainClassName = classNames(className, 'form-group', {
-    'has-success': touched && isValid,
-    'has-error': touched && !isValid,
-  });
-
-  const errorText = touched && !isValid ?
-    <span className="help-block">{ validation }</span> : null;
-
+import {AvField, AvGroup, AvInput, AvFeedback } from 'availity-reactstrap-validation';
+import { InputGroup, InputGroupAddon, InputGroupText } from 'reactstrap';
+import Input from 'components/Input';
+import faMicrochip from '@fortawesome/fontawesome-free-solid/faMicrochip';
+import FontAwesomeIcon from '@fortawesome/react-fontawesome';
+const CPU = ({vcpus, onChange}) =>
+{
   return (
-    <div className={mainClassName}>
-      <div className="input-group">
-        <span className="input-group-addon"><i className="icon-processorthree"></i></span>
-        <input
+    <AvGroup>
+      <InputGroup>
+        <InputGroupAddon style={ {"line-height": "1!important"}} addonType="prepend">
+          <InputGroupText style = { { height: '100%'}}>
+            <FontAwesomeIcon icon={faMicrochip}/>
+          </InputGroupText>
+        </InputGroupAddon>
+        <Input
           type="number"
-          className="form-control"
+          validate={{max: {value: 16}, min: {value: 1}}}
           id="vcpus"
           name="vcpus"
-          min="1"
           value={vcpus}
           onChange={onChange}
         />
-        <span className="input-group-addon">cores</span>
-      </div>
-      { errorText }
-    </div>
+         </InputGroup>
+    </AvGroup>
   );
 }
 
 CPU.propTypes = {
   vcpus: T.any.isRequired,
-  touched: T.bool.isRequired,
+
   onChange: T.func.isRequired,
-  className: T.string,
 };
 
 export default CPU;

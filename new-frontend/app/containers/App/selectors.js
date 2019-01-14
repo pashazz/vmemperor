@@ -13,7 +13,7 @@ const selectVmData = (state) => selectAppData(state).get('vm_data');
 
 const makeSelectVmData = () => createSelector(
   selectVmData,
-  (substate) => { return substate}
+  (substate) => {return substate}
 );
 
 export {

@@ -6,37 +6,74 @@ import traceback
 import rethinkdb as r
 from . import use_logger
 from .xenobjectdict import XenObjectDict
+import threading
+
+
+def dict_deep_convert(d):
+    def convert_to_bool(v):
+        if isinstance(v, str):
+            if v.lower() == 'true':
+                return True
+            elif v.lower() == 'false':
+                return False
+        elif isinstance(v, dict):
+            return dict_deep_convert(v)
+
+        return v
+
+    return {k: convert_to_bool(v) for k, v in d.items()}
+
+
 
 class XenObjectMeta(type):
     def __getattr__(cls, item):
         if item[0] == '_':
             item = item[1:]
-        def method(xen, *args, **kwargs):
+        def method(auth, *args, **kwargs):
 
             if not hasattr(cls, 'api_class'):
-                raise XenAdapterArgumentError(xen.log, "api_class not specified for XenObject")
+                raise XenAdapterArgumentError(auth.xen.log, "api_class not specified for XenObject")
 
             api_class = getattr(cls, 'api_class')
-            api = getattr(xen.api, api_class)
+            api = getattr(auth.xen.api, api_class)
             attr = getattr(api, item)
             try:
-                return attr(*args, **kwargs)
+                ret = attr(*args, **kwargs)
+                if isinstance(ret, dict):
+                    ret = dict_deep_convert(ret)
+                return ret
             except XenAPI.Failure as f:
-                raise XenAdapterAPIError(xen.log, "Failed to execute static method %s::%s: Error details: %s"
-                                         % (api_class, item, f.details ))
+                raise XenAdapterAPIError(auth.xen.log, "Failed to execute static method %s::%s"
+                                         % (api_class, item ), f.details)
         return method
 
-
+    def __init__(cls, what, bases=None, dict=None):
+        super().__init__(what, bases, dict)
+        cls.db_ready = threading.Event()
+        cls.db_ready.clear()
 
 
 class XenObject(metaclass=XenObjectMeta):
-
+    api_class = None
     REF_NULL = "OpaqueRef:NULL"
     db_table_name = ''
+    EVENT_CLASSES=[]
+    PROCESS_KEYS=[]
+    PROCESS_TYPED_KEYS = {}
+    _db_created = False
+    db = None
 
 
-    def __init__(self, auth : BasicAuthenticator,  uuid=None, ref=None):
-        '''Set  self.auth.xen_api_class to xen.api.something before calling this'''
+
+    def __init__(self, auth : BasicAuthenticator,  uuid:str=None , ref : str =None):
+        '''
+
+        :param auth: authenticator
+        either
+        :param uuid: object uuid
+        :param ref: object ref or object
+        '''
+        '''Set  self.api to Xen object class name before calling this'''
         self.auth = auth
         # if not isinstance(xen, XenAdapter):
         #          raise AttributeError("No XenAdapter specified")
@@ -44,17 +81,26 @@ class XenObject(metaclass=XenObjectMeta):
         self.xen = self.auth.xen
 
         if uuid:
-            self.uuid = uuid
+            if isinstance(uuid, str):
+                self.uuid = uuid
+            else:
+                raise XenAdapterAPIError(auth.xen.log,
+                                         f"Failed to initialize object of type {self.__class__.__name__}: invalid type of uuid. Expected: str, got {uuid.__class__.__name__}: {uuid}")
             try:
                 getattr(self, 'ref') #uuid check
             except XenAPI.Failure as f:
-                raise  XenAdapterAPIError(auth.xen.log, "Failed to initialize object of type %s with UUID %s: %s" %
-                                          (self.__class__.__name__, self.uuid, f.details))
+                raise  XenAdapterAPIError(auth.xen.log,
+                                          f"Failed to initialize object of type {self.__class__.__name__} with UUID {self.uuid}",f.details)
 
 
 
         elif ref:
-            self.ref = ref
+            if isinstance(ref, str):
+                self.ref = ref
+            else:
+                raise XenAdapterAPIError(auth.xen.log,
+                                         f"Failed to initialize object of type {self.__class__.__name__}: invalid type of ref. Expected: str, got {ref.__class__.__name__}")
+
         else:
             raise AttributeError("Not uuid nor ref not specified")
 
@@ -62,6 +108,13 @@ class XenObject(metaclass=XenObjectMeta):
 
         self.access_prefix = 'vm-data/vmemperor/access'
 
+    @classmethod
+    def is_hidden(self, record):
+        '''
+        Return true if this object is not supposed to be cached to a DB even if filter_record returns true
+        :return:
+        '''
+        return False
 
 
     def check_access(self,  action):
@@ -71,16 +124,69 @@ class XenObject(metaclass=XenObjectMeta):
         pass
 
     @classmethod
-    def process_event(cls, xen, event, db, authenticator_name):
+    def process_event(cls, auth, event, db, authenticator_name):
         '''
         Make changes to a RethinkDB-based cache, processing a XenServer event
-        :param xen: XenAdapter which generated event
+        :param auth: auth object
         :param event: event dict
         :param db: rethinkdb DB
         :param authenticator_name: authenticator class name - used by access control
         :return: nothing
         '''
-        pass
+        from rethinkdb_helper import CHECK_ER
+
+        cls.create_db(db)
+
+        if event['class'] in cls.EVENT_CLASSES:
+            if event['operation'] == 'del':
+                CHECK_ER(db.table(cls.db_table_name).get_all(event['ref'], index='ref').delete().run())
+                return
+
+            record = event['snapshot']
+            if not cls.filter_record(record):
+                return
+            if cls.is_hidden(record):
+                CHECK_ER(db.table(cls.db_table_name).get_all(event['ref'], index='ref').delete().run())
+                return
+
+            if event['operation'] in ('mod', 'add'):
+                new_rec = cls.process_record(auth, event['ref'], record)
+                CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
+
+    @classmethod
+    def create_db(cls, db, indexes=None):
+        '''
+        Creates a DB table named cls.db_table_name and specified indexes
+        :param db:
+        :param indexes:
+        :return:
+        '''
+        if not cls.db_table_name:
+            return
+        def index_yielder():
+            yield 'ref'
+            if hasattr(indexes, '__iter__'):
+                for y in indexes:
+                    yield y
+
+
+        if not cls.db:
+
+            table_list = db.table_list().run()
+            if cls.db_table_name not in table_list:
+                db.table_create(cls.db_table_name, durability='soft', primary_key='uuid').run()
+            index_list = db.table(cls.db_table_name).index_list().coerce_to('array').run()
+            for index in index_yielder():
+                if not index in index_list:
+                    db.table(cls.db_table_name).index_create(index).run()
+                    db.table(cls.db_table_name).index_wait(index).run()
+                    db.table(cls.db_table_name).wait().run()
+
+            cls.db = db
+            cls.db_ready.set()
+
+
+
 
     @classmethod
     def process_record(cls, auth, ref, record):
@@ -91,8 +197,19 @@ class XenObject(metaclass=XenObjectMeta):
         :return: dict suitable for document-oriented DB
         : default: return record as-is, adding a 'ref' field with current opaque ref
         '''
-        record['ref'] = ref
-        return record
+        if cls.PROCESS_KEYS:
+            new_record = {k:v for k,v in record.items() if k in cls.PROCESS_KEYS}
+        else:
+            new_record = record
+
+        new_record['ref'] = ref
+        if cls.PROCESS_TYPED_KEYS:
+            for k, v in cls.PROCESS_TYPED_KEYS.items():
+                new_record[k] = v(record[k])
+
+
+
+        return new_record
 
     @classmethod
     def filter_record(cls, record):
@@ -104,15 +221,18 @@ class XenObject(metaclass=XenObjectMeta):
         return True
 
     @classmethod
-    def get_all_records(cls, xen):
+    def get_all_records(cls, auth):
         method = getattr(cls, '_get_all_records')
-        return {k: v for k, v in method(xen).items()
+        return {k: v for k, v in method(auth).items()
                 if cls.filter_record(v)}
 
     @classmethod
     def init_db(cls, auth):
-        return [cls.process_record(auth, ref, record) for ref, record in cls.get_all_records(auth.xen).items()]
+        return [cls.process_record(auth, ref, record) for ref, record in cls.get_all_records(auth).items()]
 
+    def set_other_config(self, config):
+        config = {k : str(v) for k,v in config.items()}
+        self.__getattr__('set_other_config')(config)
 
 
     def __getattr__(self, name):
@@ -125,9 +245,25 @@ class XenObject(metaclass=XenObjectMeta):
             return self.ref
 
 
+        if name.startswith('async_'):
+            async = getattr(self.xen.api, 'Async')
+            api = getattr(async, self.api_class)
+            name = name[6:]
 
+
+        if name[0] == '_':
+            name=name[1:]
         attr = getattr(api, name)
-        return lambda *args, **kwargs : attr(self.ref, *args, **kwargs)
+        def method (*args, **kwargs):
+            try:
+                ret =  attr(self.ref, *args, **kwargs)
+                if isinstance(ret, dict):
+                    ret = dict_deep_convert(ret)
+
+                return ret
+            except XenAPI.Failure as f:
+                raise XenAdapterAPIError(self.log, "Failed to execute {0}::{1}".format(self.api_class, name), f.details)
+        return method
 
 
 
@@ -137,12 +273,53 @@ class ACLXenObject(XenObject):
     VMEMPEROR_ACCESS_PREFIX = 'vm-data/vmemperor/access'
 
     def get_access_path(self, username=None, is_group=False):
-        return '{3}/{0}/{1}/{2}'.format(self.auth.__class__.__name__,
-                                                               'groups' if is_group else 'users',
-                                                        username, self.access_prefix)
+        '''
+        used by manage_actions' default implementation
+        :param username:
+        :param is_group:
+        :return:
+        '''
+        return f'{self.access_prefix}/{self.auth.class_name()}/{"groups" if is_group else "users"}/{username}'
 
     ALLOW_EMPTY_XENSTORE = False # Empty xenstore for some objects might treat them as for-all-by-default
 
+    @classmethod
+    def process_record(cls, auth, ref, record):
+        '''
+        Adds an 'access' field to processed record containing access rights
+        :param auth:
+        :param ref:
+        :param record:
+        :return:
+        '''
+        new_rec = super().process_record(auth, ref, record)
+        new_rec['access'] = cls.get_access_data(record, auth.__name__)
+        return new_rec
+
+    @classmethod
+    def get_access_data(cls, record, authenticator_name):
+        '''
+        Obtain access data
+        :param record:
+        :param authenticator_name:
+        :return:
+        '''
+        xenstore = record['xenstore_data']
+        def read_xenstore_access_rights(xenstore_data):
+            filtered_iterator = filter(
+                lambda keyvalue: keyvalue[1] and keyvalue[0].startswith(cls.VMEMPEROR_ACCESS_PREFIX),
+                xenstore_data.items())
+
+            for k, v in filtered_iterator:
+                key_components = k[len(cls.VMEMPEROR_ACCESS_PREFIX) + 1:].split('/')
+                if key_components[0] == authenticator_name:
+                    yield {'userid': '%s/%s' % (key_components[1], key_components[2]), 'access': v.split(';')}
+
+            else:
+                if cls.ALLOW_EMPTY_XENSTORE:
+                    yield {'userid': 'any', 'access': ['all']}
+
+        return list(read_xenstore_access_rights(xenstore))
     @use_logger
     def check_access(self,  action):
         '''
@@ -162,17 +339,20 @@ class ACLXenObject(XenObject):
             return True # admin can do it all
 
         self.log.info("Checking %s %s rights for user %s: action %s" % (self.__class__.__name__, self.uuid, self.auth.get_id(), action))
-
+        from rethinkdb.errors import ReqlNonExistenceError
 
         db = self.auth.xen.db
-        access_info = db.table(self.db_table_name).get(self.uuid).pluck('access').run()
+        try:
+            access_info = db.table(self.db_table_name).get(self.uuid).pluck('access').run()
+        except ReqlNonExistenceError:
+            access_info = None
+            
         access_info = access_info['access'] if access_info else None
         if not access_info:
             if self.ALLOW_EMPTY_XENSTORE:
                     return True
             raise XenAdapterUnauthorizedActionException(self.log,
-                                                    "Unauthorized attempt (no info on access rights): needs privilege '%s', call stack: %s"
-                                                    % (action, traceback.format_stack()))
+                                                    "Unauthorized attempt (no info on access rights): needs privilege '%s'" % action)
 
 
         username = 'users/%s'  % self.auth.get_id()

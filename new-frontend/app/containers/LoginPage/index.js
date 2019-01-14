@@ -11,6 +11,7 @@ import { FormattedMessage } from 'react-intl';
 import { createStructuredSelector } from 'reselect';
 import { compose } from 'redux';
 import { Button, Modal, ModalHeader, ModalBody, ModalFooter, Form } from 'reactstrap';
+import { AvForm } from 'availity-reactstrap-validation';
 import SinglePoolLogin from "components/SinglePoolLogin";
 
 import { withRouter } from 'react-router-dom';
@@ -52,7 +53,7 @@ export class LoginPage extends React.PureComponent { // eslint-disable-line reac
     return (
       <Modal isOpen>
         <ModalHeader> VM Emperor Login </ModalHeader>
-        <Form role="form" onChange={this.handleChange} onSubmit={this.handleSubmit}>
+        <AvForm role="form" onChange={this.handleChange} onValidSubmit={this.handleSubmit}>
           <ModalBody>
             {
               this.props.pools.map((pool, index) =>
@@ -68,7 +69,7 @@ export class LoginPage extends React.PureComponent { // eslint-disable-line reac
                 </h4>
             }
           </ModalFooter>
-        </Form>
+        </AvForm>
       </Modal>
     );
   }

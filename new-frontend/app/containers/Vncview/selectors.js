@@ -16,9 +16,20 @@ const selectVncviewDomain = (state) => state.get('vncview');
 
 const makeSelectUrl = () => createSelector(
   selectVncviewDomain,
-  (substate) => substate.get('url')
+  (substate) => substate.get('url'),
+);
+const makeSelectUuid = () => createSelector(
+  selectVncviewDomain,
+  (substate) => substate.get('uuid')
+);
+
+const makeSelectError = () => createSelector(
+  selectVncviewDomain,
+  (substate) => substate.get('error')
 );
 
 export {
   makeSelectUrl,
+  makeSelectError,
+  makeSelectUuid,
 };

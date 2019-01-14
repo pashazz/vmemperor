@@ -5,111 +5,71 @@ from authentication import BasicAuthenticator
 import provision
 from .xenobjectdict import XenObjectDict
 
-from .os import *
 
+
+from .os import OSChooser
+from exc import *
+
+from urllib.parse import urlencode
 
 class VM (AbstractVM):
 
     db_table_name = 'vms'
+    PROCESS_KEYS = ['power_state', 'name_label', 'uuid',  'metrics', 'guest_metrics', 'domain_type', 'VCPUs_at_startup', 'VCPUs_max', 'memory_static_max', 'memory_static_min', 'memory_dynamic_max', 'memory_dynamic_min', 'name_description']
 
     def __init__(self, auth, uuid=None, ref=None):
         super().__init__(auth, uuid, ref)
 
 
     @classmethod
-    def init_db(cls, auth):
-        '''
-        Use default implementation and additionally insert information from
-        vm_metrics
-        :param auth:
-        :return:
-        '''
-
-        def insert_metrics(record):
-            '''
-            Insert metics information in a record
-            :param record: VM record
-            :return: updated dictionary
-            '''
-            if record['metrics'] == cls.REF_NULL:
-                auth.xen.log.warning('VM {0} does not have metrics, skipping it while initializing DB...'.format(record['uuid']))
-                return record # this record doesn't have a metrics field (yet)
-
-            metrics = XenObjectDict(auth.xen.api.VM_metrics.get_record(record['metrics']))
-            return  {**record, **cls.process_metrics_record(auth, metrics)}
-
-        return [insert_metrics(record) for record in super().init_db(auth)]
-
-
-
-
-    @classmethod
     def process_event(cls,  auth, event, db, authenticator_name):
 
-        from vmemperor import CHECK_ER
+        from rethinkdb_helper import CHECK_ER
+        # patch event[snapshot] so that if it doesn't have domain_type, guess it from HVM_boot_policy
+        try:
+            if 'domain_type' not in event['snapshot']:
+                event['snapshot']['domain_type'] = 'hvm' if 'HVM_boot_policy' in event['snapshot'] and event['snapshot']['HVM_boot_policy'] else 'pv'
+        except:
+            pass
 
+        super(cls, VM).process_event(auth, event, db, authenticator_name)
         if event['class'] == 'vm':
-
-
-            if event['operation'] == 'del':
-                CHECK_ER(db.table('vms').get_all(event['ref'], index='ref').delete().run())
-                return
-
-            record = event['snapshot']
-            if not cls.filter_record(record):
-                return
-
-            if event['operation'] in ('mod', 'add'):
-                new_rec = cls.process_record(auth, event['ref'], record)
-                CHECK_ER(db.table('vms').insert(new_rec, conflict='update').run())
-
-
+            return # handled by supermethod
         elif event['class'] == 'vm_metrics':
             if event['operation'] == 'del':
                 return #vm_metrics is removed when  VM has already been removed
 
             new_rec = cls.process_metrics_record(auth, event['snapshot'])
             # get VM by metrics ref
-            metrics_query = db.table('vms').get_all(event['ref'], index='metrics')
+            metrics_query = db.table(cls.db_table_name).get_all(event['ref'], index='metrics')
             rec_len = len(metrics_query.run().items)
             if rec_len == 0:
-                auth.xen.log.warning("VM: Cannot find a VM for metrics {0}".format(event['ref']))
+                #auth.xen.log.warning("VM: Cannot find a VM for metrics {0}".format(event['ref']))
                 return
             elif rec_len > 1:
-                auth.xen.log.warning("VM: More than one ({1}) VM for metrics {0}: DB broken?".format(event['ref'], rec_len))
+                auth.xen.log.warning("VM::process_event: More than one ({1}) VM for metrics {0}: DB broken?".format(event['ref'], rec_len))
                 return
 
 
             CHECK_ER(metrics_query.update(new_rec).run())
 
-        else:
-            raise XenAdapterArgumentError(auth.xen.log, "this method accepts only 'vm' and 'vm_metrics' events")
+        #elif
+        #else:
+        #    raise XenAdapterArgumentError(auth.xen.log, "this method accepts only 'vm' and 'vm_metrics' events")
 
 
 
-    @classmethod
-    def process_xenstore(cls, xenstore, authenticator_name):
 
-        def read_xenstore_access_rights(xenstore_data):
-            filtered_iterator = filter(
-                lambda keyvalue: keyvalue[1] and keyvalue[0].startswith(cls.VMEMPEROR_ACCESS_PREFIX),
-                xenstore_data.items())
-
-            for k, v in filtered_iterator:
-                key_components = k[len(cls.VMEMPEROR_ACCESS_PREFIX) + 1:].split('/')
-                if key_components[0] == authenticator_name:
-                    yield {'userid': '%s/%s' % (key_components[1], key_components[2]), 'access': v.split(';')}
-
-            else:
-                if cls.ALLOW_EMPTY_XENSTORE:
-                    yield {'userid': 'any', 'access': ['all']}
-
-        return list(read_xenstore_access_rights(xenstore))
 
 
     @classmethod
     def filter_record(cls, record):
         return not (record['is_a_template'] or record['is_control_domain'])
+
+
+    @classmethod
+    def create_db(cls, db, indexes=None): #ignore indexes
+        super(VM, cls).create_db(db, indexes=['metrics', 'guest_metrics'])
 
     @classmethod
     def process_record(cls, auth, ref, record):
@@ -118,25 +78,18 @@ class VM (AbstractVM):
         :param record:
         :return: record for DB
         '''
-        record = super().process_record(auth, ref, record)
-        keys = ['power_state', 'name_label', 'uuid', 'ref', 'metrics']
-        new_rec = {k: v for k, v in record.items() if k in keys}
-        new_rec['access'] = cls.process_xenstore(record['xenstore_data'], auth.__name__)
-        new_rec['network'] = []
-        for vif in record['VIFs']:
-            net_ref = auth.xen.api.VIF.get_network(vif)
-            net_uuid = auth.xen.api.network.get_uuid(net_ref)
-            new_rec['network'].append(net_uuid)
-
-        new_rec['disks'] = []
-        for vbd in record['VBDs']:
-            vdi_ref = auth.xen.api.VBD.get_VDI(vbd)
-            try:
-                vdi_uuid = auth.xen.api.VDI.get_uuid(vdi_ref)
-                new_rec['disks'].append(vdi_uuid)
-            except XenAPI.Failure as f:
-                if f.details[1] != 'VDI':
-                    raise f
+        from xenadapter.network import VIF, Network
+        new_rec = super().process_record(auth, ref, record)
+        new_rec['networks'] = {}
+        new_rec['disks'] = {}
+        #for vbd in record['VBDs']:
+        #    vdi_ref = auth.xen.api.VBD.get_VDI(vbd)
+        #    try:
+        #        vdi_uuid = auth.xen.api.VDI.get_uuid(vdi_ref)
+        #        new_rec['disks'].append(vdi_uuid)
+        #    except XenAPI.Failure as f:
+        #        if f.details[1] != 'VDI':
+        #            raise f
         return new_rec
 
     @classmethod
@@ -152,8 +105,10 @@ class VM (AbstractVM):
         keys = ['start_time', 'install_time', 'memory_actual']
         return XenObjectDict({k: v for k, v in record.items() if k in keys})
 
+
     @classmethod
-    def create(self, auth, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, scenario_url=None, name_label = '', start=True, override_pv_args=None):
+    def create(cls, insert_log_entry, auth, new_vm_uuid, sr_uuid, net_uuid, vdi_size, ram_size, hostname, mode, os_kind=None, ip=None, install_url=None, name_label ='', start=True, override_pv_args=None, iso=None,
+               username=None, password=None, partition=None, fullname=None, vcpus=1):
         '''1
         Creates a virtual machine and installs an OS
 
@@ -171,45 +126,91 @@ class VM (AbstractVM):
         :param name_label: Name for created VM
         :param start: if True, start VM immediately
         :param override_pv_args: if specified, overrides all pv_args for Linux kernel
+        :param iso: ISO Image UUID. If specified, will be mounted
         :return: VM UUID
         '''
         #new_vm_uuid = self.clone_tmpl(tmpl_uuid, name_label, os_kind)
-
+        cls.insert_log_entry = lambda self, *args, **kwargs: insert_log_entry(new_vm_uuid, *args, **kwargs)
         vm = VM(auth, uuid=new_vm_uuid)
         vm.install = True
+        vm.remove_tags('vmemperor')
         if isinstance(auth, BasicAuthenticator):
             vm.manage_actions('all',  user=auth.get_id())
 
         vm.set_ram_size(ram_size)
+        vm.set_VCPUs_max(vcpus)
+        vm.set_VCPUs_at_startup(vcpus)
         vm.set_disks(sr_uuid, vdi_size)
+        # After provision. manage disks actions
+
+        if isinstance(auth, BasicAuthenticator):
+            for vbd_ref in vm.get_VBDs():
+                from .vbd import VBD
+                from .disk import VDI
+
+                vbd = VBD(auth=auth, ref=vbd_ref)
+                if vbd.get_type() != 'Disk':
+                    continue
+                vdi = VDI(auth=auth, ref=vbd.get_VDI())
+                vdi.manage_actions('all', user=auth.get_id())
 
 
-
+        vm.install_guest_tools()
 
 
         #self.connect_vm(new_vm_uuid, net_uuid, ip)
-        vm.convert('pv')
+        if mode == 'pv':
+            vm.convert('pv')
 
-        try:
-            from .network import Network
-            net = Network(auth, uuid=net_uuid)
-        except XenAdapterAPIError as e:
-            auth.xen.insert_log_entry(new_vm_uuid, state="failed", message="Failed to connect VM to a network: %s" % e.message )
-            return
 
-        net.attach(vm)
-        #self.convert_vm(new_vm_uuid, 'pv')
+        if net_uuid:
+            try:
+                from .network import Network
+                net = Network(auth, uuid=net_uuid)
+            except XenAdapterAPIError as e:
+                insert_log_entry(new_vm_uuid, state="failed", message="Failed to connect VM to a network: %s" % e.message )
+                raise e
 
-        vm.os_detect(os_kind, ip, hostname, scenario_url, override_pv_args)
+            net.attach(vm)
+        else:
+            if os_kind:
+                auth.xen.log.warning("os_kind specified as {0}, but no network specified. The OS won't install".format(os_kind))
+
+
+        if os_kind:
+            vm.os_detect(os_kind, ip, hostname, install_url, override_pv_args, fullname, username, password, partition)
+
+        if iso:
+            try:
+                from .disk import ISO
+                _iso = ISO(auth, uuid=iso)
+                _iso.attach(vm)
+            except XenAdapterAPIError as e:
+                insert_log_entry(new_vm_uuid, state="failed",
+                                          message="Failed to mount ISO for VM: %s" % e.message)
+                raise e
+
+
         vm.os_install(install_url)
         vm.convert(mode)
-        #self.convert_vm(new_vm_uuid, mode)
-        #self.start_stop_vm(new_vm_uuid, start)
 
         del vm.install
         #subscribe to changefeed
 
         return vm
+
+
+    def set_memory(self, memory : int):
+        try:
+            self._set_memory(memory)
+        except XenAPI.Failure as f:
+            if f.details[0] == "MESSAGE_METHOD_UNKNOWN":
+                self.set_memory_static_max(memory)
+                self.set_memory_dynamic_max(memory)
+                self.set_memory_dynamic_min(memory)
+            else:
+                raise f
+
 
     @use_logger
     def set_ram_size(self,  mbs):
@@ -217,10 +218,9 @@ class VM (AbstractVM):
             bs = str(1048576 * int(mbs))
             #vm_ref = self.api.VM.get_by_uuid(vm_uuid)
             static_min = self.get_memory_static_min()
-            print(static_min)
 #            if bs <= static_min:
 #                self.set_memory_static_min(bs)
-            self.set_memory(bs)
+            self.set_memory_limits(bs, bs, bs, bs)
         except Exception as e:
             #self.destroy_vm(vm_uuid, force=True)
             try:
@@ -256,6 +256,8 @@ class VM (AbstractVM):
 
         try:
             self.provision()
+
+
         except Exception as e:
 
             try:
@@ -271,7 +273,7 @@ class VM (AbstractVM):
 
 
     @use_logger
-    def os_detect(self, os_kind, ip, hostname, scenario_url, override_pv_args):
+    def os_detect(self, os_kind, net_tuple, hostname,  install_url,  override_pv_args, fullname, username, password, partition):
         '''
         call only during install
         :param os_kind:
@@ -281,43 +283,38 @@ class VM (AbstractVM):
         :param override_pv_args:
         :return:
         '''
-        #vm_ref = self.api.VM.get_by_uuid(vm_uuid)
 
         if not hasattr(self, 'install'):
             raise RuntimeError("Not an installation process")
-        os = None
-        if 'ubuntu' in os_kind:
-            os = UbuntuOS()
-        if 'debian' in os_kind:
-            os = DebianOS()
+        other_config = self.get_other_config()
+        os = OSChooser.get_os(os_kind, other_config)
 
         if os:
-            try:
-                debian_release = os.get_release(os_kind.split()[1])
-            except IndexError:
-                debian_release = None
-            if debian_release:
-                config = self.get_other_config()
-                config['debian-release'] = debian_release
-                self.set_other_config(config)
 
-        if 'centos' in os_kind:
-            os = CentOS()
-
-        if os:
-            if ip:
-                os.set_network_parameters(*ip)
-            else:
-                os.set_network_parameters()
+            if net_tuple:
+                os.set_network_parameters(*net_tuple)
 
             os.set_hostname(hostname)
-            os.set_scenario(scenario_url)
+
+            os.set_install_url(install_url)
+
+            self.set_other_config(os.other_config)
+            os.fullname = fullname
+            os.username = username
+            os.password = password
+            os.partition = partition
 
             if not override_pv_args:
                 pv_args = os.pv_args()
             else:
                 pv_args = override_pv_args
             self.set_PV_args(pv_args)
+
+            self.log.info("Set PV args: {0}".format(pv_args))
+
+
+
+
 
     @use_logger
     def os_install(self,  install_url):
@@ -329,17 +326,8 @@ class VM (AbstractVM):
         if not hasattr(self, 'install'):
             raise RuntimeError("Not an installation process")
         message = 'Installing OS'
-        if install_url:
-            config = self.get_other_config()
-            config['install-repository'] = install_url
-            config['default-mirror'] = install_url
-            self.set_other_config( config)
-            self.log.info("Adding Installation URL: %s" % install_url)
-            message += ' from URL: %s' % install_url
 
         self.insert_log_entry('installing', message)
-
-
         try:
             self.start(False, True)
         except Exception as e:
@@ -349,6 +337,18 @@ class VM (AbstractVM):
                 self.insert_log_entry('failed', 'Failed to start OS installation:  %s' % f.details)
                 raise XenAdapterAPIError(self.log, 'Failed to start OS installation', f.details)
 
+    @use_logger
+    def install_guest_tools(self):
+        from .disk import ISO
+        from xenadapter.sr import SR
+        for ref in SR.get_all(self.auth):
+            sr = SR(ref=ref, auth=self.auth)
+            if sr.get_is_tools_sr():
+                for vdi_ref in sr.get_VDIs():
+                    vdi = ISO(ref=vdi_ref, auth=self.auth)
+                    if vdi.get_is_tools_iso():
+                        vdi.attach(self)
+                        return
 
     def convert(self,  mode):
         """
@@ -375,13 +375,17 @@ class VM (AbstractVM):
         :return:
         """
         try:
+            task = None
             ps = self.get_power_state()
             if ps != 'Running' and enable:
-                self.start( False, True)
-                self.log.info("Started".format(self.uuid))
+                task = self.async_start(False, True)
+
+
             if ps == 'Running' and not enable:
-                self.shutdown()
-                self.xen.log.info("Shutted down".format(self.uuid))
+                task = self.async_shutdown()
+
+            return task
+
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self.log, "Failed to start/stop VM", f.details)
 
@@ -410,7 +414,9 @@ class VM (AbstractVM):
 
     @use_logger
     def destroy_vm(self):
-        from .disk import VBD
+        from .disk import VDI
+        from xenadapter.sr import SR
+        from xenadapter.vbd import VBD
 
         self.start_stop_vm(False)
 
@@ -418,11 +424,15 @@ class VM (AbstractVM):
         vdis = [VBD(self.auth, ref=vbd_ref).get_VDI() for vbd_ref in vbds]
 
         try:
-            self.destroy()
             for vdi_ref in vdis:
-                self.xen.api.VDI.destroy(vdi_ref) #????
+                vdi = VDI(auth=self.auth, ref=vdi_ref)
+                if len(vdi.get_VBDs()) < 2:
+                    vdi.destroy()
+            self.destroy()
+
+
         except XenAPI.Failure as f:
-            raise XenAdapterAPIError(self.log, "Failed to destroy VM: {0}".format(f.details))
+            raise XenAdapterAPIError(self.log, "Failed to destroy VM",f.details)
 
         return
 
@@ -432,7 +442,6 @@ class VM (AbstractVM):
         try:
             self.api.VDI.destroy(vdi_ref)
         except XenAPI.Failure as f:
-
             raise XenAdapterAPIError(self, "Failed to destroy VDI: {0}".format(f.details))
 
         return

@@ -1,60 +1,80 @@
 import pathlib
+from collections import OrderedDict
 import signal
 import atexit
 from connman import ReDBConnection
-from auth import dummy
+import subprocess
+from rethinkdb_helper import CHECK_ER
+from quota import Quota
 from xenadapter import XenAdapter, XenAdapterPool
 from xenadapter.template import Template
 from xenadapter.vm import VM
-from xenadapter.network import Network
-from xenadapter.disk import ISO
+from xenadapter.vmguest import VMGuest
+from xenadapter.network import Network, VIF
+from xenadapter.disk import ISO, VDI, VDIorISO
+from xenadapter.sr import SR
+from xenadapter.vbd import VBD
 from xenadapter.pool import Pool
+from xenadapter.task import Task
+from xenadapter.host import Host
+from playbook import Playbook, PlaybookEncoder
+from tasks import Operations
 import copy
 import traceback
-import select
-import inspect
 import tornado.web
-from tornado.escape import json_encode, json_decode
 import tornado.httpserver
 import tornado.iostream
-import json
 from dynamicloader import DynamicLoader
-import configparser
 import socket
-from tornado import gen, ioloop
+from tornado import ioloop
 from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
-from urllib.parse import urlparse
-import base64
+from urllib.parse import urlencode
 import pickle
 import rethinkdb as r
 from rethinkdb.errors import ReqlDriverError, ReqlTimeoutError
+from rethinkdb.net import DefaultCursorEmpty
 from authentication import BasicAuthenticator
 from loggable import Loggable
 from pathlib import Path
-from urllib.parse import urlsplit, urlunsplit, urlencode
+from urllib.parse import urlsplit, parse_qs
 from exc import *
+import time
 import logging
-from netifaces import ifaddresses, AF_INET
 import uuid
 from tornado.options import define, options as opts, parse_config_file
-import queue
 import threading
 import datetime
-
-
+import tempfile
+import shutil
+from ruamel import yaml
 from xmlrpc.client import DateTime as xmldt
 from frozendict import frozendict, FrozenDictEncoder
 from authentication import AdministratorAuthenticator
 from tornado.websocket import *
 import asyncio
 from tornado.platform.asyncio import AnyThreadEventLoopPolicy
-#Objects with ACL enabled
-objects = [VM, Network]
+from typing import Dict, Optional
+from secrets import token_urlsafe
+
+logger = None # global logger
+
+POSTINST_ROUTE = r'/postinst'
+# Objects with ACL enabled
+objects = [VM, Network, VDI]
 
 user_table_ready = threading.Event()
+first_batch_of_events = threading.Event()
 need_exit = threading.Event()
-xen_events_run = threading.Event() # called by USR2 signal handler
+xen_events_run = threading.Event()  # called by USR2 signal handler
+URL = ""
+ansible_pubkey = ""
+auth_class_name = ""
+playbooks = Dict[str, Playbook]
+
+
+
+secrets = {}
 
 def table_drop(db, table_name):
     try:
@@ -67,26 +87,15 @@ def table_drop(db, table_name):
 
 
 class DateTimeEncoder(json.JSONEncoder):
-    MY_TIME_FORMAT = "%d.%m.%Y, %H:%M:%S"
     def default(self, o):
         if isinstance(o, xmldt):
-            t =  datetime.datetime.strptime(o.value, "%Y%m%dT%H:%M:%SZ")
-            return t.strftime(self.MY_TIME_FORMAT)
+            t = datetime.datetime.strptime(o.value, "%Y%m%dT%H:%M:%SZ")
+            return t.isoformat()
         elif isinstance(o, datetime.datetime):
-            return o.strftime(self.MY_TIME_FORMAT)
-
-        
+            return o.isoformat()
 
         return super().default(o)
 
-
-
-
-def CHECK_ER(ret):
-    if ret['errors']:
-        raise ValueError('Failed to modify data: {0}'.format(ret['first_error']))
-    if ret['skipped']:
-        raise ValueError('Failed to modify data: skipped - {0}'.format(ret['skipped']))
 
 def auth_required(method):
     def decorator(self, *args, **kwargs):
@@ -95,7 +104,7 @@ def auth_required(method):
             self.set_status(401)
             self.write({'status': 'error', 'message': 'not authorized'})
         else:
-            self.user_authenticator  = pickle.loads(user)
+            self.user_authenticator = pickle.loads(user)
             self.user_authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
             self.xen = self.user_authenticator.xen
             return method(self)
@@ -103,6 +112,23 @@ def auth_required(method):
     return decorator
 
 
+def admin_required(method):
+    def decorator(self, *args, **kwargs):
+        user = HandlerMethods.get_current_user(self)
+        if not user:
+            self.set_status(401)
+            self.write({'status': 'error', 'message': 'not authorized'})
+        else:
+            self.user_authenticator = pickle.loads(user)
+            if not isinstance(self.user_authenticator, AdministratorAuthenticator):
+                self.set_status(403)
+                self.write({'status': 'error', 'message': 'administrator required'})
+                return
+            self.user_authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
+            self.xen = self.user_authenticator.xen
+            return method(self)
+
+    return decorator
 
 
 class HandlerMethods(Loggable):
@@ -111,25 +137,24 @@ class HandlerMethods(Loggable):
         self.debug = opts.debug
         self.init_log()
         self.conn = ReDBConnection().get_connection()
-
-
-
-    # def init_xen(self, auth=None) -> XenAdapter:
-    #    opts_dict = {}
-    #    opts_dict.update(opts.group_dict('xenadapter'))
-    #    opts_dict.update(opts.group_dict('rethinkdb'))
-    #    xen = XenAdapter(opts_dict, auth if auth else self.user_authenticator)
-    #    return xen
+        first_batch_of_events.wait()
+        self.actions_log = self.create_additional_log('actions')
 
     def get_current_user(self):
         return self.get_secure_cookie("user")
 
 
 class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
+    _ASYNC_KEY = None
 
     def initialize(self, executor):
         self.init_executor(executor)
+        self.user_authenticator = Optional[BasicAuthenticator]
+
+        self.op = Operations(r.db(opts.database))
+
         super().initialize()
+
 
     def prepare(self):
         super().prepare()
@@ -146,13 +171,13 @@ class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
             body = self.request.body.decode(encoding=encoding).strip()
             if body:
                 json_data = json.loads(body)
-                json_data_lists = {k : [v] for k, v in json_data.items()}
+                json_data_lists = {k: [v] for k, v in json_data.items()}
                 self.request.arguments.update(json_data_lists)
 
-                #monkey-patch decode argument
+                # monkey-patch decode argument
                 self.decode_argument = lambda value, name: value
 
-                #monkey-patch _get_arguments
+                # monkey-patch _get_arguments
                 old_get_arguments = self._get_arguments
                 self._get_arguments = lambda name, source, strip: old_get_arguments(name, source, False)
 
@@ -160,13 +185,45 @@ class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
         return self.get_secure_cookie("user")
 
 
-    def try_xenadapter(self, func, post_hook = None):
+    def async_run(self, task_ref):
+        self._run_task = task_ref
+        ioloop = tornado.ioloop.IOLoop.instance()
+        ioloop.run_in_executor(self.executor, self.run_async_task)
+
+
+    def run_async_task(self):
+        task = Task(auth=self.user_authenticator, ref=self._run_task)
+
+        with ReDBConnection().get_connection():
+            write_in = {'id' : self._run_task}
+            self.op.set_operation(self.user_authenticator, write_in)
+            write_in['created'] = task.get_created()
+            while task.get_status() == 'pending':
+                write_in['status'] = task.get_status()
+                write_in['progress'] =  task.get_progress()
+                self.op.set_operation(None, write_in)
+                time.sleep(1)
+
+            write_in['finished'] = task.get_finished()
+            write_in['status'] = task.get_status()
+            write_in['progress'] = task.get_progress()
+
+            if write_in['status'] == 'failure':
+                write_in['error_info'] = task.get_error_info()
+
+
+            self.op.set_operation(None, write_in)
+        task.destroy()
+
+
+    def try_xenadapter(self, func, post_hook=None):
         '''
         Call a xenadapter method, handle exceptions
         :param func:
         :param post_hook: call this function with a xenadapter method's return value and an authenticator object  as arguments argument (optional)        :return:
         '''
         auth = self.user_authenticator
+
         try:
             ret = func(auth)
 
@@ -181,12 +238,13 @@ class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
             self.write(json.dumps({'status': 'error', 'details': ee.message}))
             self.finish()
 
+
+
         else:
             if ret:
                 self.write(ret)
             else:
                 self.write(json.dumps({'status': 'ok'}))
-
 
             self.finish()
             try:
@@ -200,9 +258,6 @@ class BaseWSHandler(WebSocketHandler, HandlerMethods):
     def initialize(self, executor):
         self.init_executor(executor)
         super().initialize()
-
-
-
 
 
 class AuthHandler(BaseHandler):
@@ -231,15 +286,13 @@ class AuthHandler(BaseHandler):
         try:
             self.authenticator.check_credentials(username=username, password=password, log=self.log)
         except AuthenticationException:
-            self.write(json.dumps({"status": 'error', 'message' :  "wrong credentials"}))
+            self.write(json.dumps({"status": 'error', 'message': "wrong credentials"}))
             self.log.info('User failed to login with credentials: {0} {1}'.format(username, password))
             self.set_status(401)
             return
 
-
-        self.write(json.dumps({'status' : 'success', 'login' : username}))
+        self.write(json.dumps({'status': 'success', 'login': username}))
         self.set_secure_cookie("user", pickle.dumps(self.authenticator))
-
 
 
 """
@@ -267,6 +320,10 @@ class Test(BaseHandler):
 
 
 class AdminAuth(BaseHandler):
+    def initialize(self, executor, authenticator):
+        super().initialize(executor)
+        self.user_auth = authenticator
+
     def post(self):
         '''
         Authenticate using XenServer auth system directly (as admin)
@@ -277,7 +334,7 @@ class AdminAuth(BaseHandler):
         username = self.get_argument("username", "")
         password = self.get_argument("password", "")
         try:
-            authenticator = AdministratorAuthenticator()
+            authenticator = AdministratorAuthenticator(user_auth=self.user_auth)
             authenticator.check_credentials(username=username, password=password, log=self.log)
         except AuthenticationException:
             self.write(json.dumps({"status": 'error', 'message': "wrong credentials"}))
@@ -287,22 +344,130 @@ class AdminAuth(BaseHandler):
         self.set_secure_cookie("user", pickle.dumps(authenticator))
 
 
-
 class LogOut(BaseHandler):
     def get(self):
         self.clear_cookie('user')
-        #self.redirect(self.get_argument("next", "/login"))
+        # self.redirect(self.get_argument("next", "/login"))
         self.write({'status': 'ok'})
 
 
+class Playbooks(BaseHandler):
+    @auth_required
+    def get(self):
+        _playbooks = playbooks.values();
+        if not isinstance(self.user_authenticator, AdministratorAuthenticator):
+            _playbooks = filter(lambda playbook: not playbook.get_inventory(), _playbooks)
+        _playbooks = list(_playbooks)
+        self.write(json.dumps(list(_playbooks), cls=PlaybookEncoder))
+
+
+class TurnTemplate(BaseHandler):
+    @admin_required
+    def post(self):
+        uuid = self.get_argument('uuid')
+        action = self.get_argument('action')
+        tmpl = Template(self.user_authenticator, uuid=uuid)
+        if action not in ('on', 'off'):
+            self.set_status(400)
+            self.write({'status': 'error', 'message': 'action is either on or off'})
+            return
+        try:
+            tmpl.enable_disable(action == 'on')
+        except XenAdapterAPIError as e:
+            self.set_status(400)
+            self.write({'status': 'error', 'message': e.message})
+            return
+
+        self.write({'status': 'ok'})
+
+class AllTemplates(BaseHandler):
+    @admin_required
+    def get(self):
+        tmpl = Template.get_all_records(self.user_authenticator)
+        self.write(json.dumps(tmpl, cls=DateTimeEncoder ))
+
+class SetQuota(BaseHandler):
+    @admin_required
+    def post(self):
+        userid = self.get_argument('userid')
+        name = self.get_argument('name')
+        value = self.get_argument('value')
+        quota = Quota(self.user_authenticator, auth_class_name)
+        if name == 'storage':
+            quota.set_storage_quota(userid, int(value))
+
+        self.write({'status':'ok'})
+
+class GetQuota(BaseHandler):
+    @admin_required
+    def post(self):
+        userid = self.get_argument('userid', None)
+        with self.conn:
+            quota = Quota(self.user_authenticator, auth_class_name)
+            self.write(json.dumps(quota.get_storage_usage(userid)))
+
+    @auth_required
+    def get(self):
+        with self.conn:
+            quota = Quota(self.user_authenticator, auth_class_name)
+            self.write(json.dumps(quota.get_storage_usage()))
+
+
+
+class ResourceList(BaseHandler):
+    @auth_required
+    def get(self):
+        with self.conn:
+            db = r.db(opts.database)
+            user_table_ready.wait()
+            try:
+                if isinstance(self.user_authenticator, AdministratorAuthenticator):
+                    query = db.table(self.table).coerce_to('array')
+
+                else:
+                    userid = str(self.user_authenticator.get_id())
+                    query = db.table(self.table + '_user').get_all('users/%s' % userid, index='userid'). \
+                        pluck('uuid').coerce_to('array'). \
+                        merge(db.table(self.table).get(r.row['uuid']).without('uuid'))
+
+                    for group in self.user_authenticator.get_user_groups():
+                        group = str(group)
+                        query = query.union(db.table(self.table + '_user').get_all('groups/%s' % group, index='userid'). \
+                                            without('id').coerce_to('array'). \
+                                            merge(db.table(self.table).get(r.row['uuid']).without('uuid')))
+
+                page = int(self.get_argument('page', -1))
+                if page > 0:
+                    page_size = int(self.get_argument('page_size', 10))
+                    query = query.slice((page - 1) * page_size, page_size)
+
+                self.write(json.dumps(query.run()))
+
+
+            except Exception as e:
+                self.set_status(500)
+                self.log.error("Exception: {0}".format(e))
+
+
+class NetworkList(ResourceList):
+    table = 'nets'
+
+
+class VDIList(ResourceList):
+    table = 'vdis'
+
+
 class VMList(BaseWSHandler):
+    connections = []
+
     @auth_required
     @tornado.web.asynchronous
     def open(self):
+        self.connections.append(self)
         with self.conn:
-            db  = r.db(opts.database)
+            db = r.db(opts.database)
             self.db = db
-            if isinstance(self.user_authenticator, AdministratorAuthenticator): #get all vms
+            if isinstance(self.user_authenticator, AdministratorAuthenticator):  # get all vms
                 self.changes_query = db.table('vms').changes(include_types=True, include_initial=True)
 
             else:
@@ -312,29 +477,26 @@ class VMList(BaseWSHandler):
                 # Plus get all initial values and changes from vms_user table and mark them as 'access' changes
                 #
                 self.changes_query = self.db.table('vms').changes(include_types=True).filter(
-                    r.row['type'].eq(r.expr('change')).or_(r.row['type'].eq('remove')))\
+                    r.row['type'].eq(r.expr('change')).or_(r.row['type'].eq('remove'))) \
                     .union(
                     self.db.table('vms_user').get_all('users/%s' % userid, index='userid').without('id').
-                    changes(include_types=True, include_initial=True).
+                        changes(include_types=True, include_initial=True).
                         merge(r.branch((r.row['type'] == 'initial') | (r.row['type'] == 'add'),
-                        self.db.table('vms').get(r.row['new_val']['uuid']),
-                        {})))
+                                       self.db.table('vms').get(r.row['new_val']['uuid']),
+                                       {})))
 
                 for group in self.user_authenticator.get_user_groups():
                     group = str(group)
 
-                    self.changes_query = self.changes_query.union(self.db.table('vms_user').get_all( 'groups/%s' % group, index='userid')
-                                                                  .without('id').changes(include_types=True, include_initial=True)
-                                                                  .merge(r.branch((r.row['type'] == 'initial') | (r.row['type'] == 'add'),
-                                                                  self.db.table('vms').get(r.row['new_val']['uuid']),
-                                                                  {})))
-
+                    self.changes_query = self.changes_query.union(
+                        self.db.table('vms_user').get_all('groups/%s' % group, index='userid')
+                        .without('id').changes(include_types=True, include_initial=True)
+                        .merge(r.branch((r.row['type'] == 'initial') | (r.row['type'] == 'add'),
+                                        self.db.table('vms').get(r.row['new_val']['uuid']),
+                                        {})))
 
             ioloop = tornado.ioloop.IOLoop.instance()
             ioloop.run_in_executor(self.executor, self.items_changes)
-
-
-
 
     def items_changes(self):
         '''
@@ -352,6 +514,7 @@ class VMList(BaseWSHandler):
             with conn:
                 valid_uuids = set()
                 cur = None
+
                 def create_cursor():
                     nonlocal cur
                     cur = self.changes_query.run()
@@ -370,23 +533,29 @@ class VMList(BaseWSHandler):
                 create_cursor()
                 self.cur = cur
 
-
                 while True:
                     try:
-                        change = cur.next(False)
-                    except ReqlTimeoutError as e: #Monitor if we need to exit
+                        change = cur.next(1)
+                    except (ReqlTimeoutError, DefaultCursorEmpty) as e:  # Monitor if we need to exit
                         if not self.ws_connection or need_exit.is_set():
                             return
                         else:
                             continue
 
-
                     if not self.ws_connection or need_exit.is_set():
                         return
 
+                    if isinstance(self.user_authenticator, AdministratorAuthenticator):
+                        if change['type'] in ('initial', 'add'):
+                            if change['new_val']:
+                                new_val = change['new_val'].copy()
+                                del change['new_val']
+                                change.update(new_val)
+                        elif change['type'] == 'remove':
+                            del change['new_val']
 
-                    if not isinstance(self.user_authenticator, AdministratorAuthenticator):
-                        if change['type'] == 'change': #these are sent from vms
+                    else:
+                        if change['type'] == 'change':  # these are sent from vms
                             if change['new_val']:
                                 record = change['new_val']
                             elif change['type'] == 'remove':
@@ -394,45 +563,45 @@ class VMList(BaseWSHandler):
                             else:
                                 record = change
 
-                            #for access_entry in record['access']:
+                            # for access_entry in record['access']:
                             #    if check_access_enSacceetry(access_entry):
                             #        break
-                            #else: #Normal quit, not via break
+                            # else: #Normal quit, not via break
                             #    continue #filter this entry
                             if record['uuid'] not in valid_uuids:
                                 continue
 
 
-                        elif change['type'] in ('initial', 'add'): #these are access only
-                            del change['new_val'] # we merge them with entries from vms, we don't need new_val
+                        elif change['type'] in ('initial', 'add'):  # these are access only
+                            del change['new_val']  # we merge them with entries from vms, we don't need new_val
                             if 'old_val' in change:
                                 del change['old_val']
 
                             if change['uuid'] not in valid_uuids:
                                 valid_uuids.add(change['uuid'])
                             else:
-                                continue # we will get this change as we're subscribed anyway
+                                continue  # we will get this change as we're subscribed anyway
 
 
                         elif change['type'] == 'remove':
-                            del change['new_val'] #always null
+                            del change['new_val']  # always null
 
                             if change['old_val']['uuid'] not in valid_uuids:
                                 continue
 
                             valid_uuids.remove(change['old_val']['uuid'])
 
-
-
-                    self.write_message(json.dumps(change, cls=DateTimeEncoder))
+                    try:
+                        self.write_message(json.dumps(change, cls=DateTimeEncoder))
+                    except WebSocketClosedError:
+                        return
 
         except Exception as e:
             self.log.error("Exception in items_changes', user: {0}: {1}, restarting..."
                            .format(self.user_authenticator.get_id(), e))
+            traceback.print_exc()
             ioloop = tornado.ioloop.IOLoop.instance()
             ioloop.run_in_executor(self.executor, self.items_changes)
-
-
 
     def on_close(self):
         if hasattr(self, 'cur'):
@@ -474,7 +643,6 @@ class PoolList(BaseHandler):
             if default_sr == 'OpaqueRef:NULL':
                 default_sr = None
 
-
             networks = api.network.get_all_records()
             # TODO: implement filtering by tags some time
             pool_info["networks"] = []
@@ -486,27 +654,22 @@ class PoolList(BaseHandler):
             pool_info["storage_resources"] = []
             storage_resources = api.SR.get_all_records()
 
-
             for key, sr in storage_resources.items():
                 if sr["type"] == "lvmoiscsi" or sr["type"] == "lvm":
                     if default_sr is None and sr["name_label"] == "Local storage":
                         default_sr = key
 
-
                     label = ''.join((sr["name_label"], " (Available %d GB)" % (
-                                (int(sr['physical_size']) - int(sr['virtual_allocation'])) / (1024 * 1024 * 1024))))
+                            (int(sr['physical_size']) - int(sr['virtual_allocation'])) / (1024 * 1024 * 1024))))
                     if sr["shared"]:
                         label = ''.join(("Shared storage: ", label))
                         pool_info["storage_resources"].insert(0, {"uuid": sr["uuid"], "name_label": label})
                     else:
                         pool_info["storage_resources"].append({"uuid": sr["uuid"], "name_label": label})
 
-
-
-
             sr_info = api.SR.get_record(default_sr)
             pool_info['hdd_available'] = (int(sr_info['physical_size']) - int(sr_info['virtual_allocation'])) / (
-                        1024 * 1024 * 1024)
+                    1024 * 1024 * 1024)
 
             pool_info['host_list'] = []
 
@@ -527,15 +690,12 @@ class PoolList(BaseHandler):
             pool_info['description'] = pool_description
             pool_info['uuid'] = pool_id
 
-            #TODO filter templates by tag??
+            # TODO filter templates by tag??
 
             tmpls_table = r.db(opts.database).table('tmpls')
             pool_info['templates_enabled'] = [x for x in tmpls_table.run()]
 
-
         self.write(json.dumps([pool_info]))
-
-
 
 
 class TemplateList(BaseHandler):
@@ -558,6 +718,7 @@ class TemplateList(BaseHandler):
 
             self.write(json.dumps(list))
 
+
 class ISOList(BaseHandler):
     @auth_required
     def get(self):
@@ -579,10 +740,121 @@ class ISOList(BaseHandler):
 
 
 class CreateVM(BaseHandler):
+    _ASYNC_KEY = 'createvm'
 
     @auth_required
-    @tornado.web.asynchronous
     def post(self):
+        try:
+            tmpl_name = self.get_argument('template')
+            self.sr_uuid = self.get_argument('storage')
+            self.net_uuid = self.get_argument('network')
+            self.vdi_size = self.get_argument('vdi_size')
+            int(self.vdi_size)
+            self.ram_size = self.get_argument('ram_size')
+            int(self.ram_size)
+            self.name_label = self.get_argument('name_label')
+
+
+        except Exception as e:
+            self.set_status(400)
+            self.log.error(f"Exception: {e}")
+            self.write({'status': 'error', 'message': 'bad request'})
+            self.finish()
+            return
+
+        with self.conn:
+            db = r.db(opts.database)
+            if not isinstance(self.user_authenticator, AdministratorAuthenticator): # Prevent provisioning if quotas are not met
+                quota = Quota(self.user_authenticator)
+                usage  = quota.space_left_after_disk_creation(int(self.vdi_size)*1024*1024, 'users/'+ self.user_authenticator.get_id())
+                if usage < 0:
+                    self.write({'status': 'storage quota exceeded', 'message': f'storage limit will be exceeded by {-usage} bytes'})
+                    self.finish()
+                    return
+
+
+            tmpls = db.table('tmpls').run()
+            self.template = None
+            if not tmpl_name:
+                self.set_status(400)
+                self.write({'status': 'bad argument: template', 'message': 'bad request'})
+                self.log.error("Client supplied no template")
+                self.finish()
+
+            for tmpl in tmpls:
+                if tmpl['uuid'] == tmpl_name or \
+                        tmpl['name_label'] == tmpl_name:
+                    self.template = tmpl
+                    break
+
+            if not self.template:
+                self.set_status(400)
+                self.write({'status': 'no such template', 'message': 'template ' + tmpl_name})
+                self.log.error("Client supplied wrong template name: {0}".format(tmpl_name))
+                self.finish()
+                return
+
+            self.override_pv_args = self.get_argument('override_pv_args', None)
+            self.mode = 'hvm' if self.template['hvm'] else 'pv'
+            self.os_kind = self.template['os_kind'] if 'os_kind' in self.template and self.template['os_kind'] else None
+            self.log.info("Creating VM: name_label %s; os_kind: %s" % (self.name_label, self.os_kind))
+            if self.os_kind is None:
+                self.iso = self.get_argument('iso')
+                self.scenario_url = None
+                self.mirror_url = None
+                self.ip_tuple = None
+                self.hostname = None
+                self.username = None
+                self.password = None
+                self.fullname = None
+                self.partition = None
+            else:
+                self.iso = None
+                self.hostname = self.get_argument('hostname')
+                self.mirror_url = self.get_argument('mirror_url', None)
+                ip = self.get_argument('ip', '')
+                gw = self.get_argument('gateway', '')
+                netmask = self.get_argument('netmask', '')
+                dns0 = self.get_argument('dns0', '')
+                dns1 = self.get_argument('dns1', '')
+                if not ip or not gw or not netmask:
+                    self.ip_tuple = None
+                else:
+                    self.ip_tuple = [ip, gw, netmask]
+
+                if dns0:
+                    self.ip_tuple.append(dns0)
+                if dns1:
+                    self.ip_tuple.append(dns1)
+
+                self.username = self.get_argument('username')
+                self.password = self.get_argument('password')
+                self.fullname = self.get_argument('fullname', default=None)
+                self.partition = self.get_argument('partition', default='auto')
+                try:
+                    self.vcpus = self.get_argument('vcpus', default=1)
+                except ValueError:
+                    self.vcpus = 1
+
+
+            self.taskid = str(uuid.uuid4())
+
+            self._run_task = self.taskid  # for on_finish
+
+            tornado.ioloop.IOLoop.current().run_in_executor(self.executor, self.createvm)
+            self.write(json.dumps({'task': self.taskid}))
+            self.finish()
+
+    def insert_log_entry(self, uuid, state, message):
+        write_in = {'id': self._run_task}
+        write_in['uuid'] = uuid
+        write_in['state'] = state
+        write_in['message'] = message
+
+        self.op.set_operation(None, write_in)
+        self.log.info(f"STATE CHANGE: uuid: {uuid}, state: {state}, message: {message}")
+
+    def createvm(self):
         """
         Create a new VM. Current user gets full permissions of newly created VM
         Arguments:
@@ -611,101 +883,65 @@ class CreateVM(BaseHandler):
         :return: UUID of newly created VM
 
         """
+        with ReDBConnection().get_connection():
+            try:
+                self.op.set_operation(self.user_authenticator, {'id': self.taskid})
+                def clone_post_hook(return_value, auth):
+                    vm = VM.create(self.insert_log_entry, auth, return_value, self.sr_uuid, self.net_uuid,
+                                   self.vdi_size, self.ram_size,
+                                   self.hostname, self.mode, os_kind=self.os_kind, ip=self.ip_tuple,
+                                   install_url=self.mirror_url,
+                                   name_label=self.name_label, override_pv_args=self.override_pv_args, iso=self.iso,
+                                   username=self.username, password=self.password, partition=self.partition,
+                                   fullname=self.fullname, vcpus=self.vcpus)
 
-        try:
-            tmpl_name = self.get_argument('template')
-            self.sr_uuid = self.get_argument('storage')
-            self.net_uuid = self.get_argument('network')
-            self.vdi_size = self.get_argument('vdi_size')
-            self.ram_size = self.get_argument('ram_size')
-            self.hostname = self.get_argument('hostname')
-            self.name_label = self.get_argument('name_label')
-            self.mirror_url = self.get_argument('mirror_url', None)
+                    ioloop = tornado.ioloop.IOLoop.current()
+                    self.uuid = vm.uuid
+                    # ioloop.add_callback(self.do_finalize_install)
+                    ioloop.run_in_executor(self.executor, self.finalize_install)
+                    log_message = """
+                    Created VM: UUID {return_value}
+                    Created by: {user} (of {auth})
+                    Name: {name_label}
+                    Full name: {fullname}
+                    SR: {sr_uuid}
+                    Network: {net_uuid}
+                    IP, Gateway, Netmask, DNS: {ip}
+                    VDI Size: {vdi_size}
+                    RAM Size: {ram_size}
+                    Hostname: {hostname}
+                    Username: {username}
+                    Password: {password}
+                    ISO: {iso}
+                    Partition scheme: {partition}
+                    """
+                    self.actions_log.info(log_message.format(user=self.user_authenticator.get_name(),
+                                                             auth=self.user_authenticator.__class__.__name__,
+                                                             name_label=self.name_label, fullname=self.fullname,
+                                                             sr_uuid=self.sr_uuid, net_uuid=self.net_uuid,
+                                                             vdi_size=self.vdi_size, ram_size=self.ram_size,
+                                                             hostname=self.hostname, username=self.username,
+                                                             password=self.password,
+                                                             iso=self.iso, partition=self.partition, ip=self.ip_tuple,
+                                                             return_value=return_value))
 
-        except Exception as e:
-            self.set_status(400)
-            self.log.error("Exception: {0}".format(e))
-            self.write({'status': 'error', 'message': 'bad request'})
-            self.finish()
-            return
-        with self.conn:
-            db = r.db(opts.database)
-            tmpls = db.table('tmpls').run()
-            for tmpl in tmpls:
-                if tmpl['uuid'] == tmpl_name or \
-                tmpl['name_label'] == tmpl_name:
-                    tmpl_uuid = tmpl['uuid']
-                    break
+                def do_clone(auth):
+                    tmpl = Template(auth, uuid=self.template['uuid'])
+                    vm = tmpl.clone(self.name_label)
+                    self.insert_log_entry(vm.uuid, 'cloned', f'cloned from {tmpl.uuid}')
+                    clone_post_hook(vm.uuid, auth)
 
-            if not tmpl_uuid:
-                raise ValueError('Wrong template name: {0}'.format(tmpl_name))
-
-            self.os_kind = self.get_argument('os_kind', None)
-            self.override_pv_args = self.get_argument('override_pv_args', None)
-            self.mode = self.get_argument('mode')
-            self.log.info("Creating VM: name_label %s; os_kind: %s" % (self.name_label, self.os_kind))
-            ip = self.get_argument('ip', '')
-            gw = self.get_argument('gateway', '')
-            netmask = self.get_argument('netmask', '')
-            dns0 = self.get_argument('dns0', '')
-            dns1 = self.get_argument('dns1', '')
-            if not ip or not gw or not netmask:
-                self.ip_tuple = None
-            else:
-                self.ip_tuple = [ip,gw,netmask]
-
-            if dns0:
-                self.ip_tuple.append(dns0)
-            if dns1:
-                self.ip_tuple.append(dns1)
-
-            kwargs = {}
-            if 'ubuntu' in self.os_kind or 'centos' in self.os_kind or 'debian' in self.os_kind:
-                # see os_kind-ks.cfg
-                kwargs['hostname'] = self.get_argument('hostname', default='xen_vm')
-                kwargs['username'] = self.get_argument('username', default='')
-                kwargs['password'] = self.get_argument('password')
-                kwargs['mirror_url'] = self.mirror_url
-                kwargs['fullname'] = self.get_argument('fullname')
-                kwargs['ip'] = ip
-                kwargs['partition'] = self.get_argument('partition', default='auto')
-
-                if ip:
-                    kwargs['gateway'] = gw
-                    kwargs['netmask'] = netmask
-                    if dns0:
-                        kwargs['dns0'] = dns0
-                    if dns1:
-                        kwargs['dns1'] = dns1
-            self.scenario_url = 'http://'+ opts.vmemperor_url + ':' + str(opts.vmemperor_port) + XenAdapter.AUTOINSTALL_PREFIX + "/" + self.os_kind.split()[0] + "?" +\
-                urlencode(kwargs, doseq=True )
-            self.log.info("Scenario URL generated: %s", self.scenario_url)
-
-            def clone_post_hook(return_value, auth):
-                vm =  VM.create(auth, return_value, self.sr_uuid, self.net_uuid, self.vdi_size, self.ram_size,
-                                         self.hostname, self.mode, self.os_kind, self.ip_tuple, self.mirror_url,
-                                         self.scenario_url, self.name_label, False, self.override_pv_args)
-
-                ioloop = tornado.ioloop.IOLoop.current()
-                self.uuid = vm.uuid
-                #ioloop.add_callback(self.do_finalize_install)
-                ioloop.run_in_executor(self.executor, self.finalize_install)
-
-
-
-            def do_clone(auth):
-                tmpl = Template(auth, uuid=tmpl_uuid)
-                vm = tmpl.clone(self.name_label)
-                return vm.uuid
-
-
-            self.try_xenadapter(do_clone, post_hook=clone_post_hook)
+                do_clone(self.user_authenticator)
+            except XenAdapterUnauthorizedActionException as ee:
+                self.insert_log_entry(None, 'access denied', ee.message)
+            except EmperorException as ee:
+                self.insert_log_entry(None, 'error', ee.message)
 
     @gen.coroutine
     def do_finalize_install(self):
         yield self.finalize_install()
 
-    #@run_on_executor
+    # @run_on_executor
     def finalize_install(self):
         '''
         Watch if VM is halted and boot it once again. Update status accordingly
@@ -717,13 +953,19 @@ class CreateVM(BaseHandler):
 
         conn = ReDBConnection().get_connection()
         with conn:
-            self.log.info("Finalizing installation of VM %s" % self.uuid)
+            self.log.debug("Set access rights for VM disks")
             db = r.db(opts.database)
+            disks = db.table('vms').get(self.uuid).pluck('disks').run()['disks']
+
+            self.log.info("Finalizing installation of VM %s" % self.uuid)
+
             state = db.table('vms').get(self.uuid).pluck('power_state').run()['power_state']
             if state != 'Running':
-                auth.xen.insert_log_entry(self.uuid, 'failed', "failed to start VM for installation (low resources?). State: %s" % state)
+                self.insert_log_entry(self.uuid, 'failed',
+                                      "failed to start VM for installation (low resources?). State: %s" % state)
                 return
 
+            self.insert_log_entry(self.uuid, 'installing','installing OS')
             cur = db.table('vms').get(self.uuid).changes().run()
             while True:
                 try:
@@ -734,48 +976,32 @@ class CreateVM(BaseHandler):
                     else:
                         continue
                 except ReqlDriverError as e:
-                    self.log.error("ReQL error while trying to retreive VM {1} install status: {0}".format(e, self.uuid))
+                    self.log.error(
+                        f"ReQL error while trying to retrieve VM '{self.uuid}': install status: {e}")
                     return
 
                 if change['new_val']['power_state'] == 'Halted':
                     try:
                         vm = VM(auth, uuid=self.uuid)
+                        other_config = vm.get_other_config()
+                        if 'convert-to-hvm' in other_config and other_config['convert-to-hvm']:
+                            vm.convert('hvm')
+
                         vm.start_stop_vm(True)
+                        self.insert_log_entry(self.uuid, "installed", "OS successfully installed")
                     except XenAdapterAPIError as e:
-                        auth.xen.insert_log_entry(self.uuid, "failed", "failed to start after installation: %s" % e.message)
-                    else:
-                        auth.xen.insert_log_entry(self.uuid, "installed", "OS successfully installed")
-                    break
-
-
-
-
-
-
-
-
-
-class NetworkList(BaseHandler):
-    @auth_required
-    def get(self):
-        with self.conn:
-            db = r.db(opts.database)
-            try:
-                self.write(json.dumps(db.table('nets').coerce_to('array').run()))
-            except Exception as e:
-                self.set_status(500)
-                self.log.error("Exception: {0}".format(e))
-
-
-
+                        self.insert_log_entry(self.uuid, "failed", "failed to start after installation: %s" % e.message)
+                    finally:
+                        break
 
 
 class ConvertVM(BaseHandler):
     @auth_required
     def post(self):
-        vm_uuid =self.get_argument('uuid')
+        vm_uuid = self.get_argument('uuid')
         mode = self.get_argument('mode')
         self.try_xenadapter(lambda auth: VM(auth, uuid=vm_uuid).convert(mode))
+
 
 class EnableDisableTemplate(BaseHandler):
     @auth_required
@@ -789,91 +1015,185 @@ class EnableDisableTemplate(BaseHandler):
         uuid = self.get_argument('uuid')
         enable = self.get_argument('enable')
 
-
-        self.try_xenadapter( lambda auth: Template(auth, uuid=uuid).enable_disable(bool(enable)))
-
+        self.try_xenadapter(lambda auth: Template(auth, uuid=uuid).enable_disable(bool(enable)))
 
 
-
-class AttachDetachDisk(BaseHandler):
+class TaskStatus(BaseHandler):
     @auth_required
     def post(self):
-        '''
-        Attach or detach VDI from/to VM
-        Arguments:
-            vm_uuid: VM UUID
-            vdi_uuid: VDI UUID
-            enable: True if to attach disk, False if to detach.
-        '''
+        task = self.get_argument('task')
+
+        operation = None
+        try:
+            operation = self.op.get_operation(self.user_authenticator, task)
+        except KeyError:
+            self.set_status(404)
+            self.finish()
+            return
+
+
+        try:
+            self.write(json.dumps({k: v for k, v in operation.items() if k != 'auth'},
+                       cls=DateTimeEncoder))
+        except Exception as e:
+            self.write({'status': 'error', 'details': 'no such task'})
+            self.set_status(400)
+        finally:
+            self.finish()
+
+
+class ExecutePlaybook(BaseHandler):
+    _ASYNC_KEY = 'pb'
+
+    def run_ansible(self):
+        with ReDBConnection().get_connection():
+            self.log.info(f"Running: {self.cmd_line} in {self.cwd} as {self.cwd.name}")
+            task = {'id': self.cwd.name}
+
+            log_path = Path(opts.ansible_logs).joinpath(self.cwd.name)
+            os.makedirs(log_path)
+            with open(log_path.joinpath('stdout'), 'w') as _stdout:
+                with open(log_path.joinpath('stderr'), 'w') as _stderr:
+                    task['returncode'] = None
+                    self.op.set_operation(self.user_authenticator, task)
+                    proc = subprocess.run(self.cmd_line,
+                                          cwd=self.cwd, stdout=_stdout, stderr=_stderr,
+                                          env={"ANSIBLE_HOST_KEY_CHECKING":"False"})
+
+                    task['returncode'] = proc.returncode
+                    self.op.set_operation(None, task)
+
+            self.log.info(f'Finished {self.cwd.name} with return code {tasks[self.cwd.name]["returncode"]}')
+
+    @auth_required
+    def post(self):
+        vms = self.get_argument('vms')
+        ans = {}
         with self.conn:
-            vm_uuid = self.get_argument('vm_uuid')
-            vdi_uuid = self.get_argument('vdi_uuid')
-            enable = self.get_argument('enable')
-            def xen_call(auth):
-                if enable:
-                    return auth.xen.attach_disk(vm_uuid, vdi_uuid)
+            for _vm in vms:
+                vm = VM(self.user_authenticator, uuid=_vm)
+                try:
+                    vm.check_access('launch')
+                except XenAdapterUnauthorizedActionException as e:
+                    self.set_status(403)
+                    self.write({'status': 'access denied', 'message': e.message})
+                    return
+
+            _playbook = self.get_argument('playbook')
+            if not _playbook in playbooks:
+                self.set_status(400)
+                self.write({'status': 'error', 'message': 'no such playbook: {0}'.format(_playbook)})
+                return
+            p = playbooks[_playbook]
+
+            temp_dir = tempfile.mkdtemp(prefix='vmemperor-', suffix=f'-playbook-{_playbook}')
+            self.log.info(f"Creating temporary directory {temp_dir}")
+            from distutils.dir_util import copy_tree
+            playbook_dir = p.get_playbook_dir()
+            self.log.info(f"Copying {playbook_dir} into temporary directory")
+            copy_tree(playbook_dir, temp_dir)
+            temp_path = Path(temp_dir)
+            table = r.db(opts.database).table('vms')
+            documents = table.get_all(*vms).coerce_to('array').run()
+
+            if not p.get_inventory():
+                hosts_file = 'hosts'
+                yaml_hosts = {'all': {'hosts': {}}}
+                for vm in documents:
+                    for net in vm['networks'].values():
+                        if not net['network'] in opts.ansible_networks:
+                            continue
+                        if not 'ip' in net or not net['ip']:
+                            continue
+                        yaml_hosts['all']['hosts'][vm['name_label']] = {
+                            'ansible_user': 'root',
+                            'ansible_host': net['ip']
+                        }
+                        break
+                    else:
+                        self.log.warning(
+                            f"Ignoring VM {vm['uuid']}: not connected to any of 'ansible_networks'. Check your configuration")
+                        if 'warnings' in ans:
+                            if 'notconnected' in ans['warnings']:
+                                ans['warnings']['notconnencted'].append(vm['uuid'])
+                            else:
+                                ans['warnings'] = {'notconnected': vm['uuid']}
+                        else:
+                            ans['warnings'] = {'notconnected': vm['uuid']}
+
+                if yaml_hosts['all']['hosts']:
+                    # Create ansible execution task
+
+                    with open(temp_path.joinpath(hosts_file), 'w') as file:
+                        yaml.dump(yaml_hosts, file)
+                    self.log.info("Hosts file created")
                 else:
-                    auth.xen.detach_disk(vm_uuid, vdi_uuid)
-
-            self.try_xenadapter(xen_call)
-
-
-
-
-
+                    self.set_status(400)
+                    self.write(ans)
+                    self.log.error(f"{temp_dir}: No suitable VMs found")
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    self.finish()
+                    return
 
 
+            else:
+                hosts_file = p.get_inventory()
 
-class ConnectVM(BaseHandler):
-    @auth_required
-    def post(self):
-        '''
-        Connect a VM to a Network. Requires permission "attach"
-        Arguments:
-        vm_uuid: VM UUID
-        net_uuid: Network UUID
-        ip: undocumented. Lera?
-        :return:
-        '''
+            self.log.info("Patching variables files...")
 
-        vm_uuid = self.get_argument('vm_uuid')
-        net_uuid = self.get_argument('net_uuid')
-        ip = self.get_argument('ip', default=None)
-        self.try_xenadapter(lambda : xen.connect_vm(vm_uuid, net_uuid, ip))
+            for key, vars in p.vars.items():
+                vars_copy = vars.copy()
+                for variable in p.variables_locations[key]:
+                    value = self.get_argument(variable, p.config['variables'][variable]['value'])
+                    vars_copy[variable] = value
+                file_name = temp_path.joinpath(key, 'all')
+                with open(file_name, 'w') as file:
+                    yaml.dump(vars_copy, file)
+
+                self.log.info(f'File {file_name} patched')
+
+            self.cmd_line = [opts.ansible_playbook, '-i', hosts_file, p.get_playbook_file()]
+            self.cwd = temp_path
+            ans['task'] = self.cwd.name
+            self._run_task = ans['task']
+            ioloop = tornado.ioloop.IOLoop.instance()
+            ioloop.run_in_executor(self.executor, self.run_ansible)
+            self.write(ans)
+            self.finish()
 
 
-class AnsibleHooks:
-    # todo
-    pass
-
-
-class VMAbstractHandler(BaseHandler):
+class ResourceAbstractHandler(BaseHandler):
     '''
-    Abstact handler for VM requests
+    Abstact handler for resource requests
     requires: function self.get_data returning something we can write
               attribute self.access - access mode
+              attribute self.resource - resource class
     provides: self.uuid <- vm_uuid
 
     '''
+
     @auth_required
     def post(self):
 
-        vm_uuid = self.get_argument('uuid')
-        self.uuid = vm_uuid
+        uuid = self.get_argument('uuid')
+        self.uuid = uuid
         with self.conn:
             try:
-                self.vm = VM(self.user_authenticator, uuid=vm_uuid)
+                resource_name = self.resource.__name__.lower()
+                self.__setattr__(resource_name, self.resource(self.user_authenticator, uuid=uuid))
             except XenAdapterAPIError as e:
                 self.set_status(400)
-                self.write({'status' : 'bad request', 'message' : e.message})
-                return
-            try:
-                self.vm.check_access(self.access)
-            except XenAdapterUnauthorizedActionException as e:
-                self.set_status(403)
-                self.write({'status':'access denied', 'message' : e.message})
+                self.write({'status': 'bad request', 'message': e.message})
                 return
 
+            try:
+                from xenadapter.xenobject import ACLXenObject
+                if isinstance(self.__getattribute__(resource_name), ACLXenObject):
+                    self.__getattribute__(resource_name).check_access(self.access)
+            except XenAdapterUnauthorizedActionException as e:
+                self.set_status(403)
+                self.write({'status': 'access denied', 'message': e.message})
+                return
 
             ret = self.get_data()
             if ret:
@@ -883,6 +1203,23 @@ class VMAbstractHandler(BaseHandler):
         '''return answer information (if everything is OK). Else use set_status and write'''
         raise NotImplementedError()
 
+
+class VMAbstractHandler(ResourceAbstractHandler):
+    resource = VM
+
+
+class NetworkAbstractHandler(ResourceAbstractHandler):
+    resource = Network
+
+
+class VDIAbstractHandler(ResourceAbstractHandler):
+    resource = VDI
+
+
+class ISOAbstractHandler(ResourceAbstractHandler):
+    resource = ISO
+
+
 class SetAccessHandler(BaseHandler):
     @auth_required
     def post(self):
@@ -891,16 +1228,42 @@ class SetAccessHandler(BaseHandler):
             _type = self.get_argument('type')
             action = self.get_argument('action')
             revoke = self.get_argument('revoke', False)
-            if  type(revoke) == str and revoke.lower() == 'false':
+            if type(revoke) == str and revoke.lower() == 'false':
                 revoke = False
 
             if revoke:
                 revoke = True
             user = self.get_argument('user', default=None)
+
             if not user:
                 group = self.get_argument('group')
+                try:
+                    group = int(group)
+                except:
+                    pass
             else:
+                try:
+                    user = int(user)
+                except:
+                    pass
                 group = None
+
+            #check if user or group do exist
+            db = r.db(opts.database)
+            if user:
+                id = db.table('users').get(user).run()
+                if not id:
+                    self.set_status(400)
+                    self.write({'status': 'bad request', 'message': f"no such user: '{user}'"})
+                    return
+
+            else:
+                id = db.table('groups').get(group).run()
+                if not id:
+                    self.set_status(400)
+                    self.write({'status': 'bad request', 'message': f"no such group: '{group}'"})
+                    return
+
             type_obj = None
             for obj in objects:
                 if obj.__name__ == _type:
@@ -908,13 +1271,16 @@ class SetAccessHandler(BaseHandler):
                     break
             else:
                 self.set_status(400)
-                self.write({'status' : 'bad request', 'message' : 'unsupported type %s' % _type})
+                self.write({'status': 'bad request', 'message': 'unsupported type: %s' % _type})
                 return
 
             try:
                 self.target = type_obj(self.user_authenticator, uuid=uuid)
+                self.log.info(f"Checking object {_type} access for action {action}, revoke: {revoke}")
                 self.target.check_access(action)
+                self.log.debug("Access granted, performing changes")
                 self.target.manage_actions(action, revoke, user, group)
+                self.log.debug("Changes successful")
             except XenAdapterAPIError as e:
                 self.set_status(400)
                 self.write({'status': 'bad request', 'message': e.message})
@@ -923,6 +1289,35 @@ class SetAccessHandler(BaseHandler):
                 self.set_status(403)
                 self.write({'status': 'access denied', 'message': e.message})
                 return
+
+
+class UserInfo(BaseHandler):
+    @auth_required
+    def get(self):
+        auth = self.user_authenticator
+        self.write(
+            {
+                'id': auth.get_id(),
+                'name': auth.get_name(),
+                'groups': auth.get_user_groups(),
+                'is_admin': isinstance(auth, AdministratorAuthenticator)
+            }
+        )
+
+
+class UserList(BaseHandler):
+    @auth_required
+    def get(self):
+        with self.conn:
+            self.write(json.dumps(r.db(opts.database).table('users').coerce_to('array').run()))
+
+
+class GroupList(BaseHandler):
+    @auth_required
+    def get(self):
+        with self.conn:
+            self.write(json.dumps(r.db(opts.database).table('groups').coerce_to('array').run()))
+
 
 class GetAccessHandler(BaseHandler):
     @auth_required
@@ -956,26 +1351,13 @@ class GetAccessHandler(BaseHandler):
             self.write(db.table(type_obj.db_table_name).get(uuid).pluck('access').run())
 
 
+class InstallStatus(BaseHandler):
+    @auth_required
+    def post(self):
+        taskid = self.get_argument('taskid')
 
-
-class InstallStatus(VMAbstractHandler):
-
-    access = 'launch'
-
-    def get_data(self):
-        db = r.db(opts.database)
-        try:
-            d = db.table('vm_logs').filter({'uuid': self.uuid}).max('time').run()
-            d['time'] = d['time'].isoformat()
-            return d
-        except Exception as e:
-            self.set_status(500)
-            self.log.error("Unable to get VM installation logs: uuid: {0}, error: {1}".format(self.uuid, e))
-            self.write({'status': 'database error/no info'})
-            return
 
 class VMInfo(VMAbstractHandler):
-
     access = 'launch'
 
     def get_data(self):
@@ -986,35 +1368,167 @@ class VMInfo(VMAbstractHandler):
         except Exception as e:
             self.log.error("Exception: {0}".format(e))
             self.set_status(500)
-            self.write({'status' : 'database error/no info'})
+            self.write({'status': 'database error/no info'})
             return
 
+
+class VMNetInfo(VMAbstractHandler):
+    access = 'launch'
+
+    def get_data(self):
+        db = r.db(opts.database)
+        try:
+            vm_data = db.table('vms').get(self.uuid).do(lambda vm: vm['networks'].keys(). \
+                                                        map(lambda key: r.expr([key, vm['networks'][key].merge(
+                db.table('nets').get(vm['networks'][key]['network']).without('uuid'))])).filter(
+                lambda item: item[1] != None). \
+                                                        coerce_to('object')).run()
+            return vm_data
+        except Exception as e:
+            self.log.error("Exception: {0}".format(e))
+            traceback.print_exc()
+            self.set_status(500)
+            self.write({'status': 'database error/no info'})
+            return
+
+
+class VMDiskInfo(VMAbstractHandler):
+    access = 'launch'
+
+    def get_data(self):
+        db = r.db(opts.database)
+        try:
+
+            vm_data = db.table('vms').get(self.uuid).do(lambda vm: vm['disks'].keys(). \
+                                                        map(
+                lambda diskKey: r.expr([diskKey, vm['disks'][diskKey].merge(r.branch(
+                    vm['disks'][diskKey]['VDI'] != None, #if
+                    r.branch( #then
+                    vm['disks'][diskKey]['type'].eq('Disk'), #inner if
+                    db.table('vdis').get(vm['disks'][diskKey]['VDI']).without('uuid'), # inner then
+                    db.table('isos').get(vm['disks'][diskKey]['VDI']).without('uuid')), # inner else
+                    {} # else
+                    ))])).filter(lambda item: item[1] != None).coerce_to('object')).run()
+            return vm_data
+
+
+
+        except Exception as e:
+            self.log.error("Exception: {0}".format(e))
+            traceback.print_exc()
+            self.set_status(500)
+            self.write({'status': 'database error/no info'})
+            return
+
+
+class NetworkInfo(NetworkAbstractHandler):
+    access = 'attach'
+
+    def get_data(self):
+        db = r.db(opts.database)
+        try:
+            d = db.table('nets').get(self.uuid).run()
+            return d
+        except Exception as e:
+            self.log.error("Exception: {0}".format(e))
+            self.set_status(500)
+            self.write({'status': 'database error/no info'})
+            return
+
+
+class VDIInfo(VDIAbstractHandler):
+    access = 'attach'
+
+    def get_data(self):
+        db = r.db(opts.database)
+        try:
+            d = db.table('vdis').get(self.uuid).run()
+            return d
+        except Exception as e:
+            self.log.error("Exception: {0}".format(e))
+            self.set_status(500)
+            self.write({'status': 'database error/no info'})
+            return
+
+
+
+class ISOInfo(ISOAbstractHandler):
+    def get_data(self):
+        db = r.db(opts.database)
+        try:
+            d = db.table('isos').get(self.uuid).run()
+            return d
+        except Exception as e:
+            self.log.error("Exception: {0}".format(e))
+            self.set_status(500)
+            self.write({'status': 'database error/no info'})
+            return
+
+
 class DestroyVM(VMAbstractHandler):
-
     access = 'destroy'
-
+    _ASYNC_KEY = 'destroyvm'
     def get_data(self):
         uuid = self.get_argument('uuid')
 
+        def run(auth):
+            task = VM(auth, uuid=uuid).async_destroy()
+            if task:
+                self.async_run(task)
+                return {'task': task}
 
-        self.try_xenadapter(lambda auth: VM(auth, uuid=uuid).destroy_vm())
+        self.try_xenadapter(run)
+
+class DestroyVDI(VDIAbstractHandler):
+    access = 'destroy'
+    _ASYNC_KEY = 'destroyvdi'
+    def get_data(self):
+        uuid = self.get_argument('uuid')
+
+        def run(auth):
+            task = VDI(auth, uuid=uuid).async_destroy()
+            if task:
+                self.async_run(task)
+                return {'task': task}
+
+        self.try_xenadapter(run)
 
 class StartStopVM(VMAbstractHandler):
-
     access = 'launch'
-
+    _ASYNC_KEY = 'startstopvm'
     def get_data(self):
         uuid = self.get_argument('uuid')
         enable = self.get_argument('enable')
 
+        if isinstance(enable, str) and enable.lower() == "false":
+            enable = False
 
-        self.try_xenadapter(lambda auth: VM(auth, uuid=uuid).start_stop_vm(enable))
+        def run(auth):
+            task = VM(auth, uuid=uuid).start_stop_vm(enable)
+            if task:
+                self.async_run(task)
+                return {'task': task}
+
+        self.try_xenadapter(run)
+
+
+class RebootVM(VMAbstractHandler):
+    access = 'launch'
+    _ASYNC_KEY = 'rebootvm'
+    def get_data(self):
+        uuid = self.get_argument('uuid')
+
+        def run(auth):
+            task = VM(auth, uuid=uuid).async_clean_reboot()
+            if task:
+                self.async_run(task)
+                return {'task': task}
+
+        self.try_xenadapter(run)
 
 
 class VNC(VMAbstractHandler):
-
     access = 'launch'
-
     def get_data(self):
         '''
         Get VNC console url that supports HTTP CONNECT method. Requires permission 'launch'
@@ -1026,18 +1540,21 @@ class VNC(VMAbstractHandler):
         vm_uuid = self.get_argument('uuid')
 
         def get_vnc(auth: BasicAuthenticator):
-            url = VM(auth, uuid=vm_uuid).get_vnc()
-            url_splitted = list(urlsplit(url))
-            url_splitted[0] = 'ws'
-            url_splitted[1] = opts.vmemperor_url + ":" + str(opts.vmemperor_port)
-            url = urlunsplit(url_splitted)
+            secret = token_urlsafe()
+            secrets[secret] = {
+                'uuid': vm_uuid,
+                'auth' : auth
+            }
+
+
+            url = f'ws://{opts.vmemperor_host}:{opts.vmemperor_port}/console?secret={secret}'
+            self.log.debug(f"VNC Console URL for uuid: {vm_uuid}: {url}")
             return url
 
         self.try_xenadapter(get_vnc)
 
 
 class AttachDetachIso(VMAbstractHandler):
-
     access = 'attach'
 
     def get_data(self):
@@ -1050,7 +1567,7 @@ class AttachDetachIso(VMAbstractHandler):
         :return:
         '''
         self.log.info("check if ISO UUID is valid")
-        iso_uuid = self.get_argument('iso_uuid')
+        iso = self.get_argument('iso')
         action = self.get_argument('action')
         if action == 'attach':
             is_attach = True
@@ -1058,36 +1575,111 @@ class AttachDetachIso(VMAbstractHandler):
             is_attach = False
         else:
             self.set_status(400)
-            self.write({'status': 'error', 'message' : 'invalid parameter "action": should be one of '
-                                                       '"attach", "detach", got %s' % action })
+            self.write({'status': 'error', 'message': 'invalid parameter "action": should be one of '
+                                                      '"attach", "detach", got %s' % action})
             return
 
         db = r.db(opts.database)
-        res = db.table('isos').get(iso_uuid).run()
+        res = db.table('isos').get(iso).run()
         if res:
-            self.log.info("UUID %s valid, attaching/detaching..." % iso_uuid)
-            def attach(auth : BasicAuthenticator):
-                iso = ISO(uuid=iso_uuid, auth=auth)
-                if is_attach:
-                    iso.attach(self.vm)
-                else:
-                    iso.detach(self.vm)
+            self.log.info("UUID {1} valid, {0}...".format(
+                "attaching" if is_attach else "detaching",
+                iso))
 
+            def attach(auth: BasicAuthenticator):
+                _iso = ISO(uuid=iso, auth=auth)
+                if is_attach:
+                    _iso.attach(self.vm)
+                else:
+                    _iso.detach(self.vm)
 
             self.try_xenadapter(attach)
         else:
-            self.log.info("UUID %s invalid, not attaching..." % iso_uuid)
+            self.log.info("UUID {1} invalid, not {0}...".format("attaching" if is_attach else "detaching",
+                                                                iso))
             self.set_status(400)
-            self.write({'status':'error', 'message': 'invalid UUID iso_uuid'})
+            self.write({'status': 'error', 'message': 'invalid UUID iso_uuid'})
             return
 
+
+class AttachDetachVDI(VMAbstractHandler):
+    access = 'attach'
+
+    def get_data(self):
+        vdi = self.get_argument('vdi')
+
+        action = self.get_argument('action')
+        if action == 'attach':
+            is_attach = True
+        elif action == 'detach':
+            is_attach = False
+        else:
+            self.set_status(400)
+            self.write({'status': 'error', 'message': 'invalid parameter "action": should be one of '
+                                                      '"attach", "detach", got %s' % action})
+            return
+
+        vdi = self.get_argument('vdi')
+
+        _vdi = VDIorISO(auth=self.user_authenticator, uuid=vdi)
+
+        try:
+            _vdi.check_access('attach')
+        except XenAdapterUnauthorizedActionException as e:
+            self.set_status(403)
+            self.write({'status': 'access denied', 'message': e.message})
+            return
+
+        def attach(auth):
+
+            if is_attach:
+                _vdi.attach(self.vm)
+            else:
+                _vdi.detach(self.vm)
+
+        self.try_xenadapter(attach)
+
+
+class NetworkAction(VMAbstractHandler):
+    access = 'attach'
+
+    def get_data(self):
+        _net = self.get_argument('net')
+
+        action = self.get_argument('action')
+        if action == 'attach':
+            is_attach = True
+        elif action == 'detach':
+            is_attach = False
+        else:
+            self.set_status(400)
+            self.write({'status': 'error', 'message': 'invalid parameter "action": should be one of '
+                                                      '"attach", "detach", got %s' % action})
+            return
+
+        net = Network(auth=self.user_authenticator, uuid=_net)
+
+        try:
+            net.check_access('attach')
+        except XenAdapterUnauthorizedActionException as e:
+            self.set_status(403)
+            self.write({'status': 'access denied', 'message': e.message})
+            return
+
+        def attach(auth):
+            # TODO support arguments: MAC. MTU, qos_algorithm_type
+            if is_attach:
+                net.attach(self.vm)
+            else:
+                net.detach(self.vm)
+
+        self.try_xenadapter(attach)
 
 
 class EventLoop(Loggable):
     """every n seconds asks all vms about their status and updates collections (dbs, tables)
     of corresponding user, if they are logged in (have open connection to dbms notifications)
      and admin db if admin is logged in"""
-
 
     def __init__(self, executor, authenticator):
         self.debug = opts.debug
@@ -1097,98 +1689,100 @@ class EventLoop(Loggable):
         self.executor = executor
         self.authenticator = authenticator
 
-        self.log.info("Using database {0}".format(opts.database))
+        self.log.info(f"Using database {opts.database}")
         conn = ReDBConnection().get_connection()
         with conn:
-            print("Creating databases", end='...')
+            self.log.debug("Creating databases...")
             if opts.database in r.db_list().run():
                 r.db_drop(opts.database).run()
 
             r.db_create(opts.database).run()
             self.db = r.db(opts.database)
-            tables = self.db.table_list().run()
 
-            self.db.table_create('vm_logs', durability='soft').run()
-            self.db.table('vm_logs').wait()
+            # create database for async tasks
+            self.db.table_create('tasks', durability='soft').run()
+            self.db.table('tasks').wait()
 
             try:
                 authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
             except XenAdapterConnectionError as e:
-                raise RuntimeError("XenServer not reached")
+                raise XenAdapterAPIError(self.log, "XenServer not reached", e.message)
 
             self.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
-            # required = ['vms', 'tmpls', 'pools', 'nets']
-
-
-            self.db.table_create('vms', durability='soft', primary_key='uuid').run()
-            self.db.table('vms').index_create('ref', r.row['ref']).run()
-            self.db.table('vms').index_wait('ref').run()
-            self.db.table('vms').index_create('metrics').run()
-            self.db.table('vms').index_wait('metrics').run()
-
-
-            vms = VM.init_db(authenticator)
-            CHECK_ER(self.db.table('vms').insert(vms, conflict='error').run())
-
-
-
-
-
-            if 'isos' not in tables:
-                self.db.table_create('isos', durability='soft', primary_key='uuid').run()
-                isos = ISO.init_db(authenticator)
-
-                CHECK_ER(self.db.table('isos').insert(isos, conflict='error').run())
-            else:
-                isos = ISO.init_db(authenticator)
-
-                CHECK_ER(self.db.table('isos').insert(isos, conflict='update').run())
-
-            if 'tmpls' not in tables:
-                self.db.table_create('tmpls', durability='soft', primary_key='uuid').run()
-
-                tmpls = Template.init_db(authenticator)
-                CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='error').run())
-            else:
-             #   tmpls = self.xen.list_templates().values()
-                tmpls = Template.init_db(authenticator)
-                CHECK_ER(self.db.table('tmpls').insert(list(tmpls), conflict='update').run())
-            if 'pools' not in tables:
-                self.db.table_create('pools', durability='soft', primary_key='uuid').run()
-                pools = Pool.init_db(authenticator)
-                CHECK_ER(self.db.table('pools').insert(list(pools), conflict='error').run())
-            else:
-                pools = Pool.init_db(authenticator)
-                CHECK_ER(self.db.table('pools').insert(list(pools), conflict='update').run())
-            if 'nets' not in tables:
-                self.db.table_create('nets', durability='soft', primary_key='uuid').run()
-                nets = Network.init_db(authenticator)
-                CHECK_ER(self.db.table('nets').insert(list(nets), conflict='error').run())
-            else:
-                nets = Network.init_db(authenticator)
-                # nets = self.xen.list_networks().values()
-                CHECK_ER(self.db.table('nets').insert(list(nets), conflict='update').run())
+            for obj in objects:
+                obj.create_db(self.db)
 
             del authenticator.xen
 
 
-    def do_access_monitor(self):
+
+    def do_user_table(self):
         try:
-            self.log.debug("started access_monitor in thread {0}".format(threading.get_ident()))
             conn = ReDBConnection().get_connection()
-            #log = self.create_additional_log('AccessMonitor')
             log = self.log
             with conn:
-                query = self.db.table(objects[0].db_table_name).pluck('uuid', 'access')\
-                    .merge({'table' : objects[0].db_table_name}).changes()
+                self.db.table_create('users', durability='soft').run()
+                self.db.table_create('groups', durability='soft').run()
+                users = self.authenticator.get_all_users(log=log)
+                groups = self.authenticator.get_all_groups(log=log)
+                self.db.table('users').insert(users, conflict='update').run()
+                self.db.table('groups').insert(groups, conflict='update').run()
+                while True:
+                    if need_exit.is_set():
+                        return
+                    delay = 0
+                    while True:
+                        if opts.user_source_delay <= delay:
+                            break
+                        if need_exit.is_set():
+                            return
+                        sleep_time = 2
+                        time.sleep(sleep_time)
+                        delay += sleep_time
 
+                    new_users = self.authenticator.get_all_users(log=log)
+                    new_groups = self.authenticator.get_all_groups(log=log)
+                    self.db.table('users').insert(new_users, conflict='update').run()
+                    self.db.table('groups').insert(new_groups, conflict='update').run()
+
+                    new_users_set = set(map(lambda item: item['id'], new_users))
+                    users_set = set(map(lambda item: item['id'], users))
+                    difference = users_set.difference(new_users_set)
+                    if difference:
+                        self.db.table('users').get(*difference).delete().run()
+
+                    new_groups_set = set(map(lambda item: item['id'], new_users))
+                    groups_set = set(map(lambda item: item['id'], users))
+                    difference = groups_set.difference(new_groups_set)
+                    if difference:
+                        self.db.table('groups').get(*difference).delete().run()
+
+
+        except Exception as e:
+            self.log.error(f"Exception in user_table: {e}")
+            traceback.print_exc()
+            # tornado.ioloop.IOLoop.current().run_in_executor(self.executor, self.do_access_monitor)
+            raise e
+
+
+    def do_access_monitor(self):
+        try:
+            conn = ReDBConnection().get_connection()
+            # log = self.create_additional_log('AccessMonitor')
+            log = self.log
+            with conn:
                 table_list = self.db.table_list().run()
+
+                query = self.db.table(objects[0].db_table_name).pluck('uuid', 'access') \
+                    .merge({'table': objects[0].db_table_name}).changes(include_initial=True, include_types=True)
+
                 def initial_merge(table):
                     nonlocal table_list
+
+                    self.db.table(table).wait().run()
                     table_user = table + '_user'
                     if table_user in table_list:
                         self.db.table_drop(table_user).run()
-
 
                     self.db.table_create(table_user, durability='soft').run()
                     self.db.table(table_user).wait().run()
@@ -1197,34 +1791,32 @@ class EventLoop(Loggable):
                     self.db.table(table_user).index_create('userid', r.row['userid']).run()
                     self.db.table(table_user).index_wait('userid').run()
                     # no need yet
-                    #self.db.table(table_user).index_create('uuid', r.row['uuid']).run()
-                    #self.db.table(table_user).index_wait('uuid').run()
-
-                    CHECK_ER(self.db.table(table_user).insert(
-                        self.db.table(table).pluck('access', 'uuid').filter(r.row['access'] != []).\
-                        concat_map(lambda acc: acc['access'].merge({'uuid':acc['uuid']}))).run())
-
+                    # self.db.table(table_user).index_create('uuid', r.row['uuid']).run()
+                    # self.db.table(table_user).index_wait('uuid').run()
 
                 i = 0
                 while i < len(objects):
+
                     initial_merge(objects[i].db_table_name)
 
                     if i > 0:
-                        query.union(self.db.table(objects[i].db_table_name).pluck('uuid', 'access')\
-                                        .merge({'table': objects[i].db_table_name}).changes())
+                        query = query.union(self.db.table(objects[i].db_table_name).pluck('uuid', 'access') \
+                                            .merge({'table': objects[i].db_table_name}).changes(include_initial=True,
+                                                                                                include_types=True))
                     i += 1
 
-                #indicate that vms_user table is ready
+                # indicate that vms_user table is ready
                 user_table_ready.set()
+                self.log.debug("Changes query: {0}".format(query))
                 cur = query.run()
+                self.log.debug("Started access_monitor in thread {0}".format(threading.get_ident()))
 
                 def uuid_delete(table_user, uuid):
-                    CHECK_ER(self.db.table(table_user).filter({'uuid' : uuid}).delete().run())
-
+                    CHECK_ER(self.db.table(table_user).filter({'uuid': uuid}).delete().run())
 
                 while True:
                     try:
-                        record = cur.next(False)
+                        record = cur.next(1)
                     except ReqlTimeoutError as e:
                         if need_exit.is_set():
                             self.log.debug("Exiting access_monitor")
@@ -1232,42 +1824,30 @@ class EventLoop(Loggable):
                         else:
                             continue
 
-                    if record['new_val']: #edit
+                    if record['new_val']:  # edit
                         uuid = record['new_val']['uuid']
                         table = record['new_val']['table']
-                        access = record['new_val']['access']
+                        access = record['new_val'].get('access', [])
                         table_user = table + '_user'
 
 
-                        #if record['old_val']:
-                        #    access_to_remove = \
-                        #        set((frozendict(x) for x in record['old_val']['access'])) -\
-                        #         set((frozendict(x) for x in access))
-                        #    if access_to_remove:
-                        #        log.info("Removing access rights for {0} (table {1}): {2}"
-                        #        .format(uuid, table, json.dumps(access_to_remove, cls=FrozenDictEncoder)))
-
-                        #    for item in access_to_remove:
-                        #        CHECK_ER(self.db.table(table_user).get_all([record['old_val']['uuid'], item['userid']], index='uuid_and_userid').delete().run())
-
-
-
-                        if not record['old_val']:
+                        if 'old_val' not in record or not record['old_val']:
                             if access:
                                 log.info("Adding access rights for %s (table %s): %s" %
                                          (uuid, table, json.dumps(access)))
                             for item in access:
-                                CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid' : uuid})).run())
+                                CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid': uuid})).run())
                         else:
 
-                            access_diff = set((frozendict(x) for x in access)) -\
-                                          set((frozendict(x) for x in record['old_val']['access']))
+                            access_diff = set((frozendict(x) for x in access)) - \
+                                          set((frozendict(x) for x in record['old_val']['access'])
+                                              if 'access' in record['old_val'] else [])
 
                             if access_diff:
                                 log.info("Adding access rights for %s (table %s): %s" %
                                          (uuid, table, json.dumps(access_diff, cls=FrozenDictEncoder)))
                             for item in access_diff:
-                                CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid' : uuid} )).run())
+                                CHECK_ER(self.db.table(table_user).insert(r.expr(item).merge({'uuid': uuid})).run())
 
 
 
@@ -1280,7 +1860,8 @@ class EventLoop(Loggable):
         except Exception as e:
             self.log.error("Exception in access_monitor: {0}"
                            .format(e))
-            #tornado.ioloop.IOLoop.current().run_in_executor(self.executor, self.do_access_monitor)
+            traceback.print_exc()
+            # tornado.ioloop.IOLoop.current().run_in_executor(self.executor, self.do_access_monitor)
             raise e
 
     def process_xen_events(self):
@@ -1295,9 +1876,17 @@ class EventLoop(Loggable):
 
         xen.api.event.register(event_types)
         conn = ReDBConnection().get_connection()
+
+        def print_event(event):
+            ordered = OrderedDict(event)
+            ordered.move_to_end("operation", last=False)
+            ordered.move_to_end("class", last=False)
+            return ordered
+
         with conn:
             self.log.debug("Started process_xen_events. You can kill this thread and 'freeze'"
                            " cache databases (except for access) by sending signal USR2")
+            first_batch_of_events.clear()
 
             while True:
                 try:
@@ -1314,25 +1903,56 @@ class EventLoop(Loggable):
                     token_from = event_from_ret['token']
 
                     for event in events:
-                        log_this = opts.log_events and event['class'] in opts.log_events.split(',')\
+                        if event['class'] == 'message':
+                            continue  # temporary hardcode to fasten event handling
+                        log_this = opts.log_events and event['class'] in opts.log_events.split(',') \
                                    or not opts.log_events
 
-
                         # similarly to list_vms -> process
-                        if event['class'] == 'vm' or event['class'] == 'vm_metrics':
+                        if event['class'] == 'vm_metrics':
                             ev_class = VM  # use methods filter_record, process_record (classmethods)
+                        elif event['class'] == 'vm':
+                            ev_class = [VM, Template]
+
+                        elif event['class'] == 'network':
+                            ev_class = Network
+                        elif event['class'] == 'sr':
+                            ev_class = SR
+
+                        elif event['class'] == 'vdi':
+                            ev_class = [ISO, VDI]
+                        elif event['class'] == 'vif':
+                            ev_class = VIF
+                        elif event['class'] == 'vm_guest_metrics':
+                            ev_class = VMGuest
+                        elif event['class'] == 'vbd':
+                            ev_class = VBD
+                        elif event['class'] == 'pool':
+                            ev_class = Pool
+                        elif event['class'] == 'host':
+                            ev_class = Host
+
                         else:  # Implement ev_classes for all types of events
                             if log_this:
-                                self.log.debug("Ignored Event: %s" % json.dumps(event, cls=DateTimeEncoder))
+                                self.log.debug(
+                                    "Ignored Event: %s" % json.dumps(print_event(event), cls=DateTimeEncoder))
                             continue
 
                         if log_this:
-                            self.log.debug("Event: %s" % json.dumps(event, cls=DateTimeEncoder))
+                            self.log.debug("Event: %s" % json.dumps(print_event(event), cls=DateTimeEncoder))
 
-                        ev_class.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
+                        try:
+                            if isinstance(ev_class, list):
+                                for cl in ev_class:
+                                    cl.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
+                            else:
+                                ev_class.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
+                        except Exception as e:
+                            self.log.error("Failed to process event: class %s, error: %s" % (ev_class, e))
+                            traceback.print_exc()
 
-
-
+                    if not first_batch_of_events.is_set():
+                        first_batch_of_events.set()
 
 
                 except Failure as f:
@@ -1341,19 +1961,23 @@ class EventLoop(Loggable):
                         xen.api.event.register(event_types)
 
 
-
-def event_loop(executor, authenticator=None, ioloop = None):
+def event_loop(executor, authenticator=None, ioloop=None):
     if not ioloop:
         ioloop = tornado.ioloop.IOLoop.instance()
 
-    loop_object = EventLoop(executor, authenticator)
+    try:
+        loop_object = EventLoop(executor, authenticator)
+    except XenAdapterAPIError as e:
+        print(f'Launch error: {e.message}')
+        exit(2)
 
-    #tornado.ioloop.PeriodicCallback(loop_object.vm_list_update, delay).start()  # read delay from ini
+    # tornado.ioloop.PeriodicCallback(loop_object.vm_list_update, delay).start()  # read delay from ini
 
     ioloop.run_in_executor(executor, loop_object.do_access_monitor)
-
+    ioloop.run_in_executor(executor, loop_object.do_user_table)
     xen_events_run.set()
     ioloop.run_in_executor(executor, loop_object.process_xen_events)
+
 
     def usr2_signal_handler(num, stackframe):
         if xen_events_run.is_set():
@@ -1363,9 +1987,15 @@ def event_loop(executor, authenticator=None, ioloop = None):
 
     signal.signal(signal.SIGUSR2, usr2_signal_handler)
 
-
     return ioloop
 
+
+class Postinst(BaseHandler):
+    def get(self):
+        os = self.get_argument("os")
+        pubkey_path = pathlib.Path(ansible_pubkey)
+        pubkey = pubkey_path.read_text()
+        self.render('templates/installation-scenarios/postinst/{0}'.format(os), pubkey=pubkey)
 
 
 class AutoInstall(BaseHandler):
@@ -1392,7 +2022,7 @@ class AutoInstall(BaseHandler):
         partition = {'method': 'regular',
                      'mode': 'mbr',
                      'expert_recipe': [],
-                     'swap' : ''}
+                     'swap': ''}
         if part[0] == 'auto':
             part.remove('auto')
         if 'swap' not in part and 'centos' not in os_kind:
@@ -1413,51 +2043,46 @@ class AutoInstall(BaseHandler):
             if '/boot' not in part:
                 raise ValueError("LVM partition require boot properties")
         partition['expert_recipe'] = [{'mp': part[i + 0], 'size': part[i + 1], 'fs': part[i + 2]}
-                for i in range(0, len(part), 3)]
+                                      for i in range(0, len(part), 3)]
         if 'ubuntu' in os_kind or 'debian' in os_kind:
             mirror_url = mirror_url.split('http://')[1]
             mirror_path = mirror_url[mirror_url.find('/'):]
             mirror_url = mirror_url[:mirror_url.find('/')]
             filename = 'debian.jinja2'
-            # filename = 'ubuntu-ks.cfg'
-            # mirror_path = ''
+
+            pubkey = ""  # We handle it in postinst
         if 'centos' in os_kind:
             for part in partition['expert_recipe']:
                 if part['mp'] is "/":
                     part['name'] = 'root'
                 else:
-                    part['name'] = part['mp'].replace('/','')
+                    part['name'] = part['mp'].replace('/', '')
             filename = 'centos-ks.cfg'
             mirror_path = ''
+            pubkey_path = pathlib.Path(ansible_pubkey)
+            pubkey = pubkey_path.read_text()
         if not filename:
             raise ValueError("OS {0} doesn't support autoinstallation".format(os_kind))
         # filename = 'raid10.cfg'
-        self.render("templates/installation-scenarios/{0}".format(filename), hostname = hostname, username = username,
-                    fullname=fullname, password = password, mirror_url=mirror_url, mirror_path=mirror_path, ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, partition=partition)
+        self.render("templates/installation-scenarios/{0}".format(filename), hostname=hostname, username=username,
+                    fullname=fullname, password=password, mirror_url=mirror_url, mirror_path=mirror_path,
+                    ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, partition=partition, pubkey=pubkey,
+                    postinst=URL + POSTINST_ROUTE + "?" + urlencode({'os': 'debian'}, doseq=True)
+                    )
+
 
 class ConsoleHandler(BaseWSHandler):
     def check_origin(self, origin):
         return True
 
-    def initialize(self,executor):
+    def initialize(self, executor):
         super().initialize(executor)
-        url = urlparse(opts.url)
+
         username = opts.username
         password = opts.password
-        if ':' in url.netloc:
-            host, port = url.netloc.split(':')
-        else:
-            host = url.netloc
-            port = 80 #TODO: AS FOR NOW ONLY HTTP IS SUPPORTED
-
-        self.host = host
-        self.port = int(port)
         self.auth_token = base64.encodebytes('{0}:{1}'.format
                                              (username,
                                               password).encode())
-
-
-
 
 
     @tornado.web.asynchronous
@@ -1465,80 +2090,131 @@ class ConsoleHandler(BaseWSHandler):
         '''
         This method proxies WebSocket calls to XenServer
         '''
-        self.sock = socket.create_connection((self.host, self.port))
-        self.sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY,1)
+
+
+        # Get VM vnc url
+        url_parsed = urlparse(self.request.uri)
+        try:
+            secret = parse_qs(url_parsed.query)['secret'][0]
+        except KeyError:
+            self.write_message("No argument secret")
+            self.close()
+            return
+
+
+        try:
+            data = secrets[secret]
+        except KeyError:
+            self.write_message("Invalid secret")
+            self.close()
+            return
+
+        try:
+            vm = VM(uuid=data['uuid'], auth=data['auth'])
+            vnc_url = vm.get_vnc()
+        except XenAdapterUnauthorizedActionException as ee:
+            self.set_status(403)
+            self.write(json.dumps({'status': 'not allowed', 'details': ee.message}))
+            self.finish()
+
+
+        except EmperorException as ee:
+            self.set_status(400)
+            self.write(json.dumps({'status': 'error', 'details': ee.message}))
+            self.finish()
+
+        vnc_url_parsed = urlsplit(vnc_url)
+        port = vnc_url_parsed.port
+        if port is None:
+            port = 80 # TODO: If scheme is HTTPS, use 443
+        self.sock = socket.create_connection((vnc_url_parsed.hostname, port))
+        self.sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         self.sock.setblocking(0)
         self.halt = False
         self.translate = False
-        self.key=None
+        self.key = None
 
-
-        uri = self.request.uri
-        lines =[
-            'CONNECT {0} HTTP/1.1'.format(uri), #HTTP 1.1 creates Keep-alive connection
-            'Host: {0}'.format(self.host),
-         #   'Authorization: Basic {0}'.format(self.auth_token),
+        uri = f'{vnc_url_parsed.path}?{vnc_url_parsed.query}'
+        lines = [
+            'CONNECT {0} HTTP/1.1'.format(uri),  # HTTP 1.1 creates Keep-alive connection
+            'Host: {0}'.format(opts.vmemperor_host),
+            #   'Authorization: Basic {0}'.format(self.auth_token),
         ]
         self.sock.send('\r\n'.join(lines).encode())
         self.sock.send(b'\r\nAuthorization: Basic ' + self.auth_token)
         self.sock.send(b'\r\n\r\n')
-        tornado.ioloop.IOLoop.current().run_in_executor(self.executor, self.server_reading)
-
-
-
+        del secrets[secret]
+        tornado.ioloop.IOLoop.current().spawn_callback(self.server_reading)
 
     def on_message(self, message):
-        assert(isinstance(message, bytes))
+        assert (isinstance(message, bytes))
         self.sock.send(message)
 
     def select_subprotocol(self, subprotocols):
-        print("Select subprotocol!", subprotocols)
-        return subprotocols[0]
+        if 'binary' in subprotocols:
+            proto = 'binary'
+        else:
+            proto = subprotocols[0] if len(subprotocols) else ""
 
 
+        return proto
 
+    @gen.coroutine
     def server_reading(self):
         try:
+            data_sent = False
             http_header_read = False
-            epoll = select.epoll()
-            epoll.register(self.sock.fileno(), select.EPOLLIN)
-
+            stream = tornado.iostream.IOStream(self.sock)
             while self.halt is False:
-                events = epoll.poll()
-                for fileno, event in events:
-
-                    if fileno == self.sock.fileno() and event & select.EPOLLIN:
-                        #ready_to_read, ready_to_write, in_error = select.select([self.sock], [], [], 10)
-                        #print("after select")
-                        #if self.sock in ready_to_read:
-                        data = self.sock.recv(1024)
+                try:
+                    if not data_sent:
+                        data = yield stream.read_bytes(100, partial=True)
                         if not http_header_read:
-                            http_header_read = True
-                            data = data[78:]
+                            notok = b'200 OK' not in data
+                            if notok:
+                                self.log.error(f"Unable to open VNC Console {self.request.uri}: Error: {data}")
+                                self.write_message(data)
+                                self.close()
+                                return
+                            else:
+                                http_header_read = True
 
-                        self.write_message(data, binary=True)
+                        try:
+                            index = data.index(b'RFB')
+                        except ValueError:
+                            self.log.warning("server_reading: 200 OK returned, but no RFB in first data message. Continuing")
+                            continue
 
 
+                        data = data[index:]
+                        data_sent = True
+                    else:
+                        data = yield stream.read_bytes(1024, partial=True)
+                except StreamClosedError as e:
+                    self.log.info(f"{self.request.uri}: Stream closed: {e}")
+                    self.halt = True
+                    self.close()
+                    break
+                self.write_message(data, binary=True)
 
-            print("halt", self.halt)
         except:
             if self.halt is False:
                 traceback.print_exc()
             else:
                 pass
-        self.sock.close()
-
 
     def on_close(self):
         self.halt = True
-        self.sock.send(b'close\n')
-        self.sock.close()
+
+        try:
+            self.sock.send(b'close\n')
+        except:
+            pass
+        finally:
+            self.sock.close()
 
 
-
-
-
-def make_app(executor, auth_class=None, debug = False):
+def make_app(executor, auth_class=None, debug=False):
     if auth_class is None:
         d = DynamicLoader('auth')
 
@@ -1556,15 +2232,17 @@ def make_app(executor, auth_class=None, debug = False):
     for cls in classes:
         cls.debug = debug
 
-    app =  tornado.web.Application([
+    app = tornado.web.Application([
 
         (r"/login", AuthHandler, dict(executor=executor, authenticator=auth_class)),
         (r"/logout", LogOut, dict(executor=executor)),
         (r'/test', Test, dict(executor=executor)),
         (XenAdapter.AUTOINSTALL_PREFIX + r'/([^/]+)', AutoInstall, dict(executor=executor)),
+        (POSTINST_ROUTE + r'.*', Postinst, dict(executor=executor)),
         (r'/console.*', ConsoleHandler, dict(executor=executor)),
         (r'/createvm', CreateVM, dict(executor=executor)),
         (r'/startstopvm', StartStopVM, dict(executor=executor)),
+        (r'/rebootvm', RebootVM, dict(executor=executor)),
         (r'/vmlist', VMList, dict(executor=executor)),
         (r'/poollist', PoolList, dict(executor=executor)),
         (r'/list_pools', PoolListPublic, dict(executor=executor)),
@@ -1572,17 +2250,34 @@ def make_app(executor, auth_class=None, debug = False):
         (r'/netlist', NetworkList, dict(executor=executor)),
         (r'/enabledisabletmpl', EnableDisableTemplate, dict(executor=executor)),
         (r'/vnc', VNC, dict(executor=executor)),
-        (r'/attachdetachdisk', AttachDetachDisk, dict(executor=executor)),
+        (r'/attachdetachvdi', AttachDetachVDI, dict(executor=executor)),
         (r'/attachdetachiso', AttachDetachIso, dict(executor=executor)),
+        (r'/netaction', NetworkAction, dict(executor=executor)),
         (r'/destroyvm', DestroyVM, dict(executor=executor)),
-        (r'/connectvm', ConnectVM, dict(executor=executor)),
-        (r'/adminauth', AdminAuth, dict(executor=executor)),
+        (r'/adminauth', AdminAuth, dict(executor=executor, authenticator=auth_class)),
         (r'/convertvm', ConvertVM, dict(executor=executor)),
         (r'/installstatus', InstallStatus, dict(executor=executor)),
         (r'/vminfo', VMInfo, dict(executor=executor)),
         (r'/isolist', ISOList, dict(executor=executor)),
+        (r'/vdilist', VDIList, dict(executor=executor)),
         (r'/setaccess', SetAccessHandler, dict(executor=executor)),
-        (r'/getaccess', GetAccessHandler, dict(executor=executor))
+        (r'/getaccess', GetAccessHandler, dict(executor=executor)),
+        (r'/netinfo', NetworkInfo, dict(executor=executor)),
+        (r'/userinfo', UserInfo, dict(executor=executor)),
+        (r'/vdiinfo', VDIInfo, dict(executor=executor)),
+        (r'/isoinfo', ISOInfo, dict(executor=executor)),
+        (r'/vmdiskinfo', VMDiskInfo, dict(executor=executor)),
+        (r'/vmnetinfo', VMNetInfo, dict(executor=executor)),
+        (r'/turntemplate', TurnTemplate, dict(executor=executor)),
+        (r'/playbooks', Playbooks, dict(executor=executor)),
+        (r'/executeplaybook', ExecutePlaybook, dict(executor=executor)),
+        (r'/taskstatus', TaskStatus, dict(executor=executor)),
+        (r'/userlist', UserList, dict(executor=executor)),
+        (r'/grouplist', GroupList, dict(executor=executor)),
+        (r'/alltemplates', AllTemplates, dict(executor=executor)),
+        (r'/destroyvdi', DestroyVDI, dict(executor=executor)),
+        (r'/setquota', SetQuota, dict(executor=executor)),
+        (r'/getquota', GetQuota, dict(executor=executor)),
 
     ], **settings)
 
@@ -1590,7 +2285,7 @@ def make_app(executor, auth_class=None, debug = False):
 
     from auth.sqlalchemyauthenticator import SqlAlchemyAuthenticator, User, Group
     if opts.debug and app.auth_class.__name__ == SqlAlchemyAuthenticator.__name__:
-        #create test users
+        # create test users
 
         john_group = Group(name='John friends')
         SqlAlchemyAuthenticator.session.add(john_group)
@@ -1604,36 +2299,43 @@ def make_app(executor, auth_class=None, debug = False):
 
     return app
 
+
 def read_settings():
     """reads settings from ini"""
-    define('debug', group = 'debug', type = bool, default=False)
-    define('username', group = 'xenadapter')
-    define('password', group = 'xenadapter')
-    define('url', group = 'xenadapter')
-    define('database', group = 'rethinkdb', default = 'test')
-    define('host', group = 'rethinkdb', default = 'localhost')
-    define('port', group = 'rethinkdb', type = int, default = 28015)
-    define('delay', group = 'ioloop', type = int, default=5000)
-    define('max_workers', group = 'executor', type = int, default=16)
-    define('vmemperor_url', group ='vmemperor', default = '10.10.10.102')
-    define('vmemperor_port', group = 'vmemperor', type = int, default = 8888)
+    define('debug', group='debug', type=bool, default=False)
+    define('username', group='xenadapter')
+    define('password', group='xenadapter')
+    define('url', group='xenadapter')
+    define('database', group='rethinkdb', default='test')
+    define('host', group='rethinkdb', default='localhost')
+    define('port', group='rethinkdb', type=int, default=28015)
+    define('delay', group='ioloop', type=int, default=5000)
+    define('max_workers', group='executor', type=int, default=16)
+    define('vmemperor_host', group='vmemperor', default='localhost')
+    define('vmemperor_port', group='vmemperor', type=int, default=8888)
     define('authenticator', group='vmemperor', default='')
     define('log_events', group='ioloop', default='')
-    define('log_file_name', group='log',default='vmemperor.log')
-
+    define('user_source_delay', group='ioloop', type=int, default=2)
+    define('log_file_name', group='log', default='vmemperor.log')
+    define('ansible_pubkey', group='ansible', default='~/.ssh/id_rsa.pub')
+    define('ansible_playbook', group='ansible', default='ansible-playbook')
+    define('ansible_dir', group='ansible', default='./ansible')
+    define('ansible_logs', group='ansible', default='./ansible_logs')
+    define('ansible_networks', group='ansible', default='', multiple=True)
 
     from os import path
 
     file_path = path.join(path.dirname(path.realpath(__file__)), 'login.ini')
     parse_config_file(file_path)
+    global ansible_pubkey
+    ansible_pubkey = path.expanduser(opts.ansible_pubkey)
     ReDBConnection().set_options(opts.host, opts.port)
+    if not os.access(ansible_pubkey, os.R_OK):
+        logger.warning("WARNING: Ansible pubkey {0} (ansible_pubkey config option) is not readable".format(ansible_pubkey))
 
     def on_exit():
         xen_events_run.set()
         need_exit.set()
-
-
-
 
     atexit.register(on_exit)
     # do log rotation
@@ -1660,24 +2362,38 @@ def main():
     """ reads settings in ini configures and starts system"""
     asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
 
-    read_settings()
+    global URL
+    global auth_class_name
+    URL = f"http://{opts.vmemperor_host}:{opts.vmemperor_port}"
+    logger.debug(f"Listening on: {URL}")
 
-
-
-
-
-
-    executor = ThreadPoolExecutor(max_workers = 1024)
+    executor = ThreadPoolExecutor(max_workers=2048)
     app = make_app(executor)
     server = tornado.httpserver.HTTPServer(app)
     server.listen(opts.vmemperor_port, address="0.0.0.0")
     ioloop = event_loop(executor, authenticator=app.auth_class)
-    print("Using authentication: {0}".format(app.auth_class.__name__))
+    logger.debug(f"Using authentication: {app.auth_class.__name__}")
+    auth_class_name = app.auth_class.__name__
+    logger.debug("Loading playbooks...")
+    global playbooks
+    playbooks = {p.get_id(): p for p in Playbook.get_playbooks()}
+    logger.debug(f"loaded  {len(playbooks)}")
     ioloop.start()
 
     return
 
+
 if __name__ == '__main__':
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
+
+    sh = logging.StreamHandler(sys.stdout)
+    sh.setLevel(logging.DEBUG)
+    logger.addHandler(sh)
+
+    read_settings()
+
     try:
         main()
     except KeyboardInterrupt:

@@ -13,10 +13,10 @@ import injectSaga from 'utils/injectSaga';
 import injectReducer from 'utils/injectReducer';
 
 import { createStructuredSelector } from 'reselect';
-import { makeSelectPools, makeGetModal } from './selectors';
+import { makeSelectPools, makeGetModal, makeSelectIsos, makeSelectNetworks,  makeSelectTemplates } from './selectors';
 import { FormattedMessage } from 'react-intl';
 import messages from './messages';
-import { toggleModal, createVM } from './actions';
+import { toggleModal, createVM, loadNetwork } from './actions';
 import styles from './styles.css';
 import saga from './saga';
 import reducer from './reducer';
@@ -29,12 +29,41 @@ import IPT from 'react-immutable-proptypes';
 
 export class CreateVm extends React.Component { // eslint-disable-line react/prefer-stateless-function
   static propTypes = {
-    pools: IPT.listOf(IPT.record).isRequired,
     modal: T.bool.isRequired,
     toggleModal: T.func.isRequired,
     createVM: T.func.isRequired,
   };
 
+  constructor(props)
+  {
+    super(props);
+    this.createVM = this.createVM.bind(this);
+    this.toggleModal = this.toggleModal.bind(this);
+  }
+
+  createVM(form) {
+    this.props.createVM(form);
+    this.props.toggleModal();
+  }
+  toggleModal(e)
+  {
+    if (this.props.modal)
+    {
+      if (confirm("Do you want to leave?"))
+      {
+        this.props.toggleModal(!this.props.modal)
+      }
+      else
+      {
+        console.log("Prevent default...")
+        e.stopPropagation();
+      }
+
+    }
+    else {
+      this.props.toggleModal(!this.props.modal);
+    }
+  }
   render() {
     return (
       <div>
@@ -50,8 +79,16 @@ export class CreateVm extends React.Component { // eslint-disable-line react/pre
               <div style={{ textAlign: 'center' }}><Loader /></div>
           }
         </div>
-        <Modal title="VM form" lg toggle={this.props.toggleModal} isOpen={this.props.modal}>
-          <VMForm  pools={this.props.pools} onSubmit={this.props.createVM} />
+        <Modal title="VM form"
+               lg
+               toggle={this.toggleModal}
+               isOpen={this.props.modal}>
+          <VMForm  pools={this.props.pools}
+                   isos={this.props.isos}
+                   networks={this.props.networks}
+                   templates={this.props.templates}
+                   onNetworkChange={this.props.loadNetwork}
+                   onSubmit={this.createVM} />
         </Modal>
       </div>
     );
@@ -61,6 +98,9 @@ export class CreateVm extends React.Component { // eslint-disable-line react/pre
 const mapStateToProps = createStructuredSelector({
   pools: makeSelectPools(),
   modal: makeGetModal(),
+  isos: makeSelectIsos(),
+  networks: makeSelectNetworks(),
+  templates: makeSelectTemplates(),
 });
 
 const mapDispatchToProps = {

@@ -1,23 +1,9 @@
+from xenadapter.sr import SR
+from xenadapter.vbd import VBD
 from .xenobject import *
 from . import use_logger
 from exc import *
 import XenAPI
-
-
-class VBD(XenObject):
-    api_class = 'VBD'
-
-  #  @classmethod
-  #  def process_event(cls, xen, event, db):
-  #      from vmemperor import CHECK_ER
-  #      if event['class'] != 'vbd':
-  #          raise XenAdapterArgumentError(xen.log, "this method accepts only 'vbd' events")
-
-        #record = event['snapshot']
-        #if event['operation'] == 'add':
-
-
-
 
 
 class Attachable:
@@ -37,21 +23,32 @@ class Attachable:
         vm_vbds = vm.get_VBDs()
         my_vbds = self.get_VBDs()
 
+        userdevice_max = -1
         for vm_vbd in vm_vbds:
             for vdi_vbd in my_vbds:
                 if vm_vbd == vdi_vbd:
                     vbd_uuid = self.auth.xen.api.VBD.get_uuid(vm_vbd)
                     self.log.warning ("Disk is already attached with VBD UUID {0}".format(vbd_uuid))
                     return vbd_uuid
+            try:
+                userdevice = int(self.auth.xen.api.VBD.get_userdevice(vm_vbd))
+            except ValueError:
+                userdevice = -1
 
-        args = {'VM': vm.ref, 'VDI': self.ref, 'userdevice': str(len(vm_vbds)),
+            if userdevice_max < userdevice:
+                userdevice_max = userdevice
+
+        userdevice_max += 1
+
+        args = {'VM': vm.ref, 'VDI': self.ref,
+                'userdevice': str(userdevice_max),
         'bootable' : True, 'mode' :mode, 'type' : type, 'empty' : empty,
         'other_config' : {},'qos_algorithm_type': '', 'qos_algorithm_params': {}}
 
         try:
             vbd_ref = self.auth.xen.api.VBD.create(args)
         except XenAPI.Failure as f:
-            raise XenAdapterAPIError(self.auth.xen.log, "Failed to create VBD: {0}".format(f.details))
+            raise XenAdapterAPIError(self.auth.xen.log, "Failed to create VBD", f.details)
 
         vbd_uuid = self.auth.xen.api.VBD.get_uuid(vbd_ref)
         if (vm.get_power_state() == 'Running'):
@@ -97,41 +94,68 @@ class Attachable:
 
         return
 
+    @classmethod
+    def get_vbd_vms(self, record, auth):
+
+        def vbd_to_vm_uuid(vbd_ref):
+            from .vbd import VBD
+            from .vm import VM
+
+            vbd = VBD(auth=auth, ref=vbd_ref)
+            vm = VM(auth=auth, ref=vbd.get_VM())
+            return vm.uuid
+
+        return [vbd_to_vm_uuid(ref) for ref in record['VBDs']]
 
 
 class ISO(XenObject, Attachable):
     api_class = 'VDI'
-
+    db_table_name = 'isos'
+    EVENT_CLASSES = ['vdi']
+    PROCESS_KEYS = ['uuid', 'name_label', 'name_description', 'location', 'virtual_size', 'physical_utilization']
 
     from .vm import VM
 
     @classmethod
-    def get_all_records(cls, xen):
-        iso_dict = {}
-        for k, v in xen.api.SR.get_all_records().items():
-            if 'content_type' not in v or  v['content_type'] != 'iso':
-                continue
+    def filter_record(cls, record, return_SR_record=False):
+        query = cls.db.table(SR.db_table_name).get_all(record['SR'], index='ref').run()
+        if len(query.items) != 1:
+            raise XenAdapterAPIError("Unable to get SR for ISO {0}".format(record['uuid']),
+                                     "No such SR: {0}".format(record['SR']))
+        if return_SR_record:
+            return query.items[0]['content_type'] == 'iso', query.items[0]
+        else:
+            return query.items[0]['content_type'] == 'iso'
 
-
-            for vdi_ref in xen.api.SR.get_VDIs(k):
-                rec = xen.api.VDI.get_record(vdi_ref)
-                #fields = {'uuid', 'name_label', 'name_description', 'location'}
-                #rec = {key: value for key, value in rec.items() if key in fields}
-                iso_dict[vdi_ref] = rec
-        return iso_dict
 
     @classmethod
-    def process_record(cls, auth, ref, record):
-        record = super().process_record(auth, ref, record)
-        fields = ['uuid', 'name_label', 'name_description', 'location', 'ref']
-        return  {key: value for key, value in record.items() if key in fields}
+    def process_event(cls, auth, event, db, authenticator_name):
+        cls.create_db(db)
+
+        if event['class'] == 'vdi': #get SR
+            if event['operation'] in ('add', 'mod'):
+                record = event['snapshot']
+
+                filtered, SR = cls.filter_record(record, return_SR_record=True)
+                if not filtered:
+                    return
+
+                new_rec = cls.process_record(auth, event['ref'], record)
+                # We need SR information
+                new_rec['SR'] = SR['uuid']
+                new_rec['VMs'] = Attachable.get_vbd_vms(record, auth)
+
+                from rethinkdb_helper import CHECK_ER
+                CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
+
+
 
     def attach(self, vm : VM) -> VBD:
         '''
-        Attaches ISO to a vm
+        Attaches VDI to a vm as RW
         :param vm:
-        :return:
         WARNING: It does not check whether self is a real ISO, do it for yourself.
+
         '''
         return VBD(auth=self.auth, uuid=self._attach(vm, 'CD', 'RO'))
 
@@ -140,7 +164,12 @@ class ISO(XenObject, Attachable):
 
 
 
-class VDI(ACLXenObject):
+class VDI(ACLXenObject, Attachable):
+    api_class = 'VDI'
+    db_table_name = 'vdis'
+    EVENT_CLASSES = ['vdi']
+    PROCESS_KEYS = ['uuid', 'name_label', 'name_description', 'physical_utlilisation']
+    PROCESS_TYPED_KEYS = {'virtual_size': int}
     @classmethod
     def create(cls, auth, sr_uuid, size, name_label = None):
         """
@@ -170,4 +199,76 @@ class VDI(ACLXenObject):
             raise XenAdapterAPIError(auth.log, "Failed to create VDI: {0}".format(f.details))
 
         return vdi_uuid
+
+    @classmethod
+    def filter_record(cls, record, return_SR_record=False):
+        query = cls.db.table(SR.db_table_name).get_all(record['SR'], index='ref').run()
+        if len(query.items) != 1:
+            raise XenAdapterAPIError("Unable to get SR for ISO {0}".format(record['uuid']),
+                                     "No such SR: {0}".format(record['SR']))
+        if return_SR_record:
+            return query.items[0]['content_type'] != 'iso', query.items[0]
+        else:
+            return query.items[0]['content_type'] != 'iso'
+
+    @classmethod
+    def process_event(cls, auth, event, db, authenticator_name):
+
+        if event['class'] == 'vdi':
+            cls.create_db(db)
+            if event['operation'] in ('add', 'mod'):
+                record = event['snapshot']
+
+                filtered, SR = cls.filter_record(record, return_SR_record=True)
+                if not filtered:
+                    return
+
+                # get access information
+                new_rec = cls.process_record(auth, event['ref'], record)
+                new_rec['SR'] = SR['uuid']
+                new_rec['VMs'] = Attachable.get_vbd_vms(record, auth)
+
+                from rethinkdb_helper import CHECK_ER
+                CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
+
+
+    def destroy(self):
+        sr = SR(auth=self.auth, ref=self.get_SR())
+        if 'vdi_destroy' in sr.get_allowed_operations():
+            self._destroy()
+            return True
+        else:
+            return False
+
+
+    def attach(self, vm) -> VBD:
+        '''
+        Attaches ISO to a vm
+        :param vm:
+        :return:
+        '''
+        return VBD(auth=self.auth, uuid=self._attach(vm, 'Disk', 'RW'))
+
+    def detach(self, vm):
+        self._detach(vm)
+
+
+class VDIorISO:
+    def __new__(cls, auth, uuid=None, ref=None):
+        db = auth.xen.db
+
+        if uuid:
+            if db.table(ISO.db_table_name).get(uuid).run():
+                return ISO(auth, uuid, ref)
+            elif db.table(VDI.db_table_name).get(uuid).run():
+                return VDI(auth, uuid, ref)
+            else:
+                return None
+        elif ref:
+            if len(db.table(ISO.db_table_name).get_all(ref, index='ref').run().items) == 1:
+                return ISO(auth, uuid, ref)
+            elif len(db.table(VDI.db_table_name).get_all(ref, index='ref').run().items) == 1:
+                return VDI(auth, uuid, ref)
+            else:
+                return None
 

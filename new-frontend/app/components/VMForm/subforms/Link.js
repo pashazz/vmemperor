@@ -1,36 +1,70 @@
-import React from 'react';
+import React, {Fragment} from 'react';
 import T from 'prop-types';
+import icon from '@fortawesome/fontawesome-free-solid/faAt';
+import FontAwesomeIcon from '@fortawesome/react-fontawesome';
 
-import classNames from 'classnames';
+import {AvField, AvGroup, AvInput, AvFeedback } from 'availity-reactstrap-validation';
+import Input from 'components/Input';
+import { InputGroup, InputGroupAddon, InputGroupText } from 'reactstrap';
 
-function validate(username, hostname) {
+function validateUser(value, ctx) {
+  const {username} = ctx;
   if (username.length < 4) {
     return 'User name should have at least 4 symbols';
   }
   if (username.search(/[\s]/) !== -1) {
     return 'User name should have no spaces';
   }
+  return true;
+}
+
+function validateHost(value, ctx) {
+  const {hostname} = ctx;
+
   if (hostname.length < 4) {
     return 'Host name should have at least 4 symbols';
   }
   if (hostname.search(/[\s]/) !== -1) {
     return 'Host name should have no spaces';
   }
-  return '';
+  return true;
 }
 
-function Link({ username, hostname, onChange, touched }) {
-  const validation = validate(username, hostname);
-  const isValid = validation === '';
+function Link({ username, hostname, onChange, }) {
+return (
+  <Fragment>
+    <AvGroup>
+      <InputGroup>
 
-  const mainClassName = classNames('form-group', {
-    'has-success': touched && isValid,
-    'has-error': touched && !isValid,
-  });
+  <Input
+           name="username"
+           id="username"
+           value={username}
+           onChange={onChange}
+           placeholder="Your login for a new VM"
+           validate={{myValidation: validateUser}}
+           />
+        <InputGroupAddon style={ {"line-height": "1!important"}} addonType="prepend">
+          <InputGroupText style = { { height: '100%'}}>
+            <FontAwesomeIcon icon={icon}/>
+          </InputGroupText>
+        </InputGroupAddon>
+    <Input
+             name="hostname"
+             id="hostname"
+             value={hostname}
+             onChange={onChange}
+             placeholder="Your hostname for a new VM"
+             validate={{myValidation: validateHost}}
+    />
+      </InputGroup>
+    </AvGroup>
 
-  const errorText = touched && !isValid ?
-    <span className="help-block">{ validation }</span> : null;
+  </Fragment>
+);
 
+
+/*
   return (
     <div className={mainClassName}>
       <div className="input-group">
@@ -60,6 +94,7 @@ function Link({ username, hostname, onChange, touched }) {
       { errorText }
     </div>
   );
+  */
 }
 
 Link.propTypes = {

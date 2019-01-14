@@ -41,10 +41,45 @@ import {VMRecord} from "./type";
 
 
 
-import {vm_delete, run, halt, vm_select, vm_deselect, vm_select_all, vm_deselect_all} from "./actions";
+import {vm_select, vm_deselect, vm_select_all, vm_deselect_all} from "./actions";
+import {vm_delete, run, halt } from 'containers/App/actions';
 
 
 export class Vms extends React.Component { // eslint-disable-line react/prefer-stateless-function
+  static propTypes = {
+    vm_data_table: T.arrayOf(T.shape(
+      {
+        power_state: T.string.isRequired,
+        name_label: T.string.isRequired,
+        start_time: T.any.isRequired,
+        uuid: T.string.isRequired.isRequired
+      })),
+    vm_data_names: ITypes.mapOf( //Key-valued data about VMs taken directly from store
+      T.string,
+      T.string,
+    ),
+    table_selection: T.array.isRequired,
+    table_selection_halted: T.array.isRequired,
+    table_selection_running: T.array.isRequired,
+    run: T.func.isRequired,
+    halt: T.func.isRequired,
+    vm_delete: T.func.isRequired,
+    vm_select: T.func.isRequired,
+    vm_deselect: T.func.isRequired,
+    vm_select_all: T.func.isRequired,
+    vm_deselect_all: T.func.isRequired,
+    start_button_disabled: T.bool.isRequired,
+    stop_button_disabled: T.bool.isRequired,
+    trash_button_disabled: T.bool.isRequired,
+    addToastr: T.func.isRequired,
+    removeToastr: T.func.isRequired,
+    history: T.shape(
+      {
+        push : T.func.isRequired,
+      }).isRequired,
+
+  };
+
   constructor(props) {
     super(props);
     this.render = this.render.bind(this);
@@ -155,35 +190,25 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
   }
   onTableRun()
   {
-    const names = this.props.table_selection_halted.map(uuid => this.props.vm_data_names.get(uuid));
-  //  this.doTableAction(this.state.selectedHalted, run);
-    const options = this.notificationOptions('Starting VMs', names);
-    this.props.addToastr(options);
-    this.props.table_selection_halted.forEach(uuid => this.props.run(uuid, options.id));
-
+    this.props.run(this.props.table_selection_halted);
   }
 
   onTableHalt()
   {
-    const names = this.props.table_selection_running.map(uuid => this.props.vm_data_names.get(uuid));
-    const options = this.notificationOptions('Stopping VMs', names);
-    this.props.addToastr(options);
-    this.props.table_selection_running.forEach(uuid => this.props.halt(uuid, options.id));
+    this.props.halt(this.props.table_selection_running);
+    //forEach(uuid => this.props.halt(uuid, options.id));
   }
 
   onTableDelete()
   {
-    const names = this.props.table_selection.map(uuid => this.props.vm_data_names.get(uuid));
-    const options = this.notificationOptions('Deleting VMs', names);
-    this.props.addToastr(options);
-    this.props.table_selection.forEach(uuid => this.props.vm_delete(uuid, options.id));
+    this.props.vm_delete(this.props.table_selection);
   }
 
   onDoubleClick(e, row, rowIndex)
   {
     const { history } = this.props;
-    const { uuid } = this.props.vm_data_table[rowIndex];
-    history.push('/desktop/' + uuid);
+    const { uuid } = this.props.vm_data_table.filter(item => item.uuid === row.uuid)[0];
+    history.push('/vmsettings/' + uuid);
   }
 
   render() {
@@ -228,44 +253,16 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
           rowClasses={this.rowClasses}
           rowEvents={rowEvents}
           style={tableStyle}
+          noDataIndication="No VMs available... create something new!"
           striped
           hover/>
       </React.Fragment>);
 
   }
-
-
-
 }
 
 
-Vms.propTypes = {
-  vm_data_table: T.array.isRequired, //Data for VM table
-  vm_data_names: ITypes.mapOf( //Key-valued data about VMs taken directly from store
-    T.string,
-    T.string,
-  ),
-  table_selection: T.array.isRequired,
-  table_selection_halted: T.array.isRequired,
-  table_selection_running: T.array.isRequired,
-  run: T.func.isRequired,
-  halt: T.func.isRequired,
-  vm_delete: T.func.isRequired,
-  vm_select: T.func.isRequired,
-  vm_deselect: T.func.isRequired,
-  vm_select_all: T.func.isRequired,
-  vm_deselect_all: T.func.isRequired,
-  start_button_disabled: T.bool.isRequired,
-  stop_button_disabled: T.bool.isRequired,
-  trash_button_disabled: T.bool.isRequired,
-  addToastr: T.func.isRequired,
-  removeToastr: T.func.isRequired,
-  history: T.shape(
-    {
-      push : T.func.isRequired,
-    }).isRequired,
 
-};
 
 const mapStateToProps = createStructuredSelector({
   vm_data_table: makeSelectVmDataForTable(),

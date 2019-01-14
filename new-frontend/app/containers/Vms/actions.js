@@ -6,49 +6,10 @@
  */
 
 import {
-  VM_DELETE, VM_DESELECT, VM_HALT, VM_RUN, VM_SELECT, VM_DESELECT_ALL, VM_SELECT_ALL,
-  VM_RUN_ERROR, VM_NOTIFICATION_INCREASE, VM_NOTIFICATION_DECREASE
+  VM_DESELECT, VM_SELECT, VM_DESELECT_ALL, VM_SELECT_ALL,
+
 } from './constants';
 
-export function run(uuid, notifyId)
-{
-  return {
-    type: VM_RUN,
-    uuid,
-    notifyId,
-  }
-}
-
-export function halt(uuid, notifyId) {
-  return {
-    type: VM_HALT,
-    uuid,
-    notifyId
-  }
-
-}
-
-export function vmNotificationIncrease(notifyId) {
-  return {
-    type: VM_NOTIFICATION_INCREASE,
-    notifyId
-  }
-}
-
-export function vmNotificationDecrease (notifyId) {
-  return {
-    type: VM_NOTIFICATION_DECREASE,
-    notifyId
-  }
-}
-
-
-export function vm_delete(uuid) {
-  return {
-    type: VM_DELETE,
-    uuid
-  }
-}
 
 export function vm_select(uuid) {
   return {
@@ -80,16 +41,4 @@ export function vm_deselect_all()
   }
 }
 
-//TODO May we use it for another types of errors in the future?
-export function vm_run_error(payload, date)
-{
-  const {message, details} = JSON.parse(payload);
-  return {
-    type: VM_RUN_ERROR,
-    errorText: message,
-    errorType: details[0],
-    ref: details[1],
-    errorDetailedText: details[2].trim(),
-    date: date,
-  }
-}
+

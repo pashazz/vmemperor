@@ -1,8 +1,11 @@
 .idea
+make_request.ini
 build
 *.pyc
 log
 *.log*
 secret.ini
-make_request.ini
 rethinkdb_data
+yarn.lock
+ansible_logs/*
+nohup.out

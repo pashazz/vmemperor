@@ -24,7 +24,8 @@ module.exports = (options) => ({
     rules: [
       {
         test: /\.js$/, // Transform all .js files required somewhere with Babel
-        exclude: /node_modules/,
+        //exclude: /node_modules/,
+        exclude: /node_modules[\\/](?!@av).*/,
         use: {
           loader: 'babel-loader',
           options: options.babelQuery,
@@ -37,6 +38,14 @@ module.exports = (options) => ({
         test: /\.css$/,
         exclude: /node_modules/,
         use: ['style-loader', 'css-loader'],
+      },
+      {
+        // Preprocess our own .css files
+        // This is the place to add your own loaders (e.g. sass/less etc.)
+        // for a list of loaders, see https://webpack.js.org/loaders/#styling
+        test: /\.scss$/,
+        exclude: /node_modules/,
+        use: ['style-loader', 'css-loader', 'sass-loader'],
       },
       {
         // Preprocess 3rd party .css files located in node_modules

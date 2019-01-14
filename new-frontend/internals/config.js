@@ -29,7 +29,9 @@ const ReactBoilerplate = {
         'minimist',
         'sanitize.css',
         'browserslist',
-        'svgo'
+        'svgo',
+        '@novnc/novnc',
+
       ],
 
       /**

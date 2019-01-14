@@ -19,3 +19,20 @@ export const VMLIST_MESSAGE = 'emperor/global/VMLIST_MESSAGE';
 export const AUTHENTICATED = 'emperor/global/authenticated';
 export const LOGGED_OUT = 'emperor/global/logged_out';
 export const VMLIST_URL="/api/vmlist";
+
+export const VM_STATE_RUNNING="Running";
+export const VM_STATE_HALTED="Halted";
+export const VM_STATE_SUSPENDED="Suspended";
+export const VM_STATE_PAUSED="Paused";
+
+export const VM_RUN = 'emperor/global/VM_RUN';
+export const VM_HALT = 'emperor/global/VM_HALT';
+export const VM_DELETE = 'emperor/global/VM_DELETE';
+
+export const VM_REBOOT = 'emperor/global/VM_REBOOT';
+
+export const ADD_TO_WAIT_LIST = 'emperor/global/ADD_TO_WAIT_LIST';
+export const REMOVE_FROM_WAIT_LIST = 'emperor/global/REMOVE_FROM_WAIT_LIST';
+
+export const VM_RUN_ERROR = 'emperor/global/VM_RUN_ERROR';
+

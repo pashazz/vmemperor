@@ -22,10 +22,15 @@ export default defineMessages({
     id: "app.components.navbar.history",
     defaultMessage: "History",
   },
+  resources: {
+    id: "app.components.navbar.resources",
+    defaultMessage: "Resources",
+  },
   logout: {
     id: "app.components.navbar.logout",
     defaultMessage: "Logout",
   },
+
 
 
 });
