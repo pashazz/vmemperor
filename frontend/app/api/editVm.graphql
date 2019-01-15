@@ -1,0 +1,5 @@
+mutation VMEditOptions ($vm : VMInput!) {
+  vm (vm: $vm ) {
+    success
+  }
+}

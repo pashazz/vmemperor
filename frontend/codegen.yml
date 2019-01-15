@@ -2,13 +2,8 @@ overwrite: true
 schema: "http://localhost:8889/graphql"
 documents: "./app/api/*.graphql"
 generates:
-  ./app/generated/*.tsx:
+  ./app/generated-models.tsx:
     plugins:
       - "typescript-common"
       - "typescript-client"
       - "typescript-react-apollo"
-      - "typescript-graphql-files-modules"
-      - "fragment-matcher"
-  ./graphql.schema.json:
-    plugins:
-      - "introspection"

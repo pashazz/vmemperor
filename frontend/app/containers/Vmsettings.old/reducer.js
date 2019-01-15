@@ -1,29 +1,86 @@
 /*
  *
- * Vmsettings reducer
+ * VmSettings reducer
  *
  */
 
 import { fromJS } from 'immutable';
-import { combineReducers } from 'redux-immutable';
-import {
-  SET_VMINFO,
-  REQUEST_VMINFO
-} from "./constants";
-import VM from 'models/VM';
+import {combineReducers} from 'redux-immutable';
+import {VM_REQUEST_RESOURCE, VM_SET_INFO, VM_SET_RESOURCE, VM_WATCH} from "./constants";
 
+const initialState = fromJS({});
 
-const vminfo = (state = fromJS({}), action) =>
+const vmInfo = (resourceType) => (state = initialState, action) =>
 {
-  switch (action.type)
-  {
-    case SET_VMINFO:
-      return new VM(action.data);
+  switch (action.type) {
+    case VM_SET_INFO:
+      switch (action.resourceType) {
+        case resourceType:
+
+          if (action.data)
+            return fromJS(action.data);
+          else
+            return fromJS({});
+        default:
+          return state;
+      }
+    default:
+      return state;
+  }
+
+};
+
+const genericList = (resource) => (state = fromJS([]), action) =>
+{
+  switch (action.type) {
+    case VM_SET_RESOURCE:
+      switch (action.resourceType) {
+        case resource:
+              if (action.data) {
+                return fromJS(action.data);
+              }
+              else {
+                return fromJS([]);
+              }
+        default:
+          return state;
+      }
+    default:
+      return state;
+  }
+
+};
+
+const uuid = (state = "", action) =>
+{
+  switch (action.type) {
+    case VM_WATCH:
+      return action.uuid;
     default:
       return state;
   }
 };
 
-export default combineReducers ({
-  vminfo,
-});
+const pages = (state = fromJS({}), action) =>
+{
+  switch (action.type) {
+    case VM_REQUEST_RESOURCE:
+      return state.set(action.resourceType,
+        fromJS({page: action.page, pageSize: action.pageSize}));
+    default:
+      return state;
+
+  }
+}
+
+export default combineReducers(
+  {
+    vmDiskInfo: vmInfo('disk'),
+    vmNetworkInfo: vmInfo('net'),
+    isoList: genericList('iso'),
+    vdiList: genericList('vdi'),
+    netList: genericList('net'),
+    pages: pages,
+    uuid,
+  }
+);

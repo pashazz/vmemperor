@@ -1,6 +1,6 @@
 /**
  *
- * Asynchronously loads the component for Vmsettings
+ * Asynchronously loads the component for VmSettings
  *
  */
 

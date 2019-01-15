@@ -10,3 +10,4 @@ npm-debug.log
 .idea
 
 package-lock.json
+graphql.schema.json

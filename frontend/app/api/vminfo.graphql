@@ -1,0 +1,22 @@
+query VMInfo ($uuid: ID!) {
+  vm (uuid: $uuid) {
+    uuid
+    nameLabel
+    nameDescription
+    interfaces {
+      network {
+        uuid
+        nameLabel
+      }
+      ip
+      ipv6
+
+    }
+    powerState
+    osVersion{
+      name
+    }
+    startTime
+    domainType
+  }
+}
