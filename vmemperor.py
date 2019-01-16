@@ -25,7 +25,7 @@ from xenadapter.sr import SR
 from xenadapter.vbd import VBD
 from xenadapter.pool import Pool
 from xenadapter.host import Host
-from playbook import Playbook, PlaybookEncoder
+from playbookloader import PlaybookLoader, PlaybookEncoder
 import traceback
 import tornado.web
 import tornado.httpserver
@@ -1417,11 +1417,11 @@ class EventLoop(Loggable):
             constants.load_playbooks.wait()
             with ReDBConnection().get_connection():
                 db = r.db(opts.database)
-                if Playbook.PLAYBOOK_TABLE_NAME in db.table_list().run():
-                    db.table_drop(Playbook.PLAYBOOK_TABLE_NAME).run()
+                if PlaybookLoader.PLAYBOOK_TABLE_NAME in db.table_list().run():
+                    db.table_drop(PlaybookLoader.PLAYBOOK_TABLE_NAME).run()
 
-                db.table_create(Playbook.PLAYBOOK_TABLE_NAME).run()
-                Playbook.load_playbooks()
+                db.table_create(PlaybookLoader.PLAYBOOK_TABLE_NAME).run()
+                PlaybookLoader.load_playbooks()
             constants.load_playbooks.clear()
 
 

@@ -9,6 +9,7 @@ from tornado.escape import to_unicode
 from handlers.graphql.types.input.createvm import CreateVM
 from handlers.graphql.types.input.vm import VMMutation, VMStartMutation, VMShutdownMutation, VMRebootMutation, \
     VMPauseMutation
+from handlers.graphql.types.playbook import GPlaybook, resolve_playbooks, resolve_playbook
 from xenadapter.disk import GISO, GVDI, ISO, VDI
 from xenadapter.task import GTask
 from xenadapter.template import Template, GTemplate
@@ -40,9 +41,9 @@ class QueryRoot(ObjectType):
 
     templates = graphene.List(GTemplate,required=True, resolver=Template.resolve_all(), description="All templates")
 
-
-
-
+    playbooks = graphene.List(GPlaybook,  required=True, resolver=resolve_playbooks, description="List of Ansible-powered playbooks")
+    playbook = graphene.Field(GPlaybook, required=True, id=graphene.ID(), resolver=resolve_playbook,
+                              description="Information about Ansible-powered playbook")
 
 
 class MutationRoot(ObjectType):

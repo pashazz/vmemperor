@@ -4,7 +4,7 @@ import json
 from loggable import Loggable
 import traceback
 
-class Playbook (Loggable):
+class PlaybookLoader (Loggable):
     """
     This class is used for loading playbooks into rethinkdb
     """
@@ -22,7 +22,7 @@ class Playbook (Loggable):
         from tornado.options import options as opts
         directory = Path(opts.ansible_dir)
         for item in directory.iterdir():
-            Playbook(item)
+            PlaybookLoader(item)
 
 
 
@@ -141,7 +141,7 @@ class Playbook (Loggable):
 class PlaybookEncoder(json.JSONEncoder):
     _OMIT_KEYS = ['playbook', 'playbook_dir']
     def default(self, o):
-        if isinstance(o, Playbook):
+        if isinstance(o, PlaybookLoader):
             return {k:v for k, v in o.get_config().items() if k not in self._OMIT_KEYS}
         if isinstance(o, PurePath):
             return str(o)

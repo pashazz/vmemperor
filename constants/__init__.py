@@ -1,7 +1,7 @@
 import threading
 from typing import Dict
 
-from playbook import Playbook
+from playbookloader import PlaybookLoader
 import xenadapter.disk, xenadapter.network, xenadapter.vm, xenadapter.template, xenadapter.task
 logger = None # global logger
 POSTINST_ROUTE = r'/postinst'
@@ -18,5 +18,5 @@ load_playbooks = threading.Event()
 URL = ""
 ansible_pubkey = ""
 auth_class_name = ""
-playbooks = Dict[str, Playbook]
+playbooks = Dict[str, PlaybookLoader]
 secrets = {}
