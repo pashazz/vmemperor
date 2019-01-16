@@ -102,7 +102,7 @@ class SubscriptionRoot(ObjectType):
                 change = await changes.next()
                 if not change:
                     break
-                if change['type'] == 'remove':
+                if change['type'] == 'remove' or change['new_val'] is None:
                     yield MakeSubscription(GTask)(GTask=None)
                     continue
                 else:
