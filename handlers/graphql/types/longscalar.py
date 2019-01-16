@@ -6,7 +6,7 @@ MAX_SAFE_INTEGER = 9007199254740991
 class Long(graphene.Scalar):
     '''
     Long scalar represents integer value between JS MIN_SAFE_INTEGER and MAX_SAFE_INTEGER
-    Not standartized
+    Not standardized
     '''
 
     @staticmethod
