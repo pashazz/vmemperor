@@ -11,12 +11,12 @@ from xenadapter.xenobject import XenObject
 class MutationMethod:
     '''
     Represents a mutation method - a function equipped with action name that is passed to check_access.
-    Here, action_name = None has a special meaning: if action_name is None, then it is checked whether the user is an administrator, thus this
+    Here, access_action = None has a special meaning: if access_action is None, then it is checked whether the user is an administrator, thus this
     value is suitable for administrator actions
     '''
     #func : Callable[[ContextProtocol, XenObject, InputObject, OutputObject, ...], None]
     func : Callable
-    action_name : Optional[str]
+    access_action : Optional[str]
 
 
 
@@ -28,13 +28,13 @@ class MutationHelper():
 
     def perform_mutations(self, changes):
         for item in self.mutations:
-            if item.action_name is None:
+            if item.access_action is None:
                 if self.ctx.user_authenticator.is_admin():
                     item.func(self.ctx, self.mutable_object, changes)
                 else:
                     raise NotAuthenticatedAsAdminException()
             else:
-                if self.mutable_object.check_access(item.action_name):
+                if self.mutable_object.check_access(item.access_action):
                     item.func(self.ctx, self.mutable_object, changes)
 
 

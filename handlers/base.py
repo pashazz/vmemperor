@@ -14,7 +14,7 @@ from connman import ReDBConnection
 from constants import first_batch_of_events
 from exc import XenAdapterUnauthorizedActionException, EmperorException
 from loggable import Loggable
-from tasks import Operations
+from tasks import TaskList
 from xenadapter.task import Task
 
 
@@ -43,9 +43,7 @@ class BaseHandler(RequestHandler, HandlerMethods):
         self.init_executor(kwargs['pool_executor'])
         del kwargs['pool_executor']
         super().initialize(*args, **kwargs)
-
         self.user_authenticator = Optional[BasicAuthenticator]
-        self.op = Operations(r.db(opts.database))
 
 
 
@@ -57,7 +55,7 @@ class BaseHandler(RequestHandler, HandlerMethods):
 
     def async_run(self, task_ref):
         '''
-        Run asyncronous task in executor
+        Run (wait for end of) asyncronous task (from XenServer)  in executor
         :param task_ref: Task reference
         :return:
         '''
@@ -66,16 +64,16 @@ class BaseHandler(RequestHandler, HandlerMethods):
 
 
     def _run_async_task(self, task_ref):
-        task = Task(auth=self.user_authenticator, ref=task_ref)
+        task = TaskList(auth=self.user_authenticator, ref=task_ref)
 
         with ReDBConnection().get_connection():
             write_in = {'id' : task_ref}
-            self.op.set_operation(self.user_authenticator, write_in)
+            self.op.upsert_task(self.user_authenticator, write_in)
             write_in['created'] = task.get_created()
             while task.get_status() == 'pending':
                 write_in['status'] = task.get_status()
                 write_in['progress'] =  task.get_progress()
-                self.op.set_operation(None, write_in)
+                self.op.upsert_task(None, write_in)
                 time.sleep(1)
 
             write_in['finished'] = task.get_finished()
@@ -86,7 +84,7 @@ class BaseHandler(RequestHandler, HandlerMethods):
                 write_in['error_info'] = task.get_error_info()
 
 
-            self.op.set_operation(None, write_in)
+            self.op.upsert_task(None, write_in)
         task.destroy()
 
 
@@ -136,7 +134,7 @@ class BaseWSHandler(WebSocketHandler, HandlerMethods):
 
 
         self.user_authenticator = Optional[BasicAuthenticator]
-        self.op = Operations(r.db(opts.database))
+
 
     def check_origin(self, origin):
         return True

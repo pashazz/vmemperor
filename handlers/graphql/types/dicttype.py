@@ -1,4 +1,11 @@
+from abc import abstractmethod
+from typing import Type, Union
+
 import graphene
+
+from tasks import TaskList
+
+
 class ObjectType(graphene.ObjectType):
     '''
     Implements mapping and iterable iterfaces around graphene's ObjectType so
@@ -32,3 +39,25 @@ class InputObjectType(graphene.InputObjectType):
     def __getitem__(self, item):
         return getattr(self, item)
 
+
+class GrapheneTaskList(TaskList):
+
+    @property
+    @abstractmethod
+    def task_type(self) -> Union[Type[ObjectType], Type[InputObjectType]]:
+        """
+        A graphene type which is a format for this tasklist.
+        Each task has current state represented by this graphene type
+        :return: type
+        """
+        ...
+
+    def upsert_task(self, auth, task_data : task_type):
+        assert isinstance(task_data, self.task_type)
+        super().upsert_task(auth, **task_data)
+
+    def get_task(self, auth, id):
+        data = super().get_task(auth, id)
+        task = self.task_type()
+        for field in task._meta.fields.keys():
+            setattr(task, field, data[field])

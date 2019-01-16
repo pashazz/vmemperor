@@ -24,26 +24,6 @@ class ContextProtocol(_Protocol):
     conn: ContextManager # RethinkDB connection manager
     user_authenticator: BasicAuthenticator # Current user's authenticator
 
-    def set_task_status(self, **kwargs) -> None:
-        '''
-        Assigns a new Operation, i.e. a non XenAPI task which need to be cache and subsequently returned to user as part of GraphQL response.
-        Example: CreateVM status messages
-        Here, the format is free and defined by GraphQL mutations and their underlying methods themselves
-        The Operation is user-bound, i.e. no user apart from current user and administrators can view these Operations
-
-        :param kwargs: arguments to insert into a database
-        :return:
-        '''
-        ...
-
-    def get_task_status(self, id) -> Mapping[str, Any]:
-        '''
-        Get a Task: deserialized JSON data with string keys, the format is not defined here
-        :param id: 
-        :return: 
-        '''
-        ...
-
 
 
 
@@ -68,8 +48,8 @@ class GraphQLHandler(BaseHandler, BaseGQLHandler):
             self.request.user_authenticator = pickle.loads(user)
             self.request.user_authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
 
-            self.request.set_task_status = lambda **operation: self.op.set_operation(self.request.user_authenticator, operation)
-            self.request.get_task_status = lambda id: self.op.get_operation(self.request.user_authenticator, id)
+            self.request.set_task_status = lambda **operation: self.op.upsert_task(self.request.user_authenticator, operation)
+            self.request.get_task_status = lambda id: self.op.get_task(self.request.user_authenticator, id)
         self.request.conn = self.conn
 
 

@@ -28,7 +28,8 @@ class XenAdapterAPIError(XenAdapterException):
     def __init__(self, log, message, details=None):
         super().__init__(log, message=json.dumps({'message' : message, 'details' : self.print_details(details)}))
 
-    def print_details(self, details):
+    @staticmethod
+    def print_details(details):
         if details[0] == 'VDI_MISSING':
             db = r.db(opts.database)
             sr = db.table('srs').get_all(details[1], index='ref').pluck('uuid', 'content_type').coerce_to('array').run()[0]

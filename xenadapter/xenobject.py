@@ -1,4 +1,7 @@
 import XenAPI
+from xmlrpc.client import DateTime as xmldt
+from datetime import datetime
+import pytz
 from exc import *
 from authentication import BasicAuthenticator, AdministratorAuthenticator, NotAuthenticatedException, \
     with_default_authentication
@@ -63,6 +66,7 @@ class GXenObject(graphene.Interface):
     ref = graphene.Field(graphene.ID, required=True, description="Unique constant identifier/object reference")
     uuid = graphene.Field(graphene.ID, required=True, description="Unique session-dependent identifier/object reference")
 
+
 class GXenObjectType(ObjectType):
     @classmethod
     def get_type(cls, field_name: str):
@@ -77,7 +81,7 @@ class GXenObjectType(ObjectType):
                                 if hasattr(self.type, 'serialize'):
                                     break
                                 else:
-                                    self.type = graphene.ID
+                                    self.type = graphene.ID #complex type replaced by its id
                             else:
                                 self.type = self.type.of_type
 
@@ -85,6 +89,8 @@ class GXenObjectType(ObjectType):
                         return [self.type.serialize(item) for item in value]
 
                 return ListSerializer()
+
+
 
 
             if not hasattr(type, "of_type"):
@@ -151,7 +157,7 @@ class XenObject(metaclass=XenObjectMeta):
 
 
     @classmethod
-    def resolve_one(cls, field_name=None, index=None):
+    def resolve_one(cls, field_name=None, index='uuid'):
         '''
         Use this method to resolve one XenObject that appears in tables as its uuid under its name
         :param field_name: root's field name to use (by default - this class' name)
@@ -165,18 +171,24 @@ class XenObject(metaclass=XenObjectMeta):
 
         if not field_name:
             field_name = cls.__name__
+        if index not in ('uuid', 'ref'):
+            raise ValueError("Index should be 'uuid' or 'ref'")
 
         from handlers.graphql.resolvers import with_connection
 
         @with_connection
         @with_default_authentication
         def resolver(root, info, **kwargs):
+
             if 'uuid' in kwargs:
                 uuid = kwargs['uuid']
             else:
                 uuid = getattr(root, field_name)
             try:
-                obj = cls(uuid=uuid, auth=info.context.user_authenticator)
+                if index == 'uuid':
+                    obj = cls(uuid=uuid, auth=info.context.user_authenticator)
+                else:
+                    obj = cls(ref=uuid, auth=info.context.user_authenticator)
             except AttributeError:
                 raise NotAuthenticatedException()
 
@@ -301,7 +313,7 @@ class XenObject(metaclass=XenObjectMeta):
 
             if event['operation'] in ('mod', 'add'):
                 new_rec = cls.process_record(auth, event['ref'], record)
-                CHECK_ER(db.table(cls.db_table_name).insert(new_rec.data, conflict='update').run())
+                CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
 
     @classmethod
     def create_db(cls, db, indexes=None):
@@ -339,7 +351,7 @@ class XenObject(metaclass=XenObjectMeta):
 
 
     @classmethod
-    def process_record(cls, auth, ref, record):
+    def process_record(cls, auth, ref, record) -> dict:
         '''
         Used by init_db. Should return dict with info that is supposed to be stored in DB
         :param auth: current authenticator
@@ -347,16 +359,31 @@ class XenObject(metaclass=XenObjectMeta):
         :return: dict suitable for document-oriented DB
         : default: return record as-is, adding a 'ref' field with current opaque ref
         '''
+
+        def get_real_value(k, v):
+            if isinstance(v, xmldt):
+                try:  # XenAPI standard time format. Z means strictly UTC
+                    time = datetime.strptime(v.value, "%Y%m%dT%H:%M:%SZ")
+                except ValueError:  # try Python time format
+                    time = datetime.strptime(v.value, "%Y%m%dT%H:%M:%S")
+
+                time = time.replace(tzinfo=pytz.utc)
+                return time
+            else:
+                if cls.GraphQLType:
+                    return cls.GraphQLType.get_type(k).serialize(v)
+                else:
+                    return v
+
         if cls.GraphQLType:
-            new_record = {k:cls.GraphQLType.get_type(k).serialize(v) for k,v in record.items() if k in cls.GraphQLType._meta.fields.keys()}
+            new_record = {k: get_real_value(k, v)
+                          for k, v in record.items() if k in cls.GraphQLType._meta.fields.keys()}
         else:
-            new_record = record
+            new_record = {k : get_real_value(k, v) for k,v in record.items()}
 
         new_record['ref'] = ref
 
-
-
-        return XenObjectDict(new_record)
+        return new_record
 
     @classmethod
     def filter_record(cls, record):
@@ -427,23 +454,31 @@ class XenObject(metaclass=XenObjectMeta):
 
 
         if name.startswith('async_'):
+            async_ = True
             async_method = getattr(self.xen.api, 'Async')
             api = getattr(async_method, self.api_class)
             name = name[6:]
-
+        else:
+            async_ = False
 
         if name[0] == '_':
             name=name[1:]
         attr = getattr(api, name)
         def method (*args, **kwargs):
             try:
-                ret =  attr(self.ref, *args, **kwargs)
-                if isinstance(ret, dict):
+                ret = attr(self.ref, *args, **kwargs)
+                if async_:
+                    from .task import Task
+                    t = Task(auth=self.auth, ref=ret)
+                    t.manage_actions('run', user=self.auth.get_id())
+                    return t.uuid
+
+                elif isinstance(ret, dict):
                     ret = dict_deep_convert(ret)
 
                 return ret
             except XenAPI.Failure as f:
-                raise XenAdapterAPIError(self.log, "Failed to execute {0}::{1}".format(self.api_class, name), f.details)
+                raise XenAdapterAPIError(self.log, f"Failed to execute {self.api_class}::{name}", f.details)
         return method
 
 
@@ -453,7 +488,6 @@ class GAccessEntry(graphene.ObjectType):
 
 class GAclXenObject(GXenObject):
     access = graphene.List(GAccessEntry, required=True)
-
 
 
 class ACLXenObject(XenObject):
@@ -525,30 +559,7 @@ class ACLXenObject(XenObject):
         new_rec['access'] = cls.get_access_data(record, auth.__name__)
         return new_rec
 
-    @classmethod
-    def get_access_data(cls, record, authenticator_name) -> List[Dict]:
-        '''
-        Obtain access data
-        :param record:
-        :param authenticator_name:
-        :return:
-        '''
-        xenstore = record['xenstore_data']
-        def read_xenstore_access_rights(xenstore_data):
-            filtered_iterator = filter(
-                lambda keyvalue: keyvalue[1] and keyvalue[0].startswith(cls.VMEMPEROR_ACCESS_PREFIX),
-                xenstore_data.items())
 
-            for k, v in filtered_iterator:
-                key_components = k[len(cls.VMEMPEROR_ACCESS_PREFIX) + 1:].split('/')
-                if key_components[0] == authenticator_name:
-                    yield {'userid': f'{key_components[1]}/{key_components[2]}', 'access': v.split(';')}
-
-            else:
-                if cls.ALLOW_EMPTY_XENSTORE:
-                    yield {'userid': 'any', 'access': ['all']}
-
-        return list(read_xenstore_access_rights(xenstore))
     @use_logger
     def check_access(self,  action):
         '''
@@ -601,6 +612,34 @@ class ACLXenObject(XenObject):
         raise XenAdapterUnauthorizedActionException(self.log,
             f"Unauthorized attempt on object {self} by {self.auth.get_id()}{': requested action {action}' if action else ''}")
 
+    @classmethod
+    def get_access_data(cls, record, authenticator_name):
+        '''
+        Obtain access data from other_config
+        :param record:
+        :param authenticator_name:
+        :return:
+        '''
+        other_config = record['other_config']
+
+        def read_other_config_access_rights(other_config):
+            from json import JSONDecodeError
+            if 'vmemperor' in other_config:
+                try:
+                    emperor = json.loads(other_config['vmemperor'])
+                except JSONDecodeError:
+                    emperor = {}
+
+                if 'access' in emperor:
+                    if authenticator_name in emperor['access']:
+                        auth_dict = emperor['access'][authenticator_name]
+                        for k, v in auth_dict.items():
+                            yield {'userid': k, 'access': v}
+                        else:
+                            if cls.ALLOW_EMPTY_XENSTORE:
+                                yield {'userid': 'any', 'access': ['all']}
+
+        return list(read_other_config_access_rights(other_config))
 
     def manage_actions(self, action,  revoke=False, user=None, group=None):
         '''
@@ -609,50 +648,54 @@ class ACLXenObject(XenObject):
         :param revoke:
         :param user: User ID as returned from authenticator.get_id()
         :param group:
-        :param force: Change actionlist even if user do not have sufficient permissions. Used by CreateVM
-        :return: False if failed
         '''
-
+        from json import JSONDecodeError
         if all((user,group)) or not any((user, group)):
-            raise XenAdapterArgumentError(self.log, 'Specify user or group for XenObject::manage_actions')
-
+            raise XenAdapterArgumentError(self.log, f'Specify user OR group for {self.__class__.__name__}::manage_actions')
 
         if user:
-            real_name = self.get_access_path(user, False)
+            real_name = f'users/{user}'
         elif group:
-            real_name = self.get_access_path(group, True)
+            real_name = f'groups/{group}'
 
-
-
-        xenstore_data = self.get_xenstore_data()
-        if real_name in xenstore_data:
-            actionlist = xenstore_data[real_name].split(';')
+        other_config = self.get_other_config()
+        auth_name = self.auth.class_name()
+        if 'vmemperor' not in other_config:
+            emperor = {'access': {auth_name : {}}}
         else:
-            actionlist = []
 
-        if revoke and action == 'all':
-            for name in xenstore_data:
-                if name == real_name:
-                    continue
+            try:
+                emperor = json.loads(other_config['vmemperor'])
+            except JSONDecodeError:
+                emperor = {'access': {auth_name: {}}}
 
-                actionlist = xenstore_data[real_name].split(';')
-                if 'all' in actionlist:
-                    break
-            else:
-                raise XenAdapterArgumentError('I cannot revoke "all" from {0} because there are no other admins of the resource'.format(real_name))
+        if auth_name in emperor['access']:
+            auth_list = emperor['access'][auth_name]
+        else:
+            auth_list = []
+            emperor['access'][auth_name] = {}
+
+        if real_name in auth_list and isinstance(auth_list[real_name], list) and action != 'all':
+            action_list = auth_list[real_name]
+        else:
+            action_list = []
 
 
         if revoke:
-            if action in actionlist:
-                actionlist.remove(action)
+            if action in action_list:
+                action_list.remove(action)
         else:
-            if action not in actionlist:
-                actionlist.append(action)
+            if action not in action_list:
+                action_list.append(action)
 
-        actions = ';'.join(actionlist)
+        if action_list:
+            emperor['access'][auth_name][real_name] = action_list
+        else:
+            del emperor['access'][auth_name][real_name]
 
-        xenstore_data[real_name] = actions
+        if not emperor['access'][auth_name]:
+            del emperor['access'][auth_name]
 
-        self.set_xenstore_data(xenstore_data)
-
+        other_config['vmemperor'] = json.dumps(emperor)
+        self.set_other_config(other_config)
 

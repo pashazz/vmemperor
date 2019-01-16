@@ -1,4 +1,4 @@
-from typing import Sequence, Optional
+from typing import Sequence, Optional, List, Dict
 
 import graphene
 from graphene.types.resolver import dict_resolver
@@ -207,6 +207,83 @@ class VM (AbstractVM):
         keys = ['start_time', 'install_time', 'memory_actual']
         return XenObjectDict({k: v for k, v in record.items() if k in keys})
 
+    @classmethod
+    def get_access_data(cls, record, authenticator_name) -> List[Dict]:
+        '''
+        Obtain access data from XenStore
+        :param record:
+        :param authenticator_name:
+        :return:
+        '''
+        xenstore = record['xenstore_data']
+        def read_xenstore_access_rights(xenstore_data):
+            filtered_iterator = filter(
+                lambda keyvalue: keyvalue[1] and keyvalue[0].startswith(cls.VMEMPEROR_ACCESS_PREFIX),
+                xenstore_data.items())
+
+            for k, v in filtered_iterator:
+                key_components = k[len(cls.VMEMPEROR_ACCESS_PREFIX) + 1:].split('/')
+                if key_components[0] == authenticator_name:
+                    yield {'userid': f'{key_components[1]}/{key_components[2]}', 'access': v.split(';')}
+
+            else:
+                if cls.ALLOW_EMPTY_XENSTORE:
+                    yield {'userid': 'any', 'access': ['all']}
+
+        return list(read_xenstore_access_rights(xenstore))
+
+
+    def manage_actions(self, action,  revoke=False, user=None, group=None):
+        '''
+        Changes ACL for VM (in XenStore)
+        :param action:
+        :param revoke:
+        :param user: User ID as returned from authenticator.get_id()
+        :param group:
+        :param force: Change actionlist even if user do not have sufficient permissions. Used by CreateVM
+        :return: False if failed
+        '''
+
+        if all((user, group)) or not any((user, group)):
+            raise XenAdapterArgumentError(self.log, 'Specify user or group for XenObject::manage_actions')
+
+
+        if user:
+            real_name = self.get_access_path(user, False)
+        elif group:
+            real_name = self.get_access_path(group, True)
+
+        xenstore_data = self.get_xenstore_data()
+        if real_name in xenstore_data:
+            actionlist = xenstore_data[real_name].split(';')
+        else:
+            actionlist = []
+
+        if revoke and action == 'all':
+            for name in xenstore_data:
+                if name == real_name:
+                    continue
+
+                actionlist = xenstore_data[real_name].split(';')
+                if 'all' in actionlist:
+                    break
+            else:
+                raise XenAdapterArgumentError('I cannot revoke "all" from {0} because there are no other admins of the resource'.format(real_name))
+
+
+        if revoke:
+            if action in actionlist:
+                actionlist.remove(action)
+        else:
+            if action not in actionlist:
+                actionlist.append(action)
+
+        actions = ';'.join(actionlist)
+
+        xenstore_data[real_name] = actions
+
+        self.set_xenstore_data(xenstore_data)
+
 
 
     def create(self, insert_log_entry, provision_config : Sequence[SetDisksEntry], net, ram_size, template=None, ip=None, install_url=None, override_pv_args=None, iso=None,
@@ -306,7 +383,7 @@ class VM (AbstractVM):
                 try:
                     other_config = self.get_other_config()
                     if 'convert-to-hvm' in other_config and other_config['convert-to-hvm']:
-                        self.convert('hvm')
+                        self.set_domain_type('hvm')
 
                     self.start_stop_vm(True)
                     self.insert_log_entry(self.uuid, "installed", "OS successfully installed")
@@ -317,19 +394,6 @@ class VM (AbstractVM):
 
         del self.install
 
-
-
-
-    def set_memory(self, memory : int):
-        try:
-            self._set_memory(memory)
-        except XenAPI.Failure as f:
-            if f.details[0] == "MESSAGE_METHOD_UNKNOWN":
-                self.set_memory_static_max(memory)
-                self.set_memory_dynamic_max(memory)
-                self.set_memory_dynamic_min(memory)
-            else:
-                raise f
 
 
     @use_logger
@@ -522,20 +586,34 @@ class VM (AbstractVM):
 
                         return f'xvd{device}'
 
-    def convert(self,  mode):
+    def set_memory(self, memory: int):
+        try:
+            self._set_memory(memory)
+        except XenAPI.Failure as f:
+            if f.details[0] == "MESSAGE_METHOD_UNKNOWN":
+                self.set_memory_static_max(memory)
+                self.set_memory_dynamic_max(memory)
+                self.set_memory_dynamic_min(memory)
+            else:
+                raise f
+
+    def set_domain_type(self,  type: str):
         """
-        convert vm from/to hvm
-        :param vm_uuid:
-        :param mode: pv/hvm
+        set vm domain type to 'pv', 'hvm' (or pv_in_pvh' starting from XenServer 7.5)
+        :param type: pv/hvm
         :return:
         """
-
-        hvm_boot_policy = self.get_HVM_boot_policy()
-        if hvm_boot_policy and mode == 'pv':
-            self.set_HVM_boot_policy('')
-        if hvm_boot_policy == '' and mode == 'hvm':
-            self.set_HVM_boot_policy('BIOS order')
-
+        try:
+            self._set_domain_type(type)
+        except XenAPI.Failure as f:
+            if f.details[0] == "MESSAGE_METHOD_UNKNOWN":
+                hvm_boot_policy = self.get_HVM_boot_policy()
+                if hvm_boot_policy and type == 'pv':
+                    self.set_HVM_boot_policy('')
+                if hvm_boot_policy == '' and type == 'hvm':
+                    self.set_HVM_boot_policy('BIOS order')
+            else:
+                raise f
 
 
     @use_logger

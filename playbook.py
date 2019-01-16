@@ -4,31 +4,43 @@ import json
 from loggable import Loggable
 import traceback
 
-
 class Playbook (Loggable):
+    """
+    This class is used for loading playbooks into rethinkdb
+    """
     _PLAYBOOK_VMEMPEROR_CONF = 'vmemperor.conf'
+    PLAYBOOK_TABLE_NAME='playbooks'
 
     _DEFAULT_CONFIG = {
         "inventory": None,
         "single": False,
     }
 
+
     @staticmethod
-    def get_playbooks():
-        from vmemperor import opts
-        playbooks = []
+    def load_playbooks():
+        from tornado.options import options as opts
         directory = Path(opts.ansible_dir)
         for item in directory.iterdir():
-            p = Playbook(item.name)
-            playbooks.append(p)
-        return playbooks
+            Playbook(item)
+
+
+
+
+
 
 
     def __init__(self, playbook_name):
-        from vmemperor import opts
+        from tornado.options import options as opts
         self.init_log()
-        directory = Path(opts.ansible_dir)
-        playbook_dir = directory.joinpath(playbook_name)
+
+        playbook_dir = Path(playbook_name)
+        playbook_name = playbook_dir.name
+        self.log.debug(f"Loading playbook {playbook_name} from {playbook_dir}")
+
+        from rethinkdb import RethinkDB
+        r = RethinkDB()
+
         try:
             if not playbook_dir.is_dir():
                 raise ValueError(f'"{playbook_dir.absolute()}" does not exist or not a directory!')
@@ -51,7 +63,7 @@ class Playbook (Loggable):
             # Find variables
             keys = self.config['variables'].keys()
             self.variables_locations = {}
-            self.vars={}
+            self.vars = {}
             for var in ('host_vars', 'group_vars'):
                 self.variables_locations[var] = []
                 host_vars_file = playbook_dir.joinpath(var, 'all')
@@ -64,7 +76,7 @@ class Playbook (Loggable):
                 for key in keys:
                     try:
                         self.config['variables'][key] = {**self.config['variables'][key],
-                                               **{'value': host_vars[key]}}
+                        **{'value': host_vars[key]}}
                         self.variables_locations[var].append(key)
                     except KeyError:
                         continue
@@ -72,14 +84,20 @@ class Playbook (Loggable):
             # Check if playbook file exists
             playbook_file = playbook_dir.joinpath(self.config['playbook'])
             if not playbook_file.is_file():
-                raise ValueError("Playbook file {0} does not exist".format(playbook_file.absolute()))
+                raise ValueError(f"Playbook file {playbook_file.absolute()} does not exist")
 
 
-            self.config['playbook_dir'] = playbook_dir.absolute()
+            self.config['playbook_dir'] = str(playbook_dir.absolute())
             self.config['id'] = playbook_dir.name
+
+            table = r.db(opts.database).table('playbooks')
+            table.insert(self.config).run()
+            self.log.debug(f"Loaded playbook: {playbook_name}")
         except Exception as e:
-            self.log.error(f"Exception: {e}")
-            self.log.error(f"At {traceback.print_exc()}")
+            self.log.error(f"Exception: {e} at {traceback.print_exc()}")
+
+
+
 
     def get_name(self):
         return self.config['name']

@@ -132,7 +132,7 @@ class CreateVM(RESTHandler):
         write_in['state'] = state
         write_in['message'] = message
 
-        self.op.set_operation(None, write_in)
+        self.op.upsert_task(None, write_in)
         self.log.info(f"STATE CHANGE: uuid: {uuid}, state: {state}, message: {message}")
 
     def createvm(self):
@@ -166,7 +166,7 @@ class CreateVM(RESTHandler):
         """
         with ReDBConnection().get_connection():
             try:
-                self.op.set_operation(self.user_authenticator, {'id': self.taskid})
+                self.op.upsert_task(self.user_authenticator, {'id': self.taskid})
 
                 def do_clone(auth):
                     tmpl = Template(auth, uuid=self.template['uuid'])
@@ -262,7 +262,7 @@ class CreateVM(RESTHandler):
                         vm = VM(auth, uuid=self.uuid)
                         other_config = vm.get_other_config()
                         if 'convert-to-hvm' in other_config and other_config['convert-to-hvm']:
-                            vm.convert('hvm')
+                            vm.set_domain_type('hvm')
 
                         vm.start_stop_vm(True)
                         self.insert_log_entry(self.uuid, "installed", "OS successfully installed")

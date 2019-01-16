@@ -547,7 +547,7 @@ class ConvertVM(RESTHandler):
     def post(self):
         vm_uuid = self.get_argument('uuid')
         mode = self.get_argument('mode')
-        self.try_xenadapter(lambda auth: VM(auth, uuid=vm_uuid).convert(mode))
+        self.try_xenadapter(lambda auth: VM(auth, uuid=vm_uuid).set_domain_type(mode))
 
 
 class EnableDisableTemplate(RESTHandler):
@@ -572,7 +572,7 @@ class TaskStatus(RESTHandler):
 
         operation = None
         try:
-            operation = self.op.get_operation(self.user_authenticator, task)
+            operation = self.op.get_task(self.user_authenticator, task)
         except KeyError:
             self.set_status(404)
             self.finish()
@@ -602,13 +602,13 @@ class ExecutePlaybook(RESTHandler):
             with open(log_path.joinpath('stdout'), 'w') as _stdout:
                 with open(log_path.joinpath('stderr'), 'w') as _stderr:
                     task['returncode'] = None
-                    self.op.set_operation(self.user_authenticator, task)
+                    self.op.upsert_task(self.user_authenticator, task)
                     proc = subprocess.run(self.cmd_line,
                                           cwd=self.cwd, stdout=_stdout, stderr=_stderr,
                                           env={"ANSIBLE_HOST_KEY_CHECKING":"False"})
 
                     task['returncode'] = proc.returncode
-                    self.op.set_operation(None, task)
+                    self.op.upsert_task(None, task)
 
             self.log.info(f'Finished {self.cwd.name} with return code {constants.tasks[self.cwd.name]["returncode"]}')
 
@@ -1246,10 +1246,6 @@ class EventLoop(Loggable):
             r.db_create(opts.database).run()
             self.db = r.db(opts.database)
 
-            # create database for async tasks
-            self.db.table_create('tasks', durability='soft').run()
-            self.db.table('tasks').wait()
-
             try:
                 authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
             except XenAdapterConnectionError as e:
@@ -1411,8 +1407,28 @@ class EventLoop(Loggable):
             # tornado.ioloop.IOLoop.current().run_in_executor(self.executor, self.do_access_monitor)
             raise e
 
+    def load_playbooks(self):
+        '''
+        Load playbooks into RethinkDB. To trigger reloading, send USR1 signal to this process
+        :return:
+        '''
+        self.log.debug("Starting load_playbooks. You can re-trigger playbook loading by sending USR1 signal")
+        while True:
+            constants.load_playbooks.wait()
+            with ReDBConnection().get_connection():
+                db = r.db(opts.database)
+                if Playbook.PLAYBOOK_TABLE_NAME in db.table_list().run():
+                    db.table_drop(Playbook.PLAYBOOK_TABLE_NAME).run()
+
+                db.table_create(Playbook.PLAYBOOK_TABLE_NAME).run()
+                Playbook.load_playbooks()
+            constants.load_playbooks.clear()
+
+
+
+
     def process_xen_events(self):
-        self.log.debug("Started process_xen_events in thread {0}".format(threading.get_ident()))
+        self.log.debug(f"Started process_xen_events in thread {threading.get_ident()}")
         from XenAPI import Failure
 
         self.authenticator.xen = XenAdapterPool().get()
@@ -1507,6 +1523,8 @@ class EventLoop(Loggable):
                     if f.details == ["EVENTS_LOST"]:
                         self.log.warning("Reregistering for events")
                         xen.api.event.register(event_types)
+                    else:
+                        raise f
 
 
 def event_loop(executor, authenticator=None, ioloop=None):
@@ -1526,14 +1544,34 @@ def event_loop(executor, authenticator=None, ioloop=None):
     constants.xen_events_run.set()
     ioloop.run_in_executor(executor, loop_object.process_xen_events)
 
+    constants.load_playbooks.set()
+    ioloop.run_in_executor(executor, loop_object.load_playbooks)
+
 
     def usr2_signal_handler(num, stackframe):
+        '''
+        Send USR2 signal to freeze/unfreeze loading of Xen events
+        :param num:
+        :param stackframe:
+        :return:
+        '''
         if constants.xen_events_run.is_set():
             constants.xen_events_run.clear()
         else:
             constants.xen_events_run.set()
 
+    def usr1_signal_handler(num, stackframe):
+        '''
+        Send USR1 signal to reload Playbook configuration
+        :param num:
+        :param stackframe:
+        :return:
+        '''
+        constants.load_playbooks.set()
+
     signal.signal(signal.SIGUSR2, usr2_signal_handler)
+    signal.signal(signal.SIGUSR1, usr1_signal_handler)
+
 
     return ioloop
 
@@ -1925,9 +1963,6 @@ def main():
     ioloop = event_loop(executor, authenticator=app.auth_class)
     logger.debug(f"Using authentication: {app.auth_class.__name__}")
     constants.auth_class_name = app.auth_class.__name__
-    logger.debug("Loading playbooks...")
-    constants.playbooks = {p.get_id(): p for p in Playbook.get_playbooks()}
-    logger.debug(f"loaded {len(constants.playbooks)}")
     ioloop.start()
 
     return
