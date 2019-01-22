@@ -1,3 +1,4 @@
+    Preparing = 'preparing',
 from enum import Enum
 
 import graphene
