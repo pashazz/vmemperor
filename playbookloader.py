@@ -8,8 +8,8 @@ class PlaybookLoader (Loggable):
     """
     This class is used for loading playbooks into rethinkdb
     """
-    _PLAYBOOK_VMEMPEROR_CONF = 'vmemperor.conf'
-    PLAYBOOK_TABLE_NAME='playbooks'
+    _PLAYBOOK_VMEMPEROR_CONF : str = 'vmemperor.conf'
+    PLAYBOOK_TABLE_NAME: str ='playbooks'
 
     _DEFAULT_CONFIG = {
         "inventory": None,
@@ -24,11 +24,8 @@ class PlaybookLoader (Loggable):
         for item in directory.iterdir():
             PlaybookLoader(item)
 
-
-
-
-
-
+    def __repr__(self):
+        return "PlaybookLoader"
 
     def __init__(self, playbook_name):
         from tornado.options import options as opts
@@ -89,10 +86,11 @@ class PlaybookLoader (Loggable):
 
             self.config['playbook_dir'] = str(playbook_dir.absolute())
             self.config['id'] = playbook_dir.name
+            self.config['variables_locations'] = self.variables_locations
 
-            table = r.db(opts.database).table('playbooks')
+            table = r.db(opts.database).table(self.PLAYBOOK_TABLE_NAME)
             table.insert(self.config).run()
-            self.log.debug(f"Loaded playbook: {playbook_name}")
+            self.log.debug(f"Loaded playbook {self.config['id']}")
         except Exception as e:
             self.log.error(f"Exception: {e} at {traceback.print_exc()}")
 

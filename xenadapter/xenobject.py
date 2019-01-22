@@ -10,7 +10,7 @@ import traceback
 from rethinkdb import RethinkDB
 r = RethinkDB()
 from typing import List, Dict
-from handlers.graphql.resolvers.utils import resolve_one, resolve_many, resolve_all
+from handlers.graphql.resolvers.query_utils import resolve_one, resolve_many, resolve_all
 from handlers.graphql.types.dicttype import ObjectType
 from xenadapter.helpers import use_logger
 from .xenobjectdict import XenObjectDict
@@ -116,6 +116,9 @@ class XenObject(metaclass=XenObjectMeta):
     def __str__(self):
         return f"<{self.__class__.__name__} \"{self.uuid}\">"
 
+    def __repr__(self):
+        return self.__str__()
+
     def __init__(self, auth : BasicAuthenticator,  uuid:str=None , ref : str =None):
         '''
 
@@ -145,8 +148,9 @@ class XenObject(metaclass=XenObjectMeta):
             if isinstance(ref, str):
                 self.ref = ref
             else:
-                raise XenAdapterAPIError(auth.xen.log,
-                                         f"Failed to initialize object of type {self.__class__.__name__}: invalid type of ref. Expected: str, got {ref.__class__.__name__}")
+                raise ValueError(
+                                 f"XenObject:Failed to initialize object of type {self.__class__.__name__}"
+                                 f": invalid type of ref. Expected: str, got {ref.__class__.__name__}")
 
         else:
             raise AttributeError("Not uuid nor ref not specified")

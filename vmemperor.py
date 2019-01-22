@@ -1228,6 +1228,9 @@ class EventLoop(Loggable):
     of corresponding user, if they are logged in (have open connection to dbms notifications)
      and admin db if admin is logged in"""
 
+    def __repr__(self):
+        return "EventLoop"
+
     def __init__(self, executor, authenticator):
         self.debug = opts.debug
 
@@ -1420,7 +1423,9 @@ class EventLoop(Loggable):
                 if PlaybookLoader.PLAYBOOK_TABLE_NAME in db.table_list().run():
                     db.table_drop(PlaybookLoader.PLAYBOOK_TABLE_NAME).run()
 
-                db.table_create(PlaybookLoader.PLAYBOOK_TABLE_NAME).run()
+                db.table_create(PlaybookLoader.PLAYBOOK_TABLE_NAME, durability='soft').run()
+                db.table_create('tasks_playbooks', durability='soft').run()
+                db.table_create('tasks_createvm', durability='soft').run()
                 PlaybookLoader.load_playbooks()
             constants.load_playbooks.clear()
 
@@ -1913,6 +1918,7 @@ def read_settings():
     define('ansible_dir', group='ansible', default='./ansible')
     define('ansible_logs', group='ansible', default='./ansible_logs')
     define('ansible_networks', group='ansible', default='', multiple=True)
+    define('graphql_error_log_file', group='graphql', default='graphql_errors.log')
 
     from os import path
 

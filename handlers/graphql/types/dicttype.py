@@ -4,6 +4,7 @@ from typing import Type, Union
 import graphene
 
 from tasks import TaskList
+from xenadapter.xenobjectdict import XenObjectDict
 
 
 class ObjectType(graphene.ObjectType):
@@ -54,7 +55,7 @@ class GrapheneTaskList(TaskList):
 
     def upsert_task(self, auth, task_data : task_type):
         assert isinstance(task_data, self.task_type)
-        super().upsert_task(auth, **task_data)
+        super().upsert_task(auth, XenObjectDict(**task_data))
 
     def get_task(self, auth, id):
         data = super().get_task(auth, id)

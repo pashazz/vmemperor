@@ -2,6 +2,7 @@
 
 from __future__ import absolute_import, division, print_function
 
+import sys
 from collections import OrderedDict
 from graphql import graphql, format_error
 from tornado import websocket
@@ -11,6 +12,9 @@ from rx import Observer, Observable
 from graphql.execution.executors.asyncio import AsyncioExecutor
 
 import asyncio
+
+from loggable import Loggable
+from tornadoql.middlewares import MIDDLEWARE
 
 GRAPHQL_WS = 'graphql-ws'
 WS_PROTOCOL = GRAPHQL_WS
@@ -39,6 +43,8 @@ class SubscriptionObserver(Observer):
 
     def on_next(self, value):
         self.send_execution_result(self.op_id, value)
+        for error in value.errors:
+            raise error
 
     def on_completed(self):
         self.on_close()
@@ -47,7 +53,15 @@ class SubscriptionObserver(Observer):
         self.send_error(self.op_id, error)
 
 
-class GQLSubscriptionHandler(websocket.WebSocketHandler):
+class GQLSubscriptionHandler(websocket.WebSocketHandler, Loggable):
+
+    def initialize(self):
+        super().initialize()
+        self.init_log()
+
+    @property
+    def middleware(self):
+        return MIDDLEWARE
 
     @property
     def schema(self):
@@ -121,13 +135,20 @@ class GQLSubscriptionHandler(websocket.WebSocketHandler):
             'context_value': payload.get('context'),
         }
 
+    def __str__(self):
+        string = "SubscriptionHandler:"
+        for socket in self.sockets:
+            string += socket.request.remote_ip + "; "
+        return string
+
+
     def open(self):
-        app_log.info('open socket %s', self)
+        app_log.info(f'open socket {self}')
         self.sockets.append(self)
         self.subscriptions = {}
 
     def on_close(self):
-        app_log.info('close socket %s', self)
+        app_log.info(f'close socket {self}')
         if self in self.sockets:
             self.sockets.remove(self)
         for i in self.subscriptions:
@@ -172,8 +193,22 @@ class GQLSubscriptionHandler(websocket.WebSocketHandler):
 
     def on_start(self, op_id, params):
         try:
+            executor = AsyncioExecutor(loop=asyncio.get_event_loop())
+            old_execute = executor.execute
+
+            def execute(*args, **kwargs):
+                try:
+                    return old_execute(*args, **kwargs)
+                except Exception as e:
+                    exc_info = sys.exc_info()
+                    print(f"Exception: {exc_info}")
+                    raise exc_info[1]
+                
+            executor.execute = execute
+
             execution_result = graphql(
-                self.schema, **params, allow_subscriptions=True, executor=AsyncioExecutor(loop=asyncio.get_event_loop())
+                self.schema, **params, allow_subscriptions=True,
+                executor=executor
             )
             assert isinstance(
                 execution_result, Observable), "A subscription must return an observable"

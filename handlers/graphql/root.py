@@ -1,15 +1,16 @@
-from graphene_tornado.tornado_graphql_handler import TornadoGraphQLHandler
-from rx import Observable
 import graphene
 
 from graphene import ObjectType, Schema
 
-from tornado.escape import to_unicode
-
+from handlers.graphql.resolvers.subscription_utils import MakeSubscription, resolve_item_by_key, \
+    MakeSubscriptionWithChangeType, resolve_all_items_changes
 from handlers.graphql.types.input.createvm import CreateVM
 from handlers.graphql.types.input.vm import VMMutation, VMStartMutation, VMShutdownMutation, VMRebootMutation, \
     VMPauseMutation
 from handlers.graphql.types.playbook import GPlaybook, resolve_playbooks, resolve_playbook
+from handlers.graphql.types.playbooklauncher import PlaybookLaunchMutation
+from handlers.graphql.types.tasks.playbook import PlaybookTask, PlaybookTaskList
+from playbookloader import PlaybookLoader
 from xenadapter.disk import GISO, GVDI, ISO, VDI
 from xenadapter.task import GTask
 from xenadapter.template import Template, GTemplate
@@ -18,6 +19,9 @@ from xenadapter.vm import VM, GVM
 from xenadapter.network import Network, GNetwork
 
 from handlers.graphql.types.input.template import TemplateMutation
+from rethinkdb import RethinkDB
+from tornado.options import options as opts
+r = RethinkDB()
 
 class QueryRoot(ObjectType):
 
@@ -54,96 +58,31 @@ class MutationRoot(ObjectType):
     vm_shutdown = VMShutdownMutation.Field(description="Shut down VM")
     vm_reboot = VMRebootMutation.Field(description="Reboot VM")
     vm_pause = VMPauseMutation.Field(description="If VM is Running, pause VM. If Paused, unpause VM")
-
-
-
-
-def MakeSubscriptionWithChangeType(_class : type) -> type:
-    #class Subscription(ObjectType):
-    #    changeType = graphene.Field(graphene.String, required=True, description="Change type: one of")
-    #    value = graphene.Field(_class, required=True)
-
-    #Subscription.__name__ = f'{_class.__name__}sSubscription'
-    #return Subscription
-
-    return type(f'{_class.__name__}sSubscription',
-                (ObjectType, ),
-                {
-                    'change_type': graphene.Field(graphene.String, required=True, description="Change type"),
-                    'value': graphene.Field(_class, required=True)
-                })
-
-
-def MakeSubscription(_class : type) -> type:
-    return type(f'{_class.__name__}Subscription',
-                (ObjectType, ),
-                {
-                    _class.__name__: graphene.Field(_class)
-                })
-
+    playbook_launch = PlaybookLaunchMutation.Field(description="Launch an Ansible Playbook on specified VMs")
 
 
 class SubscriptionRoot(ObjectType):
     '''
     All subscriptions must return  Observable
     '''
-    vms = graphene.Field(MakeSubscriptionWithChangeType(GVM), required=True)
-    task = graphene.Field(MakeSubscription(GTask), required=True, uuid=graphene.ID())
+    vms = graphene.Field(MakeSubscriptionWithChangeType(GVM), required=True, description="Updates for all VMs")
+    task = graphene.Field(MakeSubscription(GTask), required=True, uuid=graphene.ID(), description="Updates for a particular XenServer Task")
 
-    def resolve_task(root, info, uuid):
-        async def iterable_to_task():
-            from  rethinkdb import RethinkDB
-            r = RethinkDB()
-
-            r.set_loop_type("asyncio")
-            db = r.db('vmemperor')
-            conn = await r.connect()
-            changes = await db.table('tasks').get(uuid).changes(include_types=True, include_initial=True).run(conn)
-            while True:
-                change = await changes.next()
-                if not change:
-                    break
-                if change['type'] == 'remove' or change['new_val'] is None:
-                    yield MakeSubscription(GTask)(GTask=None)
-                    continue
-                else:
-                    value = change['new_val']
-
-                value = GTask(**value)
-                yield MakeSubscription(GTask)(GTask=value)
-
-        return Observable.from_future(iterable_to_task())
+    playbook_task = graphene.Field(MakeSubscription(PlaybookTask), required=True, id=graphene.ID(), description="Updates for a particular Playbook installation Task")
+    playbook_tasks = graphene.Field(MakeSubscriptionWithChangeType(PlaybookTask), required=True, description="Updates for all Playbook Tasks")
 
 
+    def resolve_task(*args, **kwargs):
+        return resolve_item_by_key(GTask, r.db(opts.database), 'tasks', key_name='uuid')(*args, **kwargs)
 
-    def resolve_vms(root, info): #temp
-        async def iterable_to_vm():
-            from rethinkdb import RethinkDB
-            r = RethinkDB()
+    def resolve_vms(*args, **kwargs):
+        return resolve_all_items_changes(GVM, r.db(opts.database), 'vms')(*args, **kwargs)
 
-            r.set_loop_type("asyncio")
-            db = r.db('vmemperor')
-            conn = await r.connect()
-            changes = await db.table('vms').changes(include_types=True, include_initial=True).run(conn)
-            while True:
-                change = await changes.next()
-                if not change:
-                    break
-                if change['type'] == 'remove':
-                    value = change['old_val']
-                else:
-                    value = change['new_val']
+    def resolve_playbook_task(*args, **kwargs):
+        return resolve_item_by_key(PlaybookTask, r.db(opts.database), 'tasks_playbooks', key_name='id')(*args, **kwargs)
 
-                value = GVM(**value)
-                yield MakeSubscriptionWithChangeType(GVM)(changeType=change['type'], value=value)
-
-        return Observable.from_future(iterable_to_vm())
-
-
-
-
-
-
+    def resolve_playbook_tasks(*args, **kwargs):
+        return resolve_all_items_changes(PlaybookTask, r.db(opts.database), 'tasks_playbooks')(*args, **kwargs)
 
 
 

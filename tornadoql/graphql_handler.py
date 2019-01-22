@@ -11,6 +11,9 @@ from tornado.log import app_log
 from graphql.error import GraphQLError
 from graphql.error import format_error as format_graphql_error
 
+from tornadoql.logging_middleware import GraphQLLog
+from tornadoql.middlewares import MIDDLEWARE
+
 
 def error_status(exception):
     if isinstance(exception, web.HTTPError):
@@ -77,8 +80,16 @@ class GQLHandler(web.RequestHandler):
                       result.data, result.errors, result.invalid)
         if result and (result.errors or result.invalid):
             ex = ExecutionError(errors=result.errors)
-            app_log.warn('GraphQL Error: %s', ex)
+            app_log.warn(f'GraphQL Error: {ex}. Check graphql_errors.log')
+            for error in result.errors:
+                if error.original_error:
+                    import traceback
+                    from tornado.options import options as opts
+                    with open(opts.graphql_error_log_file, 'a') as file:
+                        traceback.print_exception(None, error.original_error, error.original_error.__traceback__, file=file)
+
             raise ex
+
 
         response = {'data': result.data}
         self.write(json_encode(response))
@@ -108,7 +119,7 @@ class GQLHandler(web.RequestHandler):
 
     @property
     def middleware(self):
-        return []
+        return MIDDLEWARE
 
     @property
     def context(self):

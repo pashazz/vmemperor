@@ -11,9 +11,11 @@ class CreateVMTask(ObjectType):
 
 
 class CreateVMTaskList(GrapheneTaskList):
-    def table(self):
-        return self.db.table('tasks_vms_created')
+    @property
+    def table_name(self):
+        return 'tasks_vms_created'
 
+    @property
     def task_type(self):
         return CreateVMTask
 

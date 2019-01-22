@@ -4,6 +4,7 @@ from graphene.types.resolver import dict_resolver
 from authentication import with_authentication, with_default_authentication
 from handlers.graphql.resolvers import with_connection
 from handlers.graphql.types.dicttype import ObjectType
+from playbookloader import PlaybookLoader
 from xenadapter.vm import OSVersion
 import rethinkdb
 from tornado.options import options as opts
@@ -23,17 +24,19 @@ class GPlaybook(ObjectType):
     variables = graphene.Field(graphene.JSONString, description="Variables available for change to an user")
 
 
-def _resolve_playbook(data):
+def _resolve_playbook(id):
+    r = rethinkdb.RethinkDB()
+    table = r.db(opts.database).table(PlaybookLoader.PLAYBOOK_TABLE_NAME)
+    data = table.get(id).pluck(*GPlaybook._meta.fields.keys()).run()
+    if not data:
+        raise ValueError(f"No such playbook: {id}")
     p = GPlaybook(**data)
     return p
 
 @with_default_authentication
 @with_connection
 def resolve_playbook(root, info, id):
-    r = rethinkdb.RethinkDB()
-    table = r.db(opts.database).table('playbooks')
-    data = table.get(id).pluck(*GPlaybook._meta.fields.keys()).run()
-    return _resolve_playbook(data)
+    return _resolve_playbook(id)
 
 
 
@@ -41,8 +44,8 @@ def resolve_playbook(root, info, id):
 @with_connection
 def resolve_playbooks(root, info):
     r = rethinkdb.RethinkDB()
-    table = r.db(opts.database).table('playbooks')
+    table = r.db(opts.database).table(PlaybookLoader.PLAYBOOK_TABLE_NAME)
     data = table.pluck(*GPlaybook._meta.fields.keys()).coerce_to('array').run()
 
-    return [_resolve_playbook(item) for item in data]
+    return [GPlaybook(**item) for item in data]
 

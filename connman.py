@@ -1,11 +1,17 @@
 from rethinkdb import RethinkDB
-r = RethinkDB()
 
 import queue
 from xenadapter import singleton
 from loggable import Loggable
 class ReDBConnection(Loggable, metaclass=singleton.Singleton):
     def __init__(self):
+
+        self.conn_queue : queue.Queue
+        self.host : str = None
+        self.port : int = None
+        self.db = None
+        self.user : str = None
+        self.password : str = None
         self.init_log()
 
     def set_options(self, host, port, db=None, user='admin', password=None):
@@ -16,16 +22,18 @@ class ReDBConnection(Loggable, metaclass=singleton.Singleton):
         self.user = user
         self.password = password
 
-        self.log.info("Options set: {0}".format(repr(self)))
+        self.log.info(f"Options set: {repr(self)}")
 
     def __repr__(self):
-        return "ReDBConnection <host {0}, port {1}, db '{2}', user '{3}', password '{4}'>".format(self.host, self.port, self.db, self.user, self.password)
+        return f"ReDBConnection <host {self.host}, port {self.port}, db '{self.db}', user '{self.user}', password '{self.password}'>"
 
     def _get_new_connection(self):
         class Connection:
             def __enter__(myself):
+                r = RethinkDB()
                 if not hasattr(myself, 'conn') or not myself.conn  or not myself.conn.is_open():
-                    myself.conn = r.connect(self.host, self.port,self.db, user=self.user, password=self.password)
+
+                    myself.conn = r.connect(self.host, self.port, self.db, user=self.user, password=self.password)
                     self.log.debug("Connecting using connection: {0}".format(myself))
 
                 if not myself.conn.is_open():
