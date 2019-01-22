@@ -155,7 +155,7 @@ class VM (AbstractVM):
                 vdi.manage_actions('all', user=auth.get_id())
 
 
-        vm.install_guest_tools()
+
 
 
         #self.connect_vm(new_vm_uuid, net_uuid, ip)
@@ -189,6 +189,8 @@ class VM (AbstractVM):
                 insert_log_entry(new_vm_uuid, state="failed",
                                           message="Failed to mount ISO for VM: %s" % e.message)
                 raise e
+        else:
+            vm.install_guest_tools()
 
 
         vm.os_install(install_url)

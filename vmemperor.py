@@ -831,10 +831,10 @@ class CreateVM(BaseHandler):
                 self.password = self.get_argument('password')
                 self.fullname = self.get_argument('fullname', default=None)
                 self.partition = self.get_argument('partition', default='auto')
-                try:
-                    self.vcpus = self.get_argument('vcpus', default=1)
-                except ValueError:
-                    self.vcpus = 1
+            try:
+                self.vcpus = self.get_argument('vcpus', default=1)
+            except ValueError:
+                self.vcpus = 1
 
 
             self.taskid = str(uuid.uuid4())
