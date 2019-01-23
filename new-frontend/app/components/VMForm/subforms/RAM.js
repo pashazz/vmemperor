@@ -8,7 +8,7 @@ import faMemory from '@fortawesome/fontawesome-free-solid/faMemory';
 import FontAwesomeIcon from '@fortawesome/react-fontawesome';
 
 function validate(ram) {
-  if (ram < 256 || ram > 100000) {
+  if (ram < 256 || ram > 1572864) {
     return 'should be between 256 and 100000';
   }
   return '';
@@ -58,7 +58,7 @@ function RAM({ ram, onChange }) {
        </InputGroupText>
      </InputGroupAddon>
      <AvFeedback>
-       RAM size is between 256 and 100000 megabytes
+       RAM size is between 256 and 1572864 megabytes
      </AvFeedback>
      </InputGroup>
    </AvGroup>
