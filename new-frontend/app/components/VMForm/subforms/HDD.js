@@ -2,7 +2,7 @@ import React from 'react';
 import T from 'prop-types';
 import { InputGroup, InputGroupAddon, InputGroupText } from 'reactstrap';
 import Input from 'components/Input';
-import {AvGroup} from 'availity-reactstrap-validation';
+import { AvGroup } from 'availity-reactstrap-validation';
 import faHdd from '@fortawesome/fontawesome-free-solid/faHdd';
 import FontAwesomeIcon from '@fortawesome/react-fontawesome';
 
@@ -36,7 +36,7 @@ function HDD({ hdd, onChange })
         </InputGroupAddon>
         <Input
           type="number"
-          validate={{ min: { value: 1 } }}
+          validate={{ min: { value: 1 }, max: { value: 2043 } }}
           id="hdd"
           name="hdd"
           value={hdd}
