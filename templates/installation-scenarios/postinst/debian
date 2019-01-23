@@ -1,5 +1,5 @@
 #!/bin/bash
-mount "/dev/disk/by-label/XenServer\x20Tools" /mnt
+mount "/dev/disk/by-label/XCP-ng\x20Tools" /mnt
 cd /mnt/Linux
 source versions.deb
 case $(uname -m) in
