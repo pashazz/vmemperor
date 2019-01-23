@@ -18,7 +18,7 @@ const CPU = ({vcpus, onChange}) =>
         </InputGroupAddon>
         <Input
           type="number"
-          validate={{max: {value: 16}, min: {value: 1}}}
+          validate={{max: {value: 32}, min: {value: 1}}}
           id="vcpus"
           name="vcpus"
           value={vcpus}
