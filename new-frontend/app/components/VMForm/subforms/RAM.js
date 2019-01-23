@@ -46,7 +46,7 @@ function RAM({ ram, onChange }) {
        </InputGroupAddon>
      <Input
        type="number"
-       validate={{max: {value: 100000}, min: {value: 256}}}
+       validate={{max: {value: 1572864}, min: {value: 256}}}
        id="ram"
        name="ram"
        value={ram}
