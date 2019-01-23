@@ -2,13 +2,13 @@ import React from 'react';
 import T from 'prop-types';
 import { InputGroup, InputGroupAddon, InputGroupText } from 'reactstrap';
 import Input from 'components/Input';
-import {AvField, AvGroup, AvInput, AvFeedback } from 'availity-reactstrap-validation';
+import {AvGroup} from 'availity-reactstrap-validation';
 import faHdd from '@fortawesome/fontawesome-free-solid/faHdd';
 import FontAwesomeIcon from '@fortawesome/react-fontawesome';
 
-function HDD({ hdd, onChange }) {
-
-  /*return (
+function HDD({ hdd, onChange })
+{
+  /* return (
 
       <div className="input-group">
         <span className="input-group-addon"><i className="icon-hdd"></i></span>
@@ -28,26 +28,26 @@ function HDD({ hdd, onChange }) {
   ); */
   return (
     <AvGroup>
-     <InputGroup>
-       <InputGroupAddon style={ {"line-height": "1!important"}} addonType="prepend">
-         <InputGroupText style = { { height: '100%'}}>
-           <FontAwesomeIcon icon={faHdd}/>
-         </InputGroupText>
-       </InputGroupAddon>
-     <Input
-       type="number"
-       validate={{max: {value: 500}, min: {value: 9}}}
-       id="hdd"
-       name="hdd"
-       value={hdd}
-       onChange={onChange}
-     />
-       <InputGroupAddon addonType="append" style={ {"line-height": "1!important"}} >
-       <InputGroupText>
+      <InputGroup>
+        <InputGroupAddon style={{ 'line-height': '1!important' }} addonType="prepend">
+          <InputGroupText style={{ height: '100%' }}>
+            <FontAwesomeIcon icon={faHdd} />
+          </InputGroupText>
+        </InputGroupAddon>
+        <Input
+          type="number"
+          validate={{ min: { value: 1 } }}
+          id="hdd"
+          name="hdd"
+          value={hdd}
+          onChange={onChange}
+        />
+        <InputGroupAddon addonType="append" style={{ 'line-height': '1!important' }} >
+          <InputGroupText>
          GB
        </InputGroupText>
-       </InputGroupAddon>
-     </InputGroup>
+        </InputGroupAddon>
+      </InputGroup>
     </AvGroup>
   );
 }

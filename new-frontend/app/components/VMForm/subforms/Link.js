@@ -1,67 +1,73 @@
-import React, {Fragment} from 'react';
+import React, { Fragment } from 'react';
 import T from 'prop-types';
 import icon from '@fortawesome/fontawesome-free-solid/faAt';
 import FontAwesomeIcon from '@fortawesome/react-fontawesome';
 
-import {AvField, AvGroup, AvInput, AvFeedback } from 'availity-reactstrap-validation';
+import { AvGroup } from 'availity-reactstrap-validation';
 import Input from 'components/Input';
 import { InputGroup, InputGroupAddon, InputGroupText } from 'reactstrap';
 
-function validateUser(value, ctx) {
-  const {username} = ctx;
-  if (username.length < 4) {
-    return 'User name should have at least 4 symbols';
+function validateUser(value, ctx)
+{
+  const { username } = ctx;
+  if (username.length < 1)
+{
+    return 'User name should have at least 1 symbol';
   }
-  if (username.search(/[\s]/) !== -1) {
+  if (username.search(/[\s]/) !== -1)
+{
     return 'User name should have no spaces';
   }
   return true;
 }
 
-function validateHost(value, ctx) {
-  const {hostname} = ctx;
+function validateHost(value, ctx)
+{
+  const { hostname } = ctx;
 
-  if (hostname.length < 4) {
-    return 'Host name should have at least 4 symbols';
+  if (hostname.length < 1)
+  {
+    return 'Host name should have at least 1 symbol';
   }
-  if (hostname.search(/[\s]/) !== -1) {
+  if (hostname.search(/[\s]/) !== -1)
+  {
     return 'Host name should have no spaces';
   }
   return true;
 }
 
-function Link({ username, hostname, onChange, }) {
-return (
-  <Fragment>
-    <AvGroup>
-      <InputGroup>
+function Link({ username, hostname, onChange })
+{
+  return (
+    <Fragment>
+      <AvGroup>
+        <InputGroup>
+          <Input
+            name="username"
+            id="username"
+            value={username}
+            onChange={onChange}
+            placeholder="Your login for a new VM"
+            validate={{ myValidation: validateUser }}
+          />
+          <InputGroupAddon style={{ 'line-height': '1!important' }} addonType="prepend">
+            <InputGroupText style={{ height: '100%' }}>
+              <FontAwesomeIcon icon={icon} />
+            </InputGroupText>
+          </InputGroupAddon>
+          <Input
+            name="hostname"
+            id="hostname"
+            value={hostname}
+            onChange={onChange}
+            placeholder="Your hostname for a new VM"
+            validate={{ myValidation: validateHost }}
+          />
+        </InputGroup>
+      </AvGroup>
 
-  <Input
-           name="username"
-           id="username"
-           value={username}
-           onChange={onChange}
-           placeholder="Your login for a new VM"
-           validate={{myValidation: validateUser}}
-           />
-        <InputGroupAddon style={ {"line-height": "1!important"}} addonType="prepend">
-          <InputGroupText style = { { height: '100%'}}>
-            <FontAwesomeIcon icon={icon}/>
-          </InputGroupText>
-        </InputGroupAddon>
-    <Input
-             name="hostname"
-             id="hostname"
-             value={hostname}
-             onChange={onChange}
-             placeholder="Your hostname for a new VM"
-             validate={{myValidation: validateHost}}
-    />
-      </InputGroup>
-    </AvGroup>
-
-  </Fragment>
-);
+    </Fragment>
+  );
 
 
 /*
