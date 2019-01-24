@@ -46,7 +46,10 @@ class XenObjectDict(collections.UserDict):
         elif isinstance(value, ObjectType):
             return XenObjectDict(**value)
         elif hasattr(value, 'value'): # Hack for Graphene enums
-            return value.value[0]
+            if isinstance(value.value, tuple):
+                return value.value[0]
+            else:
+                return value.value
         else:
             return value
 

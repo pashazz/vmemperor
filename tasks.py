@@ -31,11 +31,12 @@ class TaskList(ABC):
         :param task_data: dict. Use your own class to convert your datatype into a dict and then call upsert_task
         :return:
         '''
-        if auth:  # replace
-            user_id = auth.get_id()
+
         if not isinstance(task_data, XenObjectDict):
             task_data = XenObjectDict(task_data)
 
+        if auth:  # replace
+            user_id = auth.get_id()
             CHECK_ER(self.table.insert({**task_data, **{'userid': user_id}}, conflict='replace').run())
         else:  # update
             CHECK_ER(self.table.insert({**task_data}, conflict='update').run())
