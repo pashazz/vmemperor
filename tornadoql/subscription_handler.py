@@ -43,8 +43,9 @@ class SubscriptionObserver(Observer):
 
     def on_next(self, value):
         self.send_execution_result(self.op_id, value)
-        for error in value.errors:
-            raise error
+        if value.errors:
+            for error in value.errors:
+                raise error
 
     def on_completed(self):
         self.on_close()
