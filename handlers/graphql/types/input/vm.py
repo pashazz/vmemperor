@@ -9,9 +9,6 @@ from handlers.graphql.resolvers import with_connection
 from handlers.graphql.types.dicttype import InputObjectType
 from xenadapter.vm import VM
 
-
-
-
 class VMInput(InputObjectType):
     uuid = graphene.InputField(graphene.ID, required=True, description="VM ID")
     name_label = graphene.InputField(graphene.String, description="VM human-readable name")

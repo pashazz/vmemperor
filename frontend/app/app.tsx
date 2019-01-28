@@ -65,13 +65,14 @@ const MOUNT_NODE = document.getElementById('app');
 
 
 //Import apollo
-import ApolloClient from "apollo-boost";
+import ApolloClient, {InMemoryCache} from "apollo-boost";
 import { ApolloProvider } from "react-apollo";
 
 
 const client = new ApolloClient(
   {
-    uri: "/api/graphql"
+    uri: "/api/graphql",
+    cache: new InMemoryCache(),
   }
 );
 

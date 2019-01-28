@@ -15,7 +15,7 @@ import {sizeFormatter} from "../../../utils/formatters";
 import StorageAttach from "./storageAttach";
 import {detachvdi} from "../../../api/vdi";
 
-import ControlledTable, {selectors} from 'containers/ControlledTable';
+import ControlledTable, {selectors} from '../../../containers/ControlledTable';
 import {connect} from 'react-redux';
 import {compose} from 'redux';
 import {createStructuredSelector} from 'reselect';
@@ -59,8 +59,18 @@ const columns = [
 
 ];
 
+interface Props {
+  table_selection: string[],
 
-class Storage extends PureComponent {
+}
+
+interface State {
+  vdiAttach: boolean, //If user attaches a VDI
+  isoAttach: boolean, // If user attaches an ISO
+  detachDisabled: boolean,
+}
+
+class Storage extends PureComponent<Props, State> {
   constructor(props)
   {
     super(props);
@@ -87,24 +97,24 @@ class Storage extends PureComponent {
   }
   toggleIsoAttach()
   {
-    let set = {
+    let set : Partial<State> = {
       isoAttach: !this.state.isoAttach,
     };
     if (set.isoAttach)
       set.vdiAttach = false;
     this.setState(
-      set
+      set as State
     );
   }
   toggleVdiAttach()
   {
-    let set = {
+    let set : Partial<State> = {
       vdiAttach: !this.state.vdiAttach,
     };
     if (set.vdiAttach)
       set.isoAttach = false;
     this.setState(
-      set
+      set as State
     );
   }
 
@@ -143,6 +153,7 @@ class Storage extends PureComponent {
 
     return (
       <React.Fragment>
+
       <Row>
         <Col sm={12}>
           <Card>

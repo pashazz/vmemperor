@@ -66,6 +66,22 @@ export enum ShutdownForce {
   Clean = "CLEAN"
 }
 
+export enum Change {
+  Initial = "Initial",
+  Add = "Add",
+  Remove = "Remove",
+  Change = "Change"
+}
+
+export enum PlaybookTaskState {
+  Preparing = "Preparing",
+  ConfigurationWarning = "ConfigurationWarning",
+  Error = "Error",
+  Running = "Running",
+  Finished = "Finished",
+  Unknown = "Unknown"
+}
+
 /** JSON String */
 export type JsonString = any;
 
@@ -91,6 +107,72 @@ export namespace VmEditOptions {
     __typename?: "VMMutation";
 
     success: boolean;
+  };
+}
+
+export namespace PlaybookLaunch {
+  export type Variables = {
+    id: string;
+    vms?: Maybe<(Maybe<string>)[]>;
+    variables?: Maybe<JsonString>;
+  };
+
+  export type Mutation = {
+    __typename?: "Mutation";
+
+    playbookLaunch: Maybe<PlaybookLaunch>;
+  };
+
+  export type PlaybookLaunch = {
+    __typename?: "PlaybookLaunchMutation";
+
+    taskId: string;
+  };
+}
+
+export namespace PlaybookList {
+  export type Variables = {};
+
+  export type Query = {
+    __typename?: "Query";
+
+    playbooks: (Maybe<Playbooks>)[];
+  };
+
+  export type Playbooks = {
+    __typename?: "GPlaybook";
+
+    requires: Maybe<Requires>;
+
+    name: string;
+
+    variables: Maybe<JsonString>;
+
+    id: string;
+
+    inventory: Maybe<string>;
+
+    description: Maybe<string>;
+  };
+
+  export type Requires = {
+    __typename?: "PlaybookRequirements";
+
+    osVersion: (Maybe<OsVersion>)[];
+  };
+
+  export type OsVersion = {
+    __typename?: "OSVersion";
+
+    distro: Maybe<string>;
+
+    name: Maybe<string>;
+
+    uname: Maybe<string>;
+
+    major: Maybe<number>;
+
+    minor: Maybe<number>;
   };
 }
 
@@ -249,6 +331,100 @@ export namespace VmEditOptions {
       | undefined
   ) {
     return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace PlaybookLaunch {
+  export const Document = gql`
+    mutation PlaybookLaunch($id: ID!, $vms: [ID], $variables: JSONString) {
+      playbookLaunch(id: $id, vms: $vms, variables: $variables) {
+        taskId
+      }
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.MutationProps<Mutation, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Mutation<Mutation, Variables>
+          mutation={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.MutateProps<Mutation, Variables>
+  > &
+    TChildProps;
+  export type MutationFn = ReactApollo.MutationFn<Mutation, Variables>;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Mutation,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace PlaybookList {
+  export const Document = gql`
+    query PlaybookList {
+      playbooks {
+        requires {
+          osVersion {
+            distro
+            name
+            uname
+            major
+            minor
+          }
+        }
+        name
+        variables
+        id
+        inventory
+        description
+      }
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.QueryProps<Query, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Query<Query, Variables>
+          query={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Query, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Query,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
       Document,
       operationOptions
     );

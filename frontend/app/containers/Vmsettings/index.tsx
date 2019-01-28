@@ -15,7 +15,6 @@ import injectSaga from '../../utils/injectSaga';
 import injectReducer from '../../utils/injectReducer';
 import makeSelectVmsettings from './selectors';
 import reducer from './reducer';
-import saga from './saga';
 import messages from './messages';
 
 import { VmInfo } from "../../generated-models";
@@ -55,7 +54,7 @@ export class VmSettings extends React.PureComponent<RouteComponentProps<RouterPr
 
 
 
-
+/*
 const mapStateToProps = createStructuredSelector({
   vmsettings: makeSelectVmsettings(),
 });
@@ -65,14 +64,14 @@ function mapDispatchToProps(dispatch) {
     dispatch,
   };
 }
-
-const withConnect = connect(mapStateToProps, mapDispatchToProps);
+*/
+//const withConnect = connect(mapStateToProps, mapDispatchToProps);
 
 const withReducer = injectReducer({ key: 'vmsettings', reducer });
-const withSaga = injectSaga({ key: 'vmsettings', saga });
+//const withSaga = injectSaga({ key: 'vmsettings', saga });
 
 export default compose(
-  withReducer,
-  withSaga,
-  withConnect,
+//  withReducer,
+//  withSaga,
+ // withConnect,
 )(VmSettings);

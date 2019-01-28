@@ -21,7 +21,9 @@ class GPlaybook(ObjectType):
     requires = graphene.Field(PlaybookRequirements, description="Requirements for running this playbook")
     #single = graphene.Field(graphene.Boolean, description="")
     name = graphene.Field(graphene.String, required=True, description="Playbook name")
+    description = graphene.Field(graphene.String, description="Playbook description")
     variables = graphene.Field(graphene.JSONString, description="Variables available for change to an user")
+
 
 
 def _resolve_playbook(id):

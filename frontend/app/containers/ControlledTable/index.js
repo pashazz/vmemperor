@@ -12,10 +12,13 @@ import { createStructuredSelector, createSelector } from 'reselect';
 import { compose } from 'redux';
 import { Set } from 'immutable';
 import BootstrapTable from 'react-bootstrap-table-next';
-import injectSaga from 'utils/injectSaga';
-import injectReducer from 'utils/injectReducer';
+//import injectSaga from 'utils/injectSaga';
+import injectReducer from '../../utils/injectReducer';
 import messages from './messages';
 //import filterFactory from 'react-bootstrap-table2-filter'
+
+
+
 export function constants (key)
 {
   return {
@@ -112,7 +115,7 @@ const {TABLE_SELECT, TABLE_DESELECT, TABLE_SELECT_ALL, TABLE_DESELECT_ALL} = con
         select(row[keyField]);
       }
       else {
-        deselect(row[keyField]);   
+        deselect(row[keyField]);
       }
 
     }

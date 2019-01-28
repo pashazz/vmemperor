@@ -82,11 +82,13 @@ class GQLHandler(web.RequestHandler):
             ex = ExecutionError(errors=result.errors)
             app_log.warn(f'GraphQL Error: {ex}. Check graphql_errors.log')
             for error in result.errors:
-                if error.original_error:
+                if hasattr(error, 'original_error'):
                     import traceback
                     from tornado.options import options as opts
                     with open(opts.graphql_error_log_file, 'a') as file:
                         traceback.print_exception(None, error.original_error, error.original_error.__traceback__, file=file)
+                elif isinstance(error, str):
+                    app_log.error(error)
 
             raise ex
 

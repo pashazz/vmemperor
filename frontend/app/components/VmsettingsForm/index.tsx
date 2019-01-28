@@ -7,8 +7,8 @@
 import React from 'react';
 import {VmInfo} from "../../generated-models";
 import Power from './subforms/power';
-import Storage from './subforms/storage';
-import Network from './subforms/network';
+//import Storage from './subforms/storage';
+//import Network from './subforms/network';
 // import styled from 'styled-components';
 
 import { FormattedMessage } from 'react-intl';
@@ -132,38 +132,24 @@ class VmsettingsForm extends React.PureComponent<Props, State> { // eslint-disab
           <TabPane tabId="storage">
             <Row>
               <Col sm="12">
-                <Storage
-                  data={vm}
-                  /*diskInfo={this.props.diskInfo}
-                  onDetachVdi={this.props.onDetachVdi}
-                  onAttachIso={this.props.onAttachIso}
-                  onAttachVdi={this.props.onAttachVdi}
-                  requestIso={this.props.requestIso}
-                  requestVdi={this.props.requestVdi}
-                  isoList={this.props.isoList}
-                  vdiList={this.props.vdiList}*/
-                />
+                {/*<Storage
+                  vm={vm}/> */}
               </Col>
             </Row>
           </TabPane>
           <TabPane tabId="vnc">
-            {
+            {/*
               this.state.vncActivated && (
                 <Vncview uuid={this.props.data.uuid}/>
               ) || (<h1>NO VNC HERE</h1>)
-            }
+            */}
           </TabPane>
           <TabPane tabId="network">
             <Row>
               <Col sm="12">
-                <Network
+                {/*<Network
                   data={vm}
-                  /*networks={this.props.netInfo}
-                  onAttach={this.props.onAttachNet}
-                  onDetach={this.props.onDetachNet}
-                  requestNet={this.props.requestNet}
-                  netList={this.props.netList}*/
-                />
+                />*/}
               </Col>
             </Row>
           </TabPane>

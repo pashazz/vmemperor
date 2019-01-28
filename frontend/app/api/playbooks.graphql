@@ -1,0 +1,19 @@
+query PlaybookList {
+  playbooks {
+    requires
+    {
+      osVersion{
+        distro
+        name
+        uname
+        major
+        minor
+      }
+    }
+    name
+    variables
+    id
+    inventory
+    description
+  }
+}

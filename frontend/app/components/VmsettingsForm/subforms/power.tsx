@@ -16,7 +16,6 @@ import {ShutdownVm} from "../../../generated-models";
 import {StartVm} from "../../../generated-models";
 import {VmEditOptions} from "../../../generated-models";
 import Vm = VmInfo.Vm;
-import {Simulate} from "react-dom/test-utils";
 
 
 
@@ -62,7 +61,7 @@ class Power extends PureComponent<Props, State> {
           { vm.powerState !== 'Halted' && (
             <RebootVm.Component>
               { vmReboot => (
-                <Button size="lg" color="danger" onClick={vmReboot({variables:
+                <Button size="lg" color="danger" onClick={() => vmReboot({variables:
                     {
                       uuid: vm.uuid
                     }})}>
@@ -76,7 +75,7 @@ class Power extends PureComponent<Props, State> {
           {(vm.powerState !== 'Halted') ? (
             <ShutdownVm.Component>
               { vmShutdown => (
-                <Button size="lg" color="primary" onClick={vmShutdown({variables: {uuid: vm.uuid}})}>
+                <Button size="lg" color="primary" onClick={() => vmShutdown({variables: {uuid: vm.uuid}})}>
                   <FormattedMessage {...messages.halt}/>
                 </Button>
               )
@@ -85,7 +84,7 @@ class Power extends PureComponent<Props, State> {
             ):(
               <StartVm.Component>
                 { vmStart => (
-                  <Button size="lg" color="primary" onClick={vmStart({variables: {uuid: vm.uuid}})}>
+                  <Button size="lg" color="primary" onClick={() => vmStart({variables: {uuid: vm.uuid}})}>
                   <FormattedMessage {...messages.halt}/>
                   </Button>
                 )
@@ -161,7 +160,7 @@ class Power extends PureComponent<Props, State> {
                         disabled={vm.powerState !== 'Halted'}
                         size="lg"
                         color="info"
-                        onClick={trigger({variables : {vm: inputObject}})}
+                        onClick={() => trigger({variables : {vm: inputObject}})}
                       >Switch to
                         {buttonText}
                       </Button>);
@@ -189,7 +188,7 @@ class Power extends PureComponent<Props, State> {
         <Row>
           <Col>
             <Playbooks
-            /*vmData={this.props.data}*//>
+            vms={[vm.uuid]}/>
           </Col>
         </Row>
       </React.Fragment>

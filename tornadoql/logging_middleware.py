@@ -16,8 +16,6 @@ class GraphQLLog:
             return result
         except:
             err = sys.exc_info()
-            log = GraphQLLog.GraphQL()
-            log.log.error(f"Exception: {err}")
             return err[1]
 
 
