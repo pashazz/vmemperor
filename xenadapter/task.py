@@ -1,5 +1,7 @@
+from xenadapter import XenAdapter
 from .xenobject import ACLXenObject, GXenObjectType, GAclXenObject
 import graphene
+from tornado.options import options as opts
 
 class GTask(GXenObjectType):
     class Meta:
@@ -12,6 +14,7 @@ class GTask(GXenObjectType):
     type = graphene.Field(graphene.String, description="Task result type")
     resident_on = graphene.Field(graphene.ID, description="ref of a host that runs this task")
     error_info = graphene.Field(graphene.List(graphene.String), description="Error strings, if failed")
+    status = graphene.Field(graphene.String, description="Task status")
 
 
 class Task(ACLXenObject):
@@ -19,3 +22,36 @@ class Task(ACLXenObject):
     EVENT_CLASSES = ['task']
     db_table_name = 'tasks'
     GraphQLType = GTask
+    
+    @classmethod
+    def process_event(cls, auth, event, db, authenticator_name):
+        '''
+        Make changes to a RethinkDB-based cache, processing a XenServer event
+        :param auth: auth object
+        :param event: event dict
+        :param db: rethinkdb DB
+        :param authenticator_name: authenticator class name - used by access control
+        :return: nothing
+        '''
+        from rethinkdb_helper import CHECK_ER
+
+        cls.create_db(db)
+
+        if event['class'] in cls.EVENT_CLASSES:
+            if event['operation'] == 'del':
+                #CHECK_ER(db.table(cls.db_table_name).get_all(event['ref'], index='ref').delete().run())
+                return
+
+            record = event['snapshot']
+            if not cls.filter_record(record):
+                return
+
+            if event['operation'] in ('mod', 'add'):
+                new_rec = cls.process_record(auth, event['ref'], record)
+                CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
+                if record['status'] in ['success', 'failure', 'cancelled'] and new_rec['access']: # only our tasks have non-empty 'access'
+                    xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
+                    xen.api.task.destroy(event['ref'])
+
+
+        
