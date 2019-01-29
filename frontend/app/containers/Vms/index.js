@@ -206,6 +206,8 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
 
   onDoubleClick(e, row, rowIndex)
   {
+
+    e.preventDefault();
     const { history } = this.props;
     const { uuid } = this.props.vm_data_table.filter(item => item.uuid === row.uuid)[0];
     history.push('/vmsettings/' + uuid);
@@ -214,7 +216,7 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
   render() {
     const selectRow = {
       mode: 'checkbox',
-      clickToSelect: true,
+      //clickToSelect: true,
       bgColor: 'aqua',
       selected: this.props.table_selection,
       onSelect: this.onSelect,
