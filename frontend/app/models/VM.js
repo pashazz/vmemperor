@@ -22,4 +22,4 @@ const VM = Record(
 
 export default VM;
 
-//TODO: T.shape
+//TODO: KeyType.shape

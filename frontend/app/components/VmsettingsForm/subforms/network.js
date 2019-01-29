@@ -52,7 +52,7 @@ class Network extends PureComponent {
 
   static VMNetworkShape = T.shape( //Network information for this component
     {
-      //uuid: T.string.isRequired,
+      //uuid: KeyType.string.isRequired,
       key: T.string.isRequired,
       name_label: T.string.isRequired,
       attached: T.bool.isRequired,

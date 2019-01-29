@@ -84,8 +84,8 @@ class Power extends PureComponent<Props, State> {
             ):(
               <StartVm.Component>
                 { vmStart => (
-                  <Button size="lg" color="primary" onClick={() => vmStart({variables: {uuid: vm.uuid}})}>
-                  <FormattedMessage {...messages.halt}/>
+                  <Button size="lg" color="primary" onClick={() => {console.log("turn on"); vmStart({variables: {uuid: vm.uuid}})}}>
+                  <FormattedMessage {...messages.turnon}/>
                   </Button>
                 )
                 }

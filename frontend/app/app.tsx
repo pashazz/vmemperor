@@ -65,8 +65,9 @@ const MOUNT_NODE = document.getElementById('app');
 
 
 //Import apollo
-import ApolloClient, {InMemoryCache} from "apollo-boost";
+import ApolloClient, {gql, InMemoryCache} from "apollo-boost";
 import { ApolloProvider } from "react-apollo";
+
 
 
 const client = new ApolloClient(

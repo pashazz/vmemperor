@@ -4,7 +4,7 @@
  *
  */
 
-import React from 'react';
+import React, {Key} from 'react';
 import T from 'prop-types';
 import { connect } from 'react-redux';
 import { FormattedMessage } from 'react-intl';
@@ -17,6 +17,12 @@ import injectReducer from '../../utils/injectReducer';
 import messages from './messages';
 //import filterFactory from 'react-bootstrap-table2-filter'
 
+export interface ColumnType<T> {
+  dataField: string;
+  text: string;
+  sort?: boolean;
+  formatter: (cell: any, row: T) => JSX.Element;
+}
 
 
 export function constants (key)
@@ -97,10 +103,26 @@ const {TABLE_SELECT, TABLE_DESELECT, TABLE_SELECT_ALL, TABLE_DESELECT_ALL} = con
 
   };
 
+  interface InjectedProps<KeyType>{
+    select : (arg0: KeyType) => any;
+    deselect: (arg0 : KeyType) => any;
+    select_all : (arg0 : KeyType[]) => any;
+    deselect_all: (arg0: KeyType[]) => any;
+
+  }
 
 
+  interface Props<KeyType, T> extends InjectedProps<KeyType>{
+    keyField : string; //what field to use as key. Key of type KeyType
+    onDoubleClick? : (key : KeyType) => any; //What to do on double click
+    data: T[]; //Data provided to table
+    table_selection: KeyType[];
+    columns: ColumnType<T>[];
 
-  class ControlledTable extends React.Component { // eslint-disable-line react/prefer-stateless-function
+  }
+
+
+  class ControlledTable<T> extends React.Component<Props<string, T>> { // eslint-disable-line react/prefer-stateless-function
     constructor(props) {
       super(props);
       this.onSelect = this.onSelect.bind(this);
@@ -136,29 +158,11 @@ const {TABLE_SELECT, TABLE_DESELECT, TABLE_SELECT_ALL, TABLE_DESELECT_ALL} = con
     {
       if (this.props.onDoubleClick)
       {
+        const {keyField} = this.props;
         this.props.onDoubleClick(row[keyField]);
       }
     }
-/*
-    getSnapshotBeforeUpdate(prevProps, prevState){
-      console.log("GetSnapshotBeforeUpdate");
-    }
 
-    componentDidUpdate(prevProps, prevState)
-    {
-      console.log("Component did update");
-      const {data, keyField} = this.props;
-      if (data === prevProps.data)
-        return;
-      for (const oldItem of prevProps.data)
-      {
-        if (!data.filter(item => item[keyField] === oldItem[keyField]))
-        {
-          this.props.deselect(oldItem[keyField]);
-        }
-      }
-    }
-    */
     componentDidMount()
     { //Deselect all deleted items
       this.props.table_selection.filter(key => !this.props.data.filter(item => key === item[this.props.keyField]).length).forEach(key =>
@@ -185,6 +189,7 @@ const {TABLE_SELECT, TABLE_DESELECT, TABLE_SELECT_ALL, TABLE_DESELECT_ALL} = con
       return (
         <div>
           <BootstrapTable
+            bootstrap4
             columns={this.props.columns}
             data={this.props.data}
             rowEvents={rowEvents}
@@ -196,16 +201,6 @@ const {TABLE_SELECT, TABLE_DESELECT, TABLE_SELECT_ALL, TABLE_DESELECT_ALL} = con
     }
   }
 
-  ControlledTable.propTypes = {
-//    dispatch: PropTypes.func.isRequired,
-    columns: T.array.isRequired,
-    data: T.array.isRequired,
-    keyField: T.string.isRequired,
-    select: T.func.isRequired,
-    deselect: T.func.isRequired,
-    select_all: T.func.isRequired
-
-  };
 
   const mapStateToProps = createStructuredSelector({
     table_selection: selectors(key).makeSelectionSelector()

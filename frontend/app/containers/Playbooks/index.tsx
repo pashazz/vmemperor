@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-//import T from 'prop-types';
+//import KeyType from 'prop-types';
 //import IPT from 'react-immutable-proptypes';
 //import { connect } from 'react-redux';
 //import { FormattedMessage } from 'react-intl';

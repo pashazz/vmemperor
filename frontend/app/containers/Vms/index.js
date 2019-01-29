@@ -245,6 +245,7 @@ export class Vms extends React.Component { // eslint-disable-line react/prefer-s
           </ButtonGroup>
         </ButtonToolbar>
         <NextTable
+          bootstrap4
           columns={this.columns}
           filter={filterFactory()}
           data = {this.props.vm_data_table}
