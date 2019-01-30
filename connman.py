@@ -63,8 +63,12 @@ class ReDBConnection(Loggable, metaclass=singleton.Singleton):
         try:
             conn =  self.conn_queue.get_nowait()
             self.log.debug("Getting connection from Queue: {0}".format(conn))
-            if not conn.conn.is_open():
-                self.log.debug("Connection from queue is not opened, skipping")
+            try:
+                if not conn.conn.is_open():
+                    self.log.debug("Connection from queue is not opened, skipping")
+                    return self._get_new_connection()
+            except Exception as e:
+                self.log.error(f"Error while trying to obtain a Connection: {e}, returning new Connection")
                 return self._get_new_connection()
 
             return conn
