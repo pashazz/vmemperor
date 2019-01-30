@@ -22,26 +22,25 @@ query VMInfo ($uuid: ID!) {
 }
 
 subscription VMInfoUpdate($uuid: ID!) {
-    vm (uuid: $uuid) {
-      GVM {
+  vm (uuid: $uuid) {
+    uuid
+    nameLabel
+    nameDescription
+    interfaces {
+      network {
         uuid
         nameLabel
-        nameDescription
-        interfaces {
-          network {
-            uuid
-            nameLabel
-          }
-          ip
-          ipv6
-          id
-        }
-        powerState
-        osVersion{
-          name
-        }
-        startTime
-        domainType
       }
+      ip
+      ipv6
+      id
     }
+    powerState
+    osVersion{
+      name
+    }
+    startTime
+    domainType
+  }
 }
+

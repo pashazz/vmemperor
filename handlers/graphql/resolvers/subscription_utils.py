@@ -38,11 +38,12 @@ def MakeSubscription(_class : type) -> type:
     :param _class:
     :return:
     '''
-    return type(f'{_class.__name__}Subscription',
-                (ObjectType, ),
-                {
-                    _class.__name__: graphene.Field(_class)
-                })
+    #return type(f'{_class.__name__}Subscription',
+    #            (ObjectType, ),
+    #            {
+    #                _class.__name__: graphene.Field(_class)
+    #            })
+    return _class
 
 
 def resolve_item_by_key(item_class: type, db, table_name : str, key_name: str='uuid'):
@@ -75,15 +76,17 @@ def resolve_item_by_key(item_class: type, db, table_name : str, key_name: str='u
                 if not change:
                     break
                 if change['type'] == 'remove' or change['new_val'] is None:
-                    kwargs = { item_class.__name__ : None}
-                    yield MakeSubscription(item_class)(**kwargs)
+                    #kwargs = { item_class.__name__ : None}
+                    #yield MakeSubscription(item_class)(**kwargs)
+                    yield None
                     continue
                 else:
                     value = change['new_val']
 
-                value = item_class(**value)
-                kwargs = {item_class.__name__: value}
-                yield MakeSubscription(item_class)(**kwargs)
+                #value = item_class(**value)
+                #kwargs = {item_class.__name__: value}
+                #yield MakeSubscription(item_class)(**kwargs)
+                yield item_class(**value)
 
         return Observable.from_future(iterable_to_item())
     return resolve_item

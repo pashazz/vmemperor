@@ -296,16 +296,10 @@ export namespace VmInfoUpdate {
   export type Subscription = {
     __typename?: "Subscription";
 
-    vm: Vm;
+    vm: Maybe<Vm>;
   };
 
   export type Vm = {
-    __typename?: "GVMSubscription";
-
-    GVM: Maybe<Gvm>;
-  };
-
-  export type Gvm = {
     __typename?: "GVM";
 
     uuid: string;
@@ -680,26 +674,24 @@ export namespace VmInfoUpdate {
   export const Document = gql`
     subscription VMInfoUpdate($uuid: ID!) {
       vm(uuid: $uuid) {
-        GVM {
-          uuid
-          nameLabel
-          nameDescription
-          interfaces {
-            network {
-              uuid
-              nameLabel
-            }
-            ip
-            ipv6
-            id
+        uuid
+        nameLabel
+        nameDescription
+        interfaces {
+          network {
+            uuid
+            nameLabel
           }
-          powerState
-          osVersion {
-            name
-          }
-          startTime
-          domainType
+          ip
+          ipv6
+          id
         }
+        powerState
+        osVersion {
+          name
+        }
+        startTime
+        domainType
       }
     }
   `;

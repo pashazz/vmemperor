@@ -54,7 +54,7 @@ export class VmSettings extends React.PureComponent<RouteComponentProps<RouterPr
                 updateQuery: (prev, { subscriptionData }) =>
                 {
                   return {
-                    vm: subscriptionData.data.vm.GVM
+                    vm: subscriptionData.data.vm
                   }
                 }
               })

@@ -66,9 +66,9 @@ class SubscriptionRoot(ObjectType):
     All subscriptions must return  Observable
     '''
     vms = graphene.Field(MakeSubscriptionWithChangeType(GVM), required=True, description="Updates for all VMs")
-    vm = graphene.Field(MakeSubscription(GVM), required=True, uuid=graphene.ID(), description="Updates for a particular VM")
+    vm = graphene.Field(MakeSubscription(GVM), uuid=graphene.ID(), description="Updates for a particular VM")
 
-    task = graphene.Field(MakeSubscription(GTask), required=True, uuid=graphene.ID(), description="Updates for a particular XenServer Task")
+    task = graphene.Field(MakeSubscription(GTask),  uuid=graphene.ID(), description="Updates for a particular XenServer Task")
 
     playbook_task = graphene.Field(MakeSubscription(PlaybookTask), required=True, id=graphene.ID(), description="Updates for a particular Playbook installation Task")
     playbook_tasks = graphene.Field(MakeSubscriptionWithChangeType(PlaybookTask), required=True, description="Updates for all Playbook Tasks")
