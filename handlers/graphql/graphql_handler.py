@@ -10,6 +10,7 @@ from xenadapter import XenAdapter
 from tornado.options import options as opts
 from typing import _Protocol, Mapping, Any, ContextManager
 from logging import Logger
+from tornado.web import get_signature_key_version
 class ContextProtocol(_Protocol):
     def async_run(self, task_ref : str) -> None:
         '''
@@ -61,6 +62,9 @@ class GraphQLSubscriptionHandler(BaseWSHandler, BaseGQLSubscriptionHandler):
         del kwargs['pool_executor']
         BaseGQLSubscriptionHandler.initialize(self, *args, **kwargs)
 
+    def __repr__(self):
+        return "GraphQLSubscriptionHandler"
+
     def prepare(self):
         super().prepare()
 
@@ -70,3 +74,19 @@ class GraphQLSubscriptionHandler(BaseWSHandler, BaseGQLSubscriptionHandler):
         self.request.log = self.log
         self.request.actions_log = self.actions_log
         self.request.executor = self.executor
+        self.request.conn = self.conn
+
+    def on_init(self, payload):
+        if not payload or not payload['authToken']:
+            self.log.error(f"GraphQL connection initiated, but no authToken provided. Payload: {payload}")
+            return False
+        token = payload['authToken'].strip('\'"')
+        cookie = self.get_secure_cookie('user', value=token)
+        value = pickle.loads(cookie)
+        if not isinstance(value, BasicAuthenticator):
+            self.log.error("GraphQL connection initiated, Loaded authToken, not a BasicAuthenticator")
+            return False
+        value.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
+        self.request.user_authenticator = value
+        self.log.debug(f"GraphQL subscription authentication successful (as {value.get_id()})")
+        return True

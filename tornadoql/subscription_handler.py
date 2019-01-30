@@ -60,6 +60,14 @@ class GQLSubscriptionHandler(websocket.WebSocketHandler, Loggable):
         super().initialize()
         self.init_log()
 
+    def on_init(self, payload):
+        '''
+        Reimplement this method to use authentication on ON_INIT
+        :param payload:
+        :return:
+        '''
+        app_log.debug(f"Subscription Initialization Payload: {payload}")
+        return True
     @property
     def middleware(self):
         return MIDDLEWARE
@@ -187,7 +195,10 @@ class GQLSubscriptionHandler(websocket.WebSocketHandler, Loggable):
                                    Exception('Invalid message type: {}.'.format(op_type)))
 
     def on_connection_init(self, op_id, payload):
-        self.send_message(op_type=GQL_CONNECTION_ACK)
+        if self.on_init(payload):
+            self.send_message(op_type=GQL_CONNECTION_ACK)
+        else:
+            self.send_message(op_type=GQL_CONNECTION_ERROR)
 
     def on_connection_terminate(self, op_id):
         self.close(code=1011)
@@ -209,6 +220,7 @@ class GQLSubscriptionHandler(websocket.WebSocketHandler, Loggable):
 
             execution_result = graphql(
                 self.schema, **params, allow_subscriptions=True,
+                context=self.context,
                 executor=executor
             )
             assert isinstance(
@@ -239,3 +251,7 @@ class GQLSubscriptionHandler(websocket.WebSocketHandler, Loggable):
         self.subscriptions = {n: s for n, s in self.subscriptions.items()
                               if s != op_id}
         app_log.debug('subscriptions: %s', self.subscriptions)
+
+    @property
+    def context(self):
+        return self.request

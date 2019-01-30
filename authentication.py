@@ -82,11 +82,6 @@ class Authentication(metaclass=ABCMeta):
         ...
 
 
-
-
-
-
-
 @Authentication.register
 class BasicAuthenticator:
     @classmethod
@@ -101,8 +96,8 @@ class BasicAuthenticator:
 
 
 
-class AdministratorAuthenticator(BasicAuthenticator):
 
+class AdministratorAuthenticator(BasicAuthenticator):
     def __init__(self, user_auth: type):
         self.auth = False
         self.user_auth = user_auth
