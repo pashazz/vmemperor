@@ -66,6 +66,8 @@ class SubscriptionRoot(ObjectType):
     All subscriptions must return  Observable
     '''
     vms = graphene.Field(MakeSubscriptionWithChangeType(GVM), required=True, description="Updates for all VMs")
+    vm = graphene.Field(MakeSubscription(GVM), required=True, uuid=graphene.ID(), description="Updates for a particular VM")
+
     task = graphene.Field(MakeSubscription(GTask), required=True, uuid=graphene.ID(), description="Updates for a particular XenServer Task")
 
     playbook_task = graphene.Field(MakeSubscription(PlaybookTask), required=True, id=graphene.ID(), description="Updates for a particular Playbook installation Task")
@@ -78,11 +80,17 @@ class SubscriptionRoot(ObjectType):
     def resolve_vms(*args, **kwargs):
         return resolve_all_items_changes(GVM, r.db(opts.database), 'vms')(*args, **kwargs)
 
+    def resolve_vm(*args, **kwargs):
+        return resolve_item_by_key(GVM, r.db(opts.database), 'vms', key_name='uuid')(*args, **kwargs)
+
+
     def resolve_playbook_task(*args, **kwargs):
         return resolve_item_by_key(PlaybookTask, r.db(opts.database), 'tasks_playbooks', key_name='id')(*args, **kwargs)
 
     def resolve_playbook_tasks(*args, **kwargs):
         return resolve_all_items_changes(PlaybookTask, r.db(opts.database), 'tasks_playbooks')(*args, **kwargs)
+
+
 
 
 

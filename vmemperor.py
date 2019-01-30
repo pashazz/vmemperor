@@ -345,7 +345,7 @@ class VMList(BaseWSHandler):
                         else:
                             continue
                     except ReqlDriverError as e:
-                        self.log.error("Error encountered: {e}, exiting")
+                        self.log.error(f"Error encountered: {e}, exiting")
                         return
 
 

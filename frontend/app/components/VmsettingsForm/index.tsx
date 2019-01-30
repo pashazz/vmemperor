@@ -22,7 +22,8 @@ import Vm = VmInfo.Vm;
 
 
 interface Props{
-  vm: Vm
+  vm: Vm;
+  update: () => void;
 }
 
 enum Tab {
@@ -48,6 +49,10 @@ class VmsettingsForm extends React.PureComponent<Props, State> { // eslint-disab
     }
   }
 
+  componentDidMount(): void {
+    this.props.update();
+
+  }
 
   toggle(tab) {
     console.log("Toggled tab", tab);

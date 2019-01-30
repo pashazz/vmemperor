@@ -17,7 +17,7 @@ import makeSelectVmsettings from './selectors';
 import reducer from './reducer';
 import messages from './messages';
 
-import { VmInfo } from "../../generated-models";
+import { VmInfo, VmInfoUpdate } from "../../generated-models";
 import VmsettingsForm from "../../components/VmsettingsForm";
 
 import {RouteComponentProps} from "react-router";
@@ -32,7 +32,7 @@ export class VmSettings extends React.PureComponent<RouteComponentProps<RouterPr
   {
     return (
       <VmInfo.Component variables={{uuid: this.props.match.params.uuid }}>
-        {({ data, error, loading }) => {
+        {({ data, error, loading, subscribeToMore }) => {
         if (error)
         {
           return (<div>
@@ -45,7 +45,21 @@ export class VmSettings extends React.PureComponent<RouteComponentProps<RouterPr
         }
 
         return (
-          <VmsettingsForm vm={data.vm}/>
+          <VmsettingsForm
+            vm={data.vm}
+            update={() =>
+              subscribeToMore({
+                document: VmInfoUpdate.Document,
+                variables: { uuid: this.props.match.params.uuid },
+                updateQuery: (prev, { subscriptionData }) =>
+                {
+                  return {
+                    vm: subscriptionData.data.vm.GVM
+                  }
+                }
+              })
+            }
+          />
         );
       }}</VmInfo.Component>
     );

@@ -288,6 +288,70 @@ export namespace VmInfo {
   };
 }
 
+export namespace VmInfoUpdate {
+  export type Variables = {
+    uuid: string;
+  };
+
+  export type Subscription = {
+    __typename?: "Subscription";
+
+    vm: Vm;
+  };
+
+  export type Vm = {
+    __typename?: "GVMSubscription";
+
+    GVM: Maybe<Gvm>;
+  };
+
+  export type Gvm = {
+    __typename?: "GVM";
+
+    uuid: string;
+
+    nameLabel: string;
+
+    nameDescription: string;
+
+    interfaces: Maybe<(Maybe<Interfaces>)[]>;
+
+    powerState: string;
+
+    osVersion: Maybe<OsVersion>;
+
+    startTime: DateTime;
+
+    domainType: string;
+  };
+
+  export type Interfaces = {
+    __typename?: "Interface";
+
+    network: Network;
+
+    ip: Maybe<string>;
+
+    ipv6: Maybe<string>;
+
+    id: string;
+  };
+
+  export type Network = {
+    __typename?: "GNetwork";
+
+    uuid: string;
+
+    nameLabel: string;
+  };
+
+  export type OsVersion = {
+    __typename?: "OSVersion";
+
+    name: Maybe<string>;
+  };
+}
+
 import * as ReactApollo from "react-apollo";
 import * as React from "react";
 
@@ -610,5 +674,66 @@ export namespace VmInfo {
       Document,
       operationOptions
     );
+  }
+}
+export namespace VmInfoUpdate {
+  export const Document = gql`
+    subscription VMInfoUpdate($uuid: ID!) {
+      vm(uuid: $uuid) {
+        GVM {
+          uuid
+          nameLabel
+          nameDescription
+          interfaces {
+            network {
+              uuid
+              nameLabel
+            }
+            ip
+            ipv6
+            id
+          }
+          powerState
+          osVersion {
+            name
+          }
+          startTime
+          domainType
+        }
+      }
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.SubscriptionProps<Subscription, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Subscription<Subscription, Variables>
+          subscription={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Subscription, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Subscription,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<
+      TProps,
+      Subscription,
+      Variables,
+      Props<TChildProps>
+    >(Document, operationOptions);
   }
 }
