@@ -53,8 +53,13 @@ export class VmSettings extends React.PureComponent<RouteComponentProps<RouterPr
                 variables: { uuid: this.props.match.params.uuid },
                 updateQuery: (prev, { subscriptionData }) =>
                 {
-                  return {
-                    vm: subscriptionData.data.vm
+                  if (subscriptionData.data.vm)
+                    return {
+                      vm: subscriptionData.data.vm
+                    }
+                  else {
+                    prev.vm.nameLabel += " (DELETED)";
+                    return prev;
                   }
                 }
               })
