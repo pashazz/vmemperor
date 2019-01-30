@@ -201,7 +201,11 @@ class XenObject(metaclass=XenObjectMeta):
             if index is None:
                 record = cls.db.table(cls.db_table_name).get(uuid).run()
             else:
-                record = cls.db.table(cls.db_table_name).get_all(uuid, index=index).coerce_to('array').run()[0]
+                record = cls.db.table(cls.db_table_name).get_all(uuid, index=index).coerce_to('array').run()
+                if not record or not len(record):
+                    return None
+                else:
+                    record = record[0]
 
             return cls.GraphQLType(**record)
 

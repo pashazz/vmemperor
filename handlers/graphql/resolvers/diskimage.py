@@ -9,9 +9,9 @@ def resolve_vdi(root, info, **args):
         return None
 
     if root.type == 'Disk':
-        return ISO.resolve_one(index='ref', field_name='VDI')(root, info)
-    elif root.type == 'CD':
         return VDI.resolve_one(index='ref', field_name='VDI')(root, info)
+    elif root.type == 'CD':
+        return ISO.resolve_one(index='ref', field_name='VDI')(root, info)
 
 def resolve_vdis(root, info, **args):
     '''
