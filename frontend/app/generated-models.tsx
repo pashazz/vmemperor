@@ -252,6 +252,8 @@ export namespace VmInfo {
 
     interfaces: Maybe<(Maybe<Interfaces>)[]>;
 
+    disks: Maybe<(Maybe<Disks>)[]>;
+
     powerState: string;
 
     osVersion: Maybe<OsVersion>;
@@ -277,6 +279,34 @@ export namespace VmInfo {
     __typename?: "GNetwork";
 
     uuid: string;
+
+    nameLabel: string;
+  };
+
+  export type Disks = {
+    __typename?: "BlockDevice";
+
+    id: string;
+
+    mode: string;
+
+    type: string;
+
+    device: string;
+
+    attached: boolean;
+
+    bootable: boolean;
+
+    VDI: Maybe<Vdi>;
+  };
+
+  export type Vdi = {
+    __typename?: "DiskImage";
+
+    uuid: string;
+
+    nameDescription: string;
 
     nameLabel: string;
   };
@@ -310,6 +340,8 @@ export namespace VmInfoUpdate {
 
     interfaces: Maybe<(Maybe<Interfaces>)[]>;
 
+    disks: Maybe<(Maybe<Disks>)[]>;
+
     powerState: string;
 
     osVersion: Maybe<OsVersion>;
@@ -335,6 +367,34 @@ export namespace VmInfoUpdate {
     __typename?: "GNetwork";
 
     uuid: string;
+
+    nameLabel: string;
+  };
+
+  export type Disks = {
+    __typename?: "BlockDevice";
+
+    id: string;
+
+    mode: string;
+
+    type: string;
+
+    device: string;
+
+    attached: boolean;
+
+    bootable: boolean;
+
+    VDI: Maybe<Vdi>;
+  };
+
+  export type Vdi = {
+    __typename?: "DiskImage";
+
+    uuid: string;
+
+    nameDescription: string;
 
     nameLabel: string;
   };
@@ -629,6 +689,19 @@ export namespace VmInfo {
           ipv6
           id
         }
+        disks {
+          id
+          mode
+          type
+          device
+          attached
+          bootable
+          VDI {
+            uuid
+            nameDescription
+            nameLabel
+          }
+        }
         powerState
         osVersion {
           name
@@ -685,6 +758,19 @@ export namespace VmInfoUpdate {
           ip
           ipv6
           id
+        }
+        disks {
+          id
+          mode
+          type
+          device
+          attached
+          bootable
+          VDI {
+            uuid
+            nameDescription
+            nameLabel
+          }
         }
         powerState
         osVersion {

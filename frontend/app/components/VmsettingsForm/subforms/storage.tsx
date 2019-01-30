@@ -15,11 +15,14 @@ import {sizeFormatter} from "../../../utils/formatters";
 import StorageAttach from "./storageAttach";
 import {detachvdi} from "../../../api/vdi";
 
-import ControlledTable, {selectors} from '../../../containers/ControlledTable';
+import ControlledTable, {ColumnType, selectors} from '../../../containers/ControlledTable';
 import {connect} from 'react-redux';
 import {compose} from 'redux';
 import {createStructuredSelector} from 'reselect';
 import {checkBoxFormatter} from "../../../utils/formatters";
+import {VmInfo} from "../../../generated-models";
+import Vm = VmInfo.Vm;
+
 
 
 const columns = [
@@ -59,9 +62,13 @@ const columns = [
 
 ];
 
-interface Props {
+interface InjectedProps {
   table_selection: string[],
+}
 
+interface Props extends InjectedProps
+{
+  vm : Vm
 }
 
 interface State {
@@ -90,7 +97,7 @@ class Storage extends PureComponent<Props, State> {
   {
     for (const ref of this.props.table_selection)
     {
-      const vdi = this.props.diskInfo.filter(row => {return  row.key === ref})[0]['VDI'];
+      const vdi = this.props.vm.disks.filter(row => {return  row.id === ref})[0].VDI.uuid;
       this.props.onDetachVdi(vdi);
     }
 

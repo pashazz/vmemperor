@@ -137,8 +137,8 @@ class VmsettingsForm extends React.PureComponent<Props, State> { // eslint-disab
           <TabPane tabId="storage">
             <Row>
               <Col sm="12">
-                {/*<Storage
-                  vm={vm}/> */}
+                {<Storage
+                  vm={vm}/>}
               </Col>
             </Row>
           </TabPane>

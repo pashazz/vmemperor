@@ -12,6 +12,20 @@ query VMInfo ($uuid: ID!) {
       ipv6
       id
     }
+    disks
+    {
+      id
+      mode
+      type
+      device
+      attached
+      bootable
+      VDI {
+        uuid
+        nameDescription
+        nameLabel
+      }
+    }
     powerState
     osVersion{
       name
@@ -34,6 +48,20 @@ subscription VMInfoUpdate($uuid: ID!) {
       ip
       ipv6
       id
+    }
+    disks
+    {
+      id
+      mode
+      type
+      device
+      attached
+      bootable
+      VDI {
+        uuid
+        nameDescription
+        nameLabel
+      }
     }
     powerState
     osVersion{
