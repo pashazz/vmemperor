@@ -37,7 +37,7 @@ from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
 import pickle
-from rethinkdb.errors import ReqlTimeoutError, ReqlCursorEmpty
+from rethinkdb.errors import ReqlTimeoutError, ReqlCursorEmpty, ReqlDriverError
 from authentication import BasicAuthenticator
 from loggable import Loggable
 from pathlib import Path
@@ -344,6 +344,10 @@ class VMList(BaseWSHandler):
                             return
                         else:
                             continue
+                    except ReqlDriverError as e:
+                        self.log.error("Error encountered: {e}, exiting")
+                        return
+
 
                     if not self.ws_connection or constants.need_exit.is_set():
                         return

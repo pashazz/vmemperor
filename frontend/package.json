@@ -237,6 +237,7 @@
     "express-request-proxy": "^2.2.0",
     "fontfaceobserver": "2.0.9",
     "graphql": "^14.0.2",
+    "graphql-voyager": "^1.0.0-rc.26",
     "history": "4.6.3",
     "hoist-non-react-statics": "2.1.1",
     "immutable": "3.8.1",

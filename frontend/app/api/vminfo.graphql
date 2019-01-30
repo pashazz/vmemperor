@@ -10,7 +10,7 @@ query VMInfo ($uuid: ID!) {
       }
       ip
       ipv6
-
+      id
     }
     powerState
     osVersion{

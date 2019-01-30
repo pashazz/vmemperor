@@ -13,6 +13,7 @@ const app = express();
 const path = require('path');
 const morgan = require('morgan');
 const fs = require('fs');
+const voyager = require('graphql-voyager/middleware');
 
 
 const requestProxy = require('http-proxy-middleware');
@@ -27,6 +28,7 @@ app.use(express.static(path.join(__dirname, '..',  'static')));
 
 // setup the logger
 app.use(morgan('combined', {stream: accessLogStream}));
+
 
 
 
@@ -45,6 +47,7 @@ const options = {
 const proxy = requestProxy(options);
 app.use('/api',proxy);
 
+app.use('/voyager', voyager.express({ endpointUrl : '/api/graphql'}));
 
 // In production we need to pass these values in instead of relying on webpack
 setup(app, {

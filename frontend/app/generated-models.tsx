@@ -269,6 +269,8 @@ export namespace VmInfo {
     ip: Maybe<string>;
 
     ipv6: Maybe<string>;
+
+    id: string;
   };
 
   export type Network = {
@@ -567,6 +569,7 @@ export namespace VmInfo {
           }
           ip
           ipv6
+          id
         }
         powerState
         osVersion {

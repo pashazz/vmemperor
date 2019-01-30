@@ -65,15 +65,35 @@ const MOUNT_NODE = document.getElementById('app');
 
 
 //Import apollo
-import ApolloClient, {gql, InMemoryCache} from "apollo-boost";
+import ApolloClient, {gql, InMemoryCache, defaultDataIdFromObject} from "apollo-boost";
 import { ApolloProvider } from "react-apollo";
+
 
 
 
 const client = new ApolloClient(
   {
     uri: "/api/graphql",
-    cache: new InMemoryCache(),
+    cache: new InMemoryCache(
+      {
+
+          dataIdFromObject: object => {
+            // @ts-ignore
+            if (object.uuid)
+            {
+              // @ts-ignore
+              return `${object.__typename}:${object.uuid}`
+            }
+            else if (object.__typename === 'Interface')
+            {
+              return null; //Interfaces do not have unique ID's, we'd rather link them with their VMs
+            }
+            else {
+              return defaultDataIdFromObject(object);
+            }
+          }
+      }
+    ),
   }
 );
 
