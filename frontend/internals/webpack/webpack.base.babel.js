@@ -2,8 +2,10 @@
  * COMMON WEBPACK CONFIGURATION
  */
 
+
 const path = require('path');
 const webpack = require('webpack');
+const getTransformer = require('ts-transform-graphql-tag').getTransformer;
 
 //const TsConfigPathsPlugin = require('awesome-typescript-loader').TsConfigPathsPlugin;
 //const CheckerPlugin = require('awesome-typescript-loader').CheckerPlugin;
@@ -35,7 +37,8 @@ module.exports = (options) => ({
         {
           loader: 'ts-loader',
           options: {
-            transpileOnly: true
+            transpileOnly: true,
+            getCustomTransformers: () => ({before: [getTransformer()]})
           }
         }
       ],
@@ -81,6 +84,11 @@ module.exports = (options) => ({
         include: /node_modules/,
         use: ['style-loader', 'css-loader'],
       },
+       {
+         test: /\.(graphql|gql)$/,
+         exclude: /node_modules/,
+         loader: 'graphql-tag/loader'
+       },
       {
         test: /\.(eot|svg|otf|ttf|woff|woff2)$/,
         use: 'file-loader',

@@ -42,7 +42,8 @@
     "test:clean": "rimraf ./coverage",
     "test": "cross-env NODE_ENV=test jest --coverage",
     "test:watch": "cross-env NODE_ENV=test jest --watchAll",
-    "coveralls": "cat ./coverage/lcov.info | coveralls"
+    "coveralls": "cat ./coverage/lcov.info | coveralls",
+    "gqlgen": "./node_modules/.bin/gql-gen"
   },
   "lint-staged": {
     "*.js": "lint:eslint"
@@ -51,7 +52,8 @@
   "babel": {
     "plugins": [
       "styled-components",
-      "es6-promise"
+      "es6-promise",
+      "import-graphql"
     ],
     "presets": [
       [
@@ -221,10 +223,11 @@
     "@fortawesome/fontawesome-free-solid": "^5.0.13",
     "@fortawesome/react-fontawesome": "0.0.20",
     "@novnc/novnc": "^1.0.0",
+    "@types/graphql": "^14.0.5",
     "@types/react-bootstrap-table": "^4.3.6",
     "@types/reactstrap": "^7.1.1",
     "apollo-cache-inmemory": "^1.4.2",
-    "apollo-client": "^2.4.12",
+    "apollo-client": "^2.5.0-alpha.10",
     "apollo-link": "^1.2.6",
     "apollo-link-error": "^1.1.5",
     "apollo-link-http": "^1.5.9",
@@ -243,6 +246,9 @@
     "express-request-proxy": "^2.2.0",
     "fontfaceobserver": "2.0.9",
     "graphql": "^14.0.2",
+    "graphql-codegen-typescript-graphql-files-modules": "^0.16.0",
+    "graphql-codegen-typescript-resolvers": "^0.16.0",
+    "graphql-tag": "^2.10.1",
     "graphql-voyager": "^1.0.0-rc.26",
     "history": "4.6.3",
     "hoist-non-react-statics": "2.1.1",
@@ -255,7 +261,7 @@
     "morgan": "^1.9.0",
     "prop-types": "15.5.10",
     "react": "^16.7.0",
-    "react-apollo": "^2.3.3",
+    "react-apollo": "^2.4.0-alpha.4",
     "react-autofill-innerref": "^1.2.0",
     "react-bootstrap-table-next": "^2.1.0",
     "react-bootstrap-table2-filter": "^1.1.2",
@@ -307,6 +313,7 @@
     "babel-loader": "7.1.0",
     "babel-plugin-dynamic-import-node": "^1.2.0",
     "babel-plugin-es6-promise": "^1.1.1",
+    "babel-plugin-import-graphql": "^2.6.2",
     "babel-plugin-react-intl": "2.3.1",
     "babel-plugin-react-transform": "2.0.2",
     "babel-plugin-styled-components": "1.1.4",
@@ -361,6 +368,7 @@
     "style-loader": "0.18.1",
     "ts-loader": "^5.3.0",
     "ts-node": "^7.0.1",
+    "ts-transform-graphql-tag": "^0.2.1",
     "typescript": "^3.1.6",
     "typescript-eslint-parser": "^21.0.2",
     "typings-for-css-modules-loader": "^1.7.0",

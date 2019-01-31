@@ -1,5 +1,5 @@
 overwrite: true
-schema: "http://localhost:8889/graphql"
+schema: ["http://localhost:8889/graphql", "app/localApi/schema.graphql"]
 documents: "./app/api/*.graphql"
 generates:
   ./app/generated-models.tsx:
@@ -7,3 +7,6 @@ generates:
       - "typescript-common"
       - "typescript-client"
       - "typescript-react-apollo"
+      - "typescript-resolvers"
+  ./app/__generated/modules.d.ts:
+     - "typescript-graphql-files-modules"

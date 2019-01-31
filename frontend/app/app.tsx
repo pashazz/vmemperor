@@ -15,7 +15,7 @@ import { Provider } from 'react-redux';
 import { ConnectedRouter } from 'react-router-redux';
 import createHistory from 'history/createBrowserHistory';
 import 'sanitize.css/sanitize.css';
-import 'bootstrap/dist/css/bootstrap.css';
+
 
 // Import root app
 import App from './containers/App';
@@ -44,7 +44,9 @@ import configureStore from './configureStore';
 import { translationMessages } from './i18n';
 
 // Import CSS reset and Global Styles
+import 'bootstrap/dist/css/bootstrap.min.css';
 import './global-styles';
+import 'bootstrap/dist/css/bootstrap.css';
 
 //Import application-level sagas (login flow)
 import appSaga from './containers/App/saga'
@@ -54,7 +56,7 @@ import 'react-redux-toastr/lib/css/react-redux-toastr.min.css'
 import ReduxToastr from 'react-redux-toastr';
 
 //import bootstrap
-import 'bootstrap/dist/css/bootstrap.min.css';
+
 
 
 // Create redux store with history
@@ -76,6 +78,10 @@ import { HttpLink } from 'apollo-link-http';
 import { WebSocketLink } from 'apollo-link-ws';
 import { getMainDefinition } from 'apollo-utilities';
 import {onError} from "apollo-link-error";
+import gql from "graphql-tag";
+
+// @ts-ignore
+import localSchema from './localApi/schema.graphql';
 
 function getCookie(name) {
   function escape(s) { return s.replace(/([.*+?\^${}()|\[\]\/\\])/g, '\\$1'); }
@@ -126,7 +132,7 @@ const client = new ApolloClient(
       if (networkError) console.log(`[Network error]: ${networkError}`);
     }),
         link]),
-
+    typeDefs: localSchema,
     cache: new InMemoryCache(
       {
 
@@ -147,8 +153,30 @@ const client = new ApolloClient(
           }
       }
     ),
+    /*typeDefs : localSchema,*/
+    resolvers: {
+      Mutation: {
+        selectVmTableItem: (_root, variables, context) => {
+          const query = gql`
+            query GetVmTableSelection {
+              vmTableSelection @client
+            }
+          `;
+          const previous = context.cache.readQuery({query});
+          const data = [...previous, variables.id];
+          context.cache.writeQuery({query, data});
+          return data;
+        },
+      },
+    }
   }
 );
+
+client.cache.writeData({
+  data: {
+    vmTableSelection : []
+  }
+});
 
 const render = (messages) => {
   ReactDOM.render(

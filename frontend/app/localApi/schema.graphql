@@ -1,0 +1,7 @@
+type Mutation {
+selectVmTableItem(id: ID!): [ID!]
+deselectVmTableItem(id: ID!): [ID!]
+}
+type Query {
+vmTableSelection: [ID!]
+}
