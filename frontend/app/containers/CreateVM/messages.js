@@ -6,8 +6,8 @@
 import { defineMessages } from 'react-intl';
 
 export default defineMessages({
-  header: {
-    id: 'app.containers.CreateVm.header',
-    defaultMessage: 'This is CreateVm container !',
+  create: {
+    id: 'app.containers.CreateVm.create',
+    defaultMessage: 'Create VM',
   },
 });
