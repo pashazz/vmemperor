@@ -47,10 +47,13 @@ class ReDBConnection(Loggable, metaclass=singleton.Singleton):
 
             def __exit__(myself, exc_type, exc_val, exc_tb):
                 # TODO handle if connection is closed
-                if not  myself.conn or not myself.conn.is_open():
-                    return
-                self.conn_queue.put_nowait(myself)
-                self.log.debug("Releasing connection into Queue: {0}".format(myself))
+                try:
+                    if not  myself.conn or not myself.conn.is_open():
+                        return
+                    self.conn_queue.put_nowait(myself)
+                    self.log.debug("Releasing connection into Queue: {0}".format(myself))
+                except Exception as e:
+                    self.log.error(f"Exception while releasing connection into Queue: {e}")
 
             def __repr__(myself):
                 return repr(self)
