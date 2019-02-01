@@ -1,7 +1,7 @@
-type Mutation {
-selectVmTableItem(id: ID!): [ID!]
-deselectVmTableItem(id: ID!): [ID!]
+extend type Mutation {
+selectVmTableItem(item: ID!, isSelect: Boolean! ): [ID!]
+selectVmTableItems(items: [ID!]!, isSelect: Boolean!): [ID!]
 }
-type Query {
-vmTableSelection: [ID!]
+extend type Query {
+  vmTableSelection: [ID!]
 }

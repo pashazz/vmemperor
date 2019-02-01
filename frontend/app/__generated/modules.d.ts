@@ -8,6 +8,18 @@ declare module "*/editVm.graphql" {
   export default defaultDocument;
 }
 
+declare module "*/vmsTable.graphql" {
+  import { DocumentNode } from "graphql";
+  const defaultDocument: DocumentNode;
+  const VmTableSelection: DocumentNode;
+  const VmTableSelect: DocumentNode;
+  const VmTableSelectAll: DocumentNode;
+
+  export { VmTableSelection, VmTableSelect, VmTableSelectAll };
+
+  export default defaultDocument;
+}
+
 declare module "*/playbookLaunch.graphql" {
   import { DocumentNode } from "graphql";
   const defaultDocument: DocumentNode;
@@ -65,6 +77,16 @@ declare module "*/vminfo.graphql" {
   const VMInfoUpdate: DocumentNode;
 
   export { VMInfo, VMInfoUpdate };
+
+  export default defaultDocument;
+}
+
+declare module "*/vms.graphql" {
+  import { DocumentNode } from "graphql";
+  const defaultDocument: DocumentNode;
+  const VMList: DocumentNode;
+
+  export { VMList };
 
   export default defaultDocument;
 }

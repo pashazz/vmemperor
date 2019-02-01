@@ -110,6 +110,42 @@ export namespace VmEditOptions {
   };
 }
 
+export namespace VmTableSelection {
+  export type Variables = {};
+
+  export type Query = {
+    __typename?: "Query";
+
+    vmTableSelection: Maybe<string[]>;
+  };
+}
+
+export namespace VmTableSelect {
+  export type Variables = {
+    item: string;
+    isSelect: boolean;
+  };
+
+  export type Mutation = {
+    __typename?: "Mutation";
+
+    selectVmTableItem: Maybe<string[]>;
+  };
+}
+
+export namespace VmTableSelectAll {
+  export type Variables = {
+    items: string[];
+    isSelect: boolean;
+  };
+
+  export type Mutation = {
+    __typename?: "Mutation";
+
+    selectVmTableItems: Maybe<string[]>;
+  };
+}
+
 export namespace PlaybookLaunch {
   export type Variables = {
     id: string;
@@ -406,6 +442,26 @@ export namespace VmInfoUpdate {
   };
 }
 
+export namespace VmList {
+  export type Variables = {};
+
+  export type Query = {
+    __typename?: "Query";
+
+    vms: (Maybe<Vms>)[];
+  };
+
+  export type Vms = {
+    __typename?: "GVM";
+
+    uuid: string;
+
+    nameLabel: string;
+
+    powerState: string;
+  };
+}
+
 import * as ReactApollo from "react-apollo";
 import * as React from "react";
 
@@ -421,6 +477,122 @@ export namespace VmEditOptions {
       vm(vm: $vm) {
         success
       }
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.MutationProps<Mutation, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Mutation<Mutation, Variables>
+          mutation={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.MutateProps<Mutation, Variables>
+  > &
+    TChildProps;
+  export type MutationFn = ReactApollo.MutationFn<Mutation, Variables>;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Mutation,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace VmTableSelection {
+  export const Document = gql`
+    query VmTableSelection {
+      vmTableSelection @client
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.QueryProps<Query, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Query<Query, Variables>
+          query={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Query, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Query,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace VmTableSelect {
+  export const Document = gql`
+    mutation VmTableSelect($item: ID!, $isSelect: Boolean!) {
+      selectVmTableItem(item: $item, isSelect: $isSelect) @client
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.MutationProps<Mutation, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Mutation<Mutation, Variables>
+          mutation={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.MutateProps<Mutation, Variables>
+  > &
+    TChildProps;
+  export type MutationFn = ReactApollo.MutationFn<Mutation, Variables>;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Mutation,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace VmTableSelectAll {
+  export const Document = gql`
+    mutation VmTableSelectAll($items: [ID!]!, $isSelect: Boolean!) {
+      selectVmTableItems(items: $items, isSelect: $isSelect) @client
     }
   `;
   export class Component extends React.Component<
@@ -815,6 +987,48 @@ export namespace VmInfoUpdate {
     >(Document, operationOptions);
   }
 }
+export namespace VmList {
+  export const Document = gql`
+    query VMList {
+      vms {
+        uuid
+        nameLabel
+        powerState
+      }
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.QueryProps<Query, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Query<Query, Variables>
+          query={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Query, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Query,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
 import {
   GraphQLResolveInfo,
   GraphQLScalarType,
@@ -870,7 +1084,7 @@ export type DirectiveResolverFn<TResult, TArgs = {}, TContext = {}> = (
   info: GraphQLResolveInfo
 ) => TResult | Promise<TResult>;
 
-export namespace QueryRootResolvers {
+export namespace QueryResolvers {
   export interface Resolvers<Context = {}, TypeParent = {}> {
     /** All VMs available to user */
     vms?: VmsResolver<(Maybe<Gvm>)[], TypeParent, Context>;
@@ -898,6 +1112,12 @@ export namespace QueryRootResolvers {
     playbooks?: PlaybooksResolver<(Maybe<GPlaybook>)[], TypeParent, Context>;
     /** Information about Ansible-powered playbook */
     playbook?: PlaybookResolver<GPlaybook, TypeParent, Context>;
+
+    vmTableSelection?: VmTableSelectionResolver<
+      Maybe<string[]>,
+      TypeParent,
+      Context
+    >;
   }
 
   export type VmsResolver<
@@ -992,6 +1212,12 @@ export namespace QueryRootResolvers {
   export interface PlaybookArgs {
     id?: Maybe<string>;
   }
+
+  export type VmTableSelectionResolver<
+    R = Maybe<string[]>,
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context>;
 }
 
 export namespace GvmResolvers {
@@ -1748,7 +1974,7 @@ export namespace PlaybookRequirementsResolvers {
   > = Resolver<R, Parent, Context>;
 }
 
-export namespace MutationRootResolvers {
+export namespace MutationResolvers {
   export interface Resolvers<Context = {}, TypeParent = {}> {
     /** Create a new VM */
     createVm?: CreateVmResolver<Maybe<CreateVm>, TypeParent, Context>;
@@ -1771,6 +1997,18 @@ export namespace MutationRootResolvers {
     /** Launch an Ansible Playbook on specified VMs */
     playbookLaunch?: PlaybookLaunchResolver<
       Maybe<PlaybookLaunchMutation>,
+      TypeParent,
+      Context
+    >;
+
+    selectVmTableItem?: SelectVmTableItemResolver<
+      Maybe<string[]>,
+      TypeParent,
+      Context
+    >;
+
+    selectVmTableItems?: SelectVmTableItemsResolver<
+      Maybe<string[]>,
       TypeParent,
       Context
     >;
@@ -1879,6 +2117,28 @@ export namespace MutationRootResolvers {
     /** VM UUIDs to run Playbook on. Ignored if this is a Playbook with provided Inventory */
     vms?: Maybe<(Maybe<string>)[]>;
   }
+
+  export type SelectVmTableItemResolver<
+    R = Maybe<string[]>,
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context, SelectVmTableItemArgs>;
+  export interface SelectVmTableItemArgs {
+    item: string;
+
+    isSelect: boolean;
+  }
+
+  export type SelectVmTableItemsResolver<
+    R = Maybe<string[]>,
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context, SelectVmTableItemsArgs>;
+  export interface SelectVmTableItemsArgs {
+    items: string[];
+
+    isSelect: boolean;
+  }
 }
 
 export namespace CreateVmResolvers {
@@ -1986,7 +2246,7 @@ export namespace PlaybookLaunchMutationResolvers {
   > = Resolver<R, Parent, Context>;
 }
 /** All subscriptions must return  Observable */
-export namespace SubscriptionRootResolvers {
+export namespace SubscriptionResolvers {
   export interface Resolvers<Context = {}, TypeParent = {}> {
     /** Updates for all VMs */
     vms?: VmsResolver<GvMsSubscription, TypeParent, Context>;
@@ -2221,56 +2481,6 @@ export namespace PlaybookTasksSubscriptionResolvers {
   > = Resolver<R, Parent, Context>;
 }
 
-export namespace MutationResolvers {
-  export interface Resolvers<Context = {}, TypeParent = Mutation> {
-    selectVmTableItem?: SelectVmTableItemResolver<
-      Maybe<string[]>,
-      TypeParent,
-      Context
-    >;
-
-    deselectVmTableItem?: DeselectVmTableItemResolver<
-      Maybe<string[]>,
-      TypeParent,
-      Context
-    >;
-  }
-
-  export type SelectVmTableItemResolver<
-    R = Maybe<string[]>,
-    Parent = Mutation,
-    Context = {}
-  > = Resolver<R, Parent, Context, SelectVmTableItemArgs>;
-  export interface SelectVmTableItemArgs {
-    id: string;
-  }
-
-  export type DeselectVmTableItemResolver<
-    R = Maybe<string[]>,
-    Parent = Mutation,
-    Context = {}
-  > = Resolver<R, Parent, Context, DeselectVmTableItemArgs>;
-  export interface DeselectVmTableItemArgs {
-    id: string;
-  }
-}
-
-export namespace QueryResolvers {
-  export interface Resolvers<Context = {}, TypeParent = Query> {
-    vmTableSelection?: VmTableSelectionResolver<
-      Maybe<string[]>,
-      TypeParent,
-      Context
-    >;
-  }
-
-  export type VmTableSelectionResolver<
-    R = Maybe<string[]>,
-    Parent = Query,
-    Context = {}
-  > = Resolver<R, Parent, Context>;
-}
-
 export namespace GAclXenObjectResolvers {
   export interface Resolvers {
     __resolveType: ResolveType;
@@ -2347,7 +2557,7 @@ export interface DateTimeScalarConfig
 }
 
 export interface IResolvers<Context = {}> {
-  QueryRoot?: QueryRootResolvers.Resolvers<Context>;
+  Query?: QueryResolvers.Resolvers<Context>;
   Gvm?: GvmResolvers.Resolvers<Context>;
   GAccessEntry?: GAccessEntryResolvers.Resolvers<Context>;
   Interface?: InterfaceResolvers.Resolvers<Context>;
@@ -2361,7 +2571,7 @@ export interface IResolvers<Context = {}> {
   GTemplate?: GTemplateResolvers.Resolvers<Context>;
   GPlaybook?: GPlaybookResolvers.Resolvers<Context>;
   PlaybookRequirements?: PlaybookRequirementsResolvers.Resolvers<Context>;
-  MutationRoot?: MutationRootResolvers.Resolvers<Context>;
+  Mutation?: MutationResolvers.Resolvers<Context>;
   CreateVm?: CreateVmResolvers.Resolvers<Context>;
   TemplateMutation?: TemplateMutationResolvers.Resolvers<Context>;
   VmMutation?: VmMutationResolvers.Resolvers<Context>;
@@ -2370,15 +2580,13 @@ export interface IResolvers<Context = {}> {
   VmRebootMutation?: VmRebootMutationResolvers.Resolvers<Context>;
   VmPauseMutation?: VmPauseMutationResolvers.Resolvers<Context>;
   PlaybookLaunchMutation?: PlaybookLaunchMutationResolvers.Resolvers<Context>;
-  SubscriptionRoot?: SubscriptionRootResolvers.Resolvers<Context>;
+  Subscription?: SubscriptionResolvers.Resolvers<Context>;
   GvMsSubscription?: GvMsSubscriptionResolvers.Resolvers<Context>;
   GTask?: GTaskResolvers.Resolvers<Context>;
   PlaybookTask?: PlaybookTaskResolvers.Resolvers<Context>;
   PlaybookTasksSubscription?: PlaybookTasksSubscriptionResolvers.Resolvers<
     Context
   >;
-  Mutation?: MutationResolvers.Resolvers<Context>;
-  Query?: QueryResolvers.Resolvers<Context>;
   GAclXenObject?: GAclXenObjectResolvers.Resolvers<Context>;
   DiskImage?: DiskImageResolvers.Resolvers<Context>;
   GXenObject?: GXenObjectResolvers.Resolvers<Context>;

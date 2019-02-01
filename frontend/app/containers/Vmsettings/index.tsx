@@ -33,6 +33,7 @@ export class VmSettings extends React.PureComponent<RouteComponentProps<RouterPr
     return (
       <VmInfo.Component variables={{uuid: this.props.match.params.uuid }}>
         {({ data, error, loading, subscribeToMore }) => {
+
         if (error)
         {
           return (<div>
@@ -56,7 +57,7 @@ export class VmSettings extends React.PureComponent<RouteComponentProps<RouterPr
                   if (subscriptionData.data.vm)
                     return {
                       vm: subscriptionData.data.vm
-                    }
+                    };
                   else {
                     prev.vm.nameLabel += " (DELETED)";
                     return prev;
@@ -86,7 +87,7 @@ function mapDispatchToProps(dispatch) {
 */
 //const withConnect = connect(mapStateToProps, mapDispatchToProps);
 
-const withReducer = injectReducer({ key: 'vmsettings', reducer });
+//const withReducer = injectReducer({ key: 'vmsettings', reducer });
 //const withSaga = injectSaga({ key: 'vmsettings', saga });
 
 export default compose(

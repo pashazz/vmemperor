@@ -67,7 +67,7 @@ const MOUNT_NODE = document.getElementById('app');
 
 
 //Import apollo
-import { ApolloClient } from 'apollo-client';
+import {ApolloClient, Resolvers} from 'apollo-client';
 import { InMemoryCache, defaultDataIdFromObject } from 'apollo-cache-inmemory';
 
 
@@ -82,6 +82,7 @@ import gql from "graphql-tag";
 
 // @ts-ignore
 import localSchema from './localApi/schema.graphql';
+import {resolvers} from "./localApi/resolvers";
 
 function getCookie(name) {
   function escape(s) { return s.replace(/([.*+?\^${}()|\[\]\/\\])/g, '\\$1'); }
@@ -132,7 +133,6 @@ const client = new ApolloClient(
       if (networkError) console.log(`[Network error]: ${networkError}`);
     }),
         link]),
-    typeDefs: localSchema,
     cache: new InMemoryCache(
       {
 
@@ -153,22 +153,8 @@ const client = new ApolloClient(
           }
       }
     ),
-    /*typeDefs : localSchema,*/
-    resolvers: {
-      Mutation: {
-        selectVmTableItem: (_root, variables, context) => {
-          const query = gql`
-            query GetVmTableSelection {
-              vmTableSelection @client
-            }
-          `;
-          const previous = context.cache.readQuery({query});
-          const data = [...previous, variables.id];
-          context.cache.writeQuery({query, data});
-          return data;
-        },
-      },
-    }
+    typeDefs : localSchema,
+    resolvers: resolvers,
   }
 );
 

@@ -1,0 +1,11 @@
+query VmTableSelection {
+  vmTableSelection @client
+}
+
+mutation VmTableSelect ($item: ID!, $isSelect: Boolean! ){
+  selectVmTableItem(item: $item, isSelect: $isSelect) @client
+}
+
+mutation VmTableSelectAll ($items: [ID!]!, $isSelect: Boolean! ){
+  selectVmTableItems(items: $items, isSelect: $isSelect) @client
+}

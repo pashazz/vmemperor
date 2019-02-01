@@ -23,7 +23,7 @@ from rethinkdb import RethinkDB
 from tornado.options import options as opts
 r = RethinkDB()
 
-class QueryRoot(ObjectType):
+class Query(ObjectType):
 
     vms = graphene.List(GVM, required=True, resolver=VM.resolve_all(), description="All VMs available to user")
     vm = graphene.Field(GVM, required=True, uuid=graphene.ID(), resolver=VM.resolve_one())
@@ -50,7 +50,7 @@ class QueryRoot(ObjectType):
                               description="Information about Ansible-powered playbook")
 
 
-class MutationRoot(ObjectType):
+class Mutation(ObjectType):
     create_VM = CreateVM.Field(description="Create a new VM")
     template = TemplateMutation.Field(description="Edit template options")
     vm = VMMutation.Field(description="Edit VM options")
@@ -61,7 +61,7 @@ class MutationRoot(ObjectType):
     playbook_launch = PlaybookLaunchMutation.Field(description="Launch an Ansible Playbook on specified VMs")
 
 
-class SubscriptionRoot(ObjectType):
+class Subscription(ObjectType):
     '''
     All subscriptions must return  Observable
     '''
@@ -97,4 +97,4 @@ class SubscriptionRoot(ObjectType):
 
 
 
-schema = Schema(query=QueryRoot, mutation=MutationRoot, types=[GISO, GVDI], subscription=SubscriptionRoot)
+schema = Schema(query=Query, mutation=Mutation, types=[GISO, GVDI], subscription=Subscription)

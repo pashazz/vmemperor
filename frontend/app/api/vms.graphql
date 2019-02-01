@@ -1,0 +1,7 @@
+query VMList {
+  vms {
+    uuid
+    nameLabel
+    powerState
+  }
+}
