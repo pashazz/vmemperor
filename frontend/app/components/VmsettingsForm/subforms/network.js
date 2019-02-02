@@ -19,7 +19,7 @@ import {
   UncontrolledAlert
 } from 'reactstrap';
 
-import ControlledTable, {selectors} from 'containers/ControlledTable';
+import ControlledTable, {selectors} from 'containers/StatefulTable';
 import NetworkAttach from './networkAttach';
 
 const columns = [

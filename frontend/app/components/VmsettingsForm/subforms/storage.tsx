@@ -15,7 +15,7 @@ import {sizeFormatter} from "../../../utils/formatters";
 import StorageAttach from "./storageAttach";
 import {detachvdi} from "../../../api/vdi";
 
-import ControlledTable, {ColumnType, selectors} from '../../../containers/ControlledTable';
+import StatefulTable, {ColumnType, selectors} from '../../../containers/StatefulTable';
 import {connect} from 'react-redux';
 import {compose} from 'redux';
 import {createStructuredSelector} from 'reselect';
@@ -156,7 +156,7 @@ class Storage extends PureComponent<Props, State> {
 
 
 
-    const DiskTable = ControlledTable("disks");
+    const DiskTable = StatefulTable("disks");
 
     return (
       <React.Fragment>

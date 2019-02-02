@@ -1,6 +1,6 @@
 /*
  *
- * Vms reducer
+ * VMList reducer
  *
  */
 

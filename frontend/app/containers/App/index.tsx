@@ -20,7 +20,7 @@ import HomePage from '../../containers/HomePage/Loadable';
 import NotFoundPage from '../../containers/NotFoundPage/Loadable';
 import Navbar from "../../components/Navbar";
 import PrivateRoute from '../../containers/PrivateRoute';
-import VMs from '../../containers/Vms/Loadable';
+import VMs from '../VMList/Loadable';
 import LoginPage from '../../containers/LoginPage/Loadable';
 import CreateVM from "../CreateVM";
 import Logout from '../../containers/Logout/Loadable';

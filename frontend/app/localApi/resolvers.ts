@@ -1,6 +1,6 @@
 import {IResolvers, Resolver} from "../generated-models";
 import {GetVmTableSelectionForSelectMutation} from "../api/local/vmsTable.graphql";
-import {SelectOneVariablesArgs,  SelectManyVariablesArgs} from "../containers/ControlledTable";
+import {SelectOneVariablesArgs,  SelectManyVariablesArgs} from "../containers/StatefulTable";
 
 /* This is workaround. See:  https://github.com/dotansimha/graphql-code-generator/issues/1133 */
 interface StringIndexSignatureInterface {

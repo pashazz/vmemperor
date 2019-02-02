@@ -1,6 +1,6 @@
 /*
  *
- * Vms constants
+ * VMList constants
  *
  */
 

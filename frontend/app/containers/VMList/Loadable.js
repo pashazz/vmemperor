@@ -1,6 +1,6 @@
 /**
  *
- * Asynchronously loads the component for Vms
+ * Asynchronously loads the component for VMList
  *
  */
 

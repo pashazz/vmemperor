@@ -1,9 +1,9 @@
 // import React from 'react';
 // import { shallow } from 'enzyme';
 
-// import { Vms } from '../index';
+// import { VMList } from '../index';
 
-describe('<Vms />', () => {
+describe('<VMList />', () => {
   it('Expect to have unit tests specified', () => {
     expect(true).toEqual(false);
   });
