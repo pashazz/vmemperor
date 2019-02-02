@@ -1,6 +1,6 @@
 /**
  *
- * Asynchronously loads the component for VMList
+ * Asynchronously loads the component for VMListForm
  *
  */
 

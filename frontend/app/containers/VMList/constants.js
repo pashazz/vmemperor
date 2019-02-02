@@ -1,6 +1,6 @@
 /*
  *
- * VMList constants
+ * VMListForm constants
  *
  */
 

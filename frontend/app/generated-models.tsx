@@ -61,6 +61,10 @@ export interface VmStartInput {
   force?: Maybe<boolean>;
 }
 
+export enum Table {
+  Vms = "VMS"
+}
+
 export enum ShutdownForce {
   Hard = "HARD",
   Clean = "CLEAN"
@@ -110,13 +114,25 @@ export namespace VmEditOptions {
   };
 }
 
+export namespace SelectedItemsQuery {
+  export type Variables = {
+    tableId: Table;
+  };
+
+  export type Query = {
+    __typename?: "Query";
+
+    selectedItems: string[];
+  };
+}
+
 export namespace VmTableSelection {
   export type Variables = {};
 
   export type Query = {
     __typename?: "Query";
 
-    vmTableSelection: Maybe<string[]>;
+    selectedItems: string[];
   };
 }
 
@@ -129,7 +145,7 @@ export namespace VmTableSelect {
   export type Mutation = {
     __typename?: "Mutation";
 
-    selectVmTableItem: Maybe<string[]>;
+    selectedItems: Maybe<string[]>;
   };
 }
 
@@ -142,7 +158,45 @@ export namespace VmTableSelectAll {
   export type Mutation = {
     __typename?: "Mutation";
 
-    selectVmTableItems: Maybe<string[]>;
+    selectedItems: Maybe<string[]>;
+  };
+}
+
+export namespace VmPowerState {
+  export type Variables = {};
+
+  export type Query = {
+    __typename?: "Query";
+
+    vms: (Maybe<Vms>)[];
+  };
+
+  export type Vms = {
+    __typename?: "GVM";
+
+    uuid: string;
+
+    powerState: string;
+  };
+}
+
+export namespace VmListButtonConfiguration {
+  export type Variables = {};
+
+  export type Query = {
+    __typename?: "Query";
+
+    vmListButtonConfiguration: VmListButtonConfiguration;
+  };
+
+  export type VmListButtonConfiguration = {
+    __typename?: "ButtonConfigurationVMList";
+
+    start: boolean;
+
+    stop: boolean;
+
+    trash: boolean;
   };
 }
 
@@ -512,10 +566,48 @@ export namespace VmEditOptions {
     );
   }
 }
+export namespace SelectedItemsQuery {
+  export const Document = gql`
+    query SelectedItemsQuery($tableId: Table!) {
+      selectedItems(tableId: $tableId) @client
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.QueryProps<Query, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Query<Query, Variables>
+          query={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Query, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Query,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
 export namespace VmTableSelection {
   export const Document = gql`
     query VmTableSelection {
-      vmTableSelection @client
+      selectedItems(tableId: VMS) @client
     }
   `;
   export class Component extends React.Component<
@@ -553,7 +645,7 @@ export namespace VmTableSelection {
 export namespace VmTableSelect {
   export const Document = gql`
     mutation VmTableSelect($item: ID!, $isSelect: Boolean!) {
-      selectVmTableItem(item: $item, isSelect: $isSelect) @client
+      selectedItems(tableId: VMS, items: [$item], isSelect: $isSelect) @client
     }
   `;
   export class Component extends React.Component<
@@ -592,7 +684,7 @@ export namespace VmTableSelect {
 export namespace VmTableSelectAll {
   export const Document = gql`
     mutation VmTableSelectAll($items: [ID!]!, $isSelect: Boolean!) {
-      selectVmTableItems(items: $items, isSelect: $isSelect) @client
+      selectedItems(tableId: VMS, items: $items, isSelect: $isSelect) @client
     }
   `;
   export class Component extends React.Component<
@@ -623,6 +715,89 @@ export namespace VmTableSelectAll {
       | undefined
   ) {
     return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace VmPowerState {
+  export const Document = gql`
+    query VmPowerState {
+      vms {
+        uuid
+        powerState
+      }
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.QueryProps<Query, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Query<Query, Variables>
+          query={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Query, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Query,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace VmListButtonConfiguration {
+  export const Document = gql`
+    query VmListButtonConfiguration {
+      vmListButtonConfiguration @client {
+        start
+        stop
+        trash
+      }
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.QueryProps<Query, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Query<Query, Variables>
+          query={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Query, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Query,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
       Document,
       operationOptions
     );
@@ -1113,8 +1288,10 @@ export namespace QueryResolvers {
     /** Information about Ansible-powered playbook */
     playbook?: PlaybookResolver<GPlaybook, TypeParent, Context>;
 
-    vmTableSelection?: VmTableSelectionResolver<
-      Maybe<string[]>,
+    selectedItems?: SelectedItemsResolver<string[], TypeParent, Context>;
+
+    vmListButtonConfiguration?: VmListButtonConfigurationResolver<
+      ButtonConfigurationVmList,
       TypeParent,
       Context
     >;
@@ -1213,8 +1390,17 @@ export namespace QueryResolvers {
     id?: Maybe<string>;
   }
 
-  export type VmTableSelectionResolver<
-    R = Maybe<string[]>,
+  export type SelectedItemsResolver<
+    R = string[],
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context, SelectedItemsArgs>;
+  export interface SelectedItemsArgs {
+    tableId: Table;
+  }
+
+  export type VmListButtonConfigurationResolver<
+    R = ButtonConfigurationVmList,
     Parent = {},
     Context = {}
   > = Resolver<R, Parent, Context>;
@@ -1974,6 +2160,35 @@ export namespace PlaybookRequirementsResolvers {
   > = Resolver<R, Parent, Context>;
 }
 
+export namespace ButtonConfigurationVmListResolvers {
+  export interface Resolvers<
+    Context = {},
+    TypeParent = ButtonConfigurationVmList
+  > {
+    start?: StartResolver<boolean, TypeParent, Context>;
+
+    stop?: StopResolver<boolean, TypeParent, Context>;
+
+    trash?: TrashResolver<boolean, TypeParent, Context>;
+  }
+
+  export type StartResolver<
+    R = boolean,
+    Parent = ButtonConfigurationVmList,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type StopResolver<
+    R = boolean,
+    Parent = ButtonConfigurationVmList,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type TrashResolver<
+    R = boolean,
+    Parent = ButtonConfigurationVmList,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+}
+
 export namespace MutationResolvers {
   export interface Resolvers<Context = {}, TypeParent = {}> {
     /** Create a new VM */
@@ -2001,17 +2216,7 @@ export namespace MutationResolvers {
       Context
     >;
 
-    selectVmTableItem?: SelectVmTableItemResolver<
-      Maybe<string[]>,
-      TypeParent,
-      Context
-    >;
-
-    selectVmTableItems?: SelectVmTableItemsResolver<
-      Maybe<string[]>,
-      TypeParent,
-      Context
-    >;
+    selectedItems?: SelectedItemsResolver<Maybe<string[]>, TypeParent, Context>;
   }
 
   export type CreateVmResolver<
@@ -2118,23 +2323,14 @@ export namespace MutationResolvers {
     vms?: Maybe<(Maybe<string>)[]>;
   }
 
-  export type SelectVmTableItemResolver<
+  export type SelectedItemsResolver<
     R = Maybe<string[]>,
     Parent = {},
     Context = {}
-  > = Resolver<R, Parent, Context, SelectVmTableItemArgs>;
-  export interface SelectVmTableItemArgs {
-    item: string;
+  > = Resolver<R, Parent, Context, SelectedItemsArgs>;
+  export interface SelectedItemsArgs {
+    tableId: Table;
 
-    isSelect: boolean;
-  }
-
-  export type SelectVmTableItemsResolver<
-    R = Maybe<string[]>,
-    Parent = {},
-    Context = {}
-  > = Resolver<R, Parent, Context, SelectVmTableItemsArgs>;
-  export interface SelectVmTableItemsArgs {
     items: string[];
 
     isSelect: boolean;
@@ -2571,6 +2767,9 @@ export interface IResolvers<Context = {}> {
   GTemplate?: GTemplateResolvers.Resolvers<Context>;
   GPlaybook?: GPlaybookResolvers.Resolvers<Context>;
   PlaybookRequirements?: PlaybookRequirementsResolvers.Resolvers<Context>;
+  ButtonConfigurationVmList?: ButtonConfigurationVmListResolvers.Resolvers<
+    Context
+  >;
   Mutation?: MutationResolvers.Resolvers<Context>;
   CreateVm?: CreateVmResolvers.Resolvers<Context>;
   TemplateMutation?: TemplateMutationResolvers.Resolvers<Context>;
@@ -2598,4 +2797,550 @@ export interface IDirectiveResolvers<Result> {
   skip?: SkipDirectiveResolver<Result>;
   include?: IncludeDirectiveResolver<Result>;
   deprecated?: DeprecatedDirectiveResolver<Result>;
+}
+
+// ====================================================
+// Scalars
+// ====================================================
+
+// ====================================================
+// Interfaces
+// ====================================================
+
+export interface GAclXenObject {
+  /** a human-readable name */
+  nameLabel: string;
+  /** a human-readable description */
+  nameDescription: string;
+  /** Unique constant identifier/object reference */
+  ref: string;
+  /** Unique session-dependent identifier/object reference */
+  uuid: string;
+
+  access: (Maybe<GAccessEntry>)[];
+}
+
+export interface DiskImage {
+  /** a human-readable name */
+  nameLabel: string;
+  /** a human-readable description */
+  nameDescription: string;
+  /** Unique constant identifier/object reference */
+  ref: string;
+  /** Unique session-dependent identifier/object reference */
+  uuid: string;
+
+  SR?: Maybe<Gsr>;
+
+  VMs?: Maybe<(Maybe<Gvm>)[]>;
+
+  virtualSize: number;
+}
+
+export interface GXenObject {
+  /** a human-readable name */
+  nameLabel: string;
+  /** a human-readable description */
+  nameDescription: string;
+  /** Unique constant identifier/object reference */
+  ref: string;
+  /** Unique session-dependent identifier/object reference */
+  uuid: string;
+}
+
+// ====================================================
+// Types
+// ====================================================
+
+export interface Query {
+  /** All VMs available to user */
+  vms: (Maybe<Gvm>)[];
+
+  vm: Gvm;
+  /** All Networks available to user */
+  networks: (Maybe<GNetwork>)[];
+  /** Information about a single network */
+  network: GNetwork;
+  /** All Storage repositories available to user */
+  srs: (Maybe<Gsr>)[];
+  /** Information about a single storage repository */
+  sr: Gsr;
+  /** All Virtual Disk Images (hard disks), available for user */
+  vdis: (Maybe<Gvdi>)[];
+  /** Information about a single virtual disk image (hard disk) */
+  vdi: Gvdi;
+  /** All ISO images available for user */
+  isos: (Maybe<Giso>)[];
+  /** Information about a single ISO image */
+  iso: Gvdi;
+  /** All templates */
+  templates: (Maybe<GTemplate>)[];
+  /** List of Ansible-powered playbooks */
+  playbooks: (Maybe<GPlaybook>)[];
+  /** Information about Ansible-powered playbook */
+  playbook: GPlaybook;
+
+  selectedItems: string[];
+
+  vmListButtonConfiguration: ButtonConfigurationVmList;
+}
+
+export interface Gvm extends GAclXenObject {
+  /** a human-readable name */
+  nameLabel: string;
+  /** a human-readable description */
+  nameDescription: string;
+  /** Unique constant identifier/object reference */
+  ref: string;
+  /** Unique session-dependent identifier/object reference */
+  uuid: string;
+
+  access: (Maybe<GAccessEntry>)[];
+  /** Network adapters connected to a VM */
+  interfaces?: Maybe<(Maybe<Interface>)[]>;
+  /** True if PV drivers are up to date, reported if Guest Additions are installed */
+  PVDriversUpToDate?: Maybe<boolean>;
+  /** PV drivers version, if available */
+  PVDriversVersion?: Maybe<PvDriversVersion>;
+
+  disks?: Maybe<(Maybe<BlockDevice>)[]>;
+
+  VCPUsAtStartup: number;
+
+  VCPUsMax: number;
+
+  domainType: string;
+
+  guestMetrics: string;
+
+  installTime: DateTime;
+
+  memoryActual: number;
+
+  memoryStaticMin: number;
+
+  memoryStaticMax: number;
+
+  memoryDynamicMin: number;
+
+  memoryDynamicMax: number;
+
+  metrics: string;
+
+  osVersion?: Maybe<OsVersion>;
+
+  powerState: string;
+
+  startTime: DateTime;
+}
+
+export interface GAccessEntry {
+  access: (Maybe<string>)[];
+
+  userid: string;
+}
+
+export interface Interface {
+  id: string;
+
+  MAC: string;
+
+  VIF: string;
+
+  ip?: Maybe<string>;
+
+  ipv6?: Maybe<string>;
+
+  network: GNetwork;
+
+  status?: Maybe<string>;
+
+  attached: boolean;
+}
+
+export interface GNetwork extends GAclXenObject {
+  /** a human-readable name */
+  nameLabel: string;
+  /** a human-readable description */
+  nameDescription: string;
+  /** Unique constant identifier/object reference */
+  ref: string;
+  /** Unique session-dependent identifier/object reference */
+  uuid: string;
+
+  access: (Maybe<GAccessEntry>)[];
+
+  VMs?: Maybe<(Maybe<Gvm>)[]>;
+
+  otherConfig?: Maybe<JsonString>;
+}
+
+/** Drivers version. We don't want any fancy resolver except for the thing that we know that it's a dict in VM document */
+export interface PvDriversVersion {
+  major?: Maybe<number>;
+
+  minor?: Maybe<number>;
+
+  micro?: Maybe<number>;
+
+  build?: Maybe<number>;
+}
+
+export interface BlockDevice {
+  id: string;
+
+  attached: boolean;
+
+  bootable: boolean;
+
+  device: string;
+
+  mode: string;
+
+  type: string;
+
+  VDI?: Maybe<DiskImage>;
+}
+
+export interface Gsr extends GXenObject {
+  /** a human-readable name */
+  nameLabel: string;
+  /** a human-readable description */
+  nameDescription: string;
+  /** Unique constant identifier/object reference */
+  ref: string;
+  /** Unique session-dependent identifier/object reference */
+  uuid: string;
+
+  PBDs?: Maybe<(Maybe<string>)[]>;
+
+  VDIs?: Maybe<(Maybe<DiskImage>)[]>;
+
+  contentType: string;
+}
+
+/** OS version reported by Xen tools */
+export interface OsVersion {
+  name?: Maybe<string>;
+
+  uname?: Maybe<string>;
+
+  distro?: Maybe<string>;
+
+  major?: Maybe<number>;
+
+  minor?: Maybe<number>;
+}
+
+export interface Gvdi extends GAclXenObject, DiskImage {
+  /** a human-readable name */
+  nameLabel: string;
+  /** a human-readable description */
+  nameDescription: string;
+  /** Unique constant identifier/object reference */
+  ref: string;
+  /** Unique session-dependent identifier/object reference */
+  uuid: string;
+
+  access: (Maybe<GAccessEntry>)[];
+
+  SR?: Maybe<Gsr>;
+
+  VMs?: Maybe<(Maybe<Gvm>)[]>;
+
+  virtualSize: number;
+}
+
+export interface Giso extends GAclXenObject, DiskImage {
+  /** a human-readable name */
+  nameLabel: string;
+  /** a human-readable description */
+  nameDescription: string;
+  /** Unique constant identifier/object reference */
+  ref: string;
+  /** Unique session-dependent identifier/object reference */
+  uuid: string;
+
+  access: (Maybe<GAccessEntry>)[];
+
+  SR?: Maybe<Gsr>;
+
+  VMs?: Maybe<(Maybe<Gvm>)[]>;
+
+  virtualSize: number;
+
+  location: string;
+}
+
+export interface GTemplate extends GAclXenObject {
+  /** a human-readable name */
+  nameLabel: string;
+  /** a human-readable description */
+  nameDescription: string;
+  /** Unique constant identifier/object reference */
+  ref: string;
+  /** Unique session-dependent identifier/object reference */
+  uuid: string;
+
+  access: (Maybe<GAccessEntry>)[];
+  /** If a template supports auto-installation, here a distro name is provided */
+  osKind?: Maybe<string>;
+  /** True if this template works with hardware assisted virtualization */
+  hvm: boolean;
+  /** True if this template is available for regular users */
+  enabled: boolean;
+}
+
+export interface GPlaybook {
+  /** Playbook ID */
+  id: string;
+  /** Inventory file path */
+  inventory?: Maybe<string>;
+  /** Requirements for running this playbook */
+  requires?: Maybe<PlaybookRequirements>;
+  /** Playbook name */
+  name: string;
+  /** Playbook description */
+  description?: Maybe<string>;
+  /** Variables available for change to an user */
+  variables?: Maybe<JsonString>;
+}
+
+export interface PlaybookRequirements {
+  /** Minimal supported OS versions */
+  osVersion: (Maybe<OsVersion>)[];
+}
+
+export interface ButtonConfigurationVmList {
+  start: boolean;
+
+  stop: boolean;
+
+  trash: boolean;
+}
+
+export interface Mutation {
+  /** Create a new VM */
+  createVm?: Maybe<CreateVm>;
+  /** Edit template options */
+  template?: Maybe<TemplateMutation>;
+  /** Edit VM options */
+  vm?: Maybe<VmMutation>;
+  /** Start VM */
+  vmStart?: Maybe<VmStartMutation>;
+  /** Shut down VM */
+  vmShutdown?: Maybe<VmShutdownMutation>;
+  /** Reboot VM */
+  vmReboot?: Maybe<VmRebootMutation>;
+  /** If VM is Running, pause VM. If Paused, unpause VM */
+  vmPause?: Maybe<VmPauseMutation>;
+  /** Launch an Ansible Playbook on specified VMs */
+  playbookLaunch?: Maybe<PlaybookLaunchMutation>;
+
+  selectedItems?: Maybe<string[]>;
+}
+
+export interface CreateVm {
+  /** Installation task ID */
+  taskId: string;
+}
+
+export interface TemplateMutation {
+  success: boolean;
+}
+
+/** This class represents synchronous mutations for VM, i.e. you can change name_label, name_description, etc. */
+export interface VmMutation {
+  success: boolean;
+}
+
+export interface VmStartMutation {
+  /** Start task ID */
+  taskId: string;
+}
+
+export interface VmShutdownMutation {
+  /** Shutdown task ID */
+  taskId: string;
+}
+
+export interface VmRebootMutation {
+  /** Reboot task ID */
+  taskId: string;
+}
+
+export interface VmPauseMutation {
+  /** Pause/unpause task ID */
+  taskId: string;
+}
+
+export interface PlaybookLaunchMutation {
+  /** Playbook execution task ID */
+  taskId: string;
+}
+
+/** All subscriptions must return  Observable */
+export interface Subscription {
+  /** Updates for all VMs */
+  vms: GvMsSubscription;
+  /** Updates for a particular VM */
+  vm?: Maybe<Gvm>;
+  /** Updates for a particular XenServer Task */
+  task?: Maybe<GTask>;
+  /** Updates for a particular Playbook installation Task */
+  playbookTask: PlaybookTask;
+  /** Updates for all Playbook Tasks */
+  playbookTasks: PlaybookTasksSubscription;
+}
+
+export interface GvMsSubscription {
+  /** Change type */
+  changeType: Change;
+
+  value: Gvm;
+}
+
+export interface GTask extends GAclXenObject {
+  /** a human-readable name */
+  nameLabel: string;
+  /** a human-readable description */
+  nameDescription: string;
+  /** Unique constant identifier/object reference */
+  ref: string;
+  /** Unique session-dependent identifier/object reference */
+  uuid: string;
+
+  access: (Maybe<GAccessEntry>)[];
+  /** Task creation time */
+  created: DateTime;
+  /** Task finish time */
+  finished: DateTime;
+  /** Task progress */
+  progress: number;
+  /** Task result if available */
+  result?: Maybe<string>;
+  /** Task result type */
+  type?: Maybe<string>;
+  /** ref of a host that runs this task */
+  residentOn?: Maybe<string>;
+  /** Error strings, if failed */
+  errorInfo?: Maybe<(Maybe<string>)[]>;
+  /** Task status */
+  status?: Maybe<string>;
+}
+
+export interface PlaybookTask {
+  /** Playbook task ID */
+  id: string;
+  /** Playbook ID */
+  playbookId: string;
+  /** Playbook running state */
+  state: PlaybookTaskState;
+  /** Human-readable message: error description or return code */
+  message: string;
+}
+
+export interface PlaybookTasksSubscription {
+  /** Change type */
+  changeType: Change;
+
+  value: PlaybookTask;
+}
+
+// ====================================================
+// Arguments
+// ====================================================
+
+export interface VmQueryArgs {
+  uuid?: Maybe<string>;
+}
+export interface NetworkQueryArgs {
+  uuid?: Maybe<string>;
+}
+export interface SrQueryArgs {
+  uuid?: Maybe<string>;
+}
+export interface VdiQueryArgs {
+  uuid?: Maybe<string>;
+}
+export interface IsoQueryArgs {
+  uuid?: Maybe<string>;
+}
+export interface PlaybookQueryArgs {
+  id?: Maybe<string>;
+}
+export interface SelectedItemsQueryArgs {
+  tableId: Table;
+}
+export interface CreateVmMutationArgs {
+  /** Number of created virtual CPUs */
+  VCPUs?: number;
+
+  disks?: Maybe<(Maybe<NewVdi>)[]>;
+  /** Automatic installation parameters, the installation is done via internet. Only available when template.os_kind is not empty */
+  installParams?: Maybe<AutoInstall>;
+  /** ISO image mounted if conf parameter is null */
+  iso?: Maybe<string>;
+  /** VM human-readable description */
+  nameDescription: string;
+  /** VM human-readable name */
+  nameLabel: string;
+  /** Network ID to connect to */
+  network?: Maybe<string>;
+  /** RAM size in megabytes */
+  ram: number;
+  /** Template ID */
+  template: string;
+}
+export interface TemplateMutationArgs {
+  /** Template to change */
+  template?: Maybe<TemplateInput>;
+}
+export interface VmMutationArgs {
+  /** VM to change */
+  vm: VmInput;
+}
+export interface VmStartMutationArgs {
+  options?: Maybe<VmStartInput>;
+
+  uuid: string;
+}
+export interface VmShutdownMutationArgs {
+  /** Force shutdown in a hard or clean way */
+  force?: Maybe<ShutdownForce>;
+
+  uuid: string;
+}
+export interface VmRebootMutationArgs {
+  /** Force reboot in a hard or clean way. Default: clean */
+  force?: Maybe<ShutdownForce>;
+
+  uuid: string;
+}
+export interface VmPauseMutationArgs {
+  uuid: string;
+}
+export interface PlaybookLaunchMutationArgs {
+  /** Playbook ID */
+  id: string;
+  /** JSON with key-value pairs representing Playbook variables changed by user */
+  variables?: Maybe<JsonString>;
+  /** VM UUIDs to run Playbook on. Ignored if this is a Playbook with provided Inventory */
+  vms?: Maybe<(Maybe<string>)[]>;
+}
+export interface SelectedItemsMutationArgs {
+  tableId: Table;
+
+  items: string[];
+
+  isSelect: boolean;
+}
+export interface VmSubscriptionArgs {
+  uuid?: Maybe<string>;
+}
+export interface TaskSubscriptionArgs {
+  uuid?: Maybe<string>;
+}
+export interface PlaybookTaskSubscriptionArgs {
+  id?: Maybe<string>;
 }

@@ -1,7 +1,17 @@
+enum Table {
+  VMS
+}
+
+type ButtonConfigurationVMList {
+  start: Boolean!
+  stop: Boolean!
+  trash: Boolean!
+}
+
 extend type Mutation {
-selectVmTableItem(item: ID!, isSelect: Boolean! ): [ID!]
-selectVmTableItems(items: [ID!]!, isSelect: Boolean!): [ID!]
+  selectedItems(tableId: Table!,items: [ID!]!, isSelect: Boolean!): [ID!]
 }
 extend type Query {
-  vmTableSelection: [ID!]
+  selectedItems(tableId: Table!): [ID!]!
+  vmListButtonConfiguration: ButtonConfigurationVMList!
 }

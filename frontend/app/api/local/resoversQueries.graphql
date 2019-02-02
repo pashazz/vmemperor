@@ -1,0 +1,3 @@
+query SelectedItemsQuery ($tableId : Table!){
+  selectedItems(tableId: $tableId) @client
+}

@@ -1,11 +1,26 @@
 query VmTableSelection {
-  vmTableSelection @client
+  selectedItems(tableId: VMS ) @client
 }
 
 mutation VmTableSelect ($item: ID!, $isSelect: Boolean! ){
-  selectVmTableItem(item: $item, isSelect: $isSelect) @client
+  selectedItems(tableId: VMS, items: [$item], isSelect: $isSelect) @client
 }
 
 mutation VmTableSelectAll ($items: [ID!]!, $isSelect: Boolean! ){
-  selectVmTableItems(items: $items, isSelect: $isSelect) @client
+  selectedItems(tableId: VMS, items: $items, isSelect: $isSelect) @client
+}
+
+query VmPowerState {
+  vms {
+    uuid
+    powerState
+  }
+}
+
+query VmListButtonConfiguration{
+  vmListButtonConfiguration @client {
+    start
+    stop
+    trash
+  }
 }

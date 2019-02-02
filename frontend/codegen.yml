@@ -8,5 +8,4 @@ generates:
       - "typescript-client"
       - "typescript-react-apollo"
       - "typescript-resolvers"
-  ./app/__generated/modules.d.ts:
-     - "typescript-graphql-files-modules"
+      - "typescript-server"

@@ -7,22 +7,17 @@
 
 // Needed for redux-saga es6 generator support
 import 'babel-polyfill';
-
 // Import all the third party stuff
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { Provider } from 'react-redux';
-import { ConnectedRouter } from 'react-router-redux';
+import {Provider} from 'react-redux';
+import {ConnectedRouter} from 'react-router-redux';
 import createHistory from 'history/createBrowserHistory';
 import 'sanitize.css/sanitize.css';
-
-
 // Import root app
 import App from './containers/App';
-
 // Import Language Provider
 import LanguageProvider from './containers/LanguageProvider';
-
 // Load the favicon, the manifest.json file and the .htaccess file
 /* eslint-disable import/no-unresolved, import/extensions */
 import '!file-loader?name=[name].[ext]!./images/favicon.ico';
@@ -36,24 +31,35 @@ import '!file-loader?name=[name].[ext]!./images/icon-384x384.png';
 import '!file-loader?name=[name].[ext]!./images/icon-512x512.png';
 import '!file-loader?name=[name].[ext]!./manifest.json';
 import 'file-loader?name=[name].[ext]!./.htaccess';
-/* eslint-enable import/no-unresolved, import/extensions */
-
 import configureStore from './configureStore';
-
 // Import i18n messages
-import { translationMessages } from './i18n';
-
+import {translationMessages} from './i18n';
 // Import CSS reset and Global Styles
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './global-styles';
 import 'bootstrap/dist/css/bootstrap.css';
-
 //Import application-level sagas (login flow)
 import appSaga from './containers/App/saga'
-
 //import toastr
 import 'react-redux-toastr/lib/css/react-redux-toastr.min.css'
 import ReduxToastr from 'react-redux-toastr';
+//Import apollo
+import {ApolloClient} from 'apollo-client';
+import {defaultDataIdFromObject, InMemoryCache} from 'apollo-cache-inmemory';
+
+
+import {ApolloProvider} from "react-apollo";
+
+import {ApolloLink, split} from 'apollo-link';
+import {HttpLink} from 'apollo-link-http';
+import {WebSocketLink} from 'apollo-link-ws';
+import {getMainDefinition} from 'apollo-utilities';
+import {onError} from "apollo-link-error";
+// @ts-ignore
+import localSchema from './localApi/schema.graphql';
+import {resolvers} from "./localApi/resolvers";
+import {SelectedItemsQuery, Table} from "./generated-models";
+/* eslint-enable import/no-unresolved, import/extensions */
 
 //import bootstrap
 
@@ -65,24 +71,6 @@ const history = createHistory();
 const store = configureStore(initialState, history);
 const MOUNT_NODE = document.getElementById('app');
 
-
-//Import apollo
-import {ApolloClient, Resolvers} from 'apollo-client';
-import { InMemoryCache, defaultDataIdFromObject } from 'apollo-cache-inmemory';
-
-
-import { ApolloProvider } from "react-apollo";
-
-import {ApolloLink, split} from 'apollo-link';
-import { HttpLink } from 'apollo-link-http';
-import { WebSocketLink } from 'apollo-link-ws';
-import { getMainDefinition } from 'apollo-utilities';
-import {onError} from "apollo-link-error";
-import gql from "graphql-tag";
-
-// @ts-ignore
-import localSchema from './localApi/schema.graphql';
-import {resolvers} from "./localApi/resolvers";
 
 function getCookie(name) {
   function escape(s) { return s.replace(/([.*+?\^${}()|\[\]\/\\])/g, '\\$1'); }
@@ -158,11 +146,18 @@ const client = new ApolloClient(
   }
 );
 
-client.cache.writeData({
-  data: {
-    vmTableSelection : []
-  }
-});
+const initializeCache = () =>
+{
+  //VMs table has empty selection
+  client.cache.writeQuery<SelectedItemsQuery.Query, SelectedItemsQuery.Variables>(
+    {
+    query: SelectedItemsQuery.Document,
+    variables: {tableId: Table.Vms},
+    data: { selectedItems : []}
+  });
+
+};
+initializeCache();
 
 const render = (messages) => {
   ReactDOM.render(

@@ -1,6 +1,6 @@
 /*
  *
- * VMList actions
+ * VMListForm actions
  * As for now, we only need 'uuid' and 'power_state' in 'row'
  * for vm_select, vm_deselect, vm_select_all, vm_deselect_all
  */

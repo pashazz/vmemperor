@@ -46,15 +46,10 @@ export type SelectManyVariablesArgs = {
   isSelect: boolean;
 }
 
-export type SelectionResponse = {
-  items: string[];
-}
 
+export type TableSelectOneMutation = React.ComponentType<Partial<MutationProps<any, SelectOneVariablesArgs>>>;
 
-
-export type TableSelectOneMutation = React.ComponentType<Partial<MutationProps<SelectionResponse, SelectOneVariablesArgs>>>;
-
-export type TableSelectManyMutation = React.ComponentType<Partial<MutationProps<SelectionResponse, SelectManyVariablesArgs>>>
+export type TableSelectManyMutation = React.ComponentType<Partial<MutationProps<any, SelectManyVariablesArgs>>>
 
 
 interface Props<T>{
@@ -62,7 +57,7 @@ interface Props<T>{
   data: T[]; //Data provided to table
   tableSelectOne: TableSelectOneMutation;
   tableSelectMany: TableSelectManyMutation;
-  tableSelection: KeyType[];
+  tableSelection: string[];
   columns: ColumnType<T>[];
   props: any;
   onDoubleClick: (key: string) => any;

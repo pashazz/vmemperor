@@ -1,6 +1,6 @@
 /*
  *
- * VMList reducer
+ * VMListForm reducer
  *
  */
 

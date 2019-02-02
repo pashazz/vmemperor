@@ -390,14 +390,14 @@ function socketToChannel(socket) {
 function* channelToListenerVmlist(channel)
 {
   /**
-   * this function listens for VMList messages and puts an action
+   * this function listens for VMListForm messages and puts an action
    */
 
     while (true) {
       const {message, error} = yield take(channel);
       if (error)
       {
-        console.error("Error while getting VMList", error);
+        console.error("Error while getting VMListForm", error);
 
       }
       try {
