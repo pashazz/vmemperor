@@ -119,9 +119,13 @@ const vmListButtonConfiguration :
       //@ts-ignore
     context.cache.readQuery({query: VmPowerState.Document});
 
-    const notHalted = powerStates.vms.filter(vm => vm.powerState !==)
+    //const notHalted = powerStates.vms.filter(vm => vm.powerState !==)
 
-
+    return {
+      start: false,
+      stop: false,
+      trash: false,
+    }
   };
 export const resolvers : LocalResolvers = {
   Mutation: {
