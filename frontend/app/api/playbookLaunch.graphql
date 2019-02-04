@@ -1,7 +1,0 @@
-mutation PlaybookLaunch ($id: ID!, $vms: [ID], $variables: JSONString ){
-  playbookLaunch
-  (id: $id, vms: $vms,
-    variables: $variables) {
-    taskId
-  }
-}

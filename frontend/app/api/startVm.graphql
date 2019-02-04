@@ -1,5 +1,0 @@
-mutation StartVM ($uuid : ID!) {
-  vmStart(uuid: $uuid) {
-    taskId
-  }
-}

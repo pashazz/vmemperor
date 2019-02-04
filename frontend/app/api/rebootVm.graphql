@@ -1,5 +1,0 @@
-mutation RebootVm ($uuid : ID!) {
-  vmReboot(uuid: $uuid) {
-    taskId
-  }
-}
