@@ -1,0 +1,5 @@
+mutation ShutdownVM ($uuid : ID!) {
+  vmShutdown(uuid: $uuid) {
+    taskId
+  }
+}

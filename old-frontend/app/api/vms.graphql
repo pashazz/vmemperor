@@ -1,0 +1,20 @@
+fragment VMListFragment on GVM {
+    uuid
+    nameLabel
+    powerState
+}
+
+query VMList {
+  vms {
+    ...VMListFragment
+  }
+}
+
+subscription VMListUpdate {
+  vms {
+    value {
+      ...VMListFragment
+    }
+    changeType
+  }
+}
