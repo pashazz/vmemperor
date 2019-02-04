@@ -263,6 +263,7 @@
     "prop-types": "15.5.10",
     "react": "^16.8.0-alpha.1",
     "react-apollo": "^2.5.0-beta.1",
+    "react-apollo-hooks": "^0.3.1",
     "react-autofill-innerref": "^1.2.0",
     "react-bootstrap-table-next": "^2.1.0",
     "react-bootstrap-table2-filter": "^1.1.2",
