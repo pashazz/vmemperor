@@ -81,8 +81,8 @@ export default function ({history}:  RouteComponentProps) {
 
   useSubscription<VmListUpdate.Subscription>(VmListUpdate.Document,
     {
-      onSubscriptionData ({client, subscriptionData : {data}}) {
-        const change = data.vms;
+      onSubscriptionData ({client, subscriptionData}) {
+        const change = subscriptionData.vms;
         switch (change.changeType) {
           case Change.Add:
           case Change.Change:
@@ -93,6 +93,7 @@ export default function ({history}:  RouteComponentProps) {
             });
             break;
           case Change.Remove:
+            console.log("Removal of value: ", change.value.uuid);
             const query = client.readQuery<VmList.Query>({
               query: VmList.Document
             });

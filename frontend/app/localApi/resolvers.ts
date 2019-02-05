@@ -12,7 +12,8 @@ import {
 import {ApolloCache} from 'apollo-cache';
 import VmListButtonConfigurationResolver = QueryResolvers.VmListButtonConfigurationResolver;
 import SelectedItemsResolver = MutationResolvers.SelectedItemsResolver;
-
+import {Set} from 'immutable';
+import SelectedItemsArgs = QueryResolvers.SelectedItemsArgs;
 /* This is workaround. See:  https://github.com/dotansimha/graphql-code-generator/issues/1133 */
 interface StringIndexSignatureInterface {
   [index: string]: any
@@ -86,24 +87,29 @@ const selectedItems : SelectedItemsResolver<string[], {}, Context> =
         }
       }
     );
-    let data: string[] = [];
-    if (!args.isSelect) {
-      data = previous.selectedItems.filter(item => args.items.includes(item));
-    } else {
-      data = previous.selectedItems;
-      for (const item of args.items) {
-        if (!data.includes(item)) {
-          data = [...data, item];
+
+    const getData = () : typeof previous => {
+      const dataSet = Set.of(...previous.selectedItems);
+      if (!args.isSelect) {
+        return {
+          selectedItems: dataSet.subtract(args.items).toArray()
         }
       }
-    }
+      else {
+        return {
+          selectedItems: dataSet.union(args.items).toArray()
+        }
+      }
+    };
 
+
+    const data = getData();
     context.cache.writeQuery<SelectedItemsQuery.Query, SelectedItemsQuery.Variables>({
       query: SelectedItemsQuery.Document,
       variables: {tableId: args.tableId},
-      data: { selectedItems : data}
+      data,
       });
-      return data;
+      return data.selectedItems;
   };
 
 
