@@ -1,32 +1,22 @@
-import Button from '@material-ui/core/Button'
-import TextField from '@material-ui/core/TextField'
-import { History } from 'history'
-import * as React from 'react'
-import { useState } from 'react'
-import { signIn } from '../../services/auth.service'
+import { History } from 'history';
+import * as React from 'react';
+import { useState } from 'react';
+import { signIn } from '../../services/auth.service';
+
+import { Formik, Field, Form, FormikActions } from 'formik';
+
+
+
 
 interface SignInFormProps {
   history: History
 }
 
+interface Values {
+  username: string;
+  password: string;
+}
 export default ({ history }: SignInFormProps) => {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-
-  const onUsernameChange = ({ target }) => {
-    setError('')
-    setUsername(target.value)
-  }
-
-  const onPasswordChange = ({ target }) => {
-    setError('')
-    setPassword(target.value)
-  }
-
-  const maySignIn = () => {
-    return !!(username && password)
-  }
 
   const handleSignIn = () => {
     signIn({ username, password })
@@ -42,7 +32,7 @@ export default ({ history }: SignInFormProps) => {
     history.push('/sign-up')
   }
 
-  return (
+  /*return (
     <div className="SignInForm Screen">
       <form>
         <legend>Sign in</legend>
@@ -80,5 +70,6 @@ export default ({ history }: SignInFormProps) => {
         </span>
       </form>
     </div>
-  )
+  ) */
+
 }

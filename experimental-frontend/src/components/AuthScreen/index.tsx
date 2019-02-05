@@ -5,7 +5,7 @@ import styled from 'styled-components'
 import AnimatedSwitch from '../AnimatedSwitch'
 import SignInForm from './SignInForm'
 import SignUpForm from './SignUpForm'
-
+/*
 const Style = styled.div`
   background: radial-gradient(rgb(34, 65, 67), rgb(17, 48, 50)),
     url(/assets/chat-background.jpg) no-repeat;
@@ -103,16 +103,13 @@ const Style = styled.div`
     }
   }
 `
-
+*/
 export default ({ history, location }: RouteComponentProps) => (
-  <Style className="AuthScreen Screen">
-    <div className="AuthScreen-intro">
-      <img src="assets/whatsapp-icon.png" className="AuthScreen-icon" />
-      <h2 className="AuthScreen-title">WhatsApp Clone</h2>
-    </div>
+  <React.Fragment>
     <AnimatedSwitch>
       <Route exact path="/sign-in" component={SignInForm} />
       <Route exact path="/sign-up" component={SignUpForm} />
     </AnimatedSwitch>
-  </Style>
+  </React.Fragment>
+
 )

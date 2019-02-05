@@ -1,11 +1,23 @@
 import React from 'react';
-import {useQuery2} from "../../hooks/subscription";
-import {Change, VmList, VmListUpdate, VmTableSelect, VmTableSelectAll, VmTableSelection} from '../../generated-models';
+import {useSubscription} from "../../hooks/subscription";
+import {
+  Change,
+  VmList,
+  VmListFragment,
+  VmListUpdate,
+  VmTableSelect,
+  VmTableSelectAll,
+  VmTableSelection
+} from '../../generated-models';
 import StatefulTable, {ColumnType} from "../StatefulTable";
 import {RouteComponentProps} from "react-router";
-import filterFactory, { textFilter } from 'react-bootstrap-table2-filter'
+import filterFactory, {textFilter} from 'react-bootstrap-table2-filter'
 import tableStyle from "./table.css";
 import {useQuery} from "react-apollo-hooks";
+import ButtonToolbar from "reactstrap/lib/ButtonToolbar";
+import {ButtonGroup} from "reactstrap";
+import {dataIdFromObject} from "../../../cacheUtils";
+import query from "apollo-cache-inmemory/lib/fragmentMatcherIntrospectionQuery";
 
 function nameFormatter(column, colIndex, {sortElement, filterElement })
 {
@@ -49,9 +61,9 @@ const columns : VmColumnType[] = [
 ];
 
 
-function  rowClasses(row, rowIndex)
+function  rowClasses(row: VmList.Vms, rowIndex)
 {
-  switch (row.power_state)
+  switch (row.powerState)
   {
     case 'Halted':
       return 'table-danger';
@@ -67,6 +79,37 @@ export default function ({history}:  RouteComponentProps) {
     data: { vms },
   } = useQuery<VmList.Query>(VmList.Document);
 
+  useSubscription<VmListUpdate.Subscription>(VmListUpdate.Document,
+    {
+      onSubscriptionData ({client, subscriptionData : {data}}) {
+        const change = data.vms;
+        switch (change.changeType) {
+          case Change.Add:
+          case Change.Change:
+            client.writeFragment<VmListFragment.Fragment>({
+              id: dataIdFromObject(change.value),
+              fragment: VmListFragment.FragmentDoc,
+              data: change.value
+            });
+            break;
+          case Change.Remove:
+            const query = client.readQuery<VmList.Query>({
+              query: VmList.Document
+            });
+            const newQuery: typeof query = {
+              ...query,
+              vms: query.vms.filter(vm => vm.uuid !== change.value.uuid)
+            };
+            client.writeQuery<VmList.Query>({
+              query: VmList.Document,
+              data: newQuery
+            });
+            break;
+          default:
+            break;
+        }
+      }
+    });
   /*useSubscribeToMore<VmListUpdate.Subscription>(VmListUpdate.Document, {
     updateQuery: (previousQueryResult, { subscriptionData}) => {
       console.log("Updating query! ", subscriptionData.data.vms);
@@ -99,14 +142,13 @@ export default function ({history}:  RouteComponentProps) {
       }
     }
 
-  });
+  }); */
 
-*/
   return(
     <React.Fragment>
-      {/*<ButtonToolbar>
+      <ButtonToolbar>
         <ButtonGroup size="lg">
-          <StartButton
+          {/*   <StartButton
             onClick={this.onTableRun}
             disabled={this.props.start_button_disabled}/>
 
@@ -118,7 +160,7 @@ export default function ({history}:  RouteComponentProps) {
         <ButtonGroup className="ml-auto">
           <RecycleBinButton
             onClick={this.onTableDelete}
-            disabled={this.props.trash_button_disabled}/>
+            disabled={this.props.trash_button_disabled}/> */}
         </ButtonGroup>
       </ButtonToolbar>
       <StatefulTable
@@ -139,7 +181,6 @@ export default function ({history}:  RouteComponentProps) {
                                 }
         }
       onDoubleClick={(row) => {console.log("double clicked on row!")}}/>
-      */}
     </React.Fragment>)
 
 

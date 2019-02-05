@@ -1,12 +1,11 @@
-schema: ../whatsapp-server-express/schema.ts
-documents:
-  - ./src/**/*.tsx
-  - ./src/**/*.ts
 overwrite: true
-require:
-  - ts-node/../../codegen-interpreter.ts
+schema: ["http://localhost:8889/graphql", "app/localApi/schema.graphql"]
+documents: "./app/api/**/*.graphql"
 generates:
-  ./src/graphql/types.ts:
+  ./app/generated-models.tsx:
     plugins:
-      - typescript-common
-      - typescript-client
+      - "typescript-common"
+      - "typescript-client"
+      - "typescript-react-apollo"
+      - "typescript-resolvers"
+      - "typescript-server"

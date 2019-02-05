@@ -64,6 +64,7 @@ import {SelectedItemsQuery, Table} from "./generated-models";
 //import bootstrap
 
 
+import {dataIdFromObject} from '../cacheUtils';
 
 // Create redux store with history
 const initialState = {};
@@ -124,21 +125,7 @@ const client = new ApolloClient(
     cache: new InMemoryCache(
       {
 
-          dataIdFromObject: object => {
-            // @ts-ignore
-            if (object.uuid)
-            {
-              // @ts-ignore
-              return `${object.__typename}:${object.uuid}`
-            }
-            else if (object.__typename === 'Interface')
-            {
-              return null; //Interfaces do not have unique ID's, we'd rather link them with their VMs
-            }
-            else {
-              return defaultDataIdFromObject(object);
-            }
-          }
+          dataIdFromObject: dataIdFromObject
       }
     ),
     typeDefs : localSchema,
