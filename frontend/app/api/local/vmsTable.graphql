@@ -19,10 +19,9 @@ query VmPowerState {
   }
 }
 
-query VmListButtonConfiguration{
-  vmListButtonConfiguration @client {
+query VMStateForButtonToolbar{
+  vmSelectedReadyFor @client {
     start
     stop
-    trash
   }
 }

@@ -4,7 +4,7 @@ import {
   Change,
   VmList,
   VmListFragment,
-  VmListUpdate,
+  VmListUpdate, VmSelectedReadyFor,
   VmTableSelect,
   VmTableSelectAll,
   VmTableSelection
@@ -18,6 +18,7 @@ import ButtonToolbar from "reactstrap/lib/ButtonToolbar";
 import {ButtonGroup} from "reactstrap";
 import {dataIdFromObject} from "../../../cacheUtils";
 import query from "apollo-cache-inmemory/lib/fragmentMatcherIntrospectionQuery";
+import VmSelectedReadyFor = VmSelectedReadyFor.VmSelectedReadyFor;
 
 function nameFormatter(column, colIndex, {sortElement, filterElement })
 {
@@ -111,45 +112,15 @@ export default function ({history}:  RouteComponentProps) {
         }
       }
     });
-  /*useSubscribeToMore<VmListUpdate.Subscription>(VmListUpdate.Document, {
-    updateQuery: (previousQueryResult, { subscriptionData}) => {
-      console.log("Updating query! ", subscriptionData.data.vms);
-      const change = subscriptionData.data.vms;
-      switch (change.changeType) {
-        case Change.Remove:
-              return {...previousQueryResult,
-              vms: previousQueryResult.vms.filter(vm => vm.uuid !== change.value.uuid)
-              };
 
-        case Change.Add:
-              return {...previousQueryResult,
-                vms: [...previousQueryResult.vms, change.value]
-              };
-        case Change.Change:
-              return {...previousQueryResult,
-              vms: previousQueryResult.vms.map(vm =>
-              {
-                if (vm.uuid === change.value.uuid)
-                {
-                  return change.value;
-                }
-                else
-                {
-                  return vm;
-                }
-              })};
-        default:
-          return previousQueryResult;
-      }
-    }
+  const d = useQuery<VmSelectedReadyFor.Query,
 
-  }); */
 
   return(
     <React.Fragment>
       <ButtonToolbar>
         <ButtonGroup size="lg">
-          {/*   <StartButton
+          <StartButton
             onClick={this.onTableRun}
             disabled={this.props.start_button_disabled}/>
 

@@ -95,6 +95,12 @@ class OSVersion(graphene.ObjectType):
     minor = graphene.Int()
 
 
+class PowerState(graphene.Enum):
+    Halted = 'Halted'
+    Paused = 'Paused'
+    Running = 'Running'
+    Suspended = 'Suspended'
+
 class GVM(GXenObjectType):
     class Meta:
         interfaces = (GAclXenObject,)
@@ -118,7 +124,7 @@ class GVM(GXenObjectType):
     memory_dynamic_max = graphene.Field(graphene.Int, required=True)
     metrics = graphene.Field(graphene.ID, required=True)
     os_version = graphene.Field(OSVersion)
-    power_state = graphene.Field(graphene.String, required=True)
+    power_state = graphene.Field(PowerState, required=True)
     start_time = graphene.Field(graphene.DateTime, required=True)
 
 class VM (AbstractVM):

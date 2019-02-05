@@ -61,6 +61,13 @@ export interface VmStartInput {
   force?: Maybe<boolean>;
 }
 
+export enum PowerState {
+  Halted = "Halted",
+  Paused = "Paused",
+  Running = "Running",
+  Suspended = "Suspended"
+}
+
 export enum Table {
   Vms = "VMS"
 }
@@ -176,27 +183,25 @@ export namespace VmPowerState {
 
     uuid: string;
 
-    powerState: string;
+    powerState: PowerState;
   };
 }
 
-export namespace VmListButtonConfiguration {
+export namespace VmSelectedReadyFor {
   export type Variables = {};
 
   export type Query = {
     __typename?: "Query";
 
-    vmListButtonConfiguration: VmListButtonConfiguration;
+    vmSelectedReadyFor: VmSelectedReadyFor;
   };
 
-  export type VmListButtonConfiguration = {
-    __typename?: "ButtonConfigurationVMList";
+  export type VmSelectedReadyFor = {
+    __typename?: "VMSelectedIDLists";
 
-    start: boolean;
+    start: string[];
 
-    stop: boolean;
-
-    trash: boolean;
+    stop: string[];
   };
 }
 
@@ -394,7 +399,7 @@ export namespace VmInfoFragment {
 
     disks: Maybe<(Maybe<Disks>)[]>;
 
-    powerState: string;
+    powerState: PowerState;
 
     osVersion: Maybe<OsVersion>;
 
@@ -466,7 +471,7 @@ export namespace VmListFragment {
 
     nameLabel: string;
 
-    powerState: string;
+    powerState: PowerState;
   };
 }
 
@@ -767,13 +772,12 @@ export namespace VmPowerState {
     );
   }
 }
-export namespace VmListButtonConfiguration {
+export namespace VmSelectedReadyFor {
   export const Document = gql`
-    query VmListButtonConfiguration {
-      vmListButtonConfiguration @client {
+    query VMSelectedReadyFor {
+      vmSelectedReadyFor @client {
         start
         stop
-        trash
       }
     }
   `;
@@ -1287,8 +1291,8 @@ export namespace QueryResolvers {
 
     selectedItems?: SelectedItemsResolver<string[], TypeParent, Context>;
 
-    vmListButtonConfiguration?: VmListButtonConfigurationResolver<
-      ButtonConfigurationVmList,
+    vmSelectedReadyFor?: VmSelectedReadyForResolver<
+      VmSelectedIdLists,
       TypeParent,
       Context
     >;
@@ -1396,8 +1400,8 @@ export namespace QueryResolvers {
     tableId: Table;
   }
 
-  export type VmListButtonConfigurationResolver<
-    R = ButtonConfigurationVmList,
+  export type VmSelectedReadyForResolver<
+    R = VmSelectedIdLists,
     Parent = {},
     Context = {}
   > = Resolver<R, Parent, Context>;
@@ -1460,7 +1464,7 @@ export namespace GvmResolvers {
 
     osVersion?: OsVersionResolver<Maybe<OsVersion>, TypeParent, Context>;
 
-    powerState?: PowerStateResolver<string, TypeParent, Context>;
+    powerState?: PowerStateResolver<PowerState, TypeParent, Context>;
 
     startTime?: StartTimeResolver<DateTime, TypeParent, Context>;
   }
@@ -1571,7 +1575,7 @@ export namespace GvmResolvers {
     Context = {}
   > = Resolver<R, Parent, Context>;
   export type PowerStateResolver<
-    R = string,
+    R = PowerState,
     Parent = Gvm,
     Context = {}
   > = Resolver<R, Parent, Context>;
@@ -2157,31 +2161,21 @@ export namespace PlaybookRequirementsResolvers {
   > = Resolver<R, Parent, Context>;
 }
 
-export namespace ButtonConfigurationVmListResolvers {
-  export interface Resolvers<
-    Context = {},
-    TypeParent = ButtonConfigurationVmList
-  > {
-    start?: StartResolver<boolean, TypeParent, Context>;
+export namespace VmSelectedIdListsResolvers {
+  export interface Resolvers<Context = {}, TypeParent = VmSelectedIdLists> {
+    start?: StartResolver<string[], TypeParent, Context>;
 
-    stop?: StopResolver<boolean, TypeParent, Context>;
-
-    trash?: TrashResolver<boolean, TypeParent, Context>;
+    stop?: StopResolver<string[], TypeParent, Context>;
   }
 
   export type StartResolver<
-    R = boolean,
-    Parent = ButtonConfigurationVmList,
+    R = string[],
+    Parent = VmSelectedIdLists,
     Context = {}
   > = Resolver<R, Parent, Context>;
   export type StopResolver<
-    R = boolean,
-    Parent = ButtonConfigurationVmList,
-    Context = {}
-  > = Resolver<R, Parent, Context>;
-  export type TrashResolver<
-    R = boolean,
-    Parent = ButtonConfigurationVmList,
+    R = string[],
+    Parent = VmSelectedIdLists,
     Context = {}
   > = Resolver<R, Parent, Context>;
 }
@@ -2764,9 +2758,7 @@ export interface IResolvers<Context = {}> {
   GTemplate?: GTemplateResolvers.Resolvers<Context>;
   GPlaybook?: GPlaybookResolvers.Resolvers<Context>;
   PlaybookRequirements?: PlaybookRequirementsResolvers.Resolvers<Context>;
-  ButtonConfigurationVmList?: ButtonConfigurationVmListResolvers.Resolvers<
-    Context
-  >;
+  VmSelectedIdLists?: VmSelectedIdListsResolvers.Resolvers<Context>;
   Mutation?: MutationResolvers.Resolvers<Context>;
   CreateVm?: CreateVmResolvers.Resolvers<Context>;
   TemplateMutation?: TemplateMutationResolvers.Resolvers<Context>;
@@ -2879,7 +2871,7 @@ export interface Query {
 
   selectedItems: string[];
 
-  vmListButtonConfiguration: ButtonConfigurationVmList;
+  vmSelectedReadyFor: VmSelectedIdLists;
 }
 
 export interface Gvm extends GAclXenObject {
@@ -2926,7 +2918,7 @@ export interface Gvm extends GAclXenObject {
 
   osVersion?: Maybe<OsVersion>;
 
-  powerState: string;
+  powerState: PowerState;
 
   startTime: DateTime;
 }
@@ -3108,12 +3100,10 @@ export interface PlaybookRequirements {
   osVersion: (Maybe<OsVersion>)[];
 }
 
-export interface ButtonConfigurationVmList {
-  start: boolean;
+export interface VmSelectedIdLists {
+  start: string[];
 
-  stop: boolean;
-
-  trash: boolean;
+  stop: string[];
 }
 
 export interface Mutation {

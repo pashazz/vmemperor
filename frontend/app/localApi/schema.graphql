@@ -2,10 +2,9 @@ enum Table {
   VMS
 }
 
-type ButtonConfigurationVMList {
-  start: Boolean!
-  stop: Boolean!
-  trash: Boolean!
+type VMSelectedIDLists {
+  start: [ID!]!
+  stop: [ID!]!
 }
 
 extend type Mutation {
@@ -13,5 +12,5 @@ extend type Mutation {
 }
 extend type Query {
   selectedItems(tableId: Table!): [ID!]!
-  vmListButtonConfiguration: ButtonConfigurationVMList!
+  vmSelectedReadyFor: VMSelectedIDLists!
 }
