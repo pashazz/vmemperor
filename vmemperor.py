@@ -1290,13 +1290,22 @@ class EventLoop(Loggable):
         self.log.debug(f"Started process_xen_events in thread {threading.get_ident()}")
         from XenAPI import Failure
 
-        self.authenticator.xen = XenAdapterPool().get()
-        xen = self.authenticator.xen
-        event_types = ["*"]
-        token_from = ''
-        timeout = 1.0
+        event_types = None
+        timeout = None
+        xen = None
+        token_from = None
+        def init_xen():
+            nonlocal  xen, event_types, token_from, timeout
+            self.authenticator.xen = XenAdapterPool().get()
+            xen = self.authenticator.xen
+            event_types = ["*"]
+            token_from = ''
+            timeout = 1.0
 
-        xen.api.event.register(event_types)
+            xen.api.event.register(event_types)
+            return
+
+        init_xen()
         conn = ReDBConnection().get_connection()
 
         def print_event(event):
@@ -1319,8 +1328,13 @@ class EventLoop(Loggable):
                     if constants.need_exit.is_set():
                         self.log.debug("Exiting process_xen_events")
                         return
+                    try:
+                        event_from_ret = xen.api.event_from(event_types, token_from, timeout)
+                    except Exception:
+                        self.log.error("Connection error,trying to reconnect")
+                        init_xen()
+                        continue
 
-                    event_from_ret = xen.api.event_from(event_types, token_from, timeout)
                     events = event_from_ret['events']
                     token_from = event_from_ret['token']
 

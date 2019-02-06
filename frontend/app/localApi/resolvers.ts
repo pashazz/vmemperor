@@ -10,7 +10,7 @@ import {
 } from "../generated-models";
 
 import {ApolloCache} from 'apollo-cache';
-import {Set} from 'immutable';
+import { Set } from 'immutable';
 import SelectedItemsResolver = MutationResolvers.SelectedItemsResolver;
 import VmSelectedReadyForResolver = QueryResolvers.VmSelectedReadyForResolver;
 
@@ -65,7 +65,7 @@ const selectedItems : SelectedItemsResolver<string[], {}, Context> =
 
 
 
-const vmSelectedReadyFor :
+const vmSelectedReadyFor : //This resolver is broken
   VmSelectedReadyForResolver<VmStateForButtonToolbar.VmSelectedReadyFor, {}, Context> =
   (parent1, args, context, info) => {
 
@@ -77,29 +77,17 @@ const vmSelectedReadyFor :
 
 
     const tableSelectionSet = Set.of(...tableSelection.selectedItems);
-    console.log("Called vmSelectedReadyFor. TableSelection: ", tableSelectionSet);
+
     const start = tableSelectionSet.subtract(powerStates.vms.filter(vm => vm.powerState == PowerState.Running).map(vm => vm.uuid)).toArray();
     const stop = tableSelectionSet.subtract(powerStates.vms.filter(vm => vm.powerState == PowerState.Halted).map(vm => vm.uuid)).toArray();
     const trash = tableSelectionSet.subtract(stop).toArray();
-    console.log("Result: ", start, stop, trash);
+
     const ret = {
       start: start.length == 0 ? null : start,
       stop : stop.length == 0 ? null : stop,
       trash : trash.length == 0 ? null : trash,
       __typename: "VMSelectedIDLists"
     };
-
-    context.cache.writeQuery<VmStateForButtonToolbar.Query>({
-      query: VmStateForButtonToolbar.Document,
-      data: {
-        vmSelectedReadyFor: {
-          start: null,
-          stop: null,
-          trash: null,
-          __typename: "VMSelectedIDLists",
-        }
-        }
-      });
 
     return ret;
   };

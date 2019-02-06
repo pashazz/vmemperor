@@ -64,7 +64,7 @@ import {SelectedItemsQuery, Table} from "./generated-models";
 //import bootstrap
 
 
-import {dataIdFromObject} from '../cacheUtils';
+import {dataIdFromObject} from './cacheUtils';
 
 // Create redux store with history
 const initialState = {};

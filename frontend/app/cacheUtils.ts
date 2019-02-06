@@ -15,3 +15,8 @@ export const  dataIdFromObject = (object) => {
     return defaultDataIdFromObject(object);
   }
 };
+
+export interface CacheWatcher<T> {
+  complete: boolean;
+  result: T;
+}

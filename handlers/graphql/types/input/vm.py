@@ -155,7 +155,7 @@ class VMDeleteMutation(graphene.Mutation):
     def mutate(root, info, uuid):
         ctx: ContextProtocol = info.context
         vm = VM(auth=ctx.user_authenticator, uuid=uuid)
-        if vm.get_power_state() != "Halted":
+        if vm.get_power_state() == "Halted":
             return VMDeleteMutation(taskId=vm.async_destroy())
         else:
             raise ValueError(f"Delete mutation requires powerState 'Halted'. Got: {vm.get_power_state()}")

@@ -1,4 +1,4 @@
-import React, {useEffect} from 'react';
+import React, {useEffect, useReducer} from 'react';
 import { FormattedMessage } from 'react-intl';
 import BootstrapTable from 'react-bootstrap-table-next';
 
@@ -63,6 +63,7 @@ interface Props<T>{
   props: any;
   onDoubleClick: (key: string) => any;
   refetchQueriesOnSelect?: ((result: ExecutionResult) => RefetchQueryDescription) | RefetchQueryDescription;
+  onSelect?: (key : string, isSelect : boolean) => any;
 }
 
 export default function StatefulTable<T> (
@@ -74,6 +75,7 @@ export default function StatefulTable<T> (
     columns,
     props,
     onDoubleClick,
+    onSelect : executeOnSelect,
     refetchQueriesOnSelect : refetchQueries}: Props<T>)
 {
   const  selectOne  = useMutation<SelectionResponse, SelectOneVariablesArgs>(
@@ -83,25 +85,38 @@ export default function StatefulTable<T> (
     tableSelectMany
   );
 
-  const onSelect = (row, isSelect) => {
-  selectOne({ variables:
+  const onSelectItem = (item, isSelect) =>
+  {
+      selectOne({ variables:
       {
         isSelect,
-        item: row[keyField],
+        item
       },
     refetchQueries
   });
 
+    executeOnSelect && executeOnSelect(item, isSelect);
+  };
+
+
+  const onSelect = (row, isSelect) => {
+    onSelectItem(row[keyField], isSelect);
 };
 
+
 const onSelectAll = (isSelect, rows) => {
+  const items = rows.map(row => row[keyField]);
   selectMany({
     variables: {
       isSelect,
-      items: rows.map(row => row[keyField])
+      items,
     },
-    refetchQueries,
+    refetchQueries
   });
+  for (const key of items)
+  {
+    executeOnSelect && executeOnSelect(key, isSelect);
+  }
 };
 
   const { data : { selectedItems } } = useQuery<SelectionResponse>(tableSelectionQuery);
@@ -113,14 +128,10 @@ const onSelectAll = (isSelect, rows) => {
     selectedItems
     // @ts-ignore
       .filter(key => !data.map(row => row[keyField]).includes(key))
-      .forEach((key) => selectOne({
-          variables:
-            {
-              isSelect: false,
-              item: key,
-            }
-        })
+      .forEach((key) =>
+        onSelectItem(key, false)
       );
+
   },
     data); //Run only when data is changed
 
