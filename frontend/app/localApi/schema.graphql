@@ -3,8 +3,9 @@ enum Table {
 }
 
 type VMSelectedIDLists {
-  start: [ID!]!
-  stop: [ID!]!
+  start: [ID]
+  stop: [ID]
+  trash: [ID]
 }
 
 extend type Mutation {

@@ -103,6 +103,24 @@ export type DateTime = any;
 // Documents
 // ====================================================
 
+export namespace DeleteVm {
+  export type Variables = {
+    uuid: string;
+  };
+
+  export type Mutation = {
+    __typename?: "Mutation";
+
+    vmDelete: Maybe<VmDelete>;
+  };
+
+  export type VmDelete = {
+    __typename?: "VMDeleteMutation";
+
+    taskId: string;
+  };
+}
+
 export namespace VmEditOptions {
   export type Variables = {
     vm: VmInput;
@@ -187,7 +205,7 @@ export namespace VmPowerState {
   };
 }
 
-export namespace VmSelectedReadyFor {
+export namespace VmStateForButtonToolbar {
   export type Variables = {};
 
   export type Query = {
@@ -199,9 +217,11 @@ export namespace VmSelectedReadyFor {
   export type VmSelectedReadyFor = {
     __typename?: "VMSelectedIDLists";
 
-    start: string[];
+    start: Maybe<(Maybe<string>)[]>;
 
-    stop: string[];
+    stop: Maybe<(Maybe<string>)[]>;
+
+    trash: Maybe<(Maybe<string>)[]>;
   };
 }
 
@@ -536,6 +556,47 @@ export namespace VmListFragment {
 // Components
 // ====================================================
 
+export namespace DeleteVm {
+  export const Document = gql`
+    mutation DeleteVM($uuid: ID!) {
+      vmDelete(uuid: $uuid) {
+        taskId
+      }
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.MutationProps<Mutation, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Mutation<Mutation, Variables>
+          mutation={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.MutateProps<Mutation, Variables>
+  > &
+    TChildProps;
+  export type MutationFn = ReactApollo.MutationFn<Mutation, Variables>;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Mutation,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
 export namespace VmEditOptions {
   export const Document = gql`
     mutation VMEditOptions($vm: VMInput!) {
@@ -772,12 +833,13 @@ export namespace VmPowerState {
     );
   }
 }
-export namespace VmSelectedReadyFor {
+export namespace VmStateForButtonToolbar {
   export const Document = gql`
-    query VMSelectedReadyFor {
+    query VMStateForButtonToolbar {
       vmSelectedReadyFor @client {
         start
         stop
+        trash
       }
     }
   `;
@@ -2163,18 +2225,25 @@ export namespace PlaybookRequirementsResolvers {
 
 export namespace VmSelectedIdListsResolvers {
   export interface Resolvers<Context = {}, TypeParent = VmSelectedIdLists> {
-    start?: StartResolver<string[], TypeParent, Context>;
+    start?: StartResolver<Maybe<(Maybe<string>)[]>, TypeParent, Context>;
 
-    stop?: StopResolver<string[], TypeParent, Context>;
+    stop?: StopResolver<Maybe<(Maybe<string>)[]>, TypeParent, Context>;
+
+    trash?: TrashResolver<Maybe<(Maybe<string>)[]>, TypeParent, Context>;
   }
 
   export type StartResolver<
-    R = string[],
+    R = Maybe<(Maybe<string>)[]>,
     Parent = VmSelectedIdLists,
     Context = {}
   > = Resolver<R, Parent, Context>;
   export type StopResolver<
-    R = string[],
+    R = Maybe<(Maybe<string>)[]>,
+    Parent = VmSelectedIdLists,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type TrashResolver<
+    R = Maybe<(Maybe<string>)[]>,
     Parent = VmSelectedIdLists,
     Context = {}
   > = Resolver<R, Parent, Context>;
@@ -2206,6 +2275,8 @@ export namespace MutationResolvers {
       TypeParent,
       Context
     >;
+    /** Delete a Halted VM */
+    vmDelete?: VmDeleteResolver<Maybe<VmDeleteMutation>, TypeParent, Context>;
 
     selectedItems?: SelectedItemsResolver<Maybe<string[]>, TypeParent, Context>;
   }
@@ -2312,6 +2383,15 @@ export namespace MutationResolvers {
     variables?: Maybe<JsonString>;
     /** VM UUIDs to run Playbook on. Ignored if this is a Playbook with provided Inventory */
     vms?: Maybe<(Maybe<string>)[]>;
+  }
+
+  export type VmDeleteResolver<
+    R = Maybe<VmDeleteMutation>,
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context, VmDeleteArgs>;
+  export interface VmDeleteArgs {
+    uuid: string;
   }
 
   export type SelectedItemsResolver<
@@ -2429,6 +2509,19 @@ export namespace PlaybookLaunchMutationResolvers {
   export type TaskIdResolver<
     R = string,
     Parent = PlaybookLaunchMutation,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+}
+
+export namespace VmDeleteMutationResolvers {
+  export interface Resolvers<Context = {}, TypeParent = VmDeleteMutation> {
+    /** Deleting task ID */
+    taskId?: TaskIdResolver<string, TypeParent, Context>;
+  }
+
+  export type TaskIdResolver<
+    R = string,
+    Parent = VmDeleteMutation,
     Context = {}
   > = Resolver<R, Parent, Context>;
 }
@@ -2768,6 +2861,7 @@ export interface IResolvers<Context = {}> {
   VmRebootMutation?: VmRebootMutationResolvers.Resolvers<Context>;
   VmPauseMutation?: VmPauseMutationResolvers.Resolvers<Context>;
   PlaybookLaunchMutation?: PlaybookLaunchMutationResolvers.Resolvers<Context>;
+  VmDeleteMutation?: VmDeleteMutationResolvers.Resolvers<Context>;
   Subscription?: SubscriptionResolvers.Resolvers<Context>;
   GvMsSubscription?: GvMsSubscriptionResolvers.Resolvers<Context>;
   GTask?: GTaskResolvers.Resolvers<Context>;
@@ -3101,9 +3195,11 @@ export interface PlaybookRequirements {
 }
 
 export interface VmSelectedIdLists {
-  start: string[];
+  start?: Maybe<(Maybe<string>)[]>;
 
-  stop: string[];
+  stop?: Maybe<(Maybe<string>)[]>;
+
+  trash?: Maybe<(Maybe<string>)[]>;
 }
 
 export interface Mutation {
@@ -3123,6 +3219,8 @@ export interface Mutation {
   vmPause?: Maybe<VmPauseMutation>;
   /** Launch an Ansible Playbook on specified VMs */
   playbookLaunch?: Maybe<PlaybookLaunchMutation>;
+  /** Delete a Halted VM */
+  vmDelete?: Maybe<VmDeleteMutation>;
 
   selectedItems?: Maybe<string[]>;
 }
@@ -3163,6 +3261,11 @@ export interface VmPauseMutation {
 
 export interface PlaybookLaunchMutation {
   /** Playbook execution task ID */
+  taskId: string;
+}
+
+export interface VmDeleteMutation {
+  /** Deleting task ID */
   taskId: string;
 }
 
@@ -3314,6 +3417,9 @@ export interface PlaybookLaunchMutationArgs {
   variables?: Maybe<JsonString>;
   /** VM UUIDs to run Playbook on. Ignored if this is a Playbook with provided Inventory */
   vms?: Maybe<(Maybe<string>)[]>;
+}
+export interface VmDeleteMutationArgs {
+  uuid: string;
 }
 export interface SelectedItemsMutationArgs {
   tableId: Table;

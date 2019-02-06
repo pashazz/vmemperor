@@ -4,21 +4,23 @@ import {
   Change,
   VmList,
   VmListFragment,
-  VmListUpdate, VmSelectedReadyFor,
+  VmListUpdate,
   VmTableSelect,
   VmTableSelectAll,
-  VmTableSelection
+  VmTableSelection,
+  ShutdownVm, VmStateForButtonToolbar, StartVm, DeleteVm
 } from '../../generated-models';
 import StatefulTable, {ColumnType} from "../StatefulTable";
 import {RouteComponentProps} from "react-router";
 import filterFactory, {textFilter} from 'react-bootstrap-table2-filter'
 import tableStyle from "./table.css";
-import {useQuery} from "react-apollo-hooks";
-import ButtonToolbar from "reactstrap/lib/ButtonToolbar";
-import {ButtonGroup} from "reactstrap";
+import {useMutation, useQuery} from "react-apollo-hooks";
+
+import {ButtonGroup, ButtonToolbar} from "reactstrap";
 import {dataIdFromObject} from "../../../cacheUtils";
-import query from "apollo-cache-inmemory/lib/fragmentMatcherIntrospectionQuery";
-import VmSelectedReadyFor = VmSelectedReadyFor.VmSelectedReadyFor;
+import StartButton from "../../components/StartButton";
+import StopButton from "../../components/StopButton";
+import RecycleBinButton from "../../components/RecycleBinButton";
 
 function nameFormatter(column, colIndex, {sortElement, filterElement })
 {
@@ -113,35 +115,94 @@ export default function ({history}:  RouteComponentProps) {
       }
     });
 
-  const d = useQuery<VmSelectedReadyFor.Query,
+
+  const { data : { vmSelectedReadyFor } }
+      = useQuery<VmStateForButtonToolbar.Query>(VmStateForButtonToolbar.Document);
+
+
+  const startVm = useMutation<StartVm.Mutation, StartVm.Variables>(
+    StartVm.Document);
+  const onStartVm =  ()  => {
+    console.log("Staring...", vmSelectedReadyFor.start);
+    for (const id of vmSelectedReadyFor.start) {
+      startVm({
+        variables: {
+          uuid: id
+        },
+        refetchQueries: [{query: VmStateForButtonToolbar.Document}]
+      });
+
+    }
+  }
+
+  const onStopVm = () => {
+
+    for (const id of vmSelectedReadyFor.stop) {
+      console.log("Stopping...",id);
+      const execute = useMutation<ShutdownVm.Mutation, ShutdownVm.Variables>(
+        ShutdownVm.Document,
+        {
+          variables: {
+            uuid: id
+          },
+          refetchQueries : [{ query: VmStateForButtonToolbar.Document }]
+        }
+      );
+      execute();
+    }
+  };
+
+  const onDeleteVm = () => {
+    for (const id of vmSelectedReadyFor.trash) {
+      const execute = useMutation<DeleteVm.Mutation, DeleteVm.Variables>(
+        DeleteVm.Document,
+        {
+          variables: {
+            uuid: id
+          },
+          refetchQueries : [{ query: VmStateForButtonToolbar.Document }]
+
+        }
+      );
+      execute();
+    }
+  };
 
 
   return(
     <React.Fragment>
-      <ButtonToolbar>
+       <ButtonToolbar>
         <ButtonGroup size="lg">
           <StartButton
-            onClick={this.onTableRun}
-            disabled={this.props.start_button_disabled}/>
+            onClick={onStartVm}
+            disabled={!vmSelectedReadyFor.start}/>
 
           <StopButton
-            onClick={this.onTableHalt}
-            disabled={this.props.stop_button_disabled}/>
+            onClick={onStopVm}
+            disabled={!vmSelectedReadyFor.stop}/>
 
         </ButtonGroup>
         <ButtonGroup className="ml-auto">
           <RecycleBinButton
-            onClick={this.onTableDelete}
-            disabled={this.props.trash_button_disabled}/> */}
+            onClick={onDeleteVm}
+            disabled={!vmSelectedReadyFor.trash}/>
         </ButtonGroup>
       </ButtonToolbar>
       <StatefulTable
         keyField="uuid"
+        refetchQueriesOnSelect={
+          [
+            {
+              query: VmStateForButtonToolbar.Document
+            }
+          ]
+        }
         data={vms}
         tableSelectOne={VmTableSelect.Document}
         tableSelectMany={VmTableSelectAll.Document}
         tableSelectionQuery={VmTableSelection.Document}
         columns={columns}
+
         props={
           {
             filter: filterFactory(),

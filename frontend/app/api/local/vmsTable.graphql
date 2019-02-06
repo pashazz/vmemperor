@@ -23,5 +23,6 @@ query VMStateForButtonToolbar{
   vmSelectedReadyFor @client {
     start
     stop
+    trash
   }
 }

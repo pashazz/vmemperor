@@ -14,7 +14,8 @@ import {
   MutationProps
 } from 'react-apollo';
 import {useMutation, useQuery} from "react-apollo-hooks";
-import {DocumentNode} from "graphql";
+import {DocumentNode, ExecutionResult} from "graphql";
+import {RefetchQueryDescription} from "apollo-client/core/watchQueryOptions";
 
 
 
@@ -61,6 +62,7 @@ interface Props<T>{
   columns: ColumnType<T>[];
   props: any;
   onDoubleClick: (key: string) => any;
+  refetchQueriesOnSelect?: ((result: ExecutionResult) => RefetchQueryDescription) | RefetchQueryDescription;
 }
 
 export default function StatefulTable<T> (
@@ -71,7 +73,8 @@ export default function StatefulTable<T> (
     data,
     columns,
     props,
-    onDoubleClick}: Props<T>)
+    onDoubleClick,
+    refetchQueriesOnSelect : refetchQueries}: Props<T>)
 {
   const  selectOne  = useMutation<SelectionResponse, SelectOneVariablesArgs>(
     tableSelectOne
@@ -85,7 +88,8 @@ export default function StatefulTable<T> (
       {
         isSelect,
         item: row[keyField],
-      }
+      },
+    refetchQueries
   });
 
 };
@@ -95,7 +99,8 @@ const onSelectAll = (isSelect, rows) => {
     variables: {
       isSelect,
       items: rows.map(row => row[keyField])
-    }
+    },
+    refetchQueries,
   });
 };
 
@@ -104,8 +109,9 @@ const onSelectAll = (isSelect, rows) => {
 
   useEffect( () => // Remove items that are no longer in data but selected
   {
-    // @ts-ignore
+
     selectedItems
+    // @ts-ignore
       .filter(key => !data.map(row => row[keyField]).includes(key))
       .forEach((key) => selectOne({
           variables:

@@ -143,3 +143,20 @@ class VMPauseMutation(graphene.Mutation):
         else:
             raise ValueError(f"Pause mutation requires powerState 'Running' or 'Paused'. Got: {vm.get_power_state()}")
 
+
+class VMDeleteMutation(graphene.Mutation):
+    taskId = graphene.ID(required=True, description="Deleting task ID")
+
+    class Arguments:
+        uuid = graphene.ID(required=True)
+
+    @staticmethod
+    @with_authentication(access_class=VM, access_action='delete')
+    def mutate(root, info, uuid):
+        ctx: ContextProtocol = info.context
+        vm = VM(auth=ctx.user_authenticator, uuid=uuid)
+        if vm.get_power_state() != "Halted":
+            return VMDeleteMutation(taskId=vm.async_destroy())
+        else:
+            raise ValueError(f"Delete mutation requires powerState 'Halted'. Got: {vm.get_power_state()}")
+

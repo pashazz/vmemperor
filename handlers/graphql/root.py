@@ -6,7 +6,7 @@ from handlers.graphql.resolvers.subscription_utils import MakeSubscription, reso
     MakeSubscriptionWithChangeType, resolve_all_items_changes
 from handlers.graphql.types.input.createvm import CreateVM
 from handlers.graphql.types.input.vm import VMMutation, VMStartMutation, VMShutdownMutation, VMRebootMutation, \
-    VMPauseMutation
+    VMPauseMutation, VMDeleteMutation
 from handlers.graphql.types.playbook import GPlaybook, resolve_playbooks, resolve_playbook
 from handlers.graphql.types.playbooklauncher import PlaybookLaunchMutation
 from handlers.graphql.types.tasks.playbook import PlaybookTask, PlaybookTaskList
@@ -59,6 +59,7 @@ class Mutation(ObjectType):
     vm_reboot = VMRebootMutation.Field(description="Reboot VM")
     vm_pause = VMPauseMutation.Field(description="If VM is Running, pause VM. If Paused, unpause VM")
     playbook_launch = PlaybookLaunchMutation.Field(description="Launch an Ansible Playbook on specified VMs")
+    vm_delete = VMDeleteMutation.Field(description="Delete a Halted VM")
 
 
 class Subscription(ObjectType):
