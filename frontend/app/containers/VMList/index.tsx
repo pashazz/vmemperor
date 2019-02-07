@@ -94,7 +94,7 @@ interface State {
 }
 
 interface Action {
-  type: "Add" | "Remove";
+  type: "Add" | "Change" |  "Remove";
   uuid: string;
 
 }
@@ -125,15 +125,17 @@ export default function ({history}:  RouteComponentProps) {
         __typename: "GVM",
       }),
     });
-    //console.log("Got associated info: ", info, "Action:", action.type);
-    //console.log("State:", state);
+    console.log("Got associated info: ", info, "Action:", action.type);
+    console.log("State:", state);
 
-    if (action.type === "Add" &&
-      state.wholeSelectionByPowerState.has(action.uuid) &&
-      state.wholeSelectionByPowerState[action.uuid] === info.powerState)
+    if (action.type === 'Add' && state.wholeSelectionByPowerState.has(action.uuid))
       return state;
 
     switch (action.type) {
+      case "Change":
+        if (!state.wholeSelectionByPowerState.has(action.uuid) ||
+          (state.wholeSelectionByPowerState[action.uuid] === info.powerState))
+          return state;
       case "Add":
         return {
           selectedForStart: info.powerState !== PowerState.Running
@@ -169,7 +171,7 @@ export default function ({history}:  RouteComponentProps) {
         switch (change.changeType) {
           case Change.Change: //Update our internal state
               dispatch({
-                type: "Add",
+                type: "Change",
                 uuid: change.value.uuid,
               });
             break;
