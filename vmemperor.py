@@ -24,7 +24,7 @@ from xenadapter.disk import ISO, VDI, VDIorISO
 from xenadapter.sr import SR
 from xenadapter.vbd import VBD
 from xenadapter.pool import Pool
-from xenadapter.host import Host
+from xenadapter.host import Host, HostMetrics
 from playbookloader import PlaybookLoader, PlaybookEncoder
 import traceback
 import tornado.web
@@ -1369,6 +1369,8 @@ class EventLoop(Loggable):
                             ev_class = Host
                         elif event['class'] == 'task':
                             ev_class = Task
+                        elif event['class'] == 'host_metrics':
+                            ev_class = HostMetrics
                         else:  # Implement ev_classes for all types of events
                             if log_this:
                                 self.log.debug(

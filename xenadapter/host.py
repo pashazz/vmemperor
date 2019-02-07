@@ -1,7 +1,9 @@
 import graphene
 from graphene.types.resolver import dict_resolver
 
+from rethinkdb_helper import CHECK_ER
 from xenadapter.vm import GVM
+from xenadapter.xenobjectdict import XenObjectDict
 from .xenobject import XenObject, GXenObject
 from handlers.graphql.types.gxenobjecttype import GXenObjectType, GSubtypeObjectType
 
@@ -111,6 +113,13 @@ class GHost(GXenObjectType):
     hostname = graphene.Field(graphene.String, required=True)
     software_version = graphene.Field(SoftwareVersion, required=True)
     resident_VMs = graphene.Field(graphene.List(GVM), required=True, description="VMs currently resident on host")
+    metrics = graphene.Field(graphene.ID, required=True)
+    memory_total = graphene.Field(graphene.Int, description="Total memory in kilobytes")
+    memory_free = graphene.Field(graphene.Int, description="Free memory in kilobytes")
+    memory_available = graphene.Field(graphene.Int, description="Available memory as measured by the host in kilobytes")
+    memory_overhead = graphene.Field(graphene.Int, description="Virtualization overhead in kilobytes")
+    live = graphene.Field(graphene.Boolean, description="True if host is up. May be null if no data")
+    live_updated = graphene.Field(graphene.DateTime, description="When live status was last updated")
 
 
 class Host(XenObject):
@@ -121,6 +130,43 @@ class Host(XenObject):
     GraphQLType = GHost
 
     @classmethod
+    def create_db(cls, db, indexes=None): #ignore indexes
+        super(Host, cls).create_db(db, indexes=['metrics'])
+
+class HostMetrics(XenObject):
+    api_class = "host_metrics"
+    EVENT_CLASSES = ["host_metrics"]
+
+    @classmethod
     def process_event(cls, auth, event, db, authenticator_name):
-        super().process_event(auth, event, db, authenticator_name)
+        if event['class'] in cls.EVENT_CLASSES:
+            if event['operation'] == 'del':
+                # handled by Host
+                return
+            record = XenObjectDict(**event['snapshot'])
+
+
+            if event['operation'] in ('mod', 'add'):
+                rec = db.table(Host.db_table_name).get_all(event['ref'], index='metrics').pluck('uuid').run().items
+                if len(rec) != 1:
+                    auth.xen.log.warning(
+                        f"HostMetrics::process_event: Cannot find a Host "
+                        f"(or there are more than one) for metrics {event['ref']}")
+                    return
+
+                host_uuid = rec[0]['uuid']
+                host = Host(auth=auth, uuid=host_uuid)
+                memory_available = int(host.compute_free_memory())
+                memory_overhead = int(host.compute_memory_overhead())
+                new_rec = {
+                    'uuid': host_uuid,
+                    'live': record['live'],
+                    'memory_total': int(record['memory_total']) / 1024, # This is kilobytes
+                    'memory_free': int(record['memory_free']) / 1024,
+                    'memory_available': memory_available / 1024,
+                    'live_updated':  record['last_updated'],
+                    'memory_overhead': memory_overhead / 1024,
+                }
+                CHECK_ER(db.table(Host.db_table_name).insert(new_rec, conflict='update').run())
+
 
