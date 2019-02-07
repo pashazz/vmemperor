@@ -59,7 +59,7 @@ class GNetwork(GXenObjectType):
     class Meta:
         interfaces = (GAclXenObject,)
 
-    VMs = graphene.List(vmType,resolver=resolve_vms)
+    VMs = graphene.List(vmType, resolver=resolve_vms)
     other_config = graphene.JSONString()
 
 class Network(ACLXenObject):

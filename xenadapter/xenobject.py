@@ -177,7 +177,7 @@ class XenObject(metaclass=XenObjectMeta):
         return resolver
 
     @classmethod
-    def resolve_many(cls,field_name=None, index=None):
+    def resolve_many(cls, field_name=None, index=None):
         '''
            Use this method to many one XenObject that appears in tables as their  uuids under its name
            :param cls: XenObject class

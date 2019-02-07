@@ -1,8 +1,7 @@
 import graphene
 from graphene.types.resolver import dict_resolver
-
+from handlers.graphql.resolvers.vm import vmType, resolve_vms
 from rethinkdb_helper import CHECK_ER
-from xenadapter.vm import GVM
 from xenadapter.xenobjectdict import XenObjectDict
 from .xenobject import XenObject, GXenObject
 from handlers.graphql.types.gxenobjecttype import GXenObjectType, GSubtypeObjectType
@@ -112,7 +111,8 @@ class GHost(GXenObjectType):
     display = graphene.Field(HostDisplay, required=True)
     hostname = graphene.Field(graphene.String, required=True)
     software_version = graphene.Field(SoftwareVersion, required=True)
-    resident_VMs = graphene.Field(graphene.List(GVM), required=True, description="VMs currently resident on host")
+    resident_VMs = graphene.Field(graphene.List(vmType), required=True, description="VMs currently resident on host",
+                                  resolver=lambda *args, **kwargs: resolve_vms(*args, field_name="resident_VMs", **kwargs))
     metrics = graphene.Field(graphene.ID, required=True)
     memory_total = graphene.Field(graphene.Int, description="Total memory in kilobytes")
     memory_free = graphene.Field(graphene.Int, description="Free memory in kilobytes")
