@@ -12,6 +12,7 @@ from handlers.graphql.types.playbooklauncher import PlaybookLaunchMutation
 from handlers.graphql.types.tasks.playbook import PlaybookTask, PlaybookTaskList
 from playbookloader import PlaybookLoader
 from xenadapter.disk import GISO, GVDI, ISO, VDI
+from xenadapter.host import Host, GHost
 from xenadapter.task import GTask
 from xenadapter.template import Template, GTemplate
 from xenadapter.sr import SR, GSR
@@ -27,6 +28,9 @@ class Query(ObjectType):
 
     vms = graphene.List(GVM, required=True, resolver=VM.resolve_all(), description="All VMs available to user")
     vm = graphene.Field(GVM, required=True, uuid=graphene.ID(), resolver=VM.resolve_one())
+
+    hosts = graphene.List(GHost, required=True, resolver=Host.resolve_all())
+    host = graphene.Field(GHost, required=True, uuid=graphene.ID(), resolver=Host.resolve_one())
 
     networks = graphene.List(GNetwork, required=True, resolver=Network.resolve_all(), description="All Networks available to user")
     network = graphene.Field(GNetwork, required=True, uuid=graphene.ID(), resolver=Network.resolve_one(), description="Information about a single network")

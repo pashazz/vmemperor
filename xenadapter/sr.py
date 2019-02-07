@@ -1,7 +1,9 @@
 import graphene
 
 from handlers.graphql.resolvers.diskimage import resolve_vdis, vdiType
-from xenadapter.xenobject import XenObject, GXenObjectType, GXenObject
+from xenadapter.xenobject import XenObject, GXenObject
+from handlers.graphql.types.gxenobjecttype import GXenObjectType
+
 
 class GSR(GXenObjectType):
     class Meta:

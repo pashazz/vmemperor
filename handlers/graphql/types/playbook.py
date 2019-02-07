@@ -3,7 +3,7 @@ from graphene.types.resolver import dict_resolver
 
 from authentication import with_authentication, with_default_authentication
 from handlers.graphql.resolvers import with_connection
-from handlers.graphql.types.dicttype import ObjectType
+from handlers.graphql.types.objecttype import ObjectType
 from playbookloader import PlaybookLoader
 from xenadapter.vm import OSVersion
 import rethinkdb

@@ -1,6 +1,6 @@
 import graphene
 
-from handlers.graphql.types.dicttype import ObjectType, GrapheneTaskList
+from handlers.graphql.types.objecttype import ObjectType, GrapheneTaskList
 
 
 class CreateVMTask(ObjectType):

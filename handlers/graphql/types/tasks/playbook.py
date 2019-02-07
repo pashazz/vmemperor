@@ -2,7 +2,7 @@ from enum import Enum
 
 import graphene
 
-from handlers.graphql.types.dicttype import ObjectType, GrapheneTaskList
+from handlers.graphql.types.objecttype import ObjectType, GrapheneTaskList
 
 class PlaybookTaskState(graphene.Enum):
     Preparing = 'preparing'

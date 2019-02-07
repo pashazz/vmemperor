@@ -1,7 +1,4 @@
-import graphene
-
 from handlers.graphql.resolvers.vm import resolve_vms, vmType
-from xenadapter.xenobject import GXenObjectType, GAclXenObject
 from .xenobject import *
 from xenadapter.helpers import use_logger
 

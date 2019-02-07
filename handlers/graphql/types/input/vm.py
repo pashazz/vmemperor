@@ -6,7 +6,7 @@ from authentication import with_authentication, with_default_authentication
 from handlers.graphql.graphql_handler import ContextProtocol
 from handlers.graphql.mutations.base import MutationMethod, MutationHelper
 from handlers.graphql.resolvers import with_connection
-from handlers.graphql.types.dicttype import InputObjectType
+from handlers.graphql.types.objecttype import InputObjectType
 from xenadapter.vm import VM
 
 class VMInput(InputObjectType):

@@ -8,14 +8,13 @@ from rethinkdb.errors import ReqlTimeoutError, ReqlDriverError
 from handlers.graphql.resolvers.interface import resolve_interfaces
 from handlers.graphql.types.blockdevice import BlockDevice
 
-from handlers.graphql.types.input.createvdi import NewVDI
 from handlers.graphql.types.interface import Interface
 from handlers.graphql.types.vm import resolve_disks
-from xenadapter.xenobject import GAclXenObject, GXenObjectType
+from xenadapter.xenobject import GAclXenObject
+from handlers.graphql.types.gxenobjecttype import GXenObjectType
 from xenadapter.abstractvm import AbstractVM
 from xenadapter.helpers import use_logger
 import XenAPI
-from authentication import BasicAuthenticator
 import provision
 from xenadapter.xenobjectdict import XenObjectDict
 from dataclasses import dataclass
@@ -23,9 +22,8 @@ from xenadapter.xenobject import XenObject
 
 from .osdetect import OSChooser
 from exc import *
-from enum import  Enum, auto
+from enum import auto
 
-from urllib.parse import urlencode
 
 @dataclass
 class SetDisksEntry:
@@ -194,7 +192,6 @@ class VM (AbstractVM):
         interfaces are filled in network.py
 
         '''
-        from xenadapter.network import VIF, Network
         new_rec = super().process_record(auth, ref, record)
         new_rec['interfaces'] = {}
         new_rec['disks'] = {}
@@ -481,7 +478,7 @@ class VM (AbstractVM):
     @use_logger
     def create_VBD(self, vdi : Optional[XenObject] = None, type : Optional[VBDType] = None, mode : Optional[VBDMode] = None, bootable : bool = True) -> XenObject:
         from xenadapter.vbd import VBD
-        from xenadapter.disk import VDI, ISO
+        from xenadapter.disk import ISO
         userdevice_max = -1
         if vdi:
             vdi_vbds = vdi.get_VBDs()
@@ -671,7 +668,6 @@ class VM (AbstractVM):
     @use_logger
     def destroy_vm(self):
         from .disk import VDI
-        from xenadapter.sr import SR
         from xenadapter.vbd import VBD
 
         self.start_stop_vm(False)

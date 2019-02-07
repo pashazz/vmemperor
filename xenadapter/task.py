@@ -1,5 +1,6 @@
 from xenadapter import XenAdapter
-from .xenobject import ACLXenObject, GXenObjectType, GAclXenObject
+from .xenobject import ACLXenObject, GAclXenObject
+from handlers.graphql.types.gxenobjecttype import GXenObjectType
 import graphene
 from tornado.options import options as opts
 

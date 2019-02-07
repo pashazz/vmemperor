@@ -1,6 +1,7 @@
 import graphene
 
-from xenadapter.xenobject import GXenObjectType, GAclXenObject
+from xenadapter.xenobject import GAclXenObject
+from handlers.graphql.types.gxenobjecttype import GXenObjectType
 from .abstractvm import AbstractVM
 from exc import *
 import XenAPI

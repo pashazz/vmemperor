@@ -14,7 +14,7 @@ from graphql.error import format_error as format_graphql_error
 from tornadoql.logging_middleware import GraphQLLog
 from tornadoql.middlewares import MIDDLEWARE
 
-
+from datetime import  datetime
 def error_status(exception):
     if isinstance(exception, web.HTTPError):
         return exception.status_code
@@ -86,7 +86,9 @@ class GQLHandler(web.RequestHandler):
                     import traceback
                     from tornado.options import options as opts
                     with open(opts.graphql_error_log_file, 'a') as file:
+                        file.write(f"Date: {datetime.now().isoformat()}\n")
                         traceback.print_exception(None, error.original_error, error.original_error.__traceback__, file=file)
+
                 elif isinstance(error, str):
                     app_log.error(error)
 

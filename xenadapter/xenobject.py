@@ -1,3 +1,5 @@
+import collections
+
 import XenAPI
 from xmlrpc.client import DateTime as xmldt
 from datetime import datetime
@@ -5,15 +7,13 @@ import pytz
 from exc import *
 from authentication import BasicAuthenticator, AdministratorAuthenticator, NotAuthenticatedException, \
     with_default_authentication
-from tornado.concurrent import run_on_executor
-import traceback
 from rethinkdb import RethinkDB
+
+from handlers.graphql.types.gxenobjecttype import GXenObjectType
+
 r = RethinkDB()
-from typing import List, Dict
-from handlers.graphql.resolvers.query_utils import resolve_one, resolve_many, resolve_all
-from handlers.graphql.types.dicttype import ObjectType
+from typing import Optional, Type
 from xenadapter.helpers import use_logger
-from .xenobjectdict import XenObjectDict
 import threading
 import graphene
 
@@ -65,41 +65,6 @@ class GXenObject(graphene.Interface):
     name_description = graphene.Field(graphene.String, required=True, description="a human-readable description")
     ref = graphene.Field(graphene.ID, required=True, description="Unique constant identifier/object reference")
     uuid = graphene.Field(graphene.ID, required=True, description="Unique session-dependent identifier/object reference")
-
-
-class GXenObjectType(ObjectType):
-    @classmethod
-    def get_type(cls, field_name: str):
-        type = cls._meta.fields[field_name].type
-        while True:
-            if isinstance(type, graphene.List):
-                class ListSerializer:
-                    def __init__(self):
-                        self.type = type.of_type
-                        while True:
-                            if not hasattr(self.type, 'of_type'):
-                                if hasattr(self.type, 'serialize'):
-                                    break
-                                else:
-                                    self.type = graphene.ID #complex type replaced by its id
-                            else:
-                                self.type = self.type.of_type
-
-                    def serialize(self, value):
-                        return [self.type.serialize(item) for item in value]
-
-                return ListSerializer()
-
-
-
-
-            if not hasattr(type, "of_type"):
-                if hasattr(type, 'serialize'):
-                    return type
-                else:
-                    return graphene.ID # Complex objects represented in DB by their refs, i.e. unique string IDs
-            else:
-                type = type.of_type
 
 
 class XenObject(metaclass=XenObjectMeta):
@@ -368,7 +333,9 @@ class XenObject(metaclass=XenObjectMeta):
         : default: return record as-is, adding a 'ref' field with current opaque ref
         '''
 
-        def get_real_value(k, v):
+        def get_real_value(k : str, v, current_type: Optional[Type[GXenObjectType]]):
+            if current_type and not issubclass(current_type, GXenObjectType):
+                raise ValueError(f"current_type should be a subclass of GXenObjectType. Got: {current_type}")
             if isinstance(v, xmldt):
                 try:  # XenAPI standard time format. Z means strictly UTC
                     time = datetime.strptime(v.value, "%Y%m%dT%H:%M:%SZ")
@@ -377,17 +344,26 @@ class XenObject(metaclass=XenObjectMeta):
 
                 time = time.replace(tzinfo=pytz.utc)
                 return time
+            elif isinstance(v, collections.abc.Mapping):
+                type_for_key = current_type.get_type(k) if current_type else None
+                if type_for_key and not issubclass(type_for_key, GXenObjectType):
+                    if hasattr(type_for_key, 'serialize'): # When we have a complex structure (Mapping) but Schema insists on plain type, e.g. JSONString or we substitute complex type with ID
+                        return type_for_key.serialize(v)
+                    else:
+                        raise ValueError(f"type_for_key should be a subclass of GXenObjectType or contain serialize method. Got: {type_for_key}")
+                return {key: get_real_value(key, value, type_for_key)
+                        for key, value in v.items() if not type_for_key or key in type_for_key._meta.fields}
             else:
-                if cls.GraphQLType:
-                    return cls.GraphQLType.get_type(k).serialize(v)
+                if current_type:
+                    return current_type.get_type(k).serialize(v)
                 else:
                     return v
 
         if cls.GraphQLType:
-            new_record = {k: get_real_value(k, v)
-                          for k, v in record.items() if k in cls.GraphQLType._meta.fields.keys()}
+            new_record = {k: get_real_value(k, v, cls.GraphQLType if cls.GraphQLType else None)
+                          for k, v in record.items() if k in cls.GraphQLType._meta.fields}
         else:
-            new_record = {k : get_real_value(k, v) for k,v in record.items()}
+            new_record = {k : get_real_value(k, v, None) for k,v in record.items()}
 
         new_record['ref'] = ref
 

@@ -1,10 +1,7 @@
-import graphene
-
 from handlers.graphql.resolvers.sr import resolve_sr, srType
 from handlers.graphql.resolvers.vm import resolve_vms, vmType
 from xenadapter.sr import SR
 from xenadapter.vbd import VBD
-from xenadapter.xenobject import GXenObject
 from .xenobject import *
 from xenadapter.helpers import use_logger
 from exc import *
