@@ -133,7 +133,7 @@ const onSelectAll = (isSelect, rows) => {
       );
 
   },
-    data); //Run only when data is changed
+    [data]); //Run only when data is changed
 
   const selectRow = {
     mode: 'checkbox',

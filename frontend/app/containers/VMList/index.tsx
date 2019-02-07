@@ -1,4 +1,4 @@
-import React, {Reducer, ReducerState, useEffect, useMemo, useReducer} from 'react';
+import React, {Reducer, ReducerState, useReducer} from 'react';
 import {useSubscription} from "../../hooks/subscription";
 import {
   Change,
@@ -9,7 +9,6 @@ import {
   VmList,
   VmListFragment,
   VmListUpdate,
-  VmPowerState,
   VmStateForButtonToolbar,
   VmTableSelect,
   VmTableSelectAll,
@@ -20,13 +19,12 @@ import {RouteComponentProps} from "react-router";
 import filterFactory, {textFilter} from 'react-bootstrap-table2-filter'
 import tableStyle from "./table.css";
 import {useApolloClient, useMutation, useQuery} from "react-apollo-hooks";
-import {Set, Map} from 'immutable';
+import {Map, Set} from 'immutable';
 import {ButtonGroup, ButtonToolbar} from "reactstrap";
-import {CacheWatcher, dataIdFromObject} from "../../cacheUtils";
+import {dataIdFromObject, handleAddOfValue, handleRemoveOfValueByUuid} from "../../cacheUtils";
 import StartButton from "../../components/StartButton";
 import StopButton from "../../components/StopButton";
 import RecycleBinButton from "../../components/RecycleBinButton";
-import {usePrevious} from "../../hooks/previous";
 
 function nameFormatter(column, colIndex, {sortElement, filterElement })
 {
@@ -169,6 +167,10 @@ export default function ({history}:  RouteComponentProps) {
         //Addition and changing are handled automatically, here we're handling removal
         const change = subscriptionData.vms;
         switch (change.changeType) {
+          //case Change.Initial:
+          case Change.Add:
+            handleAddOfValue(client, VmList.Document, 'vms', change.value);
+            break;
           case Change.Change: //Update our internal state
               dispatch({
                 type: "Change",
@@ -176,18 +178,7 @@ export default function ({history}:  RouteComponentProps) {
               });
             break;
           case Change.Remove:
-            console.log("Removal of value: ", change.value.uuid);
-            const query = client.readQuery<VmList.Query>({
-              query: VmList.Document
-            });
-            const newQuery: typeof query = {
-              ...query,
-              vms: query.vms.filter(vm => vm.uuid !== change.value.uuid)
-            };
-            client.writeQuery<VmList.Query>({
-              query: VmList.Document,
-              data: newQuery
-            });
+            handleRemoveOfValueByUuid(client, VmList.Document, 'vms', change.value);
             break;
           default:
             break;
