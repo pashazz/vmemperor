@@ -1,13 +1,22 @@
+import graphene
+
+from handlers.graphql.resolvers.sr import srType, resolve_sr
+from handlers.graphql.types.gxenobjecttype import GXenObjectType
+from handlers.graphql.resolvers.host import hostType, resolve_host
 from rethinkdb_helper import CHECK_ER
 from .xenobject import XenObject
 import json
 from json import JSONDecodeError
 
+class GPool(GXenObjectType):
+    master = graphene.Field(hostType, description="Pool master", resolver=resolve_host, required=True)
+    default_SR = graphene.Field(srType, description="Default SR", resolver=resolve_sr)
+
+
 class Pool (XenObject):
     db_table_name = 'pools'
     api_class = 'pool'
     EVENT_CLASSES = ['pool']
-    PROCESS_KEYS = ['name_label', 'name_description', 'uuid', 'master']
     quotas_table_name = 'quotas'
 
     @classmethod
@@ -17,7 +26,7 @@ class Pool (XenObject):
         The quotas table has the following document structure:
         {
         "userid": "users/1" (user id/ group id with user/group mark)
-        "storage": 9007199254740992 (How many storage bytes this user is allowed to have)
+        "storage": 9007199254740992 (How many storage kilobytes this user is allowed to have)
         }
         :param db:
         :param indexes:

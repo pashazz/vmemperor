@@ -29,7 +29,7 @@ class Attachable:
             for vdi_vbd in my_vbds:
                 if vm_vbd == vdi_vbd:
                     vbd_uuid = self.auth.xen.api.VBD.get_uuid(vm_vbd)
-                    self.log.warning (f"Disk is already attached with VBD UUID {vbd_uuid}")
+                    self.log.warning (f"Disk is already attached to {vm} using VBD '{vbd_uuid}'")
                     return vbd_uuid
             try:
                 userdevice = int(self.auth.xen.api.VBD.get_userdevice(vm_vbd))
@@ -106,6 +106,7 @@ class Attachable:
 
         return [vbd_to_vm_ref(ref) for ref in record['VBDs']]
 
+
 class DiskImage(GXenObject):
     SR = graphene.Field(srType, resolver=resolve_sr)
     VMs = graphene.List(vmType)
@@ -124,44 +125,24 @@ class ISO(XenObject, Attachable):
     api_class = 'VDI'
     db_table_name = 'isos'
     EVENT_CLASSES = ['vdi']
-    #PROCESS_KEYS = ['uuid', 'name_label', 'name_description', 'location', 'virtual_size', 'physical_utilization']
     GraphQLType = GISO
 
     from .vm import VM
 
     @classmethod
-    def filter_record(cls, record, return_SR_record=False):
+    def filter_record(cls, record):
         query = cls.db.table(SR.db_table_name).get_all(record['SR'], index='ref').run()
         if len(query.items) != 1:
-            raise XenAdapterAPIError("Unable to get SR for ISO {0}".format(record['uuid']),
-                                     "No such SR: {0}".format(record['SR']))
-        if return_SR_record:
-            return query.items[0]['content_type'] == 'iso', query.items[0]
-        else:
-            return query.items[0]['content_type'] == 'iso'
+            raise XenAdapterAPIError(f"Unable to get SR for ISO {record['uuid']}",
+                                     f"No such SR: {record['SR']}")
 
+        return query.items[0]['content_type'] == 'iso'
 
     @classmethod
-    def process_event(cls, auth, event, db, authenticator_name):
-        cls.create_db(db)
-
-        if event['class'] == 'vdi': #get SR
-            if event['operation'] in ('add', 'mod'):
-                record = event['snapshot']
-
-                filtered, SR = cls.filter_record(record, return_SR_record=True)
-                if not filtered:
-                    return
-
-                new_rec = cls.process_record(auth, event['ref'], record)
-                # We need SR information
-                new_rec['SR'] = SR['uuid']
-                new_rec['VMs'] = Attachable.get_vbd_vms(record, auth)
-
-                from rethinkdb_helper import CHECK_ER
-                CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
-
-
+    def process_record(cls, auth, ref, record):
+        record['VMs'] = cls.get_vbd_vms(auth=auth, record=record)
+        del record['VBDs']
+        return super().process_record(auth, ref, record)
 
     def attach(self, vm : VM) -> VBD:
         '''
@@ -220,35 +201,20 @@ class VDI(ACLXenObject, Attachable):
         return vdi_uuid
 
     @classmethod
-    def filter_record(cls, record, return_SR_record=False):
+    def filter_record(cls, record):
         query = cls.db.table(SR.db_table_name).get_all(record['SR'], index='ref').run()
         if len(query.items) != 1:
-            raise XenAdapterAPIError("Unable to get SR for ISO {0}".format(record['uuid']),
-                                     "No such SR: {0}".format(record['SR']))
-        if return_SR_record:
-            return query.items[0]['content_type'] != 'iso', query.items[0]
-        else:
-            return query.items[0]['content_type'] != 'iso'
+            raise XenAdapterAPIError(f"Unable to get SR for VDI {record['uuid']}",
+                                     f"No such SR: {record['SR']}")
+
+        return query.items[0]['content_type'] != 'iso'
 
     @classmethod
-    def process_event(cls, auth, event, db, authenticator_name):
+    def process_record(cls, auth, ref, record):
+        record['VMs'] = cls.get_vbd_vms(auth=auth, record=record)
+        del record['VBDs']
+        return super().process_record(auth, ref, record)
 
-        if event['class'] == 'vdi':
-            cls.create_db(db)
-            if event['operation'] in ('add', 'mod'):
-                record = event['snapshot']
-
-                filtered, SR = cls.filter_record(record, return_SR_record=True)
-                if not filtered:
-                    return
-
-                # get access information
-                new_rec = cls.process_record(auth, event['ref'], record)
-                new_rec['SR'] = SR['uuid']
-                new_rec['VMs'] = Attachable.get_vbd_vms(record, auth)
-
-                from rethinkdb_helper import CHECK_ER
-                CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
 
 
     def destroy(self):

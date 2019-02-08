@@ -73,6 +73,9 @@ class Subscription(ObjectType):
     vms = graphene.Field(MakeSubscriptionWithChangeType(GVM), required=True, description="Updates for all VMs")
     vm = graphene.Field(MakeSubscription(GVM), uuid=graphene.ID(), description="Updates for a particular VM")
 
+    hosts = graphene.Field(MakeSubscriptionWithChangeType(GHost), required=True, description="Updates for all Hosts")
+    host = graphene.Field(MakeSubscription(GHost), uuid=graphene.ID(), description="Updates for a particular Host")
+
     task = graphene.Field(MakeSubscription(GTask),  uuid=graphene.ID(), description="Updates for a particular XenServer Task")
 
     playbook_task = graphene.Field(MakeSubscription(PlaybookTask), required=True, id=graphene.ID(), description="Updates for a particular Playbook installation Task")
