@@ -1,14 +1,37 @@
 import graphene
 
 from handlers.graphql.resolvers.diskimage import resolve_vdis, vdiType
+from xenadapter.pbd import GPBD, PBD
 from xenadapter.xenobject import XenObject, GXenObject
 from handlers.graphql.types.gxenobjecttype import GXenObjectType
+class SRType(graphene.Enum):
+    '''
+    For more information on SR types, check out:
+    https://docs.citrix.com/en-us/xenserver/current-release/storage/format.html
+
+    '''
+    LVM = 'lvm'
+    EXT = 'ext'  # EXT3
+    ISO = 'iso'
+    LVMOFCOE = 'lvmofcoe'  # iSCSI FCoE
+    LVMOISCSI = 'lvmoiscsi'  # LVM over iSCSI
+    LVMOHBA = 'lvmohba'
+    GFS2 = 'gfs2'
+    NFS = 'nfs'
+    CIFS = 'cifs'  # SMB
+    NetApp = 'NetApp'
+    EqualLogic = 'EqualLogic'
+
+
 
 
 class GSR(GXenObjectType):
     class Meta:
         interfaces = (GXenObject,)
-    PBDs = graphene.List(graphene.ID)
+    PBDs = graphene.Field(graphene.List(GPBD),
+                                 required=True, resolver=PBD.resolve_many(index='ref'),
+                                 description="Connections to host. Usually one, unless the storage repository is shared: e.g. iSCSI")
+
     VDIs = graphene.Field(graphene.List(vdiType), resolver=resolve_vdis)
     content_type = graphene.Field(graphene.String, required=True)
     type = graphene.Field(graphene.String, required=True)
@@ -20,6 +43,9 @@ class GSR(GXenObjectType):
 
 
 class SR(XenObject):
+    '''
+    https://docs.citrix.com/en-us/xenserver/current-release/storage/manage.html
+    '''
     api_class = "SR"
     db_table_name = "srs"
     EVENT_CLASSES=["sr"]

@@ -13,6 +13,7 @@ from handlers.graphql.types.tasks.playbook import PlaybookTask, PlaybookTaskList
 from playbookloader import PlaybookLoader
 from xenadapter.disk import GISO, GVDI, ISO, VDI
 from xenadapter.host import Host, GHost
+from xenadapter.pool import GPool, Pool
 from xenadapter.task import GTask
 from xenadapter.template import Template, GTemplate
 from xenadapter.sr import SR, GSR
@@ -31,6 +32,9 @@ class Query(ObjectType):
 
     hosts = graphene.List(GHost, required=True, resolver=Host.resolve_all())
     host = graphene.Field(GHost, required=True, uuid=graphene.ID(), resolver=Host.resolve_one())
+
+    pools = graphene.List(GPool, required=True, resolver=Pool.resolve_all())
+    pool = graphene.Field(GPool, required=True, uuid=graphene.ID(), resolver=Pool.resolve_one())
 
     networks = graphene.List(GNetwork, required=True, resolver=Network.resolve_all(), description="All Networks available to user")
     network = graphene.Field(GNetwork, required=True, uuid=graphene.ID(), resolver=Network.resolve_one(), description="Information about a single network")

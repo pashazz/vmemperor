@@ -18,6 +18,7 @@ class Pool (XenObject):
     api_class = 'pool'
     EVENT_CLASSES = ['pool']
     quotas_table_name = 'quotas'
+    GraphQLType = GPool
 
     @classmethod
     def create_db(cls, db, indexes=None):

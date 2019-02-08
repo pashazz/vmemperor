@@ -63,11 +63,6 @@ class VBDType(XenEnum):
             return 'Floppy device'
 
 
-
-
-
-
-
 class PvDriversVersion(graphene.ObjectType):
     '''
     Drivers version. We don't want any fancy resolver except for the thing that we know that it's a dict in VM document
@@ -99,6 +94,11 @@ class PowerState(graphene.Enum):
     Running = 'Running'
     Suspended = 'Suspended'
 
+class DomainType(graphene.Enum):
+    HVM = 'hvm'
+    PV = 'pv'
+    PV_in_PVH = 'pv_in_pvh'
+
 class GVM(GXenObjectType):
     class Meta:
         interfaces = (GAclXenObject,)
@@ -112,7 +112,7 @@ class GVM(GXenObjectType):
 
     VCPUs_at_startup = graphene.Field(graphene.Int, required=True)
     VCPUs_max = graphene.Field(graphene.Int, required=True)
-    domain_type = graphene.Field(graphene.String, required=True)
+    domain_type = graphene.Field(DomainType, required=True)
     guest_metrics = graphene.Field(graphene.ID, required=True)
     install_time = graphene.Field(graphene.DateTime, required=True)
     memory_actual = graphene.Field(graphene.Int, required=True)

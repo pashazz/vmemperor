@@ -2,6 +2,7 @@ import graphene
 from graphene.types.resolver import dict_resolver
 from handlers.graphql.resolvers.vm import vmType, resolve_vms
 from rethinkdb_helper import CHECK_ER
+from xenadapter.pbd import GPBD, PBD
 from xenadapter.xenobjectdict import XenObjectDict
 from .xenobject import XenObject, GXenObject
 from handlers.graphql.types.gxenobjecttype import GXenObjectType, GSubtypeObjectType
@@ -99,7 +100,9 @@ class GHost(GXenObjectType):
 
     API_version_major = graphene.Field(graphene.Int, description="Major XenAPI version number")
     API_version_minor = graphene.Field(graphene.Int, description="Minor XenAPI version number")
-    PBDs = graphene.List(graphene.ID, required=True)
+    PBDs = graphene.Field(graphene.List(GPBD),
+                                         description="Connections to storage repositories",
+                                         required=True, resolver=PBD.resolve_many(index='ref'))
     PCIs = graphene.List(graphene.ID, required=True)
     PGPUs = graphene.List(graphene.ID, required=True)
     PIFs = graphene.List(graphene.ID, required=True)
