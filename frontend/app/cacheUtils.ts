@@ -1,6 +1,7 @@
 import {defaultDataIdFromObject} from "apollo-cache-inmemory";
 import {DocumentNode} from "graphql";
 import {DataProxy} from "apollo-cache";
+import {Change} from "./generated-models";
 
 export const  dataIdFromObject = (object) => {
   // @ts-ignore
@@ -21,6 +22,11 @@ export const  dataIdFromObject = (object) => {
 export interface CacheWatcher<T> {
   complete: boolean;
   result: T;
+}
+
+interface ValueChange {
+  changeType: Change,
+  value: Value,
 }
 
 interface Value {
@@ -63,4 +69,21 @@ export function handleAddOfValue<QueryType>(client: DataProxy,
     query: listQueryDocument,
     data: newQuery
   });
+}
+
+export function handleAddRemove(client: DataProxy,
+                                listQueryDocument: DocumentNode,
+                                listFieldName : string,
+                                change: ValueChange) {
+  switch (change.changeType) {
+    case Change.Add:
+      handleAddOfValue(client, listQueryDocument, listFieldName, change.value);
+      break;
+    case Change.Remove:
+      handleRemoveOfValueByUuid(client, listQueryDocument, listFieldName, change.value);
+      break;
+    default:
+      break;
+  }
+
 }

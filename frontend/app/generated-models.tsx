@@ -61,6 +61,30 @@ export interface VmStartInput {
   force?: Maybe<boolean>;
 }
 
+export enum HostAllowedOperations {
+  Provision = "Provision",
+  Evacuate = "Evacuate",
+  Shutdown = "Shutdown",
+  Reboot = "Reboot",
+  PowerOn = "PowerOn",
+  VmStart = "VmStart",
+  VmResume = "VmResume",
+  VmMigrate = "VmMigrate"
+}
+
+export enum HostDisplay {
+  Enabled = "Enabled",
+  DisableOnReboot = "DisableOnReboot",
+  Disabled = "Disabled",
+  EnableOnReboot = "EnableOnReboot"
+}
+
+export enum DomainType {
+  Hvm = "HVM",
+  Pv = "PV",
+  PvInPvh = "PV_in_PVH"
+}
+
 export enum PowerState {
   Halted = "Halted",
   Paused = "Paused",
@@ -137,6 +161,38 @@ export namespace VmEditOptions {
 
     success: boolean;
   };
+}
+
+export namespace HostList {
+  export type Variables = {};
+
+  export type Query = {
+    __typename?: "Query";
+
+    hosts: (Maybe<Hosts>)[];
+  };
+
+  export type Hosts = HostListFragment.Fragment;
+}
+
+export namespace HostListUpdate {
+  export type Variables = {};
+
+  export type Subscription = {
+    __typename?: "Subscription";
+
+    hosts: Hosts;
+  };
+
+  export type Hosts = {
+    __typename?: "GHostsSubscription";
+
+    value: Value;
+
+    changeType: Change;
+  };
+
+  export type Value = HostListFragment.Fragment;
 }
 
 export namespace SelectedItemsQuery {
@@ -291,6 +347,38 @@ export namespace PlaybookList {
   };
 }
 
+export namespace PoolList {
+  export type Variables = {};
+
+  export type Query = {
+    __typename?: "Query";
+
+    pools: (Maybe<Pools>)[];
+  };
+
+  export type Pools = PoolListFragment.Fragment;
+}
+
+export namespace PoolListUpdate {
+  export type Variables = {};
+
+  export type Subscription = {
+    __typename?: "Subscription";
+
+    pools: Pools;
+  };
+
+  export type Pools = {
+    __typename?: "GPoolsSubscription";
+
+    value: Value;
+
+    changeType: Change;
+  };
+
+  export type Value = PoolListFragment.Fragment;
+}
+
 export namespace RebootVm {
   export type Variables = {
     uuid: string;
@@ -405,6 +493,84 @@ export namespace VmListUpdate {
   export type Value = VmListFragment.Fragment;
 }
 
+export namespace HostListFragment {
+  export type Fragment = {
+    __typename?: "GHost";
+
+    softwareVersion: SoftwareVersion;
+
+    cpuInfo: CpuInfo;
+
+    uuid: string;
+
+    nameLabel: string;
+
+    nameDescription: string;
+
+    memoryFree: Maybe<number>;
+
+    memoryTotal: Maybe<number>;
+
+    memoryAvailable: Maybe<number>;
+
+    liveUpdated: Maybe<DateTime>;
+
+    memoryOverhead: Maybe<number>;
+
+    residentVms: (Maybe<ResidentVms>)[];
+  };
+
+  export type SoftwareVersion = {
+    __typename?: "SoftwareVersion";
+
+    platformVersion: string;
+
+    productBrand: string;
+
+    productVersion: string;
+
+    xen: string;
+  };
+
+  export type CpuInfo = {
+    __typename?: "CpuInfo";
+
+    speed: number;
+
+    cpuCount: number;
+
+    socketCount: number;
+
+    modelname: string;
+  };
+
+  export type ResidentVms = {
+    __typename?: "GVM";
+
+    uuid: string;
+  };
+}
+
+export namespace PoolListFragment {
+  export type Fragment = {
+    __typename?: "GPool";
+
+    master: Master;
+
+    nameLabel: string;
+
+    nameDescription: string;
+
+    uuid: string;
+  };
+
+  export type Master = {
+    __typename?: "GHost";
+
+    uuid: string;
+  };
+}
+
 export namespace VmInfoFragment {
   export type Fragment = {
     __typename?: "GVM";
@@ -425,7 +591,7 @@ export namespace VmInfoFragment {
 
     startTime: DateTime;
 
-    domainType: string;
+    domainType: DomainType;
   };
 
   export type Interfaces = {
@@ -503,6 +669,49 @@ import gql from "graphql-tag";
 // ====================================================
 // Fragments
 // ====================================================
+
+export namespace HostListFragment {
+  export const FragmentDoc = gql`
+    fragment HostListFragment on GHost {
+      softwareVersion {
+        platformVersion
+        productBrand
+        productVersion
+        xen
+      }
+      cpuInfo {
+        speed
+        cpuCount
+        socketCount
+        modelname
+      }
+      uuid
+      nameLabel
+      nameDescription
+      memoryFree
+      memoryTotal
+      memoryAvailable
+      liveUpdated
+      memoryOverhead
+      residentVms {
+        uuid
+      }
+    }
+  `;
+}
+
+export namespace PoolListFragment {
+  export const FragmentDoc = gql`
+    fragment PoolListFragment on GPool {
+      master {
+        uuid
+      }
+      nameLabel
+      nameDescription
+      uuid
+    }
+  `;
+}
 
 export namespace VmInfoFragment {
   export const FragmentDoc = gql`
@@ -636,6 +845,95 @@ export namespace VmEditOptions {
       Document,
       operationOptions
     );
+  }
+}
+export namespace HostList {
+  export const Document = gql`
+    query HostList {
+      hosts {
+        ...HostListFragment
+      }
+    }
+
+    ${HostListFragment.FragmentDoc}
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.QueryProps<Query, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Query<Query, Variables>
+          query={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Query, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Query,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace HostListUpdate {
+  export const Document = gql`
+    subscription HostListUpdate {
+      hosts {
+        value {
+          ...HostListFragment
+        }
+        changeType
+      }
+    }
+
+    ${HostListFragment.FragmentDoc}
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.SubscriptionProps<Subscription, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Subscription<Subscription, Variables>
+          subscription={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Subscription, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Subscription,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<
+      TProps,
+      Subscription,
+      Variables,
+      Props<TChildProps>
+    >(Document, operationOptions);
   }
 }
 export namespace SelectedItemsQuery {
@@ -967,6 +1265,95 @@ export namespace PlaybookList {
       Document,
       operationOptions
     );
+  }
+}
+export namespace PoolList {
+  export const Document = gql`
+    query PoolList {
+      pools {
+        ...PoolListFragment
+      }
+    }
+
+    ${PoolListFragment.FragmentDoc}
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.QueryProps<Query, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Query<Query, Variables>
+          query={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Query, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Query,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace PoolListUpdate {
+  export const Document = gql`
+    subscription PoolListUpdate {
+      pools {
+        value {
+          ...PoolListFragment
+        }
+        changeType
+      }
+    }
+
+    ${PoolListFragment.FragmentDoc}
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.SubscriptionProps<Subscription, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Subscription<Subscription, Variables>
+          subscription={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Subscription, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Subscription,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<
+      TProps,
+      Subscription,
+      Variables,
+      Props<TChildProps>
+    >(Document, operationOptions);
   }
 }
 export namespace RebootVm {
@@ -1328,6 +1715,14 @@ export namespace QueryResolvers {
     vms?: VmsResolver<(Maybe<Gvm>)[], TypeParent, Context>;
 
     vm?: VmResolver<Gvm, TypeParent, Context>;
+
+    hosts?: HostsResolver<(Maybe<GHost>)[], TypeParent, Context>;
+
+    host?: HostResolver<GHost, TypeParent, Context>;
+
+    pools?: PoolsResolver<(Maybe<GPool>)[], TypeParent, Context>;
+
+    pool?: PoolResolver<GPool, TypeParent, Context>;
     /** All Networks available to user */
     networks?: NetworksResolver<(Maybe<GNetwork>)[], TypeParent, Context>;
     /** Information about a single network */
@@ -1372,6 +1767,36 @@ export namespace QueryResolvers {
     VmArgs
   >;
   export interface VmArgs {
+    uuid?: Maybe<string>;
+  }
+
+  export type HostsResolver<
+    R = (Maybe<GHost>)[],
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type HostResolver<R = GHost, Parent = {}, Context = {}> = Resolver<
+    R,
+    Parent,
+    Context,
+    HostArgs
+  >;
+  export interface HostArgs {
+    uuid?: Maybe<string>;
+  }
+
+  export type PoolsResolver<
+    R = (Maybe<GPool>)[],
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type PoolResolver<R = GPool, Parent = {}, Context = {}> = Resolver<
+    R,
+    Parent,
+    Context,
+    PoolArgs
+  >;
+  export interface PoolArgs {
     uuid?: Maybe<string>;
   }
 
@@ -1506,7 +1931,7 @@ export namespace GvmResolvers {
 
     VCPUsMax?: VcpUsMaxResolver<number, TypeParent, Context>;
 
-    domainType?: DomainTypeResolver<string, TypeParent, Context>;
+    domainType?: DomainTypeResolver<DomainType, TypeParent, Context>;
 
     guestMetrics?: GuestMetricsResolver<string, TypeParent, Context>;
 
@@ -1587,7 +2012,7 @@ export namespace GvmResolvers {
     Context = {}
   > = Resolver<R, Parent, Context>;
   export type DomainTypeResolver<
-    R = string,
+    R = DomainType,
     Parent = Gvm,
     Context = {}
   > = Resolver<R, Parent, Context>;
@@ -1880,12 +2305,28 @@ export namespace GsrResolvers {
     ref?: RefResolver<string, TypeParent, Context>;
     /** Unique session-dependent identifier/object reference */
     uuid?: UuidResolver<string, TypeParent, Context>;
-
-    PBDs?: PbDsResolver<Maybe<(Maybe<string>)[]>, TypeParent, Context>;
+    /** Connections to host. Usually one, unless the storage repository is shared: e.g. iSCSI */
+    PBDs?: PbDsResolver<(Maybe<Gpbd>)[], TypeParent, Context>;
 
     VDIs?: VdIsResolver<Maybe<(Maybe<DiskImage>)[]>, TypeParent, Context>;
 
     contentType?: ContentTypeResolver<string, TypeParent, Context>;
+
+    type?: TypeResolver<string, TypeParent, Context>;
+    /** Physical size in kilobytes */
+    physicalSize?: PhysicalSizeResolver<number, TypeParent, Context>;
+    /** Virtual allocation in kilobytes */
+    virtualAllocation?: VirtualAllocationResolver<number, TypeParent, Context>;
+    /** This SR contains XenServer Tools */
+    isToolsSr?: IsToolsSrResolver<boolean, TypeParent, Context>;
+    /** Physical utilisation in kilobytes */
+    physicalUtilisation?: PhysicalUtilisationResolver<
+      number,
+      TypeParent,
+      Context
+    >;
+    /** Available space in kilobytes */
+    spaceAvailable?: SpaceAvailableResolver<number, TypeParent, Context>;
   }
 
   export type NameLabelResolver<
@@ -1909,7 +2350,7 @@ export namespace GsrResolvers {
     Context
   >;
   export type PbDsResolver<
-    R = Maybe<(Maybe<string>)[]>,
+    R = (Maybe<Gpbd>)[],
     Parent = Gsr,
     Context = {}
   > = Resolver<R, Parent, Context>;
@@ -1921,6 +2362,482 @@ export namespace GsrResolvers {
   export type ContentTypeResolver<
     R = string,
     Parent = Gsr,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type TypeResolver<R = string, Parent = Gsr, Context = {}> = Resolver<
+    R,
+    Parent,
+    Context
+  >;
+  export type PhysicalSizeResolver<
+    R = number,
+    Parent = Gsr,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type VirtualAllocationResolver<
+    R = number,
+    Parent = Gsr,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type IsToolsSrResolver<
+    R = boolean,
+    Parent = Gsr,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type PhysicalUtilisationResolver<
+    R = number,
+    Parent = Gsr,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type SpaceAvailableResolver<
+    R = number,
+    Parent = Gsr,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+}
+/** Fancy name for a PBD. Not a real Xen object, though a connection between a host and a SR */
+export namespace GpbdResolvers {
+  export interface Resolvers<Context = {}, TypeParent = Gpbd> {
+    /** Unique constant identifier/object reference */
+    ref?: RefResolver<string, TypeParent, Context>;
+    /** Unique session-dependent identifier/object reference */
+    uuid?: UuidResolver<string, TypeParent, Context>;
+    /** Host to which the SR is supposed to be connected to */
+    host?: HostResolver<GHost, TypeParent, Context>;
+
+    deviceConfig?: DeviceConfigResolver<JsonString, TypeParent, Context>;
+
+    SR?: SrResolver<Gsr, TypeParent, Context>;
+  }
+
+  export type RefResolver<R = string, Parent = Gpbd, Context = {}> = Resolver<
+    R,
+    Parent,
+    Context
+  >;
+  export type UuidResolver<R = string, Parent = Gpbd, Context = {}> = Resolver<
+    R,
+    Parent,
+    Context
+  >;
+  export type HostResolver<R = GHost, Parent = Gpbd, Context = {}> = Resolver<
+    R,
+    Parent,
+    Context
+  >;
+  export type DeviceConfigResolver<
+    R = JsonString,
+    Parent = Gpbd,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type SrResolver<R = Gsr, Parent = Gpbd, Context = {}> = Resolver<
+    R,
+    Parent,
+    Context
+  >;
+}
+
+export namespace GHostResolvers {
+  export interface Resolvers<Context = {}, TypeParent = GHost> {
+    /** a human-readable name */
+    nameLabel?: NameLabelResolver<string, TypeParent, Context>;
+    /** a human-readable description */
+    nameDescription?: NameDescriptionResolver<string, TypeParent, Context>;
+    /** Unique constant identifier/object reference */
+    ref?: RefResolver<string, TypeParent, Context>;
+    /** Unique session-dependent identifier/object reference */
+    uuid?: UuidResolver<string, TypeParent, Context>;
+    /** Major XenAPI version number */
+    APIVersionMajor?: ApiVersionMajorResolver<
+      Maybe<number>,
+      TypeParent,
+      Context
+    >;
+    /** Minor XenAPI version number */
+    APIVersionMinor?: ApiVersionMinorResolver<
+      Maybe<number>,
+      TypeParent,
+      Context
+    >;
+    /** Connections to storage repositories */
+    PBDs?: PbDsResolver<(Maybe<Gpbd>)[], TypeParent, Context>;
+
+    PCIs?: PcIsResolver<(Maybe<string>)[], TypeParent, Context>;
+
+    PGPUs?: PgpUsResolver<(Maybe<string>)[], TypeParent, Context>;
+
+    PIFs?: PiFsResolver<(Maybe<string>)[], TypeParent, Context>;
+
+    PUSBs?: PusBsResolver<(Maybe<string>)[], TypeParent, Context>;
+    /** The address by which this host can be contacted from any other host in the pool */
+    address?: AddressResolver<string, TypeParent, Context>;
+
+    allowedOperations?: AllowedOperationsResolver<
+      (Maybe<HostAllowedOperations>)[],
+      TypeParent,
+      Context
+    >;
+
+    cpuInfo?: CpuInfoResolver<CpuInfo, TypeParent, Context>;
+
+    display?: DisplayResolver<HostDisplay, TypeParent, Context>;
+
+    hostname?: HostnameResolver<string, TypeParent, Context>;
+
+    softwareVersion?: SoftwareVersionResolver<
+      SoftwareVersion,
+      TypeParent,
+      Context
+    >;
+    /** VMs currently resident on host */
+    residentVms?: ResidentVmsResolver<(Maybe<Gvm>)[], TypeParent, Context>;
+
+    metrics?: MetricsResolver<string, TypeParent, Context>;
+    /** Total memory in kilobytes */
+    memoryTotal?: MemoryTotalResolver<Maybe<number>, TypeParent, Context>;
+    /** Free memory in kilobytes */
+    memoryFree?: MemoryFreeResolver<Maybe<number>, TypeParent, Context>;
+    /** Available memory as measured by the host in kilobytes */
+    memoryAvailable?: MemoryAvailableResolver<
+      Maybe<number>,
+      TypeParent,
+      Context
+    >;
+    /** Virtualization overhead in kilobytes */
+    memoryOverhead?: MemoryOverheadResolver<Maybe<number>, TypeParent, Context>;
+    /** True if host is up. May be null if no data */
+    live?: LiveResolver<Maybe<boolean>, TypeParent, Context>;
+    /** When live status was last updated */
+    liveUpdated?: LiveUpdatedResolver<Maybe<DateTime>, TypeParent, Context>;
+  }
+
+  export type NameLabelResolver<
+    R = string,
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type NameDescriptionResolver<
+    R = string,
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type RefResolver<R = string, Parent = GHost, Context = {}> = Resolver<
+    R,
+    Parent,
+    Context
+  >;
+  export type UuidResolver<R = string, Parent = GHost, Context = {}> = Resolver<
+    R,
+    Parent,
+    Context
+  >;
+  export type ApiVersionMajorResolver<
+    R = Maybe<number>,
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type ApiVersionMinorResolver<
+    R = Maybe<number>,
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type PbDsResolver<
+    R = (Maybe<Gpbd>)[],
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type PcIsResolver<
+    R = (Maybe<string>)[],
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type PgpUsResolver<
+    R = (Maybe<string>)[],
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type PiFsResolver<
+    R = (Maybe<string>)[],
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type PusBsResolver<
+    R = (Maybe<string>)[],
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type AddressResolver<
+    R = string,
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type AllowedOperationsResolver<
+    R = (Maybe<HostAllowedOperations>)[],
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type CpuInfoResolver<
+    R = CpuInfo,
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type DisplayResolver<
+    R = HostDisplay,
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type HostnameResolver<
+    R = string,
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type SoftwareVersionResolver<
+    R = SoftwareVersion,
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type ResidentVmsResolver<
+    R = (Maybe<Gvm>)[],
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type MetricsResolver<
+    R = string,
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type MemoryTotalResolver<
+    R = Maybe<number>,
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type MemoryFreeResolver<
+    R = Maybe<number>,
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type MemoryAvailableResolver<
+    R = Maybe<number>,
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type MemoryOverheadResolver<
+    R = Maybe<number>,
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type LiveResolver<
+    R = Maybe<boolean>,
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type LiveUpdatedResolver<
+    R = Maybe<DateTime>,
+    Parent = GHost,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+}
+
+export namespace CpuInfoResolvers {
+  export interface Resolvers<Context = {}, TypeParent = CpuInfo> {
+    cpuCount?: CpuCountResolver<number, TypeParent, Context>;
+
+    modelname?: ModelnameResolver<string, TypeParent, Context>;
+
+    socketCount?: SocketCountResolver<number, TypeParent, Context>;
+
+    vendor?: VendorResolver<string, TypeParent, Context>;
+
+    family?: FamilyResolver<number, TypeParent, Context>;
+
+    features?: FeaturesResolver<string, TypeParent, Context>;
+
+    featuresHvm?: FeaturesHvmResolver<Maybe<string>, TypeParent, Context>;
+
+    featuresPv?: FeaturesPvResolver<Maybe<string>, TypeParent, Context>;
+
+    flags?: FlagsResolver<string, TypeParent, Context>;
+
+    model?: ModelResolver<number, TypeParent, Context>;
+
+    speed?: SpeedResolver<number, TypeParent, Context>;
+
+    stepping?: SteppingResolver<number, TypeParent, Context>;
+  }
+
+  export type CpuCountResolver<
+    R = number,
+    Parent = CpuInfo,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type ModelnameResolver<
+    R = string,
+    Parent = CpuInfo,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type SocketCountResolver<
+    R = number,
+    Parent = CpuInfo,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type VendorResolver<
+    R = string,
+    Parent = CpuInfo,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type FamilyResolver<
+    R = number,
+    Parent = CpuInfo,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type FeaturesResolver<
+    R = string,
+    Parent = CpuInfo,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type FeaturesHvmResolver<
+    R = Maybe<string>,
+    Parent = CpuInfo,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type FeaturesPvResolver<
+    R = Maybe<string>,
+    Parent = CpuInfo,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type FlagsResolver<
+    R = string,
+    Parent = CpuInfo,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type ModelResolver<
+    R = number,
+    Parent = CpuInfo,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type SpeedResolver<
+    R = number,
+    Parent = CpuInfo,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type SteppingResolver<
+    R = number,
+    Parent = CpuInfo,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+}
+
+export namespace SoftwareVersionResolvers {
+  export interface Resolvers<Context = {}, TypeParent = SoftwareVersion> {
+    buildNumber?: BuildNumberResolver<string, TypeParent, Context>;
+
+    date?: DateResolver<string, TypeParent, Context>;
+
+    hostname?: HostnameResolver<string, TypeParent, Context>;
+    /** Linux kernel version */
+    linux?: LinuxResolver<string, TypeParent, Context>;
+
+    networkBackend?: NetworkBackendResolver<string, TypeParent, Context>;
+
+    platformName?: PlatformNameResolver<string, TypeParent, Context>;
+
+    platformVersion?: PlatformVersionResolver<string, TypeParent, Context>;
+
+    platformVersionText?: PlatformVersionTextResolver<
+      string,
+      TypeParent,
+      Context
+    >;
+
+    platformVersionTextShort?: PlatformVersionTextShortResolver<
+      string,
+      TypeParent,
+      Context
+    >;
+    /** XAPI version */
+    xapi?: XapiResolver<string, TypeParent, Context>;
+    /** Xen version */
+    xen?: XenResolver<string, TypeParent, Context>;
+
+    productBrand?: ProductBrandResolver<string, TypeParent, Context>;
+
+    productVersion?: ProductVersionResolver<string, TypeParent, Context>;
+
+    productVersionText?: ProductVersionTextResolver<
+      string,
+      TypeParent,
+      Context
+    >;
+  }
+
+  export type BuildNumberResolver<
+    R = string,
+    Parent = SoftwareVersion,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type DateResolver<
+    R = string,
+    Parent = SoftwareVersion,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type HostnameResolver<
+    R = string,
+    Parent = SoftwareVersion,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type LinuxResolver<
+    R = string,
+    Parent = SoftwareVersion,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type NetworkBackendResolver<
+    R = string,
+    Parent = SoftwareVersion,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type PlatformNameResolver<
+    R = string,
+    Parent = SoftwareVersion,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type PlatformVersionResolver<
+    R = string,
+    Parent = SoftwareVersion,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type PlatformVersionTextResolver<
+    R = string,
+    Parent = SoftwareVersion,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type PlatformVersionTextShortResolver<
+    R = string,
+    Parent = SoftwareVersion,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type XapiResolver<
+    R = string,
+    Parent = SoftwareVersion,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type XenResolver<
+    R = string,
+    Parent = SoftwareVersion,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type ProductBrandResolver<
+    R = string,
+    Parent = SoftwareVersion,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type ProductVersionResolver<
+    R = string,
+    Parent = SoftwareVersion,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type ProductVersionTextResolver<
+    R = string,
+    Parent = SoftwareVersion,
     Context = {}
   > = Resolver<R, Parent, Context>;
 }
@@ -1961,6 +2878,54 @@ export namespace OsVersionResolvers {
   export type MinorResolver<
     R = Maybe<number>,
     Parent = OsVersion,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+}
+
+export namespace GPoolResolvers {
+  export interface Resolvers<Context = {}, TypeParent = GPool> {
+    /** a human-readable name */
+    nameLabel?: NameLabelResolver<string, TypeParent, Context>;
+    /** a human-readable description */
+    nameDescription?: NameDescriptionResolver<string, TypeParent, Context>;
+    /** Unique constant identifier/object reference */
+    ref?: RefResolver<string, TypeParent, Context>;
+    /** Unique session-dependent identifier/object reference */
+    uuid?: UuidResolver<string, TypeParent, Context>;
+    /** Pool master */
+    master?: MasterResolver<GHost, TypeParent, Context>;
+    /** Default SR */
+    defaultSr?: DefaultSrResolver<Maybe<Gsr>, TypeParent, Context>;
+  }
+
+  export type NameLabelResolver<
+    R = string,
+    Parent = GPool,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type NameDescriptionResolver<
+    R = string,
+    Parent = GPool,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type RefResolver<R = string, Parent = GPool, Context = {}> = Resolver<
+    R,
+    Parent,
+    Context
+  >;
+  export type UuidResolver<R = string, Parent = GPool, Context = {}> = Resolver<
+    R,
+    Parent,
+    Context
+  >;
+  export type MasterResolver<
+    R = GHost,
+    Parent = GPool,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type DefaultSrResolver<
+    R = Maybe<Gsr>,
+    Parent = GPool,
     Context = {}
   > = Resolver<R, Parent, Context>;
 }
@@ -2532,6 +3497,14 @@ export namespace SubscriptionResolvers {
     vms?: VmsResolver<GvMsSubscription, TypeParent, Context>;
     /** Updates for a particular VM */
     vm?: VmResolver<Maybe<Gvm>, TypeParent, Context>;
+    /** Updates for all Hosts */
+    hosts?: HostsResolver<GHostsSubscription, TypeParent, Context>;
+    /** Updates for a particular Host */
+    host?: HostResolver<Maybe<GHost>, TypeParent, Context>;
+    /** Updates for all pools available in VMEmperor */
+    pools?: PoolsResolver<GPoolsSubscription, TypeParent, Context>;
+    /** Updates for a particular Pool */
+    pool?: PoolResolver<GPool, TypeParent, Context>;
     /** Updates for a particular XenServer Task */
     task?: TaskResolver<Maybe<GTask>, TypeParent, Context>;
     /** Updates for a particular Playbook installation Task */
@@ -2555,6 +3528,34 @@ export namespace SubscriptionResolvers {
     Context = {}
   > = SubscriptionResolver<R, Parent, Context, VmArgs>;
   export interface VmArgs {
+    uuid?: Maybe<string>;
+  }
+
+  export type HostsResolver<
+    R = GHostsSubscription,
+    Parent = {},
+    Context = {}
+  > = SubscriptionResolver<R, Parent, Context>;
+  export type HostResolver<
+    R = Maybe<GHost>,
+    Parent = {},
+    Context = {}
+  > = SubscriptionResolver<R, Parent, Context, HostArgs>;
+  export interface HostArgs {
+    uuid?: Maybe<string>;
+  }
+
+  export type PoolsResolver<
+    R = GPoolsSubscription,
+    Parent = {},
+    Context = {}
+  > = SubscriptionResolver<R, Parent, Context>;
+  export type PoolResolver<
+    R = GPool,
+    Parent = {},
+    Context = {}
+  > = SubscriptionResolver<R, Parent, Context, PoolArgs>;
+  export interface PoolArgs {
     uuid?: Maybe<string>;
   }
 
@@ -2599,6 +3600,46 @@ export namespace GvMsSubscriptionResolvers {
   export type ValueResolver<
     R = Gvm,
     Parent = GvMsSubscription,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+}
+
+export namespace GHostsSubscriptionResolvers {
+  export interface Resolvers<Context = {}, TypeParent = GHostsSubscription> {
+    /** Change type */
+    changeType?: ChangeTypeResolver<Change, TypeParent, Context>;
+
+    value?: ValueResolver<GHost, TypeParent, Context>;
+  }
+
+  export type ChangeTypeResolver<
+    R = Change,
+    Parent = GHostsSubscription,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type ValueResolver<
+    R = GHost,
+    Parent = GHostsSubscription,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+}
+
+export namespace GPoolsSubscriptionResolvers {
+  export interface Resolvers<Context = {}, TypeParent = GPoolsSubscription> {
+    /** Change type */
+    changeType?: ChangeTypeResolver<Change, TypeParent, Context>;
+
+    value?: ValueResolver<GPool, TypeParent, Context>;
+  }
+
+  export type ChangeTypeResolver<
+    R = Change,
+    Parent = GPoolsSubscription,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type ValueResolver<
+    R = GPool,
+    Parent = GPoolsSubscription,
     Context = {}
   > = Resolver<R, Parent, Context>;
 }
@@ -2788,8 +3829,8 @@ export namespace GXenObjectResolvers {
     __resolveType: ResolveType;
   }
   export type ResolveType<
-    R = "GSR",
-    Parent = Gsr,
+    R = "GSR" | "GHost" | "GPool",
+    Parent = Gsr | GHost | GPool,
     Context = {}
   > = TypeResolveFn<R, Parent, Context>;
 }
@@ -2845,7 +3886,12 @@ export interface IResolvers<Context = {}> {
   PvDriversVersion?: PvDriversVersionResolvers.Resolvers<Context>;
   BlockDevice?: BlockDeviceResolvers.Resolvers<Context>;
   Gsr?: GsrResolvers.Resolvers<Context>;
+  Gpbd?: GpbdResolvers.Resolvers<Context>;
+  GHost?: GHostResolvers.Resolvers<Context>;
+  CpuInfo?: CpuInfoResolvers.Resolvers<Context>;
+  SoftwareVersion?: SoftwareVersionResolvers.Resolvers<Context>;
   OsVersion?: OsVersionResolvers.Resolvers<Context>;
+  GPool?: GPoolResolvers.Resolvers<Context>;
   Gvdi?: GvdiResolvers.Resolvers<Context>;
   Giso?: GisoResolvers.Resolvers<Context>;
   GTemplate?: GTemplateResolvers.Resolvers<Context>;
@@ -2864,6 +3910,8 @@ export interface IResolvers<Context = {}> {
   VmDeleteMutation?: VmDeleteMutationResolvers.Resolvers<Context>;
   Subscription?: SubscriptionResolvers.Resolvers<Context>;
   GvMsSubscription?: GvMsSubscriptionResolvers.Resolvers<Context>;
+  GHostsSubscription?: GHostsSubscriptionResolvers.Resolvers<Context>;
+  GPoolsSubscription?: GPoolsSubscriptionResolvers.Resolvers<Context>;
   GTask?: GTaskResolvers.Resolvers<Context>;
   PlaybookTask?: PlaybookTaskResolvers.Resolvers<Context>;
   PlaybookTasksSubscription?: PlaybookTasksSubscriptionResolvers.Resolvers<
@@ -2940,6 +3988,14 @@ export interface Query {
   vms: (Maybe<Gvm>)[];
 
   vm: Gvm;
+
+  hosts: (Maybe<GHost>)[];
+
+  host: GHost;
+
+  pools: (Maybe<GPool>)[];
+
+  pool: GPool;
   /** All Networks available to user */
   networks: (Maybe<GNetwork>)[];
   /** Information about a single network */
@@ -2992,7 +4048,7 @@ export interface Gvm extends GAclXenObject {
 
   VCPUsMax: number;
 
-  domainType: string;
+  domainType: DomainType;
 
   guestMetrics: string;
 
@@ -3094,12 +4150,147 @@ export interface Gsr extends GXenObject {
   ref: string;
   /** Unique session-dependent identifier/object reference */
   uuid: string;
-
-  PBDs?: Maybe<(Maybe<string>)[]>;
+  /** Connections to host. Usually one, unless the storage repository is shared: e.g. iSCSI */
+  PBDs: (Maybe<Gpbd>)[];
 
   VDIs?: Maybe<(Maybe<DiskImage>)[]>;
 
   contentType: string;
+
+  type: string;
+  /** Physical size in kilobytes */
+  physicalSize: number;
+  /** Virtual allocation in kilobytes */
+  virtualAllocation: number;
+  /** This SR contains XenServer Tools */
+  isToolsSr: boolean;
+  /** Physical utilisation in kilobytes */
+  physicalUtilisation: number;
+  /** Available space in kilobytes */
+  spaceAvailable: number;
+}
+
+/** Fancy name for a PBD. Not a real Xen object, though a connection between a host and a SR */
+export interface Gpbd {
+  /** Unique constant identifier/object reference */
+  ref: string;
+  /** Unique session-dependent identifier/object reference */
+  uuid: string;
+  /** Host to which the SR is supposed to be connected to */
+  host: GHost;
+
+  deviceConfig: JsonString;
+
+  SR: Gsr;
+}
+
+export interface GHost extends GXenObject {
+  /** a human-readable name */
+  nameLabel: string;
+  /** a human-readable description */
+  nameDescription: string;
+  /** Unique constant identifier/object reference */
+  ref: string;
+  /** Unique session-dependent identifier/object reference */
+  uuid: string;
+  /** Major XenAPI version number */
+  APIVersionMajor?: Maybe<number>;
+  /** Minor XenAPI version number */
+  APIVersionMinor?: Maybe<number>;
+  /** Connections to storage repositories */
+  PBDs: (Maybe<Gpbd>)[];
+
+  PCIs: (Maybe<string>)[];
+
+  PGPUs: (Maybe<string>)[];
+
+  PIFs: (Maybe<string>)[];
+
+  PUSBs: (Maybe<string>)[];
+  /** The address by which this host can be contacted from any other host in the pool */
+  address: string;
+
+  allowedOperations: (Maybe<HostAllowedOperations>)[];
+
+  cpuInfo: CpuInfo;
+
+  display: HostDisplay;
+
+  hostname: string;
+
+  softwareVersion: SoftwareVersion;
+  /** VMs currently resident on host */
+  residentVms: (Maybe<Gvm>)[];
+
+  metrics: string;
+  /** Total memory in kilobytes */
+  memoryTotal?: Maybe<number>;
+  /** Free memory in kilobytes */
+  memoryFree?: Maybe<number>;
+  /** Available memory as measured by the host in kilobytes */
+  memoryAvailable?: Maybe<number>;
+  /** Virtualization overhead in kilobytes */
+  memoryOverhead?: Maybe<number>;
+  /** True if host is up. May be null if no data */
+  live?: Maybe<boolean>;
+  /** When live status was last updated */
+  liveUpdated?: Maybe<DateTime>;
+}
+
+export interface CpuInfo {
+  cpuCount: number;
+
+  modelname: string;
+
+  socketCount: number;
+
+  vendor: string;
+
+  family: number;
+
+  features: string;
+
+  featuresHvm?: Maybe<string>;
+
+  featuresPv?: Maybe<string>;
+
+  flags: string;
+
+  model: number;
+
+  speed: number;
+
+  stepping: number;
+}
+
+export interface SoftwareVersion {
+  buildNumber: string;
+
+  date: string;
+
+  hostname: string;
+  /** Linux kernel version */
+  linux: string;
+
+  networkBackend: string;
+
+  platformName: string;
+
+  platformVersion: string;
+
+  platformVersionText: string;
+
+  platformVersionTextShort: string;
+  /** XAPI version */
+  xapi: string;
+  /** Xen version */
+  xen: string;
+
+  productBrand: string;
+
+  productVersion: string;
+
+  productVersionText: string;
 }
 
 /** OS version reported by Xen tools */
@@ -3113,6 +4304,21 @@ export interface OsVersion {
   major?: Maybe<number>;
 
   minor?: Maybe<number>;
+}
+
+export interface GPool extends GXenObject {
+  /** a human-readable name */
+  nameLabel: string;
+  /** a human-readable description */
+  nameDescription: string;
+  /** Unique constant identifier/object reference */
+  ref: string;
+  /** Unique session-dependent identifier/object reference */
+  uuid: string;
+  /** Pool master */
+  master: GHost;
+  /** Default SR */
+  defaultSr?: Maybe<Gsr>;
 }
 
 export interface Gvdi extends GAclXenObject, DiskImage {
@@ -3275,6 +4481,14 @@ export interface Subscription {
   vms: GvMsSubscription;
   /** Updates for a particular VM */
   vm?: Maybe<Gvm>;
+  /** Updates for all Hosts */
+  hosts: GHostsSubscription;
+  /** Updates for a particular Host */
+  host?: Maybe<GHost>;
+  /** Updates for all pools available in VMEmperor */
+  pools: GPoolsSubscription;
+  /** Updates for a particular Pool */
+  pool: GPool;
   /** Updates for a particular XenServer Task */
   task?: Maybe<GTask>;
   /** Updates for a particular Playbook installation Task */
@@ -3288,6 +4502,20 @@ export interface GvMsSubscription {
   changeType: Change;
 
   value: Gvm;
+}
+
+export interface GHostsSubscription {
+  /** Change type */
+  changeType: Change;
+
+  value: GHost;
+}
+
+export interface GPoolsSubscription {
+  /** Change type */
+  changeType: Change;
+
+  value: GPool;
 }
 
 export interface GTask extends GAclXenObject {
@@ -3342,6 +4570,12 @@ export interface PlaybookTasksSubscription {
 // ====================================================
 
 export interface VmQueryArgs {
+  uuid?: Maybe<string>;
+}
+export interface HostQueryArgs {
+  uuid?: Maybe<string>;
+}
+export interface PoolQueryArgs {
   uuid?: Maybe<string>;
 }
 export interface NetworkQueryArgs {
@@ -3429,6 +4663,12 @@ export interface SelectedItemsMutationArgs {
   isSelect: boolean;
 }
 export interface VmSubscriptionArgs {
+  uuid?: Maybe<string>;
+}
+export interface HostSubscriptionArgs {
+  uuid?: Maybe<string>;
+}
+export interface PoolSubscriptionArgs {
   uuid?: Maybe<string>;
 }
 export interface TaskSubscriptionArgs {

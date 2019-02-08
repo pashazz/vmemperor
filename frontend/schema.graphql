@@ -1,4 +1,4 @@
-# This file was generated based on ".graphqlconfig" at Mon Feb 04 17:31:12 MSK 2019. Do not edit manually.
+# This file was generated based on ".graphqlconfig" at Fri Feb 08 22:10:50 MSK 2019. Do not edit manually.
 
 interface DiskImage {
   SR: GSR
@@ -47,6 +47,21 @@ type BlockDevice {
   type: String!
 }
 
+type CpuInfo {
+  cpuCount: Int!
+  family: Int!
+  features: ID!
+  featuresHvm: ID
+  featuresPv: ID
+  flags: String!
+  model: Int!
+  modelname: String!
+  socketCount: Int!
+  speed: Float!
+  stepping: Int!
+  vendor: String!
+}
+
 type CreateVM {
   "Installation task ID"
   taskId: ID!
@@ -55,6 +70,55 @@ type CreateVM {
 type GAccessEntry {
   access: [String]!
   userid: String!
+}
+
+type GHost implements GXenObject {
+  "Major XenAPI version number"
+  APIVersionMajor: Int
+  "Minor XenAPI version number"
+  APIVersionMinor: Int
+  "Connections to storage repositories"
+  PBDs: [GPBD]!
+  PCIs: [ID]!
+  PGPUs: [ID]!
+  PIFs: [ID]!
+  PUSBs: [ID]!
+  "The address by which this host can be contacted from any other host in the pool"
+  address: String!
+  allowedOperations: [HostAllowedOperations]!
+  cpuInfo: CpuInfo!
+  display: HostDisplay!
+  hostname: String!
+  "True if host is up. May be null if no data"
+  live: Boolean
+  "When live status was last updated"
+  liveUpdated: DateTime
+  "Available memory as measured by the host in kilobytes"
+  memoryAvailable: Int
+  "Free memory in kilobytes"
+  memoryFree: Int
+  "Virtualization overhead in kilobytes"
+  memoryOverhead: Int
+  "Total memory in kilobytes"
+  memoryTotal: Int
+  metrics: ID!
+  "a human-readable description"
+  nameDescription: String!
+  "a human-readable name"
+  nameLabel: String!
+  "Unique constant identifier/object reference"
+  ref: ID!
+  "VMs currently resident on host"
+  residentVms: [GVM]!
+  softwareVersion: SoftwareVersion!
+  "Unique session-dependent identifier/object reference"
+  uuid: ID!
+}
+
+type GHostsSubscription {
+  "Change type"
+  changeType: Change!
+  value: GHost!
 }
 
 type GISO implements DiskImage & GAclXenObject {
@@ -87,6 +151,21 @@ type GNetwork implements GAclXenObject {
   uuid: ID!
 }
 
+"""
+Fancy name for a PBD. Not a real Xen object, though a connection
+between a host and a SR
+"""
+type GPBD {
+  SR: GSR!
+  deviceConfig: JSONString!
+  "Host to which the SR is supposed to be connected to"
+  host: GHost!
+  "Unique constant identifier/object reference"
+  ref: ID!
+  "Unique session-dependent identifier/object reference"
+  uuid: ID!
+}
+
 type GPlaybook {
   "Playbook description"
   description: String
@@ -102,10 +181,11 @@ type GPlaybook {
   variables: JSONString
 }
 
-type GSR implements GXenObject {
-  PBDs: [ID]
-  VDIs: [DiskImage]
-  contentType: String!
+type GPool implements GXenObject {
+  "Default SR"
+  defaultSr: GSR
+  "Pool master"
+  master: GHost!
   "a human-readable description"
   nameDescription: String!
   "a human-readable name"
@@ -114,6 +194,38 @@ type GSR implements GXenObject {
   ref: ID!
   "Unique session-dependent identifier/object reference"
   uuid: ID!
+}
+
+type GPoolsSubscription {
+  "Change type"
+  changeType: Change!
+  value: GPool!
+}
+
+type GSR implements GXenObject {
+  "Connections to host. Usually one, unless the storage repository is shared: e.g. iSCSI"
+  PBDs: [GPBD]!
+  VDIs: [DiskImage]
+  contentType: String!
+  "This SR contains XenServer Tools"
+  isToolsSr: Boolean!
+  "a human-readable description"
+  nameDescription: String!
+  "a human-readable name"
+  nameLabel: String!
+  "Physical size in kilobytes"
+  physicalSize: Float!
+  "Physical utilisation in kilobytes"
+  physicalUtilisation: Float!
+  "Unique constant identifier/object reference"
+  ref: ID!
+  "Available space in kilobytes"
+  spaceAvailable: Float!
+  type: String!
+  "Unique session-dependent identifier/object reference"
+  uuid: ID!
+  "Virtual allocation in kilobytes"
+  virtualAllocation: Float!
 }
 
 type GTask implements GAclXenObject {
@@ -186,7 +298,7 @@ type GVM implements GAclXenObject {
   VCPUsMax: Int!
   access: [GAccessEntry]!
   disks: [BlockDevice]
-  domainType: String!
+  domainType: DomainType!
   guestMetrics: ID!
   installTime: DateTime!
   "Network adapters connected to a VM"
@@ -202,7 +314,7 @@ type GVM implements GAclXenObject {
   "a human-readable name"
   nameLabel: String!
   osVersion: OSVersion
-  powerState: String!
+  powerState: PowerState!
   "Unique constant identifier/object reference"
   ref: ID!
   startTime: DateTime!
@@ -267,6 +379,8 @@ type Mutation {
     #VM to change
     vm: VMInput!
   ): VMMutation
+  "Delete a Halted VM"
+  vmDelete(uuid: ID!): VMDeleteMutation
   "If VM is Running, pause VM. If Paused, unpause VM"
   vmPause(uuid: ID!): VMPauseMutation
   "Reboot VM"
@@ -330,6 +444,8 @@ type PvDriversVersion {
 }
 
 type Query {
+  host(uuid: ID): GHost!
+  hosts: [GHost]!
   "Information about a single ISO image"
   iso(uuid: ID): GVDI!
   "All ISO images available for user"
@@ -342,6 +458,8 @@ type Query {
   playbook(id: ID): GPlaybook!
   "List of Ansible-powered playbooks"
   playbooks: [GPlaybook]!
+  pool(uuid: ID): GPool!
+  pools: [GPool]!
   "Information about a single storage repository"
   sr(uuid: ID): GSR!
   "All Storage repositories available to user"
@@ -357,12 +475,40 @@ type Query {
   vms: [GVM]!
 }
 
+type SoftwareVersion {
+  buildNumber: String!
+  date: String!
+  hostname: String!
+  "Linux kernel version"
+  linux: String!
+  networkBackend: String!
+  platformName: String!
+  platformVersion: String!
+  platformVersionText: String!
+  platformVersionTextShort: String!
+  productBrand: String!
+  productVersion: String!
+  productVersionText: String!
+  "XAPI version"
+  xapi: String!
+  "Xen version"
+  xen: String!
+}
+
 "All subscriptions must return  Observable"
 type Subscription {
+  "Updates for a particular Host"
+  host(uuid: ID): GHost
+  "Updates for all Hosts"
+  hosts: GHostsSubscription!
   "Updates for a particular Playbook installation Task"
   playbookTask(id: ID): PlaybookTask!
   "Updates for all Playbook Tasks"
   playbookTasks: PlaybookTasksSubscription!
+  "Updates for a particular Pool"
+  pool(uuid: ID): GPool!
+  "Updates for all pools available in VMEmperor"
+  pools: GPoolsSubscription!
   "Updates for a particular XenServer Task"
   task(uuid: ID): GTask
   "Updates for a particular VM"
@@ -373,6 +519,11 @@ type Subscription {
 
 type TemplateMutation {
   success: Boolean!
+}
+
+type VMDeleteMutation {
+  "Deleting task ID"
+  taskId: ID!
 }
 
 "This class represents synchronous mutations for VM, i.e. you can change name_label, name_description, etc."
@@ -407,6 +558,42 @@ enum Change {
   Remove
 }
 
+enum DomainType {
+  HVM
+  PV
+  PV_in_PVH
+}
+
+enum HostAllowedOperations {
+  #Indicates this host is evacuating
+  Evacuate
+  #Indicates this host is in the process of being powered on
+  PowerOn
+  #Indicates this host is able to provision another VM
+  Provision
+  #Indicates this host is in the process of rebooting
+  Reboot
+  #Indicates this host is in the process of shutting itself down
+  Shutdown
+  #This host is the migration target of a VM
+  VmMigrate
+  #This host is resuming a VM
+  VmResume
+  #This host is starting a VM
+  VmStart
+}
+
+enum HostDisplay {
+  #The host will stop outputting its console to a physical display device on next boot
+  DisableOnReboot
+  #This host is not outputting its console to a physical display device
+  Disabled
+  #The host will start outputting its console to a physical display device on next boot
+  EnableOnReboot
+  #This host is outputting its console to a physical display device
+  Enabled
+}
+
 enum PlaybookTaskState {
   ConfigurationWarning
   Error
@@ -414,6 +601,13 @@ enum PlaybookTaskState {
   Preparing
   Running
   Unknown
+}
+
+enum PowerState {
+  Halted
+  Paused
+  Running
+  Suspended
 }
 
 enum ShutdownForce {

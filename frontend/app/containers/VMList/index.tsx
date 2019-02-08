@@ -21,7 +21,7 @@ import tableStyle from "./table.css";
 import {useApolloClient, useMutation, useQuery} from "react-apollo-hooks";
 import {Map, Set} from 'immutable';
 import {ButtonGroup, ButtonToolbar} from "reactstrap";
-import {dataIdFromObject, handleAddOfValue, handleRemoveOfValueByUuid} from "../../cacheUtils";
+import {dataIdFromObject, handleAddOfValue, handleAddRemove, handleRemoveOfValueByUuid} from "../../cacheUtils";
 import StartButton from "../../components/StartButton";
 import StopButton from "../../components/StopButton";
 import RecycleBinButton from "../../components/RecycleBinButton";
@@ -164,21 +164,18 @@ export default function ({history}:  RouteComponentProps) {
   useSubscription<VmListUpdate.Subscription>(VmListUpdate.Document,
     {
       onSubscriptionData ({client, subscriptionData}) {
-        //Addition and changing are handled automatically, here we're handling removal
+        //Changing is handled automatically, here we're handling removal & addition
         const change = subscriptionData.vms;
         switch (change.changeType) {
-          //case Change.Initial:
           case Change.Add:
-            handleAddOfValue(client, VmList.Document, 'vms', change.value);
+          case Change.Remove:
+            handleAddRemove(client, VmList.Document, 'vms', change);
             break;
           case Change.Change: //Update our internal state
               dispatch({
                 type: "Change",
                 uuid: change.value.uuid,
               });
-            break;
-          case Change.Remove:
-            handleRemoveOfValueByUuid(client, VmList.Document, 'vms', change.value);
             break;
           default:
             break;

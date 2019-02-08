@@ -4,57 +4,54 @@
  * This contains all the text for the HostInfo component.
  */
 import { defineMessages } from 'react-intl';
+import MessageDescriptor = ReactIntl.FormattedMessage.MessageDescriptor;
 
 export default defineMessages({
   host: {
     id: 'app.components.HostInfo.memory.total',
     defaultMessage: 'Host: {name}',
   },
-  memory: {
-    total: {
+    memory_total: {
       id: 'app.components.HostInfo.memory.total',
       defaultMessage: 'Memory total',
     },
-    available: {
+    memory_available: {
       id: 'app.components.HostInfo.memory.available',
       defaultMessage: 'available',
     },
-    free: {
+    memory_free: {
       id: 'app.components.HostInfo.memory.free',
       defaultMessage: 'physically free',
     },
-  },
-  xen: {
-    running: {
+
+
+    vms_running: {
       id: 'app.components.HostInfo.xen.running',
       defaultMessage: 'Running VMs now',
     },
-    software: {
+    product_name: {
       id: 'app.components.HostInfo.xen.software',
-      defaultMessage: 'Software installed',
+      defaultMessage: 'Product name',
     },
-    version: {
+    product_version: {
       id: 'app.components.HostInfo.xen.version',
-      defaultMessage: 'Software version',
+      defaultMessage: 'Product version',
     },
-    xenVersion: {
+    xen_version: {
       id: 'app.components.HostInfo.xen.xenVersion',
       defaultMessage: 'Xen version',
     },
-  },
-  processor: {
-    model: {
+    processor_model: {
       id: 'app.components.HostInfo.processor.model',
       defaultMessage: 'Processor model',
     },
-    frequency: {
+    processor_frequency: {
       id: 'app.components.HostInfo.processor.frequency',
       defaultMessage: 'frequency',
     },
-    cores: {
+    processor_cores: {
       id: 'app.components.HostInfo.processor.cores',
       defaultMessage: 'cores',
     },
-  },
 });
 

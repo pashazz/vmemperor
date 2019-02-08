@@ -1,0 +1,40 @@
+fragment HostListFragment on GHost {
+  softwareVersion {
+    platformVersion
+    productBrand
+    productVersion
+    xen
+  }
+  cpuInfo{
+    speed
+    cpuCount
+    socketCount
+    modelname
+  }
+  uuid
+  nameLabel
+  nameDescription
+  memoryFree
+  memoryTotal
+  memoryAvailable
+  liveUpdated
+  memoryOverhead
+  residentVms{
+    uuid
+  }
+}
+
+query HostList {
+  hosts{
+    ...HostListFragment
+  }
+}
+
+subscription HostListUpdate {
+  hosts {
+    value {
+      ...HostListFragment
+    }
+    changeType
+  }
+}

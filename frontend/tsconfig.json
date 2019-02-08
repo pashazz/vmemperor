@@ -11,7 +11,7 @@
     "moduleResolution": "node",
     "experimentalDecorators": true,
     "jsx": "react",
-    "lib": ["dom","es5","es6","es7","es2017", "es2017.intl"],
+    "lib": ["dom", "dom.iterable","es5","es6","es7","es2017", "es2017.intl", "es2018", "es2018.promise"],
     "allowSyntheticDefaultImports": true,
     "typeRoots": ["node_modules/@types"],
     "baseUrl": ".",

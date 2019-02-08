@@ -4,70 +4,65 @@
  *
  */
 
-import React from 'react';
-import T from 'prop-types';
-import { connect } from 'react-redux';
-import { compose } from 'redux';
-import { withRouter } from 'react-router-dom';
-import { FormattedMessage } from 'react-intl';
+import React, {useState} from 'react';
+import {FormattedMessage} from 'react-intl';
 import messages from './messages';
 import styles from './styles.css'
 import {Button} from 'reactstrap';
 
-import PoolInfo from 'components/PoolInfo';
-import { Modal } from  'reactstrap';
-import VMForm from 'components/VMForm';
-import Loader from 'components/Loader';
-import IPT from 'react-immutable-proptypes';
+import PoolInfo from '../../components/PoolInfo';
+import {useQuery} from "react-apollo-hooks";
+import {Change, PoolList, PoolListUpdate} from "../../generated-models";
+import {useSubscription} from "../../hooks/subscription";
+import {handleAddOfValue, handleAddRemove, handleRemoveOfValueByUuid} from "../../cacheUtils";
 
 
 
-interface  Props{
-
-}
-interface State {
-  modal : boolean,
-}
 
 
-export class CreateVm extends React.Component<Props,State> { // eslint-disable-line react/prefer-stateless-function
+const CreateVM = () => {
+  const { data: {pools } } = useQuery<PoolList.Query>(PoolList.Document);
 
-  constructor(props)
-  {
-    super(props);
-    this.toggleModal = this.toggleModal.bind(this);
-    this.state = {
-      modal: false,
-    }
-  }
+  useSubscription<PoolListUpdate.Subscription>(PoolListUpdate.Document, {
+    onSubscriptionData({client, subscriptionData}) {
+      const change = subscriptionData.pools;
+      handleAddRemove(client, PoolList.Document, 'pools', change);
+    },
 
+  });
 
-  toggleModal(e)
-  {
-    const toggle = () => this.setState((prevState) => {
-      return {...prevState, modal: !prevState.modal}
-    });
-
-    if (this.state.modal)
-    {
-      if (confirm("Do you want to leave?")) {
-        toggle();
+  const [modal, setModal] = useState(false); //This is modality of CreateVM form
+  const toggleModal = (e: Event) => {
+    if (!modal || confirm("Do you want to leave?")){
+        setModal(!modal);
       }
-      else
+    else{
+      e.stopPropagation();
+    }
+  };
+
+  return (
+    <div className={styles.poolsContainer}>
       {
-        console.log("Prevent default...")
-        e.stopPropagation();
-      }
+        pools.length > 0 ?
+          pools.map(pool => <PoolInfo key={pool.uuid} pool={pool}/>)
+          : <h1>No pools available</h1>
 
-    }
-    else {
-      toggle();
-    }
-  }
+      }
+    </div>
+  )
+
+
+
+};
+export default CreateVM;
+/*
+export class CreateVm_ extends React.Component{ // eslint-disable-line react/prefer-stateless-function
+
   render() {
     return (
       <div>
-        {/*<div className={styles.createButtonContainer}>
+        <div className={styles.createButtonContainer}>
           <Button onClick={this.props.toggleModal}>
             <FormattedMessage {...messages.create} />
           </button>
@@ -79,6 +74,7 @@ export class CreateVm extends React.Component<Props,State> { // eslint-disable-l
               <div style={{ textAlign: 'center' }}><Loader /></div>
           }
         </div>
+
         <Modal title="VM form"
                lg
                toggle={this.toggleModal}
@@ -89,16 +85,13 @@ export class CreateVm extends React.Component<Props,State> { // eslint-disable-l
                    templates={this.props.templates}
                    onNetworkChange={this.props.loadNetwork}
                    onSubmit={this.createVM} />
-        </Modal>*/}
+        </Modal>
+
       </div>
     );
   }
 }
 
-
-
-export default compose(
-  withRouter,
-)(CreateVm);
+*/
 
 
