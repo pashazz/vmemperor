@@ -98,12 +98,24 @@ class Subscription(ObjectType):
     def resolve_vm(*args, **kwargs):
         return resolve_item_by_key(GVM, r.db(opts.database), 'vms', key_name='uuid')(*args, **kwargs)
 
+    def resolve_hosts(*args, **kwargs):
+        return resolve_all_items_changes(GHost, r.db(opts.database), 'hosts')(*args, **kwargs)
+
+    def resolve_host(*args, **kwargs):
+        return resolve_item_by_key(GHost, r.db(opts.database), 'hosts', key_name='uuid')(*args, **kwargs)
+
+    def resolve_pools(*args, **kwargs):
+        return resolve_all_items_changes(GPool,  r.db(opts.database), 'pools')(*args, **kwargs)
+
+    def resolve_pool(*args, **kwargs):
+        return resolve_item_by_key(GPool, r.db(opts.database), 'pools', key_name='uuid')(*args, **kwargs)
 
     def resolve_playbook_task(*args, **kwargs):
         return resolve_item_by_key(PlaybookTask, r.db(opts.database), 'tasks_playbooks', key_name='id')(*args, **kwargs)
 
     def resolve_playbook_tasks(*args, **kwargs):
         return resolve_all_items_changes(PlaybookTask, r.db(opts.database), 'tasks_playbooks')(*args, **kwargs)
+
 
 
 
