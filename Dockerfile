@@ -7,7 +7,7 @@ ADD . /app
 ENV DOCKER True
 
 RUN apt update && apt install -y \
-    python3.7 python3.7-distutils wget gdebi-core git
+    python3.7 python3.7-distutils wget gdebi-core git libpng-dev
 RUN wget https://bootstrap.pypa.io/get-pip.py -O - | python3.7
 RUN  apt-get update \
 &&  apt-get install -y software-properties-common \
