@@ -34,7 +34,7 @@ EXPOSE 3000 8889
 
 WORKDIR /app/frontend
 
-RUN npm install -g pngquant-bin
+RUN npm install -g pngquant-bin --allow-root  --unsafe-perm=true
 
 RUN npm install && npm run build:dll
 
