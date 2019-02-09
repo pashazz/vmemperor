@@ -21,6 +21,9 @@ RUN pip install -r requirements.txt
 
 RUN wget https://github.com/srh/rethinkdb/releases/download/v2.3.6.srh.1/rethinkdb_2.3.6.srh.1.0bionic_amd64.deb -O rethinkdb.deb && gdebi --option=APT::Get::force-yes=1,APT::Get::Assume-Yes=1 -n rethinkdb.deb
 
+WORKDIR /rethinkdb
+RUN git clone https://github.com/pashazz/rethinkdb-python.git && git checkout set_loop_type && make prepare && pip install .
+
 RUN wget  https://deb.nodesource.com/setup_8.x -O -  | bash - && \
  apt-get install -y nodejs
 

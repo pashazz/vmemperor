@@ -7,7 +7,6 @@ Jinja2
 MarkupSafe
 promise
 pytz
-git+https://github.com/pashazz/rethinkdb-python.git@set_loop_type
 ruamel.yaml==0.15.81
 Rx==1.6.1
 six==1.11.0
