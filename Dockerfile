@@ -7,16 +7,17 @@ ADD . /app
 ENV DOCKER True
 
 RUN apt update && apt install -y \
-    python3.7 python3.7-pip wget gdebi-core git
+    python3.7 python3.7-distutils wget gdebi-core git
+RUN wget https://bootstrap.pypa.io/get-pip.py -O - | python3.7
 RUN  apt-get update \
 &&  apt-get install -y software-properties-common \
 &&  apt-add-repository ppa:ansible/ansible \
 &&  apt-get update \
 &&  apt-get install -y ansible
 
-RUN pip3 install --upgrade pip
 
-RUN pip3 install -r requirements.txt
+
+RUN pip install -r requirements.txt
 
 RUN wget https://github.com/srh/rethinkdb/releases/download/v2.3.6.srh.1/rethinkdb_2.3.6.srh.1.0bionic_amd64.deb -O rethinkdb.deb && gdebi --option=APT::Get::force-yes=1,APT::Get::Assume-Yes=1 -n rethinkdb.deb
 
