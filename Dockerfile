@@ -7,7 +7,7 @@ ADD . /app
 ENV DOCKER True
 
 RUN apt update && apt install -y \
-    python3.7 python3.7-distutils wget gdebi-core git libpng-dev
+    python3.7 python3.7-distutils wget gdebi-core git libpng-dev build-essential
 RUN wget https://bootstrap.pypa.io/get-pip.py -O - | python3.7
 RUN  apt-get update \
 &&  apt-get install -y software-properties-common \
@@ -33,6 +33,8 @@ VOLUME /root login.ini
 EXPOSE 3000 8889
 
 WORKDIR /app/frontend
+
+RUN npm install -g pngquant-bin
 
 RUN npm install && npm run build:dll
 
