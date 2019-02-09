@@ -7,7 +7,7 @@ ADD . /app
 ENV DOCKER True
 
 RUN apt update && apt install -y \
-    python3.7 python3.7-distutils curl gdebi-core git libpng-dev build-essential
+    python3.7 python3.7-distutils curl wget  gdebi-core git libpng-dev build-essential
 RUN curl https://bootstrap.pypa.io/get-pip.py | python3.7
 RUN  apt-get update \
 &&  apt-get install -y software-properties-common \
@@ -19,7 +19,7 @@ RUN  apt-get update \
 
 RUN pip install -r requirements.txt
 
-RUN curl https://github.com/srh/rethinkdb/releases/download/v2.3.6.srh.1/rethinkdb_2.3.6.srh.1.0bionic_amd64.deb >  rethinkdb.deb && gdebi --option=APT::Get::force-yes=1,APT::Get::Assume-Yes=1 -n rethinkdb.deb
+RUN curl https://github.com/srh/rethinkdb/releases/download/v2.3.6.srh.1/rethinkdb_2.3.6.srh.1.0bionic_amd64.deb -O  rethinkdb.deb && gdebi --option=APT::Get::force-yes=1,APT::Get::Assume-Yes=1 -n rethinkdb.deb
 
 WORKDIR /rethinkdb
 RUN git clone https://github.com/pashazz/rethinkdb-python.git
