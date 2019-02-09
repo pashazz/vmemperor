@@ -32,7 +32,7 @@ VOLUME /root login.ini
 
 EXPOSE 3000 8889
 
-WORKDIR /app/new-frontend
+WORKDIR /app/frontend
 
 RUN npm install && npm run build:dll
 
