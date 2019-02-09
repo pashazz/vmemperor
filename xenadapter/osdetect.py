@@ -22,6 +22,9 @@ class GenericOS:
         self.partition = None
         self.device = None # Guest iso device name
 
+    def __repr__(self):
+        return self.__class__.__name__
+
     def pv_args(self) -> str:
         '''
         Obtain pv_args - kernel parameters for paravirtualized VM

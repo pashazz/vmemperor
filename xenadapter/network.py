@@ -50,7 +50,7 @@ class VIF(XenObject, metaclass=XenObjectMeta):
                 vm = VM(auth=auth, ref=record['VM'])
                 new_rec = {'uuid': vm.uuid, 'interfaces' : {record['device']:
                 {'VIF':event['ref'], 'network': record['network'], 'attached': record['currently_attached'], 'MAC': record['MAC'], 'status': record['status_detail']}} }
-                CHECK_ER(db.table(vm.db_table_name).insert(new_rec, conflict='update').run())
+                CHECK_ER(db.table(VM.db_table_name).insert(new_rec, conflict='update').run())
 
 
 

@@ -330,6 +330,8 @@ class VM (AbstractVM):
             except XenAdapterAPIError as e:
                 self.insert_log_entry(self=self, state="failed-network", message=e.message)
                 raise e
+            else:
+                self.log.debug(f"Plugged in network: {net}")
 
         else:
             if template.get_os_kind():
@@ -338,6 +340,7 @@ class VM (AbstractVM):
 
         if template.get_os_kind():
             self.os_detect(template.get_os_kind(), device, ip, hostname, install_url, override_pv_args, fullname, username, password, partition)
+            self.log.debug(f"OS successfully detected, proceeding with auto installation mode")
 
         if iso:
             try:
@@ -359,7 +362,7 @@ class VM (AbstractVM):
                 raise XenAdapterAPIError(self.log, 'Failed to start OS installation', f.details)
 
         # Wait for installation to finish
-        self.log.info(f"Finalizing installation of VM {self.uuid}")
+        self.log.debug(f"Finalizing installation of VM {self.uuid}")
         from constants import need_exit
 
         state = self.db.table(VM.db_table_name).get(self.uuid).pluck('power_state').run()['power_state']
@@ -447,6 +450,8 @@ class VM (AbstractVM):
             finally:
                 pass
                 #self.destroy_vm(vm_uuid, force=True)
+        else:
+            self.log.debug(f"provisioned using {provision_config}")
 
 
         try:
@@ -545,7 +550,6 @@ class VM (AbstractVM):
         os = OSChooser.get_os(os_kind, other_config)
 
         if os:
-
             if net_conf:
                 os.set_network_parameters(**net_conf)
 
@@ -566,7 +570,8 @@ class VM (AbstractVM):
                 pv_args = override_pv_args
             self.set_PV_args(pv_args)
 
-            self.log.info("Set PV args: {0}".format(pv_args))
+            self.log.debug(f"Set PV args: {pv_args}")
+            self.log.debug(f"OS detected: {os}")
 
 
     @use_logger

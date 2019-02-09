@@ -72,6 +72,10 @@ class XenObject(metaclass=XenObjectMeta):
     GraphQLType : GXenObjectType = None # Specify GraphQL type to access Rethinkdb cache
     REF_NULL = "OpaqueRef:NULL"
     db_table_name = ''
+    """
+    Database table name for a XenObject. Set by every XenObject class. Don't use field value from the class instance as individual instances may disable
+    db caching for themselves by clearing this variable. Instead, use a value provided at class level.
+    """
     EVENT_CLASSES=[]
     _db_created = False
     db = None
