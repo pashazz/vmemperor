@@ -1,70 +1,4 @@
 /**
-*
-* Vmform
-*
-*/
-import React from 'react';
-import T from 'prop-types';
-import autofill from  'react-autofill-innerref';
-import { FormattedMessage } from 'react-intl';
-import messages from './messages';
-import styles from './styles.css';
-import VMInput from './helpers';
-import IPT from 'react-immutable-proptypes';
-import Pool from 'models/Pool';
-import BasicRecord from 'models/BasicRecord';
-import ISO from 'models/ISO';
-import Network, { NetworkShape } from 'models/Network';
-import Template from 'models/Template';
-import { AvForm } from 'availity-reactstrap-validation';
-
-function getTemplates(pool = null) {
-  return pool ?
-    pool.templates_enabled.map(template => ({
-      id: template.uuid,
-      description: template.name_label,
-    })) : [];
-}
-
-function getStorageResources(pool = null) {
-  return pool ?
-    pool.storage_resources.map(storage => ({
-      id: storage.uuid,
-      description: storage.name_label,
-    })) : [];
-}
-
-function getNetworks(pool = null) {
-  return pool ?
-    pool.networks.map(network => ({
-      id: network.uuid,
-      description: network.name_label,
-    })) : [];
-}
-
-/*
-function getHooks(template = null) {
-  if (!template) {
-    return {};
-  }
-
-  const meta = template.other_config.vmemperor_hooks_meta;
-
-  return Object.keys(meta)
-    .filter(key => !!template.other_config.vmemperor_hooks[key])
-    .reduce(
-    (ac, key) => ({
-      ...ac,
-      [key]: {
-        ...meta[key],
-        enabled: false,
-      },
-    }),
-    {}
-  );
-}
-*/
-
 class VMForm extends React.Component { // eslint-disable-line react/prefer-stateless-function
   static propTypes = {
     pools: IPT.listOf(T.instanceOf(Pool)).isRequired,
@@ -173,29 +107,7 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
     this.setState(form);
 
   }
-/*
 
-  onHookChange(name, option) {
-    return event => {
-      const hooks = this.state.hooks;
-      if (typeof option === 'boolean') {
-        if (option) {
-          hooks[name] = hooks[name] || {};
-          getHooks(this.getTemplate())[name].options
-            .forEach(op => {
-              hooks[name][op.field] = hooks[name][op.field] || op.default_value;
-            });
-          hooks[name].enabled = true;
-        } else {
-          hooks[name].enabled = false;
-        }
-      } else {
-        hooks[name][option] = event.target.value;
-      }
-      this.setState({ hooks });
-    };
-  }
-*/
   getPool() {
     return this.props.pools.find(pool => pool.uuid === this.state['pool-select']);
   }
@@ -268,20 +180,10 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
           </div>
           )}
 
-        {/*
-        <h4><FormattedMessage {...messages.hooks} /></h4>
-        {
-          Object.keys(currentHooks)
-            .map(hookName => ({ ...currentHooks[hookName], hookName }))
-            .map(hook =>
-              <VMInput.Hook key={hook.hookName} {...hook} selected={form.hooks[hook.hookName]} onChange={this.onHookChange} />)
-        }
-        <br />
-         */}
+
         <input type="submit" className="btn btn-lg btn-primary btn-block" />
       </AvForm>
     );
   }
 }
-
-export default VMForm;
+*/
