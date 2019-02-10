@@ -81,13 +81,13 @@ function getCookie(name) {
 
 // Create an http link:
 const httpLink = new HttpLink({
-  uri: 'http://localhost:3000/api/graphql',
+  uri: `http://${window.location.hostname}:${window.location.port}/api/graphql`,
   credentials: 'same-origin',
 });
 
 // Create a WebSocket link:
 const wsLink = new WebSocketLink({
-  uri: `ws://localhost:3000/api/subscriptions`,
+  uri: `ws://${window.location.hostname}:${window.location.port}/api/subscriptions`,
   options: {
     reconnect: true,
     connectionParams: {
