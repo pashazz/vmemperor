@@ -1,0 +1,12 @@
+fragment StorageListFragment on GSR {
+  uuid
+  nameLabel
+  spaceAvailable
+  contentType
+}
+
+query StorageList {
+  srs {
+    ...StorageListFragment
+  }
+}

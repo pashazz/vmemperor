@@ -45,7 +45,7 @@ function App() {
         <PrivateRoute path="/vmsettings/:uuid" component={VMSettings}/>
         <PrivateRoute path="/create-vm" component={CreateVM}/>
         <PrivateRoute path="/logout" component={Logout} />
-        <PrivateRoute path="/desktop/:uuid" component={VncView}/>
+        {/*<PrivateRoute path="/desktop/:uuid" component={VncView}/>*/}
         <PrivateRoute path="/resources" component={AccessController}/>
         <Route component={NotFoundPage} />
       </Switch>

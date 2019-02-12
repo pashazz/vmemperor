@@ -1,4 +1,4 @@
-import React, {useEffect, useReducer} from 'react';
+import React, {useEffect} from 'react';
 import { FormattedMessage } from 'react-intl';
 import BootstrapTable from 'react-bootstrap-table-next';
 

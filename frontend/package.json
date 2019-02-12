@@ -218,7 +218,7 @@
     "testRegex": "tests/.*\\.test\\.js$"
   },
   "dependencies": {
-    "@availity/reactstrap-validation-select": "^1.5.1",
+    "@availity/reactstrap-validation-select": "^1.7.0",
     "@fortawesome/fontawesome-common-types": "^0.2.14",
     "@fortawesome/fontawesome-svg-core": "^1.2.14",
     "@fortawesome/free-solid-svg-icons": "^5.7.1",
@@ -227,6 +227,7 @@
     "@types/graphql": "^14.0.5",
     "@types/react-bootstrap-table": "^4.3.6",
     "@types/react-router-dom": "^4.3.1",
+    "@types/yup": "^0.26.9",
     "apollo-cache": "^1.2.0-beta.0",
     "apollo-cache-inmemory": "^1.5.0-beta.0",
     "apollo-client": "^2.5.0-beta.0",
@@ -234,7 +235,7 @@
     "apollo-link-error": "^1.1.7",
     "apollo-link-http": "^1.5.11",
     "apollo-link-ws": "^1.0.14",
-    "availity-reactstrap-validation": "^2.0.6",
+    "availity-reactstrap-validation": "^2.5.0",
     "axios": "^0.18.0",
     "babel-polyfill": "6.23.0",
     "bootstrap": "^4.2.1",
@@ -247,6 +248,7 @@
     "express": "^4.16.3",
     "express-request-proxy": "^2.2.0",
     "fontfaceobserver": "2.0.9",
+    "formik": "^1.5.0",
     "graphql": "^14.1.1",
     "graphql-codegen-typescript-graphql-files-modules": "^0.16.0",
     "graphql-codegen-typescript-resolvers": "^0.16.0",
@@ -287,6 +289,7 @@
     "react-toastify": "^4.0.1",
     "react-toggle-switch": "^3.0.4",
     "reactstrap": "^7.1.0",
+    "reactstrap-formik": "^1.0.5",
     "redux": "3.6.0",
     "redux-immutable": "^4.0.0",
     "redux-log-diff": "^1.0.4",
@@ -299,7 +302,8 @@
     "subscriptions-transport-ws": "^0.9.15",
     "uuid": "^3.2.1",
     "warning": "3.0.0",
-    "whatwg-fetch": "2.0.3"
+    "whatwg-fetch": "2.0.3",
+    "yup": "^0.26.10"
   },
   "devDependencies": {
     "@types/react": "^16.7.6",

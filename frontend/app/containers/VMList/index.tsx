@@ -21,7 +21,7 @@ import tableStyle from "./table.css";
 import {useApolloClient, useMutation, useQuery} from "react-apollo-hooks";
 import {Map, Set} from 'immutable';
 import {ButtonGroup, ButtonToolbar} from "reactstrap";
-import {dataIdFromObject, handleAddOfValue, handleAddRemove, handleRemoveOfValueByUuid} from "../../cacheUtils";
+import {dataIdFromObject, handleAddOfValue, handleAddRemove, handleRemoveOfValueByUuid} from "../../utils/cacheUtils";
 import StartButton from "../../components/StartButton";
 import StopButton from "../../components/StopButton";
 import RecycleBinButton from "../../components/RecycleBinButton";

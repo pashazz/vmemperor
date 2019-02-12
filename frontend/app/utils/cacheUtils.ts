@@ -1,7 +1,7 @@
 import {defaultDataIdFromObject} from "apollo-cache-inmemory";
 import {DocumentNode} from "graphql";
 import {DataProxy} from "apollo-cache";
-import {Change} from "./generated-models";
+import {Change} from "../generated-models";
 
 export const  dataIdFromObject = (object) => {
   // @ts-ignore

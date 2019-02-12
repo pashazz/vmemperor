@@ -8,13 +8,14 @@ import React, {useState} from 'react';
 import {FormattedMessage} from 'react-intl';
 import messages from './messages';
 import styles from './styles.css'
-import {Button} from 'reactstrap';
+import {Button, Modal} from 'reactstrap';
 
 import PoolInfo from '../../components/PoolInfo';
 import {useQuery} from "react-apollo-hooks";
 import {Change, PoolList, PoolListUpdate} from "../../generated-models";
 import {useSubscription} from "../../hooks/subscription";
-import {handleAddOfValue, handleAddRemove, handleRemoveOfValueByUuid} from "../../cacheUtils";
+import {handleAddOfValue, handleAddRemove, handleRemoveOfValueByUuid} from "../../utils/cacheUtils";
+import VMForm from "../../components/VMForm";
 
 
 
@@ -42,6 +43,8 @@ const CreateVM = () => {
   };
 
   return (
+    <div>
+      <Button primary={true} onClick={() => setModal(true)}>Create VM</Button>
     <div className={styles.poolsContainer}>
       {
         pools.length > 0 ?
@@ -50,7 +53,15 @@ const CreateVM = () => {
 
       }
     </div>
-  )
+
+      <Modal title="VM form"
+             lg
+             toggle={toggleModal}
+             isOpen={modal}>
+        <VMForm />
+      </Modal>
+    </div>
+  );
 
 
 

@@ -1,0 +1,15 @@
+fragment ISOListFragment on GISO {
+    uuid
+    nameLabel
+    SR {
+      isToolsSr
+    }
+  }
+
+
+query ISOList {
+  isos {
+    ...ISOListFragment
+  }
+}
+

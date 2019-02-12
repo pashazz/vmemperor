@@ -79,6 +79,12 @@ export enum HostDisplay {
   EnableOnReboot = "EnableOnReboot"
 }
 
+export enum SrContentType {
+  User = "User",
+  Disk = "Disk",
+  Iso = "ISO"
+}
+
 export enum DomainType {
   Hvm = "HVM",
   Pv = "PV",
@@ -195,6 +201,18 @@ export namespace HostListUpdate {
   export type Value = HostListFragment.Fragment;
 }
 
+export namespace IsoList {
+  export type Variables = {};
+
+  export type Query = {
+    __typename?: "Query";
+
+    isos: (Maybe<Isos>)[];
+  };
+
+  export type Isos = IsoListFragment.Fragment;
+}
+
 export namespace SelectedItemsQuery {
   export type Variables = {
     tableId: Table;
@@ -279,6 +297,18 @@ export namespace VmStateForButtonToolbar {
 
     trash: Maybe<(Maybe<string>)[]>;
   };
+}
+
+export namespace NetworkList {
+  export type Variables = {};
+
+  export type Query = {
+    __typename?: "Query";
+
+    networks: (Maybe<Networks>)[];
+  };
+
+  export type Networks = NetworkListFragment.Fragment;
 }
 
 export namespace PlaybookLaunch {
@@ -433,6 +463,30 @@ export namespace StartVm {
   };
 }
 
+export namespace StorageList {
+  export type Variables = {};
+
+  export type Query = {
+    __typename?: "Query";
+
+    srs: (Maybe<Srs>)[];
+  };
+
+  export type Srs = StorageListFragment.Fragment;
+}
+
+export namespace TemplateList {
+  export type Variables = {};
+
+  export type Query = {
+    __typename?: "Query";
+
+    templates: (Maybe<Templates>)[];
+  };
+
+  export type Templates = TemplateListFragment.Fragment;
+}
+
 export namespace VmInfo {
   export type Variables = {
     uuid: string;
@@ -551,6 +605,34 @@ export namespace HostListFragment {
   };
 }
 
+export namespace IsoListFragment {
+  export type Fragment = {
+    __typename?: "GISO";
+
+    uuid: string;
+
+    nameLabel: string;
+
+    SR: Maybe<Sr>;
+  };
+
+  export type Sr = {
+    __typename?: "GSR";
+
+    isToolsSr: boolean;
+  };
+}
+
+export namespace NetworkListFragment {
+  export type Fragment = {
+    __typename?: "GNetwork";
+
+    uuid: string;
+
+    nameLabel: string;
+  };
+}
+
 export namespace PoolListFragment {
   export type Fragment = {
     __typename?: "GPool";
@@ -568,6 +650,30 @@ export namespace PoolListFragment {
     __typename?: "GHost";
 
     uuid: string;
+  };
+}
+
+export namespace StorageListFragment {
+  export type Fragment = {
+    __typename?: "GSR";
+
+    uuid: string;
+
+    nameLabel: string;
+
+    spaceAvailable: number;
+
+    contentType: SrContentType;
+  };
+}
+
+export namespace TemplateListFragment {
+  export type Fragment = {
+    __typename?: "GTemplate";
+
+    uuid: string;
+
+    nameLabel: string;
   };
 }
 
@@ -700,6 +806,27 @@ export namespace HostListFragment {
   `;
 }
 
+export namespace IsoListFragment {
+  export const FragmentDoc = gql`
+    fragment ISOListFragment on GISO {
+      uuid
+      nameLabel
+      SR {
+        isToolsSr
+      }
+    }
+  `;
+}
+
+export namespace NetworkListFragment {
+  export const FragmentDoc = gql`
+    fragment NetworkListFragment on GNetwork {
+      uuid
+      nameLabel
+    }
+  `;
+}
+
 export namespace PoolListFragment {
   export const FragmentDoc = gql`
     fragment PoolListFragment on GPool {
@@ -709,6 +836,26 @@ export namespace PoolListFragment {
       nameLabel
       nameDescription
       uuid
+    }
+  `;
+}
+
+export namespace StorageListFragment {
+  export const FragmentDoc = gql`
+    fragment StorageListFragment on GSR {
+      uuid
+      nameLabel
+      spaceAvailable
+      contentType
+    }
+  `;
+}
+
+export namespace TemplateListFragment {
+  export const FragmentDoc = gql`
+    fragment TemplateListFragment on GTemplate {
+      uuid
+      nameLabel
     }
   `;
 }
@@ -936,6 +1083,48 @@ export namespace HostListUpdate {
     >(Document, operationOptions);
   }
 }
+export namespace IsoList {
+  export const Document = gql`
+    query ISOList {
+      isos {
+        ...ISOListFragment
+      }
+    }
+
+    ${IsoListFragment.FragmentDoc}
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.QueryProps<Query, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Query<Query, Variables>
+          query={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Query, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Query,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
 export namespace SelectedItemsQuery {
   export const Document = gql`
     query SelectedItemsQuery($tableId: Table!) {
@@ -1140,6 +1329,48 @@ export namespace VmStateForButtonToolbar {
         trash
       }
     }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.QueryProps<Query, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Query<Query, Variables>
+          query={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Query, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Query,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace NetworkList {
+  export const Document = gql`
+    query NetworkList {
+      networks {
+        ...NetworkListFragment
+      }
+    }
+
+    ${NetworkListFragment.FragmentDoc}
   `;
   export class Component extends React.Component<
     Partial<ReactApollo.QueryProps<Query, Variables>>
@@ -1479,6 +1710,90 @@ export namespace StartVm {
     );
   }
 }
+export namespace StorageList {
+  export const Document = gql`
+    query StorageList {
+      srs {
+        ...StorageListFragment
+      }
+    }
+
+    ${StorageListFragment.FragmentDoc}
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.QueryProps<Query, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Query<Query, Variables>
+          query={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Query, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Query,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace TemplateList {
+  export const Document = gql`
+    query TemplateList {
+      templates {
+        ...TemplateListFragment
+      }
+    }
+
+    ${TemplateListFragment.FragmentDoc}
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.QueryProps<Query, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Query<Query, Variables>
+          query={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Query, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Query,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
 export namespace VmInfo {
   export const Document = gql`
     query VMInfo($uuid: ID!) {
@@ -1715,6 +2030,10 @@ export namespace QueryResolvers {
     vms?: VmsResolver<(Maybe<Gvm>)[], TypeParent, Context>;
 
     vm?: VmResolver<Gvm, TypeParent, Context>;
+    /** All Templates available to user */
+    templates?: TemplatesResolver<(Maybe<GTemplate>)[], TypeParent, Context>;
+
+    template?: TemplateResolver<Gvm, TypeParent, Context>;
 
     hosts?: HostsResolver<(Maybe<GHost>)[], TypeParent, Context>;
 
@@ -1739,8 +2058,6 @@ export namespace QueryResolvers {
     isos?: IsosResolver<(Maybe<Giso>)[], TypeParent, Context>;
     /** Information about a single ISO image */
     iso?: IsoResolver<Gvdi, TypeParent, Context>;
-    /** All templates */
-    templates?: TemplatesResolver<(Maybe<GTemplate>)[], TypeParent, Context>;
     /** List of Ansible-powered playbooks */
     playbooks?: PlaybooksResolver<(Maybe<GPlaybook>)[], TypeParent, Context>;
     /** Information about Ansible-powered playbook */
@@ -1767,6 +2084,21 @@ export namespace QueryResolvers {
     VmArgs
   >;
   export interface VmArgs {
+    uuid?: Maybe<string>;
+  }
+
+  export type TemplatesResolver<
+    R = (Maybe<GTemplate>)[],
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type TemplateResolver<R = Gvm, Parent = {}, Context = {}> = Resolver<
+    R,
+    Parent,
+    Context,
+    TemplateArgs
+  >;
+  export interface TemplateArgs {
     uuid?: Maybe<string>;
   }
 
@@ -1859,11 +2191,6 @@ export namespace QueryResolvers {
     uuid?: Maybe<string>;
   }
 
-  export type TemplatesResolver<
-    R = (Maybe<GTemplate>)[],
-    Parent = {},
-    Context = {}
-  > = Resolver<R, Parent, Context>;
   export type PlaybooksResolver<
     R = (Maybe<GPlaybook>)[],
     Parent = {},
@@ -2310,7 +2637,7 @@ export namespace GsrResolvers {
 
     VDIs?: VdIsResolver<Maybe<(Maybe<DiskImage>)[]>, TypeParent, Context>;
 
-    contentType?: ContentTypeResolver<string, TypeParent, Context>;
+    contentType?: ContentTypeResolver<SrContentType, TypeParent, Context>;
 
     type?: TypeResolver<string, TypeParent, Context>;
     /** Physical size in kilobytes */
@@ -2319,13 +2646,13 @@ export namespace GsrResolvers {
     virtualAllocation?: VirtualAllocationResolver<number, TypeParent, Context>;
     /** This SR contains XenServer Tools */
     isToolsSr?: IsToolsSrResolver<boolean, TypeParent, Context>;
-    /** Physical utilisation in kilobytes */
+    /** Physical utilisation in bytes */
     physicalUtilisation?: PhysicalUtilisationResolver<
       number,
       TypeParent,
       Context
     >;
-    /** Available space in kilobytes */
+    /** Available space in bytes */
     spaceAvailable?: SpaceAvailableResolver<number, TypeParent, Context>;
   }
 
@@ -2360,7 +2687,7 @@ export namespace GsrResolvers {
     Context = {}
   > = Resolver<R, Parent, Context>;
   export type ContentTypeResolver<
-    R = string,
+    R = SrContentType,
     Parent = Gsr,
     Context = {}
   > = Resolver<R, Parent, Context>;
@@ -2882,6 +3209,68 @@ export namespace OsVersionResolvers {
   > = Resolver<R, Parent, Context>;
 }
 
+export namespace GTemplateResolvers {
+  export interface Resolvers<Context = {}, TypeParent = GTemplate> {
+    /** a human-readable name */
+    nameLabel?: NameLabelResolver<string, TypeParent, Context>;
+    /** a human-readable description */
+    nameDescription?: NameDescriptionResolver<string, TypeParent, Context>;
+    /** Unique constant identifier/object reference */
+    ref?: RefResolver<string, TypeParent, Context>;
+    /** Unique session-dependent identifier/object reference */
+    uuid?: UuidResolver<string, TypeParent, Context>;
+
+    access?: AccessResolver<(Maybe<GAccessEntry>)[], TypeParent, Context>;
+    /** If a template supports auto-installation, here a distro name is provided */
+    osKind?: OsKindResolver<Maybe<string>, TypeParent, Context>;
+    /** True if this template works with hardware assisted virtualization */
+    hvm?: HvmResolver<boolean, TypeParent, Context>;
+    /** True if this template is available for regular users */
+    enabled?: EnabledResolver<boolean, TypeParent, Context>;
+  }
+
+  export type NameLabelResolver<
+    R = string,
+    Parent = GTemplate,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type NameDescriptionResolver<
+    R = string,
+    Parent = GTemplate,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type RefResolver<
+    R = string,
+    Parent = GTemplate,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type UuidResolver<
+    R = string,
+    Parent = GTemplate,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type AccessResolver<
+    R = (Maybe<GAccessEntry>)[],
+    Parent = GTemplate,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type OsKindResolver<
+    R = Maybe<string>,
+    Parent = GTemplate,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type HvmResolver<
+    R = boolean,
+    Parent = GTemplate,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type EnabledResolver<
+    R = boolean,
+    Parent = GTemplate,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+}
+
 export namespace GPoolResolvers {
   export interface Resolvers<Context = {}, TypeParent = GPool> {
     /** a human-readable name */
@@ -3057,68 +3446,6 @@ export namespace GisoResolvers {
   export type LocationResolver<
     R = string,
     Parent = Giso,
-    Context = {}
-  > = Resolver<R, Parent, Context>;
-}
-
-export namespace GTemplateResolvers {
-  export interface Resolvers<Context = {}, TypeParent = GTemplate> {
-    /** a human-readable name */
-    nameLabel?: NameLabelResolver<string, TypeParent, Context>;
-    /** a human-readable description */
-    nameDescription?: NameDescriptionResolver<string, TypeParent, Context>;
-    /** Unique constant identifier/object reference */
-    ref?: RefResolver<string, TypeParent, Context>;
-    /** Unique session-dependent identifier/object reference */
-    uuid?: UuidResolver<string, TypeParent, Context>;
-
-    access?: AccessResolver<(Maybe<GAccessEntry>)[], TypeParent, Context>;
-    /** If a template supports auto-installation, here a distro name is provided */
-    osKind?: OsKindResolver<Maybe<string>, TypeParent, Context>;
-    /** True if this template works with hardware assisted virtualization */
-    hvm?: HvmResolver<boolean, TypeParent, Context>;
-    /** True if this template is available for regular users */
-    enabled?: EnabledResolver<boolean, TypeParent, Context>;
-  }
-
-  export type NameLabelResolver<
-    R = string,
-    Parent = GTemplate,
-    Context = {}
-  > = Resolver<R, Parent, Context>;
-  export type NameDescriptionResolver<
-    R = string,
-    Parent = GTemplate,
-    Context = {}
-  > = Resolver<R, Parent, Context>;
-  export type RefResolver<
-    R = string,
-    Parent = GTemplate,
-    Context = {}
-  > = Resolver<R, Parent, Context>;
-  export type UuidResolver<
-    R = string,
-    Parent = GTemplate,
-    Context = {}
-  > = Resolver<R, Parent, Context>;
-  export type AccessResolver<
-    R = (Maybe<GAccessEntry>)[],
-    Parent = GTemplate,
-    Context = {}
-  > = Resolver<R, Parent, Context>;
-  export type OsKindResolver<
-    R = Maybe<string>,
-    Parent = GTemplate,
-    Context = {}
-  > = Resolver<R, Parent, Context>;
-  export type HvmResolver<
-    R = boolean,
-    Parent = GTemplate,
-    Context = {}
-  > = Resolver<R, Parent, Context>;
-  export type EnabledResolver<
-    R = boolean,
-    Parent = GTemplate,
     Context = {}
   > = Resolver<R, Parent, Context>;
 }
@@ -3807,8 +4134,8 @@ export namespace GAclXenObjectResolvers {
     __resolveType: ResolveType;
   }
   export type ResolveType<
-    R = "GVM" | "GNetwork" | "GVDI" | "GISO" | "GTemplate" | "GTask",
-    Parent = Gvm | GNetwork | Gvdi | Giso | GTemplate | GTask,
+    R = "GVM" | "GNetwork" | "GTemplate" | "GVDI" | "GISO" | "GTask",
+    Parent = Gvm | GNetwork | GTemplate | Gvdi | Giso | GTask,
     Context = {}
   > = TypeResolveFn<R, Parent, Context>;
 }
@@ -3891,10 +4218,10 @@ export interface IResolvers<Context = {}> {
   CpuInfo?: CpuInfoResolvers.Resolvers<Context>;
   SoftwareVersion?: SoftwareVersionResolvers.Resolvers<Context>;
   OsVersion?: OsVersionResolvers.Resolvers<Context>;
+  GTemplate?: GTemplateResolvers.Resolvers<Context>;
   GPool?: GPoolResolvers.Resolvers<Context>;
   Gvdi?: GvdiResolvers.Resolvers<Context>;
   Giso?: GisoResolvers.Resolvers<Context>;
-  GTemplate?: GTemplateResolvers.Resolvers<Context>;
   GPlaybook?: GPlaybookResolvers.Resolvers<Context>;
   PlaybookRequirements?: PlaybookRequirementsResolvers.Resolvers<Context>;
   VmSelectedIdLists?: VmSelectedIdListsResolvers.Resolvers<Context>;
@@ -3988,6 +4315,10 @@ export interface Query {
   vms: (Maybe<Gvm>)[];
 
   vm: Gvm;
+  /** All Templates available to user */
+  templates: (Maybe<GTemplate>)[];
+
+  template: Gvm;
 
   hosts: (Maybe<GHost>)[];
 
@@ -4012,8 +4343,6 @@ export interface Query {
   isos: (Maybe<Giso>)[];
   /** Information about a single ISO image */
   iso: Gvdi;
-  /** All templates */
-  templates: (Maybe<GTemplate>)[];
   /** List of Ansible-powered playbooks */
   playbooks: (Maybe<GPlaybook>)[];
   /** Information about Ansible-powered playbook */
@@ -4155,7 +4484,7 @@ export interface Gsr extends GXenObject {
 
   VDIs?: Maybe<(Maybe<DiskImage>)[]>;
 
-  contentType: string;
+  contentType: SrContentType;
 
   type: string;
   /** Physical size in kilobytes */
@@ -4164,9 +4493,9 @@ export interface Gsr extends GXenObject {
   virtualAllocation: number;
   /** This SR contains XenServer Tools */
   isToolsSr: boolean;
-  /** Physical utilisation in kilobytes */
+  /** Physical utilisation in bytes */
   physicalUtilisation: number;
-  /** Available space in kilobytes */
+  /** Available space in bytes */
   spaceAvailable: number;
 }
 
@@ -4306,6 +4635,25 @@ export interface OsVersion {
   minor?: Maybe<number>;
 }
 
+export interface GTemplate extends GAclXenObject {
+  /** a human-readable name */
+  nameLabel: string;
+  /** a human-readable description */
+  nameDescription: string;
+  /** Unique constant identifier/object reference */
+  ref: string;
+  /** Unique session-dependent identifier/object reference */
+  uuid: string;
+
+  access: (Maybe<GAccessEntry>)[];
+  /** If a template supports auto-installation, here a distro name is provided */
+  osKind?: Maybe<string>;
+  /** True if this template works with hardware assisted virtualization */
+  hvm: boolean;
+  /** True if this template is available for regular users */
+  enabled: boolean;
+}
+
 export interface GPool extends GXenObject {
   /** a human-readable name */
   nameLabel: string;
@@ -4359,25 +4707,6 @@ export interface Giso extends GAclXenObject, DiskImage {
   virtualSize: number;
 
   location: string;
-}
-
-export interface GTemplate extends GAclXenObject {
-  /** a human-readable name */
-  nameLabel: string;
-  /** a human-readable description */
-  nameDescription: string;
-  /** Unique constant identifier/object reference */
-  ref: string;
-  /** Unique session-dependent identifier/object reference */
-  uuid: string;
-
-  access: (Maybe<GAccessEntry>)[];
-  /** If a template supports auto-installation, here a distro name is provided */
-  osKind?: Maybe<string>;
-  /** True if this template works with hardware assisted virtualization */
-  hvm: boolean;
-  /** True if this template is available for regular users */
-  enabled: boolean;
 }
 
 export interface GPlaybook {
@@ -4570,6 +4899,9 @@ export interface PlaybookTasksSubscription {
 // ====================================================
 
 export interface VmQueryArgs {
+  uuid?: Maybe<string>;
+}
+export interface TemplateQueryArgs {
   uuid?: Maybe<string>;
 }
 export interface HostQueryArgs {

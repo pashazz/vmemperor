@@ -17,8 +17,6 @@ import { Map } from 'immutable';
 
 import { actions } from 'react-redux-toastr';
 
-import {execplaybook} from "../../api/playbook"
-import { EXECUTE_PLAYBOOK } from "../Playbooks/constants";
 import {taskstatus} from "../../api/task";
 
 

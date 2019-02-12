@@ -22,6 +22,11 @@ class SRType(graphene.Enum):
     NetApp = 'NetApp'
     EqualLogic = 'EqualLogic'
 
+class SRContentType(graphene.Enum):
+    User = 'user' # Can create VMs here
+    Disk = 'disk' # Revomable storage
+    ISO = 'iso'  # ISO drives
+
 
 
 
@@ -33,7 +38,7 @@ class GSR(GXenObjectType):
                                  description="Connections to host. Usually one, unless the storage repository is shared: e.g. iSCSI")
 
     VDIs = graphene.Field(graphene.List(vdiType), resolver=resolve_vdis)
-    content_type = graphene.Field(graphene.String, required=True)
+    content_type = graphene.Field(SRContentType, required=True)
     type = graphene.Field(graphene.String, required=True)
     physical_size = graphene.Field(graphene.Float, required=True, description="Physical size in kilobytes")
     virtual_allocation = graphene.Field(graphene.Float, required=True, description="Virtual allocation in kilobytes")

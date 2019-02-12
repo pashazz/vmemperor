@@ -15,7 +15,7 @@ import {Card, CardImg, CardSubtitle, CardText, Row} from "reactstrap";
 import CardBody from "reactstrap/lib/CardBody";
 import {useQuery} from "react-apollo-hooks";
 import {useSubscription} from "../../hooks/subscription";
-import {handleAddRemove} from "../../cacheUtils";
+import {handleAddRemove} from "../../utils/cacheUtils";
 import CardHeader from "reactstrap/lib/CardHeader";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {faServer} from "@fortawesome/free-solid-svg-icons/faServer";
@@ -75,7 +75,6 @@ function PoolInfo({ pool : {
         </Row>
 
       <CardFooter>
-        <Button primary>Create VM here</Button>
       </CardFooter>
     </Card>
   );
