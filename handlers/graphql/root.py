@@ -30,6 +30,9 @@ class Query(ObjectType):
     vms = graphene.List(GVM, required=True, resolver=VM.resolve_all(), description="All VMs available to user")
     vm = graphene.Field(GVM, required=True, uuid=graphene.ID(), resolver=VM.resolve_one())
 
+    templates = graphene.List(GTemplate, required=True, resolver=Template.resolve_all(), description="All Templates available to user")
+    template = graphene.Field(GVM, required=True, uuid=graphene.ID(), resolver=Template.resolve_one())
+
     hosts = graphene.List(GHost, required=True, resolver=Host.resolve_all())
     host = graphene.Field(GHost, required=True, uuid=graphene.ID(), resolver=Host.resolve_one())
 
@@ -50,8 +53,6 @@ class Query(ObjectType):
     isos = graphene.List(GISO, required=True, resolver=ISO.resolve_all(), description="All ISO images available for user")
     iso = graphene.Field(GVDI, required=True, uuid=graphene.ID(), resolver=ISO.resolve_one(),
                          description="Information about a single ISO image")
-
-    templates = graphene.List(GTemplate,required=True, resolver=Template.resolve_all(), description="All templates")
 
     playbooks = graphene.List(GPlaybook,  required=True, resolver=resolve_playbooks, description="List of Ansible-powered playbooks")
     playbook = graphene.Field(GPlaybook, required=True, id=graphene.ID(), resolver=resolve_playbook,

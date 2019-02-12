@@ -1,5 +1,6 @@
 import graphene
 
+from handlers.graphql.graphql_handler import ContextProtocol
 from handlers.graphql.resolvers.sr import srType, resolve_sr
 from handlers.graphql.types.gxenobjecttype import GXenObjectType
 from handlers.graphql.resolvers.host import hostType, resolve_host
@@ -30,7 +31,7 @@ class Pool (XenObject):
         The quotas table has the following document structure:
         {
         "userid": "users/1" (user id/ group id with user/group mark)
-        "storage": 9007199254740992 (How many storage kilobytes this user is allowed to have)
+        "storage": 9007199254740992 (How many storage bytes this user is allowed to have)
         }
         :param db:
         :param indexes:
