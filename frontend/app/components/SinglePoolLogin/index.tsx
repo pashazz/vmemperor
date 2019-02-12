@@ -7,7 +7,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import {InputGroup, InputGroupAddon, InputGroupText, Form, FormGroup, Label} from 'reactstrap';
-import Input from 'components/Input';
+import Input from '../../components/Input';
 import { AvGroup, AvFeedback } from 'availity-reactstrap-validation';
 import T from 'prop-types';
 import { injectIntl, intlShape } from 'react-intl';
@@ -36,11 +36,5 @@ class SinglePoolLogin extends React.PureComponent { // eslint-disable-line react
   }
 }
 
-SinglePoolLogin.propTypes = {
-  description: T.string.isRequired,
-  intl: intlShape.isRequired,
-  index: T.number.isRequired,
-
-};
 
 export default injectIntl(SinglePoolLogin);

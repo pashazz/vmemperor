@@ -28,6 +28,8 @@ import {HDD_SIZE_GB_MAX, RAM_MB_MAX, RAM_MB_MIN, VCPU_MAX} from "../../utils/con
 import formatBytes from "../../utils/sizeUtils";
 import {Button} from "reactstrap";
 import {faDatabase, faServer} from "@fortawesome/free-solid-svg-icons";
+import Input from '../../components/Input';
+import {faTag} from "@fortawesome/free-solid-svg-icons/faTag";
 
 /*
 export interface SelectionProps {
@@ -313,7 +315,6 @@ const VMForm: React.FunctionComponent = () =>
   //Yup.addMethod()
   return (
   <Formik initialValues={initialValues}
-          onSubmitWithErrors
           onSubmit={(values: Values) => console.log(values)}
           validationSchema={object().shape<Values>({
             pool: OptionShape().required(),
@@ -378,6 +379,13 @@ const VMForm: React.FunctionComponent = () =>
                              options={srOptions}
                              placeholder="Select a network to install on..."
                       />
+                      <Field name="nameLabel"
+                             component={Input}
+                             placeholder="How you would name this VM"
+                             addonIcon={faTag}
+                      />
+
+
 
                     </React.Fragment>
                   )}
