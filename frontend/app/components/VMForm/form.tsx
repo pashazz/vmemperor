@@ -23,6 +23,7 @@ import {faComment} from "@fortawesome/free-solid-svg-icons/faComment";
 import {faUser} from "@fortawesome/free-solid-svg-icons/faUser";
 import {faKey} from "@fortawesome/free-solid-svg-icons/faKey";
 import {Button} from "reactstrap";
+import CheckBoxComponent from "../Checkbox";
 
 const VMForm = (props : FormikPropsValues) => {
   const {data : {pools } } = useQuery<PoolList.Query>(PoolList.Document);
@@ -78,7 +79,7 @@ const VMForm = (props : FormikPropsValues) => {
       />
       <Field name="network"
       component={Select}
-      options={srOptions}
+      options={networkOptions}
       placeholder="Select a network to install on..."
       />
       <Field name="nameLabel"
@@ -91,7 +92,45 @@ const VMForm = (props : FormikPropsValues) => {
   placeholder="Enter a description (Optional)..."
   addonIcon={faComment}
   />
- 
+          {currentTemplateOsKind && (
+            <React.Fragment>
+              <Field name="autoMode"
+                     component={CheckBoxComponent}
+              >
+                <h6> Unattended installation </h6>
+              </Field>
+
+              {props.values.autoMode && (
+                <div>
+                  <h4 style={{margin: '20px'}}><FormattedMessage {...messages.account} /></h4>
+                  <Field name="fullname"
+                         component={Input}
+                         placeholder="Enter your full name (Optional)..."
+                         addonIcon={faSignature}
+                  />
+                  <Field name="username"
+                         component={Input}
+                         placeholder="Enter username (1-32 latin characters)..."
+                         addonIcon={faUser}
+                  />
+                  <Field name="password"
+                         component={Input}
+                         placeholder="Enter password..."
+                         addonIcon={faKey}
+                         type="password"
+                  />
+                  <Field name="password2"
+                         component={Input}
+                         placeholder="Repeat password"
+                         addonIcon={faKey}
+                         type="password"
+                  />
+
+
+                </div>)}
+            </React.Fragment>
+          )
+          }
   </React.Fragment>
 ) }
   <Button type="submit" primary={true} >

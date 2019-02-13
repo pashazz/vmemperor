@@ -21,7 +21,7 @@ class Input extends React.Component { // eslint-disable-line react/prefer-statel
 }
 */
 import {FieldProps} from "formik";
-import {FormFeedback, FormGroup, Input, InputGroupText} from 'reactstrap';
+import {Col, FormFeedback, FormGroup, Input, InputGroupText, Label} from 'reactstrap';
 import {Icon} from "@fortawesome/fontawesome-svg-core";
 import InputGroup from "reactstrap/lib/InputGroup";
 import InputGroupAddon from "reactstrap/lib/InputGroupAddon";
@@ -29,7 +29,9 @@ import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {InputProps} from "reactstrap";
 
 interface InputComponentProps {
-  addonIcon : Icon
+  addonIcon? : Icon,
+  label? : boolean, //Use children to provide label text
+
 };
 
 const InputComponent : React.FunctionComponent<FieldProps & InputProps &  InputComponentProps> = (
@@ -37,18 +39,32 @@ const InputComponent : React.FunctionComponent<FieldProps & InputProps &  InputC
     field: {...fields},
     form,
     addonIcon,
+    label,
+    children,
     ...props
   }
 ) =>
 {
   return (
-    <FormGroup>
-      <InputGroup>
+    <FormGroup row={true} style={{paddingLeft: 20, paddingRight: 20}}>
+      {label && (
+        <Label for={fields.name} style={ { marginTop: "0.5rem"}}>
+          {children}
+        </Label>
+      )
+      }
+
+
+      <Col>
+      <InputGroup row={true}>
+        { addonIcon && (
         <InputGroupAddon style={ {"line-height": "1!important"}} addonType="prepend">
-          <InputGroupText style = { { height: '100%'}}>
+          <InputGroupText>
             <FontAwesomeIcon icon={addonIcon}/>
           </InputGroupText>
         </InputGroupAddon>
+        )
+        }
         <Input {...props} {...fields}
                invalid={Boolean(form.touched[fields.name]
                  && form.errors[fields.name])}
@@ -56,6 +72,7 @@ const InputComponent : React.FunctionComponent<FieldProps & InputProps &  InputC
         { form.touched[fields.name] && form.errors[fields.name] &&
         (<FormFeedback> {form.errors[fields.name]} </FormFeedback>)}
       </InputGroup>
+      </Col>
     </FormGroup>
   )
 };

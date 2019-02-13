@@ -14,7 +14,7 @@ const SelectField: React.FunctionComponent<ReactSelectProps & FieldProps> = ({
   form,
   placeholder
 }) => (
-  <FormGroup>
+  <FormGroup style={{paddingRight: "20px", paddingLeft: "20px"}}>
   <div style={{ margin: '1rem 0' }}>
   <Select
     options={options}
