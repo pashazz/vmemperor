@@ -125,9 +125,41 @@ const VMForm = (props : FormikPropsValues) => {
                          addonIcon={faKey}
                          type="password"
                   />
+                  <h4><FormattedMessage {...messages.network} /></h4>
+
+                  <Field name="ip"
+                         component={Input}
+                         placeholder={"Enter IP address..."}
+                         label={true}
+                  >IP:</Field>
+                  <Field name="gateway"
+                         component={Input}
+                         placeholder={"Enter gateway address..."}
+                         label={true}
+                  >Gateway:</Field>
+                  <Field name="netmask"
+                         component={Input}
+                         placeholder={"Enter netmask address..."}
+                         label={true}
+                  >Netmask:</Field>
+                  <Field name="dns0"
+                         component={Input}
+                         placeholder={"Enter DNS #1"}
+                         label={true}
+                  >DNS 1:</Field>
+                  <Field name="dns1"
+                         component={Input}
+                         placeholder={"Enter DNS #2"}
+                         label={true}
+                  >DNS 2:</Field>
+                </div>
+              )}
+              <h4><FormattedMessage {...messages.resources} /></h4>
 
 
-                </div>)}
+
+
+
             </React.Fragment>
           )
           }
