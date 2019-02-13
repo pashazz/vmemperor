@@ -674,6 +674,8 @@ export namespace TemplateListFragment {
     uuid: string;
 
     nameLabel: string;
+
+    osKind: Maybe<string>;
   };
 }
 
@@ -856,6 +858,7 @@ export namespace TemplateListFragment {
     fragment TemplateListFragment on GTemplate {
       uuid
       nameLabel
+      osKind
     }
   `;
 }

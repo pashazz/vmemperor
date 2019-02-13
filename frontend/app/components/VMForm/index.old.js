@@ -1,5 +1,5 @@
 /**
-class VMForm extends React.Component { // eslint-disable-line react/prefer-stateless-function
+class VMFormContainer extends React.Component { // eslint-disable-line react/prefer-stateless-function
   static propTypes = {
     pools: IPT.listOf(T.instanceOf(Pool)).isRequired,
     networks: IPT.listOf(NetworkShape).isRequired,
@@ -10,7 +10,7 @@ class VMForm extends React.Component { // eslint-disable-line react/prefer-state
 
   constructor(props) {
     super(props);
-    console.log("VMForm constructor");
+    console.log("VMFormContainer constructor");
     this.handleSubmit = this.handleSubmit.bind(this);
     this.getPool = this.getPool.bind(this);
     this.onInputTextChange = this.onInputTextChange.bind(this);

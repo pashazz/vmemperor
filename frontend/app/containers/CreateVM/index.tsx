@@ -15,7 +15,7 @@ import {useQuery} from "react-apollo-hooks";
 import {Change, PoolList, PoolListUpdate} from "../../generated-models";
 import {useSubscription} from "../../hooks/subscription";
 import {handleAddOfValue, handleAddRemove, handleRemoveOfValueByUuid} from "../../utils/cacheUtils";
-import VMForm from "../../components/VMForm";
+import VMFormContainer from "../../components/VMForm";
 
 
 
@@ -58,7 +58,7 @@ const CreateVM = () => {
              lg
              toggle={toggleModal}
              isOpen={modal}>
-        <VMForm />
+        <VMFormContainer />
       </Modal>
     </div>
   );
@@ -90,7 +90,7 @@ export class CreateVm_ extends React.Component{ // eslint-disable-line react/pre
                lg
                toggle={this.toggleModal}
                isOpen={this.props.modal}>
-          <VMForm  pools={this.props.pools}
+          <VMFormContainer  pools={this.props.pools}
                    isos={this.props.isos}
                    networks={this.props.networks}
                    templates={this.props.templates}

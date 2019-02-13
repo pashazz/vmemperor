@@ -3,13 +3,11 @@ import React from 'react'
 import Select, { Option, ReactSelectProps } from 'react-select'
 import {FormFeedback, InputGroup, InputGroupAddon} from "reactstrap";
 import FormGroup from "reactstrap/lib/FormGroup";
-import {faDatabase} from "@fortawesome/free-solid-svg-icons";
-import InputGroupText from "reactstrap/lib/InputGroupText";
-import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 
 
 
-
+/* See bug https://github.com/JedWatson/react-select/issues/1453
+ and https://github.com/JedWatson/react-select/issues/2930 */
 const SelectField: React.FunctionComponent<ReactSelectProps & FieldProps> = ({
   options,
   field,
@@ -26,10 +24,11 @@ const SelectField: React.FunctionComponent<ReactSelectProps & FieldProps> = ({
     onBlur={field.onBlur}
     placeholder={placeholder}
   />
+
     {!!form.errors[field.name] && form.touched[field.name] && (
-      <div>
+      <FormFeedback>
         {form.errors[field.name]}
-      </div>
+      </FormFeedback>
     )
     }
   </div>

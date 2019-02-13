@@ -3,33 +3,18 @@
 * Vmform
 *
 */
-import React, {useMemo} from 'react';
-import Select from '../../components/Select';
-import {FormattedMessage} from 'react-intl';
-import messages from './messages';
+import React from 'react';
 
 
 import * as Yup from "yup";
-import {boolean, mixed, number, object, string} from "yup";
+import {boolean, number, object, string} from "yup";
 
 import {AvForm} from 'availity-reactstrap-validation';
-import {Field, Form, Formik, FormikProps} from "formik";
-import {
-  IsoList,
-  NetworkList,
-  PoolList,
-  SrContentType,
-  StorageList,
-  StorageListFragment,
-  TemplateList
-} from "../../generated-models";
-import {useQuery} from "react-apollo-hooks";
+import {Formik, FormikProps} from "formik";
 import {HDD_SIZE_GB_MAX, RAM_MB_MAX, RAM_MB_MIN, VCPU_MAX} from "../../utils/constants";
-import formatBytes from "../../utils/sizeUtils";
-import {Button} from "reactstrap";
-import {faDatabase, faServer} from "@fortawesome/free-solid-svg-icons";
-import Input from '../../components/Input';
-import {faTag} from "@fortawesome/free-solid-svg-icons/faTag";
+import {Option, OptionShape} from "../../hooks/form";
+import VMForm from "./form";
+import {Values} from "./props";
 
 /*
 export interface SelectionProps {
@@ -70,7 +55,7 @@ interface Action {
 
 type VMFormReducer = Reducer<State, Action>;
 
-const VMForm : React.FunctionComponent = () => {
+const VMFormContainer : React.FunctionComponent = () => {
   const formRef = useRef(null);
   const reducer : VMFormReducer = (state, action) => {
     return state;
@@ -172,33 +157,7 @@ const VMForm : React.FunctionComponent = () => {
   );
 };
 */
-interface Values {
-  pool: Option;
-  template: Option;
-  storage: Option;
-  network: Option;
-  networkType: Option;
-  fullname: string;
-  username: string;
-  password: string;
-  password2: string;
-  hostname: string;
-  nameLabel: string;
-  nameDescription: string;
-  vcpus: number;
-  ram: number; //MB
-  hdd: number; //GB
-  ip: string;
-  netmask: string;
-  gateway: string;
-  dns0: string;
-  dns1: string;
-  iso: Option;
-  autoMode: boolean,
-}
 
-type FormikPropsValues = FormikProps<Values>;
-const FormContext = React.createContext<FormikPropsValues>(null);
 
 const initialValues : Values = {
   pool: null,
@@ -229,67 +188,9 @@ const HOSTNAME_REGEX = RegExp('^[a-zA-Z0-9]([a-zA-Z0-9-])*$');
 const USERNAME_REGEX = RegExp('^[a-z_][a-z0-9_]$');
 const PASSWORD_REGEX = RegExp('^[\x00-\x7F]*$');
 
-interface Option {
-  value: string,
-  label: string,
-}
 
-const OptionShape  = () =>  object().shape<Option>({
-    value: string().required(),
-    label: string().required(),
-  }
-);
-
-interface ListItem {
-  nameLabel?: string,
-  nameDescription?: string,
-  uuid: string,
-}
-const useReactSelectFromRecord = <T extends ListItem>(dataSource : T[],
-                                  labelFunction : (item : T) => string = null,
-                                  filterFunction : (item : T) => boolean  = null ) => {
-  if (!labelFunction)
-  { // Default is using nameLabel
-    labelFunction = (item : T) => item.nameLabel || item.nameDescription || `No name (UUID: ${item.uuid})`;
-  }
-  if (!filterFunction)
-    filterFunction = (item) => true;
-
-  const valueFunction = (item : T) => item.uuid;
-
-  return useMemo(() => dataSource.filter(filterFunction).map((item) : Option => (
-    {
-      value: valueFunction(item),
-      label: labelFunction(item),
-    }
-  )
-  ), [dataSource, labelFunction, filterFunction]);
-};
-
-
-const VMForm: React.FunctionComponent = () =>
+const VMFormContainer: React.FunctionComponent = () =>
 {
-
-  const {data : {pools } } = useQuery<PoolList.Query>(PoolList.Document);
-  const poolOptions = useReactSelectFromRecord(pools);
-
-  const {data : { templates } } = useQuery<TemplateList.Query>(TemplateList.Document);
-  const templateOptions = useReactSelectFromRecord(templates);
-
-  const {data: srData} = useQuery<StorageList.Query>(StorageList.Document);
-  const srs = useMemo (() => srData.srs.filter(sr => sr.contentType === SrContentType.User), [srData])
-  const srOptions = useReactSelectFromRecord(srs, (item: StorageListFragment.Fragment) => {
-    return `${item.nameLabel} (${formatBytes(item.spaceAvailable, 2)} available)`
-  });
-
-  const { data : { networks } } = useQuery<NetworkList.Query>(NetworkList.Document);
-  const networkOptions =  useReactSelectFromRecord(networks);
-
-  const { data: isoData  } = useQuery<IsoList.Query>(IsoList.Document);
-  const isos = useMemo ( () => isoData.isos.filter(iso => !iso.SR.isToolsSr), [isoData]);
-  const isoOptions = useReactSelectFromRecord(isos);
-
-
   const requiredIpWhenNetwork = (message : string, required = true) => string().when(['autoMode','network', 'networkType'], {
     is: (autoMode, network, networkType) => !network || !networkType || networkType !== 'static',
     then: string().notRequired().nullable(true),
@@ -346,63 +247,9 @@ const VMForm: React.FunctionComponent = () =>
             hdd: number().integer().positive().required().max(HDD_SIZE_GB_MAX),
 
           })}
-          render={(props : FormikProps<Values>) => {
-            console.log("Errors:", props.errors);
-            console.log("Values:", props.values);
-            console.log(poolOptions);
-            return (
-              <FormContext.Provider value={props}>
-                <Form>
-                  <h4 style={{ margin: '20px'}}><FormattedMessage {...messages.infrastructure} /></h4>
-                  <Field name="pool"
-                         component={Select}
-                         options={poolOptions}
-                         placeholder="Select a pool to install on..."
-                         addonIcon={faServer}
-                  />
-                  {props.values.pool && (
-                    <React.Fragment>
-                      <Field name="template"
-                             component={Select}
-                             options={templateOptions}
-                             placeholder="Select an OS template to install..."
-                      />
-                      <Field name="storage"
-                             component={Select}
-                             options={srOptions}
-                             placeholder="Select a storage repository to install on..."
-                             addonIcon={faDatabase}
-
-                      />
-                      <Field name="network"
-                             component={Select}
-                             options={srOptions}
-                             placeholder="Select a network to install on..."
-                      />
-                      <Field name="nameLabel"
-                             component={Input}
-                             placeholder="How you would name this VM"
-                             addonIcon={faTag}
-                      />
-
-
-
-                    </React.Fragment>
-                  )}
-                  <Button type="submit" primary={true} >
-                    Create
-                  </Button>
-
-                </Form>
-              </FormContext.Provider>
-            )
-
-          }
-          }
-
-
+          component={VMForm}
   />
   );
 };
 
-export default VMForm;
+export default VMFormContainer;
