@@ -189,19 +189,29 @@ const PASSWORD_REGEX = RegExp('^[\x00-\x7F]*$');
 
 
 const VMFormContainer: React.FunctionComponent = () => {
-  const requiredIpWhenNetwork = (message: string, required = true) => string().when(['autoMode', 'network', 'networkType'], {
-    is: (autoMode, network, networkType: Option) => !network || !networkType || networkType.value === 'dhcp',
-    then: string().notRequired().nullable(true),
-    otherwise: required ? string().matches(IP_REGEX, message).required() : string().matches(IP_REGEX, message)
-  });
-
+  const requiredIpWhenNetwork = (message: string, required = true) => {
+    console.log("requiredIp: ", required);
+    return string().when(['autoMode', 'network', 'networkType'], {
+      is: (autoMode, network, networkType: Option) => {
+        return networkType.value === 'dhcp';
+      },
+      then: string().notRequired().nullable(true),
+      otherwise: required ? string().matches(IP_REGEX, message).required() : string().matches(IP_REGEX, message)
+    });
+  }
   const autoModeRequired = (t) => ({
     is: true,
     then: t().required(),
     otherwise: t().notRequired().nullable(true),
   });
 
-  //Yup.addMethod()
+  Yup.addMethod(Yup.mixed, 'sameAs', function (ref, message) {
+    return this.test('sameAs', message, function (value) {
+      const other = this.resolve(ref);
+      return !other || !value || value === other;
+    });
+  });
+
   return (
     <Formik initialValues={initialValues}
             onSubmit={(values: Values) => console.log(values)}
@@ -216,11 +226,12 @@ const VMFormContainer: React.FunctionComponent = () => {
               hostname: string().min(1).max(255).matches(HOSTNAME_REGEX).when('autoMode', autoModeRequired(string)),
               username: string().min(1).max(31).matches(USERNAME_REGEX).when('autoMode', autoModeRequired(string)),
               password: string().min(1).matches(PASSWORD_REGEX).when('autoMode', autoModeRequired(string)),
-              password2: string().oneOf([Yup.ref('password'), '']).when('autoMode', autoModeRequired(string)),
+              // @ts-ignore
+              password2: string().sameAs(Yup.ref('password')).when('autoMode', autoModeRequired(string)),
               nameDescription: string(),
               nameLabel: string().required(),
-              vcpus: number().integer().min(1).max(VCPU_MAX).required(),
-              ram: number().integer().min(RAM_MB_MIN).max(RAM_MB_MAX).required(),
+              vcpus: number().integer().min(1).max(32).required(),
+              ram: number().integer().min(256).max(1572864).required(),
               ip: requiredIpWhenNetwork("Enter valid IP"),
               netmask: requiredIpWhenNetwork("Enter valid netmask)"),
               gateway: requiredIpWhenNetwork("Enter valid gateway"),
@@ -232,7 +243,7 @@ const VMFormContainer: React.FunctionComponent = () => {
                   then: object().required(),
                   otherwise: object().nullable(true)
                 }),
-              hdd: number().integer().positive().required().max(HDD_SIZE_GB_MAX),
+              hdd: number().integer().positive().required().max(2043),
 
             })}
             component={VMForm}
