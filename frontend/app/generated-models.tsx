@@ -133,6 +133,32 @@ export type DateTime = any;
 // Documents
 // ====================================================
 
+export namespace CreateVm {
+  export type Variables = {
+    VCPUs?: Maybe<number>;
+    disks?: Maybe<(Maybe<NewVdi>)[]>;
+    installParams?: Maybe<AutoInstall>;
+    nameLabel: string;
+    nameDescription: string;
+    iso?: Maybe<string>;
+    template: string;
+    network?: Maybe<string>;
+    ram: number;
+  };
+
+  export type Mutation = {
+    __typename?: "Mutation";
+
+    createVm: Maybe<CreateVm>;
+  };
+
+  export type CreateVm = {
+    __typename?: "CreateVM";
+
+    taskId: string;
+  };
+}
+
 export namespace DeleteVm {
   export type Variables = {
     uuid: string;
@@ -915,6 +941,67 @@ export namespace VmListFragment {
 // Components
 // ====================================================
 
+export namespace CreateVm {
+  export const Document = gql`
+    mutation createVm(
+      $VCPUs: Int
+      $disks: [NewVDI]
+      $installParams: AutoInstall
+      $nameLabel: String!
+      $nameDescription: String!
+      $iso: ID
+      $template: ID!
+      $network: ID
+      $ram: Float!
+    ) {
+      createVm(
+        nameLabel: $nameLabel
+        VCPUs: $VCPUs
+        disks: $disks
+        installParams: $installParams
+        nameDescription: $nameDescription
+        template: $template
+        network: $network
+        ram: $ram
+        iso: $iso
+      ) {
+        taskId
+      }
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.MutationProps<Mutation, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Mutation<Mutation, Variables>
+          mutation={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.MutateProps<Mutation, Variables>
+  > &
+    TChildProps;
+  export type MutationFn = ReactApollo.MutationFn<Mutation, Variables>;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Mutation,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
 export namespace DeleteVm {
   export const Document = gql`
     mutation DeleteVM($uuid: ID!) {

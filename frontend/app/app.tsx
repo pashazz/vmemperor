@@ -61,8 +61,8 @@ import {resolvers} from "./localApi/resolvers";
 import {SelectedItemsQuery, Table} from "./generated-models";
 /* eslint-enable import/no-unresolved, import/extensions */
 
-//import bootstrap
-
+//Import Yup (for add method)
+import * as Yup from 'yup';
 
 import {dataIdFromObject} from './utils/cacheUtils';
 
@@ -74,7 +74,10 @@ const MOUNT_NODE = document.getElementById('app');
 
 
 function getCookie(name) {
-  function escape(s) { return s.replace(/([.*+?\^${}()|\[\]\/\\])/g, '\\$1'); }
+  function escape(s) {
+    return s.replace(/([.*+?\^${}()|\[\]\/\\])/g, '\\$1');
+  }
+
   const match = document.cookie.match(RegExp('(?:^|;\\s*)' + escape(name) + '=([^;]*)'));
   return match ? match[1] : null;
 }
@@ -100,8 +103,8 @@ const wsLink = new WebSocketLink({
 // depending on what kind of operation is being sent
 const link = split(
   // split based on operation type
-  ({ query }) => {
-    const definition  = getMainDefinition(query);
+  ({query}) => {
+    const definition = getMainDefinition(query);
     return definition.kind === 'OperationDefinition' && definition.operation === 'subscription';
   },
   wsLink,
@@ -112,55 +115,62 @@ const client = new ApolloClient(
   {
     link: ApolloLink.from(
       [
-    onError(({ graphQLErrors, networkError }) => {
-      if (graphQLErrors)
-        graphQLErrors.map(({ message, locations, path }) =>
-          console.log(
-            `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`,
-          ),
-        );
-      if (networkError) console.log(`[Network error]: ${networkError}`);
-    }),
+        onError(({graphQLErrors, networkError}) => {
+          if (graphQLErrors)
+            graphQLErrors.map(({message, locations, path}) =>
+              console.log(
+                `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`,
+              ),
+            );
+          if (networkError) console.log(`[Network error]: ${networkError}`);
+        }),
         link]),
     cache: new InMemoryCache(
       {
 
-          dataIdFromObject: dataIdFromObject
+        dataIdFromObject: dataIdFromObject
       }
     ),
-    typeDefs : localSchema,
+    typeDefs: localSchema,
     resolvers: resolvers,
   }
 );
 
-const initializeCache = () =>
-{
+const initializeCache = () => {
   //VMs table has empty selection
   client.cache.writeQuery<SelectedItemsQuery.Query, SelectedItemsQuery.Variables>(
     {
-    query: SelectedItemsQuery.Document,
-    variables: {tableId: Table.Vms},
-    data: { selectedItems : []}
-  });
+      query: SelectedItemsQuery.Document,
+      variables: {tableId: Table.Vms},
+      data: {selectedItems: []}
+    });
 
 };
 initializeCache();
+
+Yup.addMethod(Yup.mixed, 'sameAs', function (ref, message) {
+  return this.test('sameAs', message, function (value) {
+    const other = this.resolve(ref);
+    return !other || !value || value === other;
+  });
+});
+
 
 const render = (messages) => {
   ReactDOM.render(
     <Provider store={store}>
       <div>
-      <LanguageProvider messages={messages}>
-        <ConnectedRouter history={history}>
-          <ApolloProvider client={client}>
-            <Suspense fallback={<div>Loading...</div>}>
-              <App />
-            </Suspense>
-        </ApolloProvider>
-        </ConnectedRouter>
-      </LanguageProvider>
-      <ReduxToastr
-      progressBar/>
+        <LanguageProvider messages={messages}>
+          <ConnectedRouter history={history}>
+            <ApolloProvider client={client}>
+              <Suspense fallback={<div>Loading...</div>}>
+                <App/>
+              </Suspense>
+            </ApolloProvider>
+          </ConnectedRouter>
+        </LanguageProvider>
+        <ReduxToastr
+          progressBar/>
       </div>
     </Provider>,
     MOUNT_NODE
@@ -180,7 +190,7 @@ if (module.hot) {
   });
 }
 
-declare global{
+declare global {
   interface Window {
     Intl: any,
   }
