@@ -21,20 +21,20 @@ class Input extends React.Component { // eslint-disable-line react/prefer-statel
 }
 */
 import {FieldProps} from "formik";
-import {Col, FormFeedback, FormGroup, Input, InputGroupText, Label} from 'reactstrap';
+import {Col, FormFeedback, Input, InputGroupText, Label} from 'reactstrap';
 import {Icon} from "@fortawesome/fontawesome-svg-core";
 import InputGroup from "reactstrap/lib/InputGroup";
 import InputGroupAddon from "reactstrap/lib/InputGroupAddon";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {InputProps} from "reactstrap";
+import {FormGroup} from "../MarginFormGroup";
 
 interface InputComponentProps {
-  addonIcon? : Icon,
-  label? : boolean, //Use children to provide label text
+  addonIcon?: Icon,
+  label?: boolean, //Use children to provide label text
 
 };
-
-const InputComponent : React.FunctionComponent<FieldProps & InputProps &  InputComponentProps> = (
+const InputComponent: React.FunctionComponent<FieldProps & InputProps & InputComponentProps> = (
   {
     field: {...fields},
     form,
@@ -43,12 +43,11 @@ const InputComponent : React.FunctionComponent<FieldProps & InputProps &  InputC
     children,
     ...props
   }
-) =>
-{
+) => {
   return (
-    <FormGroup row={true} style={{paddingLeft: 20, paddingRight: 20}}>
+    <FormGroup row={true}>
       {label && (
-        <Label for={fields.name} style={ { marginTop: "0.5rem"}}>
+        <Label for={fields.name} style={{marginTop: "0.5rem"}}>
           {children}
         </Label>
       )
@@ -56,22 +55,22 @@ const InputComponent : React.FunctionComponent<FieldProps & InputProps &  InputC
 
 
       <Col>
-      <InputGroup row={true}>
-        { addonIcon && (
-        <InputGroupAddon style={ {"line-height": "1!important"}} addonType="prepend">
-          <InputGroupText>
-            <FontAwesomeIcon icon={addonIcon}/>
-          </InputGroupText>
-        </InputGroupAddon>
-        )
-        }
-        <Input {...props} {...fields}
-               invalid={Boolean(form.touched[fields.name]
-                 && form.errors[fields.name])}
-        />
-        { form.touched[fields.name] && form.errors[fields.name] &&
-        (<FormFeedback> {form.errors[fields.name]} </FormFeedback>)}
-      </InputGroup>
+        <InputGroup row={true}>
+          {addonIcon && (
+            <InputGroupAddon style={{"line-height": "1!important"}} addonType="prepend">
+              <InputGroupText>
+                <FontAwesomeIcon icon={addonIcon}/>
+              </InputGroupText>
+            </InputGroupAddon>
+          )
+          }
+          <Input {...props} {...fields}
+                 invalid={Boolean(form.touched[fields.name]
+                   && form.errors[fields.name])}
+          />
+          {form.touched[fields.name] && form.errors[fields.name] &&
+          (<FormFeedback> {form.errors[fields.name]} </FormFeedback>)}
+        </InputGroup>
       </Col>
     </FormGroup>
   )

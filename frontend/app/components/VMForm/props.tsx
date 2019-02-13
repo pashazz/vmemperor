@@ -29,3 +29,13 @@ export interface Values {
 
 export type FormikPropsValues = FormikProps<Values>;
 export const FormContext = React.createContext<FormikPropsValues>(null);
+export const networkTypeOptions: Option[] = [
+  {
+    value: 'dhcp',
+    label: 'Network configuration: DHCP'
+  },
+  {
+    value: 'static',
+    label: 'Network configuration: Static IP'
+  }
+];

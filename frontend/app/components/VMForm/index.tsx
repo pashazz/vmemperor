@@ -1,8 +1,8 @@
 /**
-*
-* Vmform
-*
-*/
+ *
+ * Vmform
+ *
+ */
 import React from 'react';
 
 
@@ -10,11 +10,11 @@ import * as Yup from "yup";
 import {boolean, number, object, string} from "yup";
 
 import {AvForm} from 'availity-reactstrap-validation';
-import {Formik, FormikProps} from "formik";
+import {Formik} from "formik";
 import {HDD_SIZE_GB_MAX, RAM_MB_MAX, RAM_MB_MIN, VCPU_MAX} from "../../utils/constants";
-import {Option, OptionShape} from "../../hooks/form";
+import {OptionShape} from "../../hooks/form";
 import VMForm from "./form";
-import {Values} from "./props";
+import {networkTypeOptions, Values} from "./props";
 
 /*
 export interface SelectionProps {
@@ -158,8 +158,7 @@ const VMFormContainer : React.FunctionComponent = () => {
 };
 */
 
-
-const initialValues : Values = {
+const initialValues: Values = {
   pool: null,
   template: null,
   storage: null,
@@ -180,75 +179,64 @@ const initialValues : Values = {
   dns0: '',
   dns1: '',
   iso: null,
-  networkType: null,
+  networkType: networkTypeOptions.filter(t => t.value === "dhcp")[0],
   autoMode: false,
 };
 const IP_REGEX = RegExp('^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$');
 const HOSTNAME_REGEX = RegExp('^[a-zA-Z0-9]([a-zA-Z0-9-])*$');
-const USERNAME_REGEX = RegExp('^[a-z_][a-z0-9_]$');
+const USERNAME_REGEX = RegExp('^[a-z_][a-z0-9_]*$');
 const PASSWORD_REGEX = RegExp('^[\x00-\x7F]*$');
 
 
-const VMFormContainer: React.FunctionComponent = () =>
-{
-  const requiredIpWhenNetwork = (message : string, required = true) => string().when(['autoMode','network', 'networkType'], {
-    is: (autoMode, network, networkType) => !network || !networkType || networkType !== 'static',
+const VMFormContainer: React.FunctionComponent = () => {
+  const requiredIpWhenNetwork = (message: string, required = true) => string().when(['autoMode', 'network', 'networkType'], {
+    is: (autoMode, network, networkType: Option) => !network || !networkType || networkType.value === 'dhcp',
     then: string().notRequired().nullable(true),
-    otherwise: required ? string().matches(IP_REGEX, message).required(): string().matches(IP_REGEX, message)
+    otherwise: required ? string().matches(IP_REGEX, message).required() : string().matches(IP_REGEX, message)
   });
 
-  const autoModeRequired =  (t) => ({
-    is : true,
+  const autoModeRequired = (t) => ({
+    is: true,
     then: t().required(),
     otherwise: t().notRequired().nullable(true),
   });
 
-  const networkTypeOptions : Option[] = [
-    {
-      value: 'dhcp',
-      label: 'DHCP'
-    },
-    {
-      value : 'static',
-      label: 'Static IP'
-    }
-  ];
   //Yup.addMethod()
   return (
-  <Formik initialValues={initialValues}
-          onSubmit={(values: Values) => console.log(values)}
-          validationSchema={object().shape<Values>({
-            pool: OptionShape().required(),
-            autoMode: boolean().required(),
-            template: OptionShape().required(),
-            storage: OptionShape().required(),
-            network: OptionShape().when('autoMode', autoModeRequired(object)),
-            networkType: OptionShape().oneOf(networkTypeOptions).when('autoMode', autoModeRequired(object)),
-            fullname: string(),
-            hostname: string().min(1).max(255).matches(HOSTNAME_REGEX).when('autoMode', autoModeRequired(string)),
-            username: string().min(1).max(31).matches(USERNAME_REGEX).when('autoMode', autoModeRequired(string)),
-            password: string().min(1).matches(PASSWORD_REGEX).when('autoMode', autoModeRequired(string)),
-            password2: string().oneOf([Yup.ref('password'), '']).when('autoMode', autoModeRequired(string)),
-            nameDescription: string(),
-            nameLabel: string().required(),
-            vcpus: number().integer().min(1).max(VCPU_MAX).required(),
-            ram: number().integer().min(RAM_MB_MIN).max(RAM_MB_MAX).required(),
-            ip: requiredIpWhenNetwork("Enter valid IP"),
-            netmask: requiredIpWhenNetwork("Enter valid netmask)"),
-            gateway: requiredIpWhenNetwork("Enter valid gateway"),
-            dns0: requiredIpWhenNetwork("Enter valid DNS server"),
-            dns1: requiredIpWhenNetwork("Enter valid DNS server", false),
-            iso: OptionShape().when('autoMode',
-              {
-                is: false,
-                then: object().required(),
-                otherwise: object().nullable(true)
-              }),
-            hdd: number().integer().positive().required().max(HDD_SIZE_GB_MAX),
+    <Formik initialValues={initialValues}
+            onSubmit={(values: Values) => console.log(values)}
+            validationSchema={object().shape<Values>({
+              pool: OptionShape().required(),
+              autoMode: boolean().required(),
+              template: OptionShape().required(),
+              storage: OptionShape().required(),
+              network: OptionShape().when('autoMode', autoModeRequired(object)),
+              networkType: OptionShape().when('autoMode', autoModeRequired(object)),
+              fullname: string(),
+              hostname: string().min(1).max(255).matches(HOSTNAME_REGEX).when('autoMode', autoModeRequired(string)),
+              username: string().min(1).max(31).matches(USERNAME_REGEX).when('autoMode', autoModeRequired(string)),
+              password: string().min(1).matches(PASSWORD_REGEX).when('autoMode', autoModeRequired(string)),
+              password2: string().oneOf([Yup.ref('password'), '']).when('autoMode', autoModeRequired(string)),
+              nameDescription: string(),
+              nameLabel: string().required(),
+              vcpus: number().integer().min(1).max(VCPU_MAX).required(),
+              ram: number().integer().min(RAM_MB_MIN).max(RAM_MB_MAX).required(),
+              ip: requiredIpWhenNetwork("Enter valid IP"),
+              netmask: requiredIpWhenNetwork("Enter valid netmask)"),
+              gateway: requiredIpWhenNetwork("Enter valid gateway"),
+              dns0: requiredIpWhenNetwork("Enter valid DNS server"),
+              dns1: requiredIpWhenNetwork("Enter valid DNS server", false),
+              iso: OptionShape().when('autoMode',
+                {
+                  is: false,
+                  then: object().required(),
+                  otherwise: object().nullable(true)
+                }),
+              hdd: number().integer().positive().required().max(HDD_SIZE_GB_MAX),
 
-          })}
-          component={VMForm}
-  />
+            })}
+            component={VMForm}
+    />
   );
 };
 
