@@ -6,8 +6,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import {InputGroup, InputGroupAddon, InputGroupText, Form, FormGroup, Label} from 'reactstrap';
-import Input from '../../components/Input';
+import {InputGroup, InputGroupAddon, InputGroupText, Form, FormGroup, Label, Input} from 'reactstrap';
 import { AvGroup, AvFeedback } from 'availity-reactstrap-validation';
 import T from 'prop-types';
 import { injectIntl, intlShape } from 'react-intl';

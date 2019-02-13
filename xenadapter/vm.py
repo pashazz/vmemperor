@@ -362,7 +362,7 @@ class VM (AbstractVM):
                 raise XenAdapterAPIError(self.log, 'Failed to start OS installation', f.details)
 
         # Wait for installation to finish
-        self.log.debug(f"Finalizing installation of VM {self.uuid}")
+
         from constants import need_exit
 
         state = self.db.table(VM.db_table_name).get(self.uuid).pluck('power_state').run()['power_state']
@@ -372,6 +372,7 @@ class VM (AbstractVM):
             return
 
         cur = self.db.table('vms').get(self.uuid).changes().run()
+        self.log.debug(f"Waiting for VM to finish installing")
         while True:
             try:
                 change = cur.next(wait=1)
@@ -387,6 +388,7 @@ class VM (AbstractVM):
 
             if change['new_val']['power_state'] == 'Halted':
                 try:
+                    self.log.debug("Finalizing installation of VM")
                     other_config = self.get_other_config()
                     if 'convert-to-hvm' in other_config and other_config['convert-to-hvm']:
                         self.set_domain_type('hvm')
