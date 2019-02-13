@@ -451,7 +451,7 @@ class VM (AbstractVM):
                 pass
                 #self.destroy_vm(vm_uuid, force=True)
         else:
-            self.log.debug(f"provisioned using {provision_config}")
+            self.log.debug(f"provision spec set {provision_config}")
 
 
         try:

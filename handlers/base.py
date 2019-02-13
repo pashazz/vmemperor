@@ -23,20 +23,38 @@ class HandlerMethods(Loggable):
         self.executor = executor
         self.debug = opts.debug
         self.init_log()
-        self.conn = ReDBConnection().get_connection()
         first_batch_of_events.wait()
         self.actions_log = self.create_additional_log('actions')
 
     def get_current_user(self):
         return self.get_secure_cookie('user')
 
+    def setRepr(self):
+        self.__repr__ = f"{self.__class__.__name__} ({self.request.uri})"
+
 class RequestHandler(tornado.web.RequestHandler):
     def initialize(self, *args, **kwargs):
         super().initialize()
 
+    def prepare(self):
+        super().prepare()
+        self.conn = ReDBConnection().get_connection()
+
+    def on_finish(self):
+        super().on_finish()
+        self.conn.close()
+
 class BaseHandler(RequestHandler, HandlerMethods):
     _ASYNC_KEY = None
 
+    def prepare(self):
+        super().prepare()
+        self.setRepr()
+        self.log.debug(f"Handling request: {self.request}")
+
+    def on_finish(self):
+        super().on_finish()
+        self.log.debug(f"Finishing request: {self.request}")
 
     def initialize(self, *args, **kwargs):
 
@@ -61,31 +79,6 @@ class BaseHandler(RequestHandler, HandlerMethods):
         '''
         ioloop = tornado.ioloop.IOLoop.instance()
         ioloop.run_in_executor(self.executor, self._run_async_task, task_ref)
-
-
-    def _run_async_task(self, task_ref):
-        task = TaskList(auth=self.user_authenticator, ref=task_ref)
-
-        with ReDBConnection().get_connection():
-            write_in = {'id' : task_ref}
-            self.op.upsert_task(self.user_authenticator, write_in)
-            write_in['created'] = task.get_created()
-            while task.get_status() == 'pending':
-                write_in['status'] = task.get_status()
-                write_in['progress'] =  task.get_progress()
-                self.op.upsert_task(None, write_in)
-                time.sleep(1)
-
-            write_in['finished'] = task.get_finished()
-            write_in['status'] = task.get_status()
-            write_in['progress'] = task.get_progress()
-
-            if write_in['status'] == 'failure':
-                write_in['error_info'] = task.get_error_info()
-
-
-            self.op.upsert_task(None, write_in)
-        task.destroy()
 
 
     def try_xenadapter(self, func, post_hook=None):
@@ -130,8 +123,18 @@ class BaseWSHandler(WebSocketHandler, HandlerMethods):
     def initialize(self, *args, **kwargs):
         self.init_executor(kwargs['pool_executor'])
         del kwargs['pool_executor']
+
         super().initialize()
 
+    def prepare(self):
+        super().prepare()
+        self.setRepr()
+        self.log.debug(f"Handling WebSocket request: {self.request}")
+
+
+    def on_finish(self):
+        super().on_finish()
+        self.log.debug(f"Finishing WebSocket request: {self.request}")
 
         self.user_authenticator = Optional[BasicAuthenticator]
 

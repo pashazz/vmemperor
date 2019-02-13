@@ -96,7 +96,7 @@ const VMFormContainer: React.FunctionComponent = () => {
         iso: values.autoMode ? null : values.iso.value,
         disks: [{
           SR: values.storage.value,
-          size: values.hdd,
+          size: values.hdd * 1024, //Input: GB; Output: MB
         }],
         installParams: autoInstallParams,
       }

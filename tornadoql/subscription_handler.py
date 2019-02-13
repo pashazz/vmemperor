@@ -4,6 +4,8 @@ from __future__ import absolute_import, division, print_function
 
 import sys
 from collections import OrderedDict
+from traceback import print_exc
+
 from graphql import graphql, format_error
 from tornado import websocket
 from tornado.escape import json_decode, json_encode
@@ -15,6 +17,7 @@ import asyncio
 
 from loggable import Loggable
 from tornadoql.middlewares import MIDDLEWARE
+from utils import print_graphql_exception
 
 GRAPHQL_WS = 'graphql-ws'
 WS_PROTOCOL = GRAPHQL_WS
@@ -213,7 +216,9 @@ class GQLSubscriptionHandler(websocket.WebSocketHandler, Loggable):
                     return old_execute(*args, **kwargs)
                 except Exception as e:
                     exc_info = sys.exc_info()
-                    print(f"Exception: {exc_info}")
+                    from tornado.options import options as opts
+                    print_graphql_exception(e)
+                    self.log.error(f"Exception: {exc_info}")
                     raise exc_info[1]
                 
             executor.execute = execute

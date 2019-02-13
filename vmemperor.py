@@ -1796,6 +1796,9 @@ def read_settings():
 
     file_path = path.join(path.dirname(path.realpath(__file__)), 'login.ini')
     parse_config_file(file_path)
+
+    rotateLogs()
+
     constants.ansible_pubkey = path.expanduser(opts.ansible_pubkey)
     ReDBConnection().set_options(opts.host, opts.port)
     if not os.access(constants.ansible_pubkey, os.R_OK):
@@ -1808,6 +1811,9 @@ def read_settings():
 
     atexit.register(on_exit)
     # do log rotation
+
+
+def rotateLogs():
     log_path = pathlib.Path(opts.log_file_name)
     if log_path.exists():
         number = 0

@@ -22,7 +22,7 @@ class ContextProtocol(_Protocol):
 
     log : Logger # XenAdapter log, see loggable.py, logs in vmemperor.log
     actions_log : Logger #XenAdapter actions log, for VM installs, logs in action.log
-    conn: ContextManager # RethinkDB connection manager
+    conn: Any  # RethinkDB connection manager
     user_authenticator: BasicAuthenticator # Current user's authenticator
 
 
@@ -74,7 +74,6 @@ class GraphQLSubscriptionHandler(BaseWSHandler, BaseGQLSubscriptionHandler):
         self.request.log = self.log
         self.request.actions_log = self.actions_log
         self.request.executor = self.executor
-        self.request.conn = self.conn
 
     def on_init(self, payload):
         if not payload or not payload['authToken']:

@@ -3,6 +3,9 @@ from typing import Sequence
 
 import graphene
 from rethinkdb import RethinkDB
+
+from connman import ReDBConnection
+
 r = RethinkDB()
 
 from handlers.graphql.graphql_handler import ContextProtocol
@@ -40,7 +43,7 @@ def createvm(ctx : ContextProtocol, task_id : str, template: str, VCPUs : int, d
     from tornado.options import options as opts
     from rethinkdb import RethinkDB
     r = RethinkDB()
-    with ctx.conn:
+    with ReDBConnection().get_connection():
         auth = ctx.user_authenticator
         task_list = CreateVMTaskList(r.db(opts.database))
         task_list.upsert_task(auth, CreateVMTask(id=task_id, uuid=template, state='cloning',
