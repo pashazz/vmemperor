@@ -28,30 +28,30 @@ r = RethinkDB()
 class Query(ObjectType):
 
     vms = graphene.List(GVM, required=True, resolver=VM.resolve_all(), description="All VMs available to user")
-    vm = graphene.Field(GVM, required=True, uuid=graphene.ID(), resolver=VM.resolve_one())
+    vm = graphene.Field(GVM, uuid=graphene.ID(), resolver=VM.resolve_one())
 
     templates = graphene.List(GTemplate, required=True, resolver=Template.resolve_all(), description="All Templates available to user")
-    template = graphene.Field(GVM, required=True, uuid=graphene.ID(), resolver=Template.resolve_one())
+    template = graphene.Field(GVM,  uuid=graphene.ID(), resolver=Template.resolve_one())
 
     hosts = graphene.List(GHost, required=True, resolver=Host.resolve_all())
-    host = graphene.Field(GHost, required=True, uuid=graphene.ID(), resolver=Host.resolve_one())
+    host = graphene.Field(GHost,  uuid=graphene.ID(), resolver=Host.resolve_one())
 
     pools = graphene.List(GPool, required=True, resolver=Pool.resolve_all())
-    pool = graphene.Field(GPool, required=True, uuid=graphene.ID(), resolver=Pool.resolve_one())
+    pool = graphene.Field(GPool, uuid=graphene.ID(), resolver=Pool.resolve_one())
 
     networks = graphene.List(GNetwork, required=True, resolver=Network.resolve_all(), description="All Networks available to user")
-    network = graphene.Field(GNetwork, required=True, uuid=graphene.ID(), resolver=Network.resolve_one(), description="Information about a single network")
+    network = graphene.Field(GNetwork,  uuid=graphene.ID(), resolver=Network.resolve_one(), description="Information about a single network")
 
     srs = graphene.List(GSR, required=True, resolver=SR.resolve_all(),
                              description="All Storage repositories available to user")
-    sr = graphene.Field(GSR, required=True, uuid=graphene.ID(), resolver=SR.resolve_one(), description="Information about a single storage repository")
+    sr = graphene.Field(GSR,  uuid=graphene.ID(), resolver=SR.resolve_one(), description="Information about a single storage repository")
 
 
     vdis = graphene.List(GVDI, required=True, resolver=VDI.resolve_all(), description="All Virtual Disk Images (hard disks), available for user")
-    vdi = graphene.Field(GVDI, required=True, uuid=graphene.ID(), resolver=VDI.resolve_one(), description="Information about a single virtual disk image (hard disk)")
+    vdi = graphene.Field(GVDI,  uuid=graphene.ID(), resolver=VDI.resolve_one(), description="Information about a single virtual disk image (hard disk)")
 
     isos = graphene.List(GISO, required=True, resolver=ISO.resolve_all(), description="All ISO images available for user")
-    iso = graphene.Field(GVDI, required=True, uuid=graphene.ID(), resolver=ISO.resolve_one(),
+    iso = graphene.Field(GVDI, uuid=graphene.ID(), resolver=ISO.resolve_one(),
                          description="Information about a single ISO image")
 
     playbooks = graphene.List(GPlaybook,  required=True, resolver=resolve_playbooks, description="List of Ansible-powered playbooks")
@@ -82,11 +82,11 @@ class Subscription(ObjectType):
     host = graphene.Field(MakeSubscription(GHost), uuid=graphene.ID(), description="Updates for a particular Host")
 
     pools = graphene.Field(MakeSubscriptionWithChangeType(GPool), required=True, description="Updates for all pools available in VMEmperor")
-    pool = graphene.Field(MakeSubscription(GPool), required=True, uuid=graphene.ID(), description="Updates for a particular Pool")
+    pool = graphene.Field(MakeSubscription(GPool), uuid=graphene.ID(), description="Updates for a particular Pool")
 
     task = graphene.Field(MakeSubscription(GTask),  uuid=graphene.ID(), description="Updates for a particular XenServer Task")
 
-    playbook_task = graphene.Field(MakeSubscription(PlaybookTask), required=True, id=graphene.ID(), description="Updates for a particular Playbook installation Task")
+    playbook_task = graphene.Field(MakeSubscription(PlaybookTask), id=graphene.ID(), description="Updates for a particular Playbook installation Task")
     playbook_tasks = graphene.Field(MakeSubscriptionWithChangeType(PlaybookTask), required=True, description="Updates for all Playbook Tasks")
 
 

@@ -51,7 +51,7 @@ export interface VmInput {
   /** VM human-readable description */
   nameDescription?: Maybe<string>;
   /** VM domain type: 'pv', 'hvm', 'pv_in_pvh' */
-  domainType?: Maybe<string>;
+  domainType?: Maybe<DomainType>;
 }
 
 export interface VmStartInput {
@@ -403,6 +403,26 @@ export namespace PlaybookList {
   };
 }
 
+export namespace PlaybookTaskUpdate {
+  export type Variables = {};
+
+  export type Subscription = {
+    __typename?: "Subscription";
+
+    playbookTask: PlaybookTask;
+  };
+
+  export type PlaybookTask = {
+    __typename?: "PlaybookTask";
+
+    id: string;
+
+    state: PlaybookTaskState;
+
+    message: string;
+  };
+}
+
 export namespace PoolList {
   export type Variables = {};
 
@@ -438,6 +458,7 @@ export namespace PoolListUpdate {
 export namespace RebootVm {
   export type Variables = {
     uuid: string;
+    force?: Maybe<ShutdownForce>;
   };
 
   export type Mutation = {
@@ -456,6 +477,7 @@ export namespace RebootVm {
 export namespace ShutdownVm {
   export type Variables = {
     uuid: string;
+    force?: Maybe<ShutdownForce>;
   };
 
   export type Mutation = {
@@ -1610,6 +1632,50 @@ export namespace PlaybookList {
     );
   }
 }
+export namespace PlaybookTaskUpdate {
+  export const Document = gql`
+    subscription PlaybookTaskUpdate {
+      playbookTask {
+        id
+        state
+        message
+      }
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.SubscriptionProps<Subscription, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Subscription<Subscription, Variables>
+          subscription={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Subscription, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Subscription,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<
+      TProps,
+      Subscription,
+      Variables,
+      Props<TChildProps>
+    >(Document, operationOptions);
+  }
+}
 export namespace PoolList {
   export const Document = gql`
     query PoolList {
@@ -1701,8 +1767,8 @@ export namespace PoolListUpdate {
 }
 export namespace RebootVm {
   export const Document = gql`
-    mutation RebootVm($uuid: ID!) {
-      vmReboot(uuid: $uuid) {
+    mutation RebootVm($uuid: ID!, $force: ShutdownForce) {
+      vmReboot(uuid: $uuid, force: $force) {
         taskId
       }
     }
@@ -1742,8 +1808,8 @@ export namespace RebootVm {
 }
 export namespace ShutdownVm {
   export const Document = gql`
-    mutation ShutdownVM($uuid: ID!) {
-      vmShutdown(uuid: $uuid) {
+    mutation ShutdownVM($uuid: ID!, $force: ShutdownForce) {
+      vmShutdown(uuid: $uuid, force: $force) {
         taskId
       }
     }

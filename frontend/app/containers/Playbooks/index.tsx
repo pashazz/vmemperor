@@ -4,131 +4,64 @@
  *
  */
 
-import React from 'react';
-//import KeyType from 'prop-types';
+import React, {useCallback, useState} from 'react';
 //import IPT from 'react-immutable-proptypes';
-//import { connect } from 'react-redux';
 //import { FormattedMessage } from 'react-intl';
-//import { createStructuredSelector } from 'reselect';
-import { compose } from 'redux';
-//import injectSaga from 'utils/injectSaga';
-//import injectReducer from 'utils/injectReducer';
-import {makeSelectPlaybooks }from './selectors';
 //import reducer from './reducer';
 //import saga from './saga';
 //import messages from './messages';
-import { ButtonDropdown, DropdownToggle, DropdownMenu, DropdownItem } from 'reactstrap';
+import {ButtonDropdown, DropdownToggle, DropdownMenu, DropdownItem} from 'reactstrap';
 import PlaybookForm from "./playbookForm";
-import { executePlaybook } from "./actions";
-import {PlaybookList} from "../../generated-models";
+import {executePlaybook} from "./actions";
+import {CreateVm, PlaybookList} from "../../generated-models";
+import {useQuery} from "react-apollo-hooks";
+import Variables = CreateVm.Variables;
 
 interface Props {
   vms: string[]
 }
-interface State {
-  dropdownOpen : boolean,
-  currentId: number | null,
-}
-
-export class Playbooks extends React.Component<Props, State> { // eslint-disable-line react/prefer-stateless-function
-
-    constructor(props) {
-    super(props);
-
-    this.toggle = this.toggle.bind(this);
-    this.state = {
-      dropdownOpen: false,
-      currentId: null,
-    };
-  }
 
 
- toggle() {
-    this.setState({
-      dropdownOpen: !this.state.dropdownOpen
-    });
-  }
+const Playbooks = ({vms}: Props) => {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [currentId, setCurrentId] = useState<number | null>(null);
+  const toggle = useCallback(() => setDropdownOpen(!dropdownOpen), [dropdownOpen]);
+  const {data} = useQuery<PlaybookList.Query, PlaybookList.Variables>(PlaybookList.Document);
+  const pbks = data.playbooks;
 
-  onClick = (id) => () => {
-      this.setState( {
-        currentId: id,
-      });
-      console.log(this.state.currentId);
-  };
-
-
-
-  render() {
-    const { currentId } = this.state;
-    console.log("Current playbook ID", this.state.currentId);
-    return (
-      <PlaybookList.Component>
-        {({data, error, loading}) => {
-          if (error) {
-            return (<div>
-              <h1>{error.message}</h1>
-            </div>);
-          }
-          if (loading) {
-            return '...';
-          }
-
-          return (
-            <div>
-              <ButtonDropdown size="lg" isOpen={this.state.dropdownOpen} toggle={this.toggle}>
-                <DropdownToggle
-                  size="lg"
-                  caret>
-                  Playbooks
-                </DropdownToggle>
-                <DropdownMenu>
-                  {
-                    data.playbooks.map((item, key) => {
-                        return (
-                          <DropdownItem
-                            key={key}
-                            id={item.id}
-                            onClick={this.onClick(key)}
-                          >
-                            {item.name}
-                          </DropdownItem>);
-                      }
-                    )
-                  }
-                </DropdownMenu>
-              </ButtonDropdown>
-              {
-                currentId !== null && (
-                  <PlaybookForm
-                    book={data.playbooks[currentId]}
-                    vms={this.props.vms}
-                  />)
+  console.log("Current playbook ID", currentId);
+  return (
+    <div>
+      <ButtonDropdown size="lg" isOpen={dropdownOpen} toggle={toggle}>
+        <DropdownToggle
+          size="lg"
+          caret>
+          Playbooks
+        </DropdownToggle>
+        <DropdownMenu>
+          {
+            pbks.map((playbook, index) => {
+                return (
+                  <DropdownItem
+                    key={index}
+                    id={playbook.id}
+                    onClick={() => setCurrentId(index)}
+                  >
+                    {playbook.name}
+                  </DropdownItem>);
               }
-            </div>);
-        }
-        }
-      </PlaybookList.Component>
-    );
-  }
-
-}
-
-
-/*
-const mapStateToProps = createStructuredSelector({
-  playbooks: makeSelectPlaybooks(),
-});
-const mapDispatchToProps = {
-  executePlaybook
+            )
+          }
+        </DropdownMenu>
+      </ButtonDropdown>
+      {
+        currentId !== null && (
+          <PlaybookForm
+            book={pbks[currentId]}
+            vms={vms}
+          />)
+      }
+    </div>);
 };
-*/
-//const withConnect = connect(mapStateToProps, mapDispatchToProps);
 
-//const withReducer = injectReducer({ key: 'playbooks', reducer });
-//const withSaga = injectSaga({ key: 'playbooks', saga });
-
-export default compose(
-  //withReducer,
-  //withSaga,
-  //withConnect,
-)(Playbooks);
+export default Playbooks;

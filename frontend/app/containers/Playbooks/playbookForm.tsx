@@ -1,120 +1,75 @@
-import React, { PureComponent } from 'react';
-import {  AvForm, AvGroup } from 'availity-reactstrap-validation';
-import Field from '../../components/Input/field';
-import Input from '../../components/Input';
-import T from 'prop-types';
+import React, {PureComponent, useCallback, useEffect, useMemo, useState} from 'react';
+import {AvForm, AvGroup, AvInput} from 'availity-reactstrap-validation';
+import Field from './field';
+//import Input from '../../components/Input';
 import FullHeightCard from '../../components/FullHeightCard';
-import { CardTitle, CardBody, CardSubtitle, CardText, Label, FormGroup, FormText, Button } from 'reactstrap';
+import {CardTitle, CardBody, CardSubtitle, CardText, Label, FormGroup, FormText, Button, Input} from 'reactstrap';
 import {PlaybookList, PlaybookLaunch} from "../../generated-models";
-import {booleanLiteral} from "babel-types";
+import {OrderedMap} from "immutable";
 
-
+import {mapValues} from 'lodash';
+import {useMutation, useQuery} from "react-apollo-hooks";
 
 
 interface Props {
-  book : PlaybookList.Playbooks
-  vms : string[]
+  book: PlaybookList.Playbooks
+  vms: string[]
 }
 
-type VariableList = Record<string, string | number | boolean> | null;
+type VariableList = OrderedMap<string, string | number | boolean> | null;
+type VariableValue = string | number | boolean;
+type VariableName = string;
 
-type OriginalVariableList = Record<string, VariableDescription>;
+type OriginalVariableList = OrderedMap<string, VariableDescription>;
 
 interface State {
-  variables : VariableList
+  variables: VariableList
   originalVariables: OriginalVariableList
 }
 
+interface OptionVariableValue {
+  value: boolean | string | number;
+  description: string;
+}
 
+const PlaybookForm = ({book, vms}: Props) => {
 
-export default class PlaybookForm extends PureComponent<Props, State> {
-  constructor(props)
-  {
-    super(props);
-
-    let variables : OriginalVariableList | null = null;
-    if (props.book.variables)
-    {
-      variables = JSON.parse(props.book.variables);
-      // @ts-ignore
-      let stateVariables : VariableList =  Object.assign(...Object.entries(variables).map(([k, v]) => (
-      {[k]:v.value})));
-
-
-      this.state = {
-        variables: stateVariables,
-        originalVariables: variables
-      }
+  const originalVariables = useMemo(() => {
+    if (book.variables) {
+      return JSON.parse(book.variables);
+    } else {
+      return null;
     }
+  }, [book.variables]);
+  const initialVariableState = useMemo(() => {
+    return mapValues(originalVariables, v => v.value);
+  }, [originalVariables]);
 
 
-    this.onInputTextChange = this.onInputTextChange.bind(this);
-    this.generateField = this.generateField.bind(this);
-  }
-  onInputTextChange(e) {
-    console.log("Text change: ",e.target.name,  e.target.value);
-    const form = this.state;
-    form.variables[e.target.name] = e.target.value;
-    this.setState(form);
-  }
-  render()
-  {
-    const { book } = this.props;
-    return (
-    <FullHeightCard>
-      <CardBody>
-      <CardTitle>{book.name}</CardTitle>
-        <CardSubtitle>{book.description}</CardSubtitle>
-        <CardText>
-          <PlaybookLaunch.Component>
-            {
-              (trigger, {data, loading, error}) =>
-              {
-                if (data)
-                {
-                  console.log("Data obtained: ", data);
-                }
-                if (loading)
-                {
-                  console.log("Loading:", loading);
-                }
-                if (error)
-                {
-                  console.log("Error: ", error);
-                }
-                let onSubmit = (e : Event) =>
-                {
-                  e.preventDefault();
-                  trigger(
-                    {
-                      variables: {
-                        id: book.id,
-                        vms: this.props.vms,
-                        variables: JSON.stringify(this.state.variables)
-                      }
-                    }
-                  );
-                };
-                return (
-                  <AvForm onValidSubmit={onSubmit}>
-                    {
-                      Object.entries(this.state.originalVariables).map(
-                        ([k,v]) => this.generateField(k, v))
-                    }
-                    <Button primary type="submit" block>
-                      Play
-                    </Button>
-                  </AvForm>
-                );
-              }
-            }
-          </PlaybookLaunch.Component>
-        </CardText>
-      </CardBody>
-    </FullHeightCard>);
-  }
-  generateField(id, field : VariableDescription) {
-    const fieldValue = this.state.variables[id];
+  const [variables, setVariables] = useState(OrderedMap<VariableName, VariableValue>(initialVariableState));
+
+  const onInputTextChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("Text change: ", e.target.name, e.target.value);
+    setVariables(variables.set(e.target.name, e.target.value));
+  }, [setVariables, variables]);
+
+  const launch = useMutation<PlaybookLaunch.Mutation, PlaybookLaunch.Variables>(PlaybookLaunch.Document);
+  const onSubmit = useCallback(async (e: Event) => {
+    return await launch(
+      {
+        variables: {
+          id: book.id,
+          vms,
+          variables: JSON.stringify(variables.toJS()),
+        }
+      }
+    )
+  }, [book.id, vms, variables]);
+
+  const generateField = useCallback((id) => {
+    const fieldValue = variables.get(id);
+    const field = originalVariables[id];
+    console.log("Generating field: ", fieldValue, field);
     let fieldType = null;
     switch (field.type) {
       case 'str': // field type ""
@@ -133,14 +88,13 @@ export default class PlaybookForm extends PureComponent<Props, State> {
 
     if (field.description) {
       label = field.description;
-    }
-    else {
+    } else {
       label = id;
     }
 
     if (fieldType) {
       return (<Field
-        onChange={this.onInputTextChange}
+        onChange={onInputTextChange}
         key={id}
         id={id}
         name={id}
@@ -152,32 +106,28 @@ export default class PlaybookForm extends PureComponent<Props, State> {
         required
       />)
 
-    }
-    else if (field.type === 'bool')
-    {
+    } else if (field.type === 'bool') {
       return (
         <FormGroup>
-        <AvGroup check>
-          <Label check>
-            <Input
-              onChange={this.onInputTextChange}
-              key={id}
-              type="checkbox"
-              name={id}
-              id={id}
-            />
-            {label}
-          </Label>
-          <FormText>{id}</FormText>
-        </AvGroup>
+          <AvGroup check>
+            <Label check>
+              <AvInput
+                onChange={onInputTextChange}
+                key={id}
+                type="checkbox"
+                name={id}
+                id={id}
+              />
+              {label}
+            </Label>
+            <FormText>{id}</FormText>
+          </AvGroup>
         </FormGroup>
-        );
-    }
-    else if (field.type === 'option')
-    {
+      );
+    } else if (field.type === 'option') {
       return (
         <Field type="select"
-               onChange={this.onInputTextChange}
+               onChange={onInputTextChange}
                key={id}
                name={id}
                id={id}
@@ -187,13 +137,35 @@ export default class PlaybookForm extends PureComponent<Props, State> {
 
         >
           {Object.entries(field.options).map(([k, v]) => {
+            //@ts-ignore
             let value = v.value;
             if (typeof value === 'boolean')
               value = value.toString();
+            //@ts-ignore
             return (<option key={k} value={value}>{v.description}</option>);
-        })}
+          })}
         </Field>
       )
     }
-  }
+  }, [originalVariables, variables, onInputTextChange]);
+
+  return (
+    <FullHeightCard>
+      <CardBody>
+        <CardTitle>{book.name}</CardTitle>
+        <CardSubtitle>{book.description}</CardSubtitle>
+        <CardText>
+          <AvForm onValidSubmit={onSubmit}>
+            {
+              Object.keys(originalVariables).map(key => generateField(key))
+            }
+            <Button primary type="submit" block>
+              Play
+            </Button>
+          </AvForm>
+        </CardText>
+      </CardBody>
+    </FullHeightCard>);
 };
+export default PlaybookForm;
+

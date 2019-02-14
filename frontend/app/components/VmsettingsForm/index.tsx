@@ -1,19 +1,32 @@
 /**
-*
-* VmsettingsForm
-*
-*/
+ *
+ * VmsettingsForm
+ *
+ */
 
-import React from 'react';
+import React, {useCallback, useState} from 'react';
 import {VmInfo} from "../../generated-models";
 import Power from './subforms/power';
 //import Storage from './subforms/storage';
 //import Network from './subforms/network';
 // import styled from 'styled-components';
 
-import { FormattedMessage } from 'react-intl';
+import {FormattedMessage} from 'react-intl';
 import messages from './messages';
-import { Nav, NavItem, Badge, NavLink, TabContent, TabPane, Row, Col, Card, CardTitle, CardText, Button} from 'reactstrap';
+import {
+  Nav,
+  NavItem,
+  Badge,
+  NavLink,
+  TabContent,
+  TabPane,
+  Row,
+  Col,
+  Card,
+  CardTitle,
+  CardText,
+  Button
+} from 'reactstrap';
 import classnames from 'classnames';
 
 import T from 'prop-types';
@@ -21,9 +34,8 @@ import Vncview from '../../containers/Vncview/Loadable';
 import Vm = VmInfo.Vm;
 
 
-interface Props{
+interface Props {
   vm: Vm;
-  update: () => void;
 }
 
 enum Tab {
@@ -34,152 +46,108 @@ enum Tab {
 
 }
 
-interface  State{
-  activeTab : Tab,
-  vncActivated : boolean
-}
 
-class VmsettingsForm extends React.PureComponent<Props, State> { // eslint-disable-line react/prefer-stateless-function
-  constructor(props) {
-    super(props);
-    this.toggle = this.toggle.bind(this);
-    this.state = {
-      activeTab: Tab.Power,
-      vncActivated: false,
+const VmsettingsForm = ({vm}: Props) => {
+  const [activeTab, setActiveTab] = useState(Tab.Power);
+  const [vncActivated, setVncActivated] = useState(false);
+
+  const toggleTab = useCallback((tab: Tab) => {
+    if (activeTab !== tab) {
+      setActiveTab(tab);
     }
-  }
-
-  componentDidMount(): void {
-    this.props.update();
-
-  }
-
-  toggle(tab) {
-    console.log("Toggled tab", tab);
-    if (this.state.activeTab !== tab) {
-      this.setState({
-        activeTab: tab
-      });
-      if (tab === Tab.VNC && !this.state.vncActivated) {
-        this.setState({
-          vncActivated: true,
-        });
-      }
+    if (tab === Tab.VNC && !vncActivated) {
+      setVncActivated(true);
     }
-
-  }
-
-  render() {
-    const {vm} = this.props;
-    console.log("Current tab:", this.state.activeTab);
-    return (
-      <div>
-        <h3 className="text-center">{vm.nameLabel} <Badge color="primary">{vm.powerState}</Badge>
-          {vm.osVersion &&
-          (<Badge color="success">{vm.osVersion.name}</Badge>)}
-        </h3>
-
-        <Nav tabs>
-          <NavItem>
-            <NavLink
-              className={classnames({active: this.state.activeTab === Tab.Power})}
-              onClick={() => {
-                this.toggle(Tab.Power);
-              }}
-            >
-              Power
-            </NavLink>
-          </NavItem>
-
-          <NavItem>
-            <NavLink
-              className={classnames({active: this.state.activeTab === Tab.VNC})}
-              onClick={() => {
-                console.log("CLOCK");
-                this.toggle(Tab.VNC);
-              }}
-            >
-              VNC
-            </NavLink>
-          </NavItem>
+  }, [activeTab, vncActivated]);
 
 
-          <NavItem>
-            <NavLink
-              className={classnames({active: this.state.activeTab === Tab.Storage})}
-              onClick={() => {
-                this.toggle(Tab.Storage);
-              }}
-            >
-              Storage
-            </NavLink>
-          </NavItem>
-          <NavItem>
-            <NavLink
-              className={classnames({active: this.state.activeTab === Tab.Network})}
-              onClick={() => {
-                this.toggle(Tab.Network);
-              }}
-            >
-              Network
-            </NavLink>
-          </NavItem>
-        </Nav>
-        <TabContent activeTab={this.state.activeTab}>
-          <TabPane tabId="power">
-            <Row>
-              <Col sm="12">
-                <Power vm={vm}/>
-                />
-              </Col>
-            </Row>
-          </TabPane>
-          <TabPane tabId="storage">
-            <Row>
-              <Col sm="12">
-                {/*<Storage
+  return (
+    <div>
+      <h3 className="text-center">{vm.nameLabel} <Badge color="primary">{vm.powerState}</Badge>
+        {vm.osVersion &&
+        (<Badge color="success">{vm.osVersion.name}</Badge>)}
+      </h3>
+
+      <Nav tabs>
+        <NavItem>
+          <NavLink
+            className={classnames({active: activeTab === Tab.Power})}
+            onClick={() => {
+              toggleTab(Tab.Power);
+            }}
+          >
+            Power
+          </NavLink>
+        </NavItem>
+
+        <NavItem>
+          <NavLink
+            className={classnames({active: activeTab === Tab.VNC})}
+            onClick={() => {
+              toggleTab(Tab.VNC);
+            }}
+          >
+            VNC
+          </NavLink>
+        </NavItem>
+
+
+        <NavItem>
+          <NavLink
+            className={classnames({active: activeTab === Tab.Storage})}
+            onClick={() => {
+              toggleTab(Tab.Storage);
+            }}
+          >
+            Storage
+          </NavLink>
+        </NavItem>
+        <NavItem>
+          <NavLink
+            className={classnames({active: activeTab === Tab.Network})}
+            onClick={() => {
+              toggleTab(Tab.Network);
+            }}
+          >
+            Network
+          </NavLink>
+        </NavItem>
+      </Nav>
+      <TabContent activeTab={activeTab}>
+        <TabPane tabId={Tab.Power}>
+          <Row>
+            <Col sm="12">
+              <Power vm={vm}/>
+            </Col>
+          </Row>
+        </TabPane>
+        <TabPane tabId={Tab.Storage}>
+          <Row>
+            <Col sm="12">
+              {/*<Storage
                   vm={vm}/>*/}
-              </Col>
-            </Row>
-          </TabPane>
-          <TabPane tabId="vnc">
-            {/*
+            </Col>
+          </Row>
+        </TabPane>
+        <TabPane tabId={Tab.VNC}>
+          {/*
               this.state.vncActivated && (
                 <Vncview uuid={this.props.data.uuid}/>
               ) || (<h1>NO VNC HERE</h1>)
             */}
-          </TabPane>
-          <TabPane tabId="network">
-            <Row>
-              <Col sm="12">
-                {/*<Network
+        </TabPane>
+        <TabPane tabId={Tab.Network}>
+          <Row>
+            <Col sm="12">
+              {/*<Network
                   data={vm}
                 />*/}
-              </Col>
-            </Row>
-          </TabPane>
-          <TabPane tabId="2">
-            <Row>
-              <Col sm="6">
-                <Card body>
-                  <CardTitle>Special Title Treatment</CardTitle>
-                  <CardText>With supporting text below as a natural lead-in to additional content.</CardText>
-                  <Button>Go somewhere</Button>
-                </Card>
-              </Col>
-              <Col sm="6">
-                <Card body>
-                  <CardTitle>Special Title Treatment</CardTitle>
-                  <CardText>With supporting text below as a natural lead-in to additional content.</CardText>
-                  <Button>Go somewhere</Button>
-                </Card>
-              </Col>
-            </Row>
-          </TabPane>
-        </TabContent>
-      </div>
-    )
-  }
-}
+            </Col>
+          </Row>
+        </TabPane>
+      </TabContent>
+    </div>
+  )
+};
 
 export default VmsettingsForm;

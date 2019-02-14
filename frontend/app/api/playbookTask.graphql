@@ -1,0 +1,7 @@
+subscription PlaybookTaskUpdate {
+  playbookTask  {
+    id
+    state
+    message
+  }
+}

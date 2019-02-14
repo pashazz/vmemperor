@@ -1,8 +1,8 @@
 import React, {Component} from 'react';
 import PropTypes from 'prop-types';
-import { AvGroup, AvFeedback, AvInput } from 'availity-reactstrap-validation';
+import {AvGroup, AvFeedback, AvInput} from 'availity-reactstrap-validation';
 import {Col, FormText, Label} from 'reactstrap';
-import Input from './index';
+
 const colSizes = ['xs', 'sm', 'md', 'lg', 'xl'];
 
 export default class Field extends Component {
@@ -81,7 +81,7 @@ export default class Field extends Component {
       });
     }
 
-    const input = (<Input
+    const input = (<AvInput
       id={id}
       className={inputClass}
       size={size}
@@ -90,7 +90,7 @@ export default class Field extends Component {
       {...attributes}
     >
       {children}
-    </Input>);
+    </AvInput>);
 
     const validation = this.context.FormCtrl.getInputState(this.props.name);
 

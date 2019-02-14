@@ -1,4 +1,4 @@
-import React, {Reducer, ReducerState, useReducer} from 'react';
+import React, {Reducer, ReducerState, useCallback, useReducer} from 'react';
 import {useSubscription} from "../../hooks/subscription";
 import {
   Change,
@@ -26,35 +26,32 @@ import StartButton from "../../components/StartButton";
 import StopButton from "../../components/StopButton";
 import RecycleBinButton from "../../components/RecycleBinButton";
 
-function nameFormatter(column, colIndex, {sortElement, filterElement })
-{
+function nameFormatter(column, colIndex, {sortElement, filterElement}) {
   return (
-    <div style={ { display: 'flex', flexDirection: 'column' } }>
-      { column.text }
-      { filterElement }
-      { sortElement }
-    </div>
-  );
-}
-function plainFormatter(column, colIndex, {sortElement, filterElement})
-{
-  return (
-    <div style={ { display: 'flex', flexDirection: 'column' } }>
-      { column.text }
-      { filterElement }
-      { sortElement }
+    <div style={{display: 'flex', flexDirection: 'column'}}>
+      {column.text}
+      {filterElement}
+      {sortElement}
     </div>
   );
 }
 
+function plainFormatter(column, colIndex, {sortElement, filterElement}) {
+  return (
+    <div style={{display: 'flex', flexDirection: 'column'}}>
+      {column.text}
+      {filterElement}
+      {sortElement}
+    </div>
+  );
+}
 
 
+type VmColumnType = ColumnType<VmListFragment.Fragment>;
 
-type VmColumnType = ColumnType<VmList.Vms>;
-
-const columns : VmColumnType[] = [
+const columns: VmColumnType[] = [
   {
-    dataField: 'nameLabel' ,
+    dataField: 'nameLabel',
     text: 'Name',
     filter: textFilter(),
     headerFormatter: nameFormatter,
@@ -71,10 +68,8 @@ const columns : VmColumnType[] = [
 ];
 
 
-function  rowClasses(row: VmList.Vms, rowIndex)
-{
-  switch (row.powerState)
-  {
+function rowClasses(row: VmListFragment.Fragment, rowIndex) {
+  switch (row.powerState) {
     case 'Halted':
       return 'table-danger';
     case 'Running':
@@ -92,7 +87,7 @@ interface State {
 }
 
 interface Action {
-  type: "Add" | "Change" |  "Remove";
+  type: "Add" | "Change" | "Remove";
   uuid: string;
 
 }
@@ -100,21 +95,21 @@ interface Action {
 type VMListReducer = Reducer<State, Action>;
 
 
-const initialState : ReducerState<VMListReducer> = {
-  selectedForStart :Set.of<string>(),
-  selectedForStop : Set.of<string>(),
-  selectedForTrash : Set.of<string>(),
+const initialState: ReducerState<VMListReducer> = {
+  selectedForStart: Set.of<string>(),
+  selectedForStop: Set.of<string>(),
+  selectedForTrash: Set.of<string>(),
   wholeSelectionByPowerState: Map<string, PowerState>()
 };
 
-export default function ({history}:  RouteComponentProps) {
+export default function ({history}: RouteComponentProps) {
   const {
-    data: { vms },
+    data: {vms},
   } = useQuery<VmList.Query>(VmList.Document);
 
   const client = useApolloClient();
 
-  const reducer : VMListReducer  = (state, action) => {
+  const reducer: VMListReducer = (state, action) => {
     //Read fragment associated with this VM in the cache
     const info = client.cache.readFragment<VmListFragment.Fragment>({
       fragment: VmListFragment.FragmentDoc,
@@ -160,10 +155,14 @@ export default function ({history}:  RouteComponentProps) {
   };
   const [{selectedForStart, selectedForStop, selectedForTrash, wholeSelectionByPowerState}, dispatch] = useReducer<VMListReducer>(reducer, initialState);
 
+  const onDoubleClick = useCallback((e: React.MouseEvent, row: VmListFragment.Fragment, index) => {
+    e.preventDefault();
+    history.push(`/vmsettings/${row.uuid}`);
+  }, [history]);
 
   useSubscription<VmListUpdate.Subscription>(VmListUpdate.Document,
     {
-      onSubscriptionData ({client, subscriptionData}) {
+      onSubscriptionData({client, subscriptionData}) {
         //Changing is handled automatically, here we're handling removal & addition
         const change = subscriptionData.vms;
         switch (change.changeType) {
@@ -173,10 +172,10 @@ export default function ({history}:  RouteComponentProps) {
             handleAddRemove(client, VmList.Document, 'vms', change);
             break;
           case Change.Change: //Update our internal state
-              dispatch({
-                type: "Change",
-                uuid: change.value.uuid,
-              });
+            dispatch({
+              type: "Change",
+              uuid: change.value.uuid,
+            });
             break;
           default:
             break;
@@ -187,10 +186,10 @@ export default function ({history}:  RouteComponentProps) {
 
   const startVm = useMutation<StartVm.Mutation, StartVm.Variables>(
     StartVm.Document);
-  const onStartVm =  async()  => {
+  const onStartVm = async () => {
     console.log("Staring...", selectedForStart);
     for (const id of selectedForStart.toArray()) {
-     await startVm({
+      await startVm({
         variables: {
           uuid: id
         },
@@ -200,9 +199,9 @@ export default function ({history}:  RouteComponentProps) {
   };
   const stopVm = useMutation<ShutdownVm.Mutation, ShutdownVm.Variables>(
     ShutdownVm.Document);
-  const onStopVm = async() => {
+  const onStopVm = async () => {
     for (const id of selectedForStop.toArray()) {
-      console.log("Stopping...",id);
+      console.log("Stopping...", id);
       await stopVm(
         {
           variables: {
@@ -215,7 +214,7 @@ export default function ({history}:  RouteComponentProps) {
 
   const deleteVm = useMutation<DeleteVm.Mutation, DeleteVm.Variables>(
     DeleteVm.Document);
-  const onDeleteVm = async() => {
+  const onDeleteVm = async () => {
     for (const id of selectedForTrash.toArray()) {
       await deleteVm(
         {
@@ -227,9 +226,9 @@ export default function ({history}:  RouteComponentProps) {
   };
 
 
-  return(
+  return (
     <React.Fragment>
-       <ButtonToolbar>
+      <ButtonToolbar>
         <ButtonGroup size="lg">
           <StartButton
             onClick={onStartVm}
@@ -268,17 +267,15 @@ export default function ({history}:  RouteComponentProps) {
             striped: true,
             hover: true,
             rowClasses,
-                                }
+          }
         }
-      onDoubleClick={(row) => {console.log("double clicked on row!")}}
-      onSelect={(key, isSelect) => dispatch({
+        onDoubleClick={onDoubleClick}
+        onSelect={(key, isSelect) => dispatch({
           type: isSelect ? "Add" : "Remove",
           uuid: key,
         })}
       />
     </React.Fragment>)
-
-
 
 
 }

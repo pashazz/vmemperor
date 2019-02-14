@@ -262,6 +262,7 @@
     "ip": "1.1.5",
     "lodash": "^4.17.10",
     "minimist": "1.2.0",
+    "moment": "^2.24.0",
     "morgan": "^1.9.0",
     "prop-types": "15.5.10",
     "react": "^16.8.0-alpha.1",
@@ -306,6 +307,7 @@
     "yup": "^0.26.10"
   },
   "devDependencies": {
+    "@types/lodash": "^4.14.121",
     "@types/react": "^16.7.6",
     "@types/react-dom": "^16.0.9",
     "@types/react-intl": "^2.3.16",

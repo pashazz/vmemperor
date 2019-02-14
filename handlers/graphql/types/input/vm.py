@@ -7,13 +7,14 @@ from handlers.graphql.graphql_handler import ContextProtocol
 from handlers.graphql.mutations.base import MutationMethod, MutationHelper
 from handlers.graphql.resolvers import with_connection
 from handlers.graphql.types.objecttype import InputObjectType
-from xenadapter.vm import VM
+from xenadapter.vm import VM, DomainType
+
 
 class VMInput(InputObjectType):
     uuid = graphene.InputField(graphene.ID, required=True, description="VM ID")
     name_label = graphene.InputField(graphene.String, description="VM human-readable name")
     name_description = graphene.InputField(graphene.String, description="VM human-readable description")
-    domain_type = graphene.InputField(graphene.String, description="VM domain type: 'pv', 'hvm', 'pv_in_pvh'")
+    domain_type = graphene.InputField(DomainType, description="VM domain type: 'pv', 'hvm', 'pv_in_pvh'")
 
 def set_name_label(ctx : ContextProtocol, vm : VM, changes : VMInput):
     if changes.name_label is not None:

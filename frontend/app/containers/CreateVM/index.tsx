@@ -18,11 +18,8 @@ import {handleAddOfValue, handleAddRemove, handleRemoveOfValueByUuid} from "../.
 import VMFormContainer from "../../components/VMForm";
 
 
-
-
-
 const CreateVM = () => {
-  const { data: {pools } } = useQuery<PoolList.Query>(PoolList.Document);
+  const {data: {pools}} = useQuery<PoolList.Query>(PoolList.Document);
 
   useSubscription<PoolListUpdate.Subscription>(PoolListUpdate.Document, {
     onSubscriptionData({client, subscriptionData}) {
@@ -34,10 +31,9 @@ const CreateVM = () => {
 
   const [modal, setModal] = useState(false); //This is modality of CreateVM form
   const toggleModal = (e: Event) => {
-    if (!modal || confirm("Do you want to leave?")){
-        setModal(!modal);
-      }
-    else{
+    if (!modal || confirm("Do you want to leave?")) {
+      setModal(!modal);
+    } else {
       e.stopPropagation();
     }
   };
@@ -45,64 +41,25 @@ const CreateVM = () => {
   return (
     <div>
       <Button primary={true} onClick={() => setModal(true)}>Create VM</Button>
-    <div className={styles.poolsContainer}>
-      {
-        pools.length > 0 ?
-          pools.map(pool => <PoolInfo key={pool.uuid} pool={pool}/>)
-          : <h1>No pools available</h1>
+      <div className={styles.poolsContainer}>
+        {
+          pools.length > 0 ?
+            pools.map(pool => <PoolInfo key={pool.uuid} pool={pool}/>)
+            : <h1>No pools available</h1>
 
-      }
-    </div>
+        }
+      </div>
 
       <Modal title="VM form"
              lg
              toggle={toggleModal}
              isOpen={modal}>
-        <VMFormContainer />
+        <VMFormContainer/>
       </Modal>
     </div>
   );
 
 
-
 };
 export default CreateVM;
-/*
-export class CreateVm_ extends React.Component{ // eslint-disable-line react/prefer-stateless-function
-
-  render() {
-    return (
-      <div>
-        <div className={styles.createButtonContainer}>
-          <Button onClick={this.props.toggleModal}>
-            <FormattedMessage {...messages.create} />
-          </button>
-        </div>
-        <div className={styles.poolsContainer}>
-          {
-            this.props.pools.size > 0 ?
-              this.props.pools.map(pool => <PoolInfo key={pool.key()} pool={pool.toJS()} />) :
-              <div style={{ textAlign: 'center' }}><Loader /></div>
-          }
-        </div>
-
-        <Modal title="VM form"
-               lg
-               toggle={this.toggleModal}
-               isOpen={this.props.modal}>
-          <VMFormContainer  pools={this.props.pools}
-                   isos={this.props.isos}
-                   networks={this.props.networks}
-                   templates={this.props.templates}
-                   onNetworkChange={this.props.loadNetwork}
-                   onSubmit={this.createVM} />
-        </Modal>
-
-      </div>
-    );
-  }
-}
-
-*/
-
 

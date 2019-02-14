@@ -1,5 +1,5 @@
 import React, {useEffect} from 'react';
-import { FormattedMessage } from 'react-intl';
+import {FormattedMessage} from 'react-intl';
 import BootstrapTable from 'react-bootstrap-table-next';
 
 import messages from './messages';
@@ -18,18 +18,18 @@ import {DocumentNode, ExecutionResult} from "graphql";
 import {RefetchQueryDescription} from "apollo-client/core/watchQueryOptions";
 
 
-
 interface HeaderFormatterComponents {
   sortElement?: JSX.Element;
   filterElement?: JSX.Element;
 
 }
+
 export interface ColumnType<T> {
   dataField: keyof T,
   text: string;
   sort?: boolean;
   formatter?: (cell: T[keyof T], row: T) => JSX.Element | string;
-  headerFormatter?: (column : ColumnType<T>, colIndex: number, components: HeaderFormatterComponents) => JSX.Element | string;
+  headerFormatter?: (column: ColumnType<T>, colIndex: number, components: HeaderFormatterComponents) => JSX.Element | string;
   filter?: object;
   headerClasses: ((column: ColumnType<T>, colIndex: number) => string) | string;
 }
@@ -52,22 +52,22 @@ export type TableSelectOneMutation = React.ComponentType<Partial<MutationProps<a
 export type TableSelectManyMutation = React.ComponentType<Partial<MutationProps<any, SelectManyVariablesArgs>>>
 
 
-
-interface Props<T>{
-  keyField : keyof T; //what field to use as key. Key of type KeyType
+interface Props<T> {
+  keyField: keyof T; //what field to use as key. Key of type KeyType
   data: T[]; //Data provided to table
   tableSelectOne: DocumentNode;
   tableSelectMany: DocumentNode;
   tableSelectionQuery: DocumentNode;
   columns: ColumnType<T>[];
   props: any;
-  onDoubleClick: (key: string) => any;
+  onDoubleClick: (e: React.MouseEvent, row: T, rowIndex: number) => any;
   refetchQueriesOnSelect?: ((result: ExecutionResult) => RefetchQueryDescription) | RefetchQueryDescription;
-  onSelect?: (key : string, isSelect : boolean) => any;
+  onSelect?: (key: string, isSelect: boolean) => any;
 }
 
-export default function StatefulTable<T> (
-  {tableSelectOne,
+export default function StatefulTable<T>(
+  {
+    tableSelectOne,
     tableSelectMany,
     tableSelectionQuery,
     keyField,
@@ -75,25 +75,25 @@ export default function StatefulTable<T> (
     columns,
     props,
     onDoubleClick,
-    onSelect : executeOnSelect,
-    refetchQueriesOnSelect : refetchQueries}: Props<T>)
-{
-  const  selectOne  = useMutation<SelectionResponse, SelectOneVariablesArgs>(
+    onSelect: executeOnSelect,
+    refetchQueriesOnSelect: refetchQueries
+  }: Props<T>) {
+  const selectOne = useMutation<SelectionResponse, SelectOneVariablesArgs>(
     tableSelectOne
   );
-  const  selectMany  = useMutation<SelectionResponse, SelectManyVariablesArgs>(
+  const selectMany = useMutation<SelectionResponse, SelectManyVariablesArgs>(
     tableSelectMany
   );
 
-  const onSelectItem = (item, isSelect) =>
-  {
-      selectOne({ variables:
-      {
-        isSelect,
-        item
-      },
-    refetchQueries
-  });
+  const onSelectItem = (item, isSelect) => {
+    selectOne({
+      variables:
+        {
+          isSelect,
+          item
+        },
+      refetchQueries
+    });
 
     executeOnSelect && executeOnSelect(item, isSelect);
   };
@@ -101,38 +101,37 @@ export default function StatefulTable<T> (
 
   const onSelect = (row, isSelect) => {
     onSelectItem(row[keyField], isSelect);
-};
+  };
 
 
-const onSelectAll = (isSelect, rows) => {
-  const items = rows.map(row => row[keyField]);
-  selectMany({
-    variables: {
-      isSelect,
-      items,
+  const onSelectAll = (isSelect, rows) => {
+    const items = rows.map(row => row[keyField]);
+    selectMany({
+      variables: {
+        isSelect,
+        items,
+      },
+      refetchQueries
+    });
+    for (const key of items) {
+      executeOnSelect && executeOnSelect(key, isSelect);
+    }
+  };
+
+  const {data: {selectedItems}} = useQuery<SelectionResponse>(tableSelectionQuery);
+
+
+  useEffect(() => // Remove items that are no longer in data but selected
+    {
+
+      selectedItems
+      // @ts-ignore
+        .filter(key => !data.map(row => row[keyField]).includes(key))
+        .forEach((key) =>
+          onSelectItem(key, false)
+        );
+
     },
-    refetchQueries
-  });
-  for (const key of items)
-  {
-    executeOnSelect && executeOnSelect(key, isSelect);
-  }
-};
-
-  const { data : { selectedItems } } = useQuery<SelectionResponse>(tableSelectionQuery);
-
-
-  useEffect( () => // Remove items that are no longer in data but selected
-  {
-
-    selectedItems
-    // @ts-ignore
-      .filter(key => !data.map(row => row[keyField]).includes(key))
-      .forEach((key) =>
-        onSelectItem(key, false)
-      );
-
-  },
     [data]); //Run only when data is changed
 
   const selectRow = {
@@ -149,13 +148,13 @@ const onSelectAll = (isSelect, rows) => {
   };
 
   return (<BootstrapTable
-      bootstrap4
-      columns={columns}
-      data={data}
-      rowEvents={rowEvents}
-      selectRow={selectRow}
-      keyField={keyField}
-      {...props} />);
+    bootstrap4
+    columns={columns}
+    data={data}
+    rowEvents={rowEvents}
+    selectRow={selectRow}
+    keyField={keyField}
+    {...props} />);
 
 
 }

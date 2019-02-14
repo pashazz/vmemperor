@@ -68,7 +68,10 @@ def resolve_item_by_key(item_class: type, db, table_name : str, key_name: str='u
 
             r.set_loop_type("asyncio")
             conn = await r.connect()
-            key = args[key_name]
+            key = args.get(key_name, None)
+            if not key:
+                yield None
+                return
             table = db.table(table_name)
             changes = await table.get(key).changes(include_types=True, include_initial=True).run(conn)
             while True:
