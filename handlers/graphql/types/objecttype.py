@@ -3,6 +3,9 @@ from typing import Type, Union
 
 import graphene
 
+from authentication import with_default_authentication
+from handlers.graphql.resolvers import with_connection
+from handlers.graphql.utils.paging import do_paging
 from tasks import TaskList
 from xenadapter.xenobjectdict import XenObjectDict
 
@@ -52,6 +55,49 @@ class GrapheneTaskList(TaskList):
         :return: type
         """
         ...
+
+    @classmethod
+    def resolve_one(cls, field_name=None):
+        if not field_name:
+            field_name = cls.__name__
+
+        @with_connection
+        @with_default_authentication
+        def resolver(root, info, **kwargs):
+            if 'id' in kwargs:
+                id = kwargs['id']
+            else:
+                id = getattr(root, field_name)
+
+            record = cls.table.get(id).run()
+            if not record:
+                return None
+
+            return cls.task_type(**record)
+
+        return resolver
+
+    @classmethod
+    def resolve_all(cls, field_name=None):
+        if not field_name:
+            field_name = f'{cls.__name__}s'
+
+        @with_connection
+        @with_default_authentication
+        def resolver(root, info, **kwargs):
+            query = cls.table.coerce_to('array')
+
+            if 'page' in kwargs:
+                if 'page_size' in kwargs:
+                    query = do_paging(query, kwargs['page'], kwargs['page_size'])
+                else:
+                    query = do_paging(query, kwargs['page'])
+
+                records = query.run()
+                return [cls.task_type(**record) for record in records]
+
+        return resolver
+
 
     def upsert_task(self, auth, task_data : task_type):
         assert isinstance(task_data, self.task_type)

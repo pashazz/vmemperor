@@ -6,8 +6,12 @@ interface Props {
 }
 
 const PlaybookWatcher = ({taskId}: Props) => {
-  const data = useSubscription<PlaybookTaskUpdate.Subscription, PlaybookTaskUpdate.Variables>(PlaybookTaskUpdate.Document,
+  
+
+  useSubscription<PlaybookTaskUpdate.Subscription, PlaybookTaskUpdate.Variables>(PlaybookTaskUpdate.Document,
     {
-      variables: {}
+      variables: {
+        id: taskId
+      }
     });
 };

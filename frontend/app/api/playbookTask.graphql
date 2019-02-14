@@ -5,3 +5,10 @@ subscription PlaybookTaskUpdate ($id: ID!) {
     message
   }
 }
+query PlaybookTask ($id: ID!) {
+  playbookTask(id: $id)  {
+    id
+    state
+    message
+  }
+}

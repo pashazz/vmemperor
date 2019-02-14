@@ -58,6 +58,11 @@ class Query(ObjectType):
     playbook = graphene.Field(GPlaybook, required=True, id=graphene.ID(), resolver=resolve_playbook,
                               description="Information about Ansible-powered playbook")
 
+    playbook_task = graphene.Field(PlaybookTask, required=True, id=graphene.NonNull(graphene.ID),
+                                   description="Info about a playbook task", resolver=PlaybookTaskList.resolve_one())
+    playbook_tasks = graphene.List(PlaybookTask, required=True,
+                                    description="All Playbook Tasks", resolver=PlaybookTaskList.resolve_all())
+
 
 class Mutation(ObjectType):
     create_VM = CreateVM.Field(description="Create a new VM")

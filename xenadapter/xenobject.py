@@ -10,6 +10,7 @@ from authentication import BasicAuthenticator, AdministratorAuthenticator, NotAu
 from rethinkdb import RethinkDB
 
 from handlers.graphql.types.gxenobjecttype import GXenObjectType
+from handlers.graphql.utils.paging import do_paging
 
 r = RethinkDB()
 from typing import Optional, Type, Callable
@@ -248,10 +249,11 @@ class XenObject(metaclass=XenObjectMeta):
 
             query =  cls.db.table(cls.db_table_name).coerce_to('array')
 
-
             if 'page' in kwargs:
-                page_size = kwargs['page_size']
-                query = query.slice((kwargs['page'] - 1) * page_size, page_size)
+                if 'page_size' in kwargs:
+                    query = do_paging(query, kwargs['page'], kwargs['page_size'])
+                else:
+                    query = do_paging(query, kwargs['page'])
 
             records = query.run()
             return [cls.GraphQLType(**record) for record in records]

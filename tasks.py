@@ -1,7 +1,6 @@
 
 import pickle
 from rethinkdb_helper import  CHECK_ER
-from copy import copy
 from xenadapter.xenobjectdict import XenObjectDict
 from connman import ReDBConnection
 from abc import ABC, abstractmethod

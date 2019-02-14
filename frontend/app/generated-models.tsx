@@ -98,6 +98,15 @@ export enum PowerState {
   Suspended = "Suspended"
 }
 
+export enum PlaybookTaskState {
+  Preparing = "Preparing",
+  ConfigurationWarning = "ConfigurationWarning",
+  Error = "Error",
+  Running = "Running",
+  Finished = "Finished",
+  Unknown = "Unknown"
+}
+
 export enum Table {
   Vms = "VMS"
 }
@@ -112,15 +121,6 @@ export enum Change {
   Add = "Add",
   Remove = "Remove",
   Change = "Change"
-}
-
-export enum PlaybookTaskState {
-  Preparing = "Preparing",
-  ConfigurationWarning = "ConfigurationWarning",
-  Error = "Error",
-  Running = "Running",
-  Finished = "Finished",
-  Unknown = "Unknown"
 }
 
 /** JSON String */
@@ -412,6 +412,28 @@ export namespace PlaybookTaskUpdate {
     __typename?: "Subscription";
 
     playbookTask: Maybe<PlaybookTask>;
+  };
+
+  export type PlaybookTask = {
+    __typename?: "PlaybookTask";
+
+    id: string;
+
+    state: PlaybookTaskState;
+
+    message: string;
+  };
+}
+
+export namespace PlaybookTask {
+  export type Variables = {
+    id: string;
+  };
+
+  export type Query = {
+    __typename?: "Query";
+
+    playbookTask: PlaybookTask;
   };
 
   export type PlaybookTask = {
@@ -1678,6 +1700,48 @@ export namespace PlaybookTaskUpdate {
     >(Document, operationOptions);
   }
 }
+export namespace PlaybookTask {
+  export const Document = gql`
+    query PlaybookTask($id: ID!) {
+      playbookTask(id: $id) {
+        id
+        state
+        message
+      }
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.QueryProps<Query, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Query<Query, Variables>
+          query={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Query, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Query,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
 export namespace PoolList {
   export const Document = gql`
     query PoolList {
@@ -2242,6 +2306,14 @@ export namespace QueryResolvers {
     playbooks?: PlaybooksResolver<(Maybe<GPlaybook>)[], TypeParent, Context>;
     /** Information about Ansible-powered playbook */
     playbook?: PlaybookResolver<GPlaybook, TypeParent, Context>;
+    /** Info about a playbook task */
+    playbookTask?: PlaybookTaskResolver<PlaybookTask, TypeParent, Context>;
+    /** All Playbook Tasks */
+    playbookTasks?: PlaybookTasksResolver<
+      (Maybe<PlaybookTask>)[],
+      TypeParent,
+      Context
+    >;
 
     selectedItems?: SelectedItemsResolver<string[], TypeParent, Context>;
 
@@ -2380,6 +2452,20 @@ export namespace QueryResolvers {
     id?: Maybe<string>;
   }
 
+  export type PlaybookTaskResolver<
+    R = PlaybookTask,
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context, PlaybookTaskArgs>;
+  export interface PlaybookTaskArgs {
+    id: string;
+  }
+
+  export type PlaybookTasksResolver<
+    R = (Maybe<PlaybookTask>)[],
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context>;
   export type SelectedItemsResolver<
     R = string[],
     Parent = {},
@@ -3697,6 +3783,40 @@ export namespace PlaybookRequirementsResolvers {
   > = Resolver<R, Parent, Context>;
 }
 
+export namespace PlaybookTaskResolvers {
+  export interface Resolvers<Context = {}, TypeParent = PlaybookTask> {
+    /** Playbook task ID */
+    id?: IdResolver<string, TypeParent, Context>;
+    /** Playbook ID */
+    playbookId?: PlaybookIdResolver<string, TypeParent, Context>;
+    /** Playbook running state */
+    state?: StateResolver<PlaybookTaskState, TypeParent, Context>;
+    /** Human-readable message: error description or return code */
+    message?: MessageResolver<string, TypeParent, Context>;
+  }
+
+  export type IdResolver<
+    R = string,
+    Parent = PlaybookTask,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type PlaybookIdResolver<
+    R = string,
+    Parent = PlaybookTask,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type StateResolver<
+    R = PlaybookTaskState,
+    Parent = PlaybookTask,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+  export type MessageResolver<
+    R = string,
+    Parent = PlaybookTask,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+}
+
 export namespace VmSelectedIdListsResolvers {
   export interface Resolvers<Context = {}, TypeParent = VmSelectedIdLists> {
     start?: StartResolver<Maybe<(Maybe<string>)[]>, TypeParent, Context>;
@@ -4258,40 +4378,6 @@ export namespace GTaskResolvers {
   > = Resolver<R, Parent, Context>;
 }
 
-export namespace PlaybookTaskResolvers {
-  export interface Resolvers<Context = {}, TypeParent = PlaybookTask> {
-    /** Playbook task ID */
-    id?: IdResolver<string, TypeParent, Context>;
-    /** Playbook ID */
-    playbookId?: PlaybookIdResolver<string, TypeParent, Context>;
-    /** Playbook running state */
-    state?: StateResolver<PlaybookTaskState, TypeParent, Context>;
-    /** Human-readable message: error description or return code */
-    message?: MessageResolver<string, TypeParent, Context>;
-  }
-
-  export type IdResolver<
-    R = string,
-    Parent = PlaybookTask,
-    Context = {}
-  > = Resolver<R, Parent, Context>;
-  export type PlaybookIdResolver<
-    R = string,
-    Parent = PlaybookTask,
-    Context = {}
-  > = Resolver<R, Parent, Context>;
-  export type StateResolver<
-    R = PlaybookTaskState,
-    Parent = PlaybookTask,
-    Context = {}
-  > = Resolver<R, Parent, Context>;
-  export type MessageResolver<
-    R = string,
-    Parent = PlaybookTask,
-    Context = {}
-  > = Resolver<R, Parent, Context>;
-}
-
 export namespace PlaybookTasksSubscriptionResolvers {
   export interface Resolvers<
     Context = {},
@@ -4410,6 +4496,7 @@ export interface IResolvers<Context = {}> {
   Giso?: GisoResolvers.Resolvers<Context>;
   GPlaybook?: GPlaybookResolvers.Resolvers<Context>;
   PlaybookRequirements?: PlaybookRequirementsResolvers.Resolvers<Context>;
+  PlaybookTask?: PlaybookTaskResolvers.Resolvers<Context>;
   VmSelectedIdLists?: VmSelectedIdListsResolvers.Resolvers<Context>;
   Mutation?: MutationResolvers.Resolvers<Context>;
   CreateVm?: CreateVmResolvers.Resolvers<Context>;
@@ -4426,7 +4513,6 @@ export interface IResolvers<Context = {}> {
   GHostsSubscription?: GHostsSubscriptionResolvers.Resolvers<Context>;
   GPoolsSubscription?: GPoolsSubscriptionResolvers.Resolvers<Context>;
   GTask?: GTaskResolvers.Resolvers<Context>;
-  PlaybookTask?: PlaybookTaskResolvers.Resolvers<Context>;
   PlaybookTasksSubscription?: PlaybookTasksSubscriptionResolvers.Resolvers<
     Context
   >;
@@ -4533,6 +4619,10 @@ export interface Query {
   playbooks: (Maybe<GPlaybook>)[];
   /** Information about Ansible-powered playbook */
   playbook: GPlaybook;
+  /** Info about a playbook task */
+  playbookTask: PlaybookTask;
+  /** All Playbook Tasks */
+  playbookTasks: (Maybe<PlaybookTask>)[];
 
   selectedItems: string[];
 
@@ -4917,6 +5007,17 @@ export interface PlaybookRequirements {
   osVersion: (Maybe<OsVersion>)[];
 }
 
+export interface PlaybookTask {
+  /** Playbook task ID */
+  id: string;
+  /** Playbook ID */
+  playbookId: string;
+  /** Playbook running state */
+  state: PlaybookTaskState;
+  /** Human-readable message: error description or return code */
+  message: string;
+}
+
 export interface VmSelectedIdLists {
   start?: Maybe<(Maybe<string>)[]>;
 
@@ -5064,17 +5165,6 @@ export interface GTask extends GAclXenObject {
   status?: Maybe<string>;
 }
 
-export interface PlaybookTask {
-  /** Playbook task ID */
-  id: string;
-  /** Playbook ID */
-  playbookId: string;
-  /** Playbook running state */
-  state: PlaybookTaskState;
-  /** Human-readable message: error description or return code */
-  message: string;
-}
-
 export interface PlaybookTasksSubscription {
   /** Change type */
   changeType: Change;
@@ -5112,6 +5202,9 @@ export interface IsoQueryArgs {
 }
 export interface PlaybookQueryArgs {
   id?: Maybe<string>;
+}
+export interface PlaybookTaskQueryArgs {
+  id: string;
 }
 export interface SelectedItemsQueryArgs {
   tableId: Table;
