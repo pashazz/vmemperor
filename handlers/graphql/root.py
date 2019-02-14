@@ -76,17 +76,17 @@ class Subscription(ObjectType):
     All subscriptions must return  Observable
     '''
     vms = graphene.Field(MakeSubscriptionWithChangeType(GVM), required=True, description="Updates for all VMs")
-    vm = graphene.Field(MakeSubscription(GVM), uuid=graphene.ID(), description="Updates for a particular VM")
+    vm = graphene.Field(MakeSubscription(GVM), uuid=graphene.NonNull(graphene.ID), description="Updates for a particular VM")
 
     hosts = graphene.Field(MakeSubscriptionWithChangeType(GHost), required=True, description="Updates for all Hosts")
-    host = graphene.Field(MakeSubscription(GHost), uuid=graphene.ID(), description="Updates for a particular Host")
+    host = graphene.Field(MakeSubscription(GHost), uuid=graphene.NonNull(graphene.ID), description="Updates for a particular Host")
 
     pools = graphene.Field(MakeSubscriptionWithChangeType(GPool), required=True, description="Updates for all pools available in VMEmperor")
-    pool = graphene.Field(MakeSubscription(GPool), uuid=graphene.ID(), description="Updates for a particular Pool")
+    pool = graphene.Field(MakeSubscription(GPool), uuid=graphene.NonNull(graphene.ID), description="Updates for a particular Pool")
 
-    task = graphene.Field(MakeSubscription(GTask),  uuid=graphene.ID(), description="Updates for a particular XenServer Task")
+    task = graphene.Field(MakeSubscription(GTask),  uuid=graphene.NonNull(graphene.ID), description="Updates for a particular XenServer Task")
 
-    playbook_task = graphene.Field(MakeSubscription(PlaybookTask), id=graphene.ID(), description="Updates for a particular Playbook installation Task")
+    playbook_task = graphene.Field(MakeSubscription(PlaybookTask), id=graphene.NonNull(graphene.ID), description="Updates for a particular Playbook installation Task")
     playbook_tasks = graphene.Field(MakeSubscriptionWithChangeType(PlaybookTask), required=True, description="Updates for all Playbook Tasks")
 
 

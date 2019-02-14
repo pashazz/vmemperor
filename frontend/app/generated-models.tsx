@@ -404,12 +404,14 @@ export namespace PlaybookList {
 }
 
 export namespace PlaybookTaskUpdate {
-  export type Variables = {};
+  export type Variables = {
+    id: string;
+  };
 
   export type Subscription = {
     __typename?: "Subscription";
 
-    playbookTask: PlaybookTask;
+    playbookTask: Maybe<PlaybookTask>;
   };
 
   export type PlaybookTask = {
@@ -543,7 +545,7 @@ export namespace VmInfo {
   export type Query = {
     __typename?: "Query";
 
-    vm: Vm;
+    vm: Maybe<Vm>;
   };
 
   export type Vm = VmInfoFragment.Fragment;
@@ -1634,8 +1636,8 @@ export namespace PlaybookList {
 }
 export namespace PlaybookTaskUpdate {
   export const Document = gql`
-    subscription PlaybookTaskUpdate {
-      playbookTask {
+    subscription PlaybookTaskUpdate($id: ID!) {
+      playbookTask(id: $id) {
         id
         state
         message
@@ -2207,35 +2209,35 @@ export namespace QueryResolvers {
     /** All VMs available to user */
     vms?: VmsResolver<(Maybe<Gvm>)[], TypeParent, Context>;
 
-    vm?: VmResolver<Gvm, TypeParent, Context>;
+    vm?: VmResolver<Maybe<Gvm>, TypeParent, Context>;
     /** All Templates available to user */
     templates?: TemplatesResolver<(Maybe<GTemplate>)[], TypeParent, Context>;
 
-    template?: TemplateResolver<Gvm, TypeParent, Context>;
+    template?: TemplateResolver<Maybe<Gvm>, TypeParent, Context>;
 
     hosts?: HostsResolver<(Maybe<GHost>)[], TypeParent, Context>;
 
-    host?: HostResolver<GHost, TypeParent, Context>;
+    host?: HostResolver<Maybe<GHost>, TypeParent, Context>;
 
     pools?: PoolsResolver<(Maybe<GPool>)[], TypeParent, Context>;
 
-    pool?: PoolResolver<GPool, TypeParent, Context>;
+    pool?: PoolResolver<Maybe<GPool>, TypeParent, Context>;
     /** All Networks available to user */
     networks?: NetworksResolver<(Maybe<GNetwork>)[], TypeParent, Context>;
     /** Information about a single network */
-    network?: NetworkResolver<GNetwork, TypeParent, Context>;
+    network?: NetworkResolver<Maybe<GNetwork>, TypeParent, Context>;
     /** All Storage repositories available to user */
     srs?: SrsResolver<(Maybe<Gsr>)[], TypeParent, Context>;
     /** Information about a single storage repository */
-    sr?: SrResolver<Gsr, TypeParent, Context>;
+    sr?: SrResolver<Maybe<Gsr>, TypeParent, Context>;
     /** All Virtual Disk Images (hard disks), available for user */
     vdis?: VdisResolver<(Maybe<Gvdi>)[], TypeParent, Context>;
     /** Information about a single virtual disk image (hard disk) */
-    vdi?: VdiResolver<Gvdi, TypeParent, Context>;
+    vdi?: VdiResolver<Maybe<Gvdi>, TypeParent, Context>;
     /** All ISO images available for user */
     isos?: IsosResolver<(Maybe<Giso>)[], TypeParent, Context>;
     /** Information about a single ISO image */
-    iso?: IsoResolver<Gvdi, TypeParent, Context>;
+    iso?: IsoResolver<Maybe<Gvdi>, TypeParent, Context>;
     /** List of Ansible-powered playbooks */
     playbooks?: PlaybooksResolver<(Maybe<GPlaybook>)[], TypeParent, Context>;
     /** Information about Ansible-powered playbook */
@@ -2255,7 +2257,7 @@ export namespace QueryResolvers {
     Parent = {},
     Context = {}
   > = Resolver<R, Parent, Context>;
-  export type VmResolver<R = Gvm, Parent = {}, Context = {}> = Resolver<
+  export type VmResolver<R = Maybe<Gvm>, Parent = {}, Context = {}> = Resolver<
     R,
     Parent,
     Context,
@@ -2270,12 +2272,11 @@ export namespace QueryResolvers {
     Parent = {},
     Context = {}
   > = Resolver<R, Parent, Context>;
-  export type TemplateResolver<R = Gvm, Parent = {}, Context = {}> = Resolver<
-    R,
-    Parent,
-    Context,
-    TemplateArgs
-  >;
+  export type TemplateResolver<
+    R = Maybe<Gvm>,
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context, TemplateArgs>;
   export interface TemplateArgs {
     uuid?: Maybe<string>;
   }
@@ -2285,12 +2286,11 @@ export namespace QueryResolvers {
     Parent = {},
     Context = {}
   > = Resolver<R, Parent, Context>;
-  export type HostResolver<R = GHost, Parent = {}, Context = {}> = Resolver<
-    R,
-    Parent,
-    Context,
-    HostArgs
-  >;
+  export type HostResolver<
+    R = Maybe<GHost>,
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context, HostArgs>;
   export interface HostArgs {
     uuid?: Maybe<string>;
   }
@@ -2300,12 +2300,11 @@ export namespace QueryResolvers {
     Parent = {},
     Context = {}
   > = Resolver<R, Parent, Context>;
-  export type PoolResolver<R = GPool, Parent = {}, Context = {}> = Resolver<
-    R,
-    Parent,
-    Context,
-    PoolArgs
-  >;
+  export type PoolResolver<
+    R = Maybe<GPool>,
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context, PoolArgs>;
   export interface PoolArgs {
     uuid?: Maybe<string>;
   }
@@ -2316,7 +2315,7 @@ export namespace QueryResolvers {
     Context = {}
   > = Resolver<R, Parent, Context>;
   export type NetworkResolver<
-    R = GNetwork,
+    R = Maybe<GNetwork>,
     Parent = {},
     Context = {}
   > = Resolver<R, Parent, Context, NetworkArgs>;
@@ -2329,7 +2328,7 @@ export namespace QueryResolvers {
     Parent = {},
     Context = {}
   > = Resolver<R, Parent, Context>;
-  export type SrResolver<R = Gsr, Parent = {}, Context = {}> = Resolver<
+  export type SrResolver<R = Maybe<Gsr>, Parent = {}, Context = {}> = Resolver<
     R,
     Parent,
     Context,
@@ -2344,12 +2343,11 @@ export namespace QueryResolvers {
     Parent = {},
     Context = {}
   > = Resolver<R, Parent, Context>;
-  export type VdiResolver<R = Gvdi, Parent = {}, Context = {}> = Resolver<
-    R,
-    Parent,
-    Context,
-    VdiArgs
-  >;
+  export type VdiResolver<
+    R = Maybe<Gvdi>,
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context, VdiArgs>;
   export interface VdiArgs {
     uuid?: Maybe<string>;
   }
@@ -2359,12 +2357,11 @@ export namespace QueryResolvers {
     Parent = {},
     Context = {}
   > = Resolver<R, Parent, Context>;
-  export type IsoResolver<R = Gvdi, Parent = {}, Context = {}> = Resolver<
-    R,
-    Parent,
-    Context,
-    IsoArgs
-  >;
+  export type IsoResolver<
+    R = Maybe<Gvdi>,
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context, IsoArgs>;
   export interface IsoArgs {
     uuid?: Maybe<string>;
   }
@@ -4016,11 +4013,15 @@ export namespace SubscriptionResolvers {
     /** Updates for all pools available in VMEmperor */
     pools?: PoolsResolver<GPoolsSubscription, TypeParent, Context>;
     /** Updates for a particular Pool */
-    pool?: PoolResolver<GPool, TypeParent, Context>;
+    pool?: PoolResolver<Maybe<GPool>, TypeParent, Context>;
     /** Updates for a particular XenServer Task */
     task?: TaskResolver<Maybe<GTask>, TypeParent, Context>;
     /** Updates for a particular Playbook installation Task */
-    playbookTask?: PlaybookTaskResolver<PlaybookTask, TypeParent, Context>;
+    playbookTask?: PlaybookTaskResolver<
+      Maybe<PlaybookTask>,
+      TypeParent,
+      Context
+    >;
     /** Updates for all Playbook Tasks */
     playbookTasks?: PlaybookTasksResolver<
       PlaybookTasksSubscription,
@@ -4040,7 +4041,7 @@ export namespace SubscriptionResolvers {
     Context = {}
   > = SubscriptionResolver<R, Parent, Context, VmArgs>;
   export interface VmArgs {
-    uuid?: Maybe<string>;
+    uuid: string;
   }
 
   export type HostsResolver<
@@ -4054,7 +4055,7 @@ export namespace SubscriptionResolvers {
     Context = {}
   > = SubscriptionResolver<R, Parent, Context, HostArgs>;
   export interface HostArgs {
-    uuid?: Maybe<string>;
+    uuid: string;
   }
 
   export type PoolsResolver<
@@ -4063,12 +4064,12 @@ export namespace SubscriptionResolvers {
     Context = {}
   > = SubscriptionResolver<R, Parent, Context>;
   export type PoolResolver<
-    R = GPool,
+    R = Maybe<GPool>,
     Parent = {},
     Context = {}
   > = SubscriptionResolver<R, Parent, Context, PoolArgs>;
   export interface PoolArgs {
-    uuid?: Maybe<string>;
+    uuid: string;
   }
 
   export type TaskResolver<
@@ -4077,16 +4078,16 @@ export namespace SubscriptionResolvers {
     Context = {}
   > = SubscriptionResolver<R, Parent, Context, TaskArgs>;
   export interface TaskArgs {
-    uuid?: Maybe<string>;
+    uuid: string;
   }
 
   export type PlaybookTaskResolver<
-    R = PlaybookTask,
+    R = Maybe<PlaybookTask>,
     Parent = {},
     Context = {}
   > = SubscriptionResolver<R, Parent, Context, PlaybookTaskArgs>;
   export interface PlaybookTaskArgs {
-    id?: Maybe<string>;
+    id: string;
   }
 
   export type PlaybookTasksResolver<
@@ -4499,35 +4500,35 @@ export interface Query {
   /** All VMs available to user */
   vms: (Maybe<Gvm>)[];
 
-  vm: Gvm;
+  vm?: Maybe<Gvm>;
   /** All Templates available to user */
   templates: (Maybe<GTemplate>)[];
 
-  template: Gvm;
+  template?: Maybe<Gvm>;
 
   hosts: (Maybe<GHost>)[];
 
-  host: GHost;
+  host?: Maybe<GHost>;
 
   pools: (Maybe<GPool>)[];
 
-  pool: GPool;
+  pool?: Maybe<GPool>;
   /** All Networks available to user */
   networks: (Maybe<GNetwork>)[];
   /** Information about a single network */
-  network: GNetwork;
+  network?: Maybe<GNetwork>;
   /** All Storage repositories available to user */
   srs: (Maybe<Gsr>)[];
   /** Information about a single storage repository */
-  sr: Gsr;
+  sr?: Maybe<Gsr>;
   /** All Virtual Disk Images (hard disks), available for user */
   vdis: (Maybe<Gvdi>)[];
   /** Information about a single virtual disk image (hard disk) */
-  vdi: Gvdi;
+  vdi?: Maybe<Gvdi>;
   /** All ISO images available for user */
   isos: (Maybe<Giso>)[];
   /** Information about a single ISO image */
-  iso: Gvdi;
+  iso?: Maybe<Gvdi>;
   /** List of Ansible-powered playbooks */
   playbooks: (Maybe<GPlaybook>)[];
   /** Information about Ansible-powered playbook */
@@ -5004,11 +5005,11 @@ export interface Subscription {
   /** Updates for all pools available in VMEmperor */
   pools: GPoolsSubscription;
   /** Updates for a particular Pool */
-  pool: GPool;
+  pool?: Maybe<GPool>;
   /** Updates for a particular XenServer Task */
   task?: Maybe<GTask>;
   /** Updates for a particular Playbook installation Task */
-  playbookTask: PlaybookTask;
+  playbookTask?: Maybe<PlaybookTask>;
   /** Updates for all Playbook Tasks */
   playbookTasks: PlaybookTasksSubscription;
 }
@@ -5182,17 +5183,17 @@ export interface SelectedItemsMutationArgs {
   isSelect: boolean;
 }
 export interface VmSubscriptionArgs {
-  uuid?: Maybe<string>;
+  uuid: string;
 }
 export interface HostSubscriptionArgs {
-  uuid?: Maybe<string>;
+  uuid: string;
 }
 export interface PoolSubscriptionArgs {
-  uuid?: Maybe<string>;
+  uuid: string;
 }
 export interface TaskSubscriptionArgs {
-  uuid?: Maybe<string>;
+  uuid: string;
 }
 export interface PlaybookTaskSubscriptionArgs {
-  id?: Maybe<string>;
+  id: string;
 }

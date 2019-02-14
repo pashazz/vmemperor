@@ -1,5 +1,5 @@
-subscription PlaybookTaskUpdate {
-  playbookTask  {
+subscription PlaybookTaskUpdate ($id: ID!) {
+  playbookTask(id: $id)  {
     id
     state
     message
