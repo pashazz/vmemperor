@@ -25,6 +25,8 @@ class VBD(XenObject):
 
             if event['operation'] in ('mod', 'add'):
                 vm = VM(auth=auth, ref=record['VM'])
+                if vm.get_is_a_snapshot():
+                    return # TODO Handle snapshots
                 try:
                     new_rec = {'uuid': vm.uuid, 'disks': {event['ref'] :
                     {'VDI': record['VDI'], 'bootable': record['bootable'], 'attached': record['currently_attached'], 'type' : record['type'],

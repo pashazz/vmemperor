@@ -48,6 +48,9 @@ class VIF(XenObject, metaclass=XenObjectMeta):
 
             if event['operation'] in ('mod', 'add'):
                 vm = VM(auth=auth, ref=record['VM'])
+                if vm.get_is_a_snapshot():
+                    return #TODO Handle snapshots
+
                 new_rec = {'uuid': vm.uuid, 'interfaces' : {record['device']:
                 {'VIF':event['ref'], 'network': record['network'], 'attached': record['currently_attached'], 'MAC': record['MAC'], 'status': record['status_detail']}} }
                 CHECK_ER(db.table(VM.db_table_name).insert(new_rec, conflict='update').run())

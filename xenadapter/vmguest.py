@@ -29,7 +29,10 @@ class VMGuest(XenObject):
             if event['operation'] in ('mod', 'add'):
                 rec = db.table(VM.db_table_name).get_all(event['ref'], index='guest_metrics').pluck('uuid').run().items
                 if len(rec) != 1:
-                    auth.xen.log.warning("VMGuest::process_event: Cannot find a VM (or theres more than one) for guest metrics {0}".format(event['ref']))
+                    #auth.xen.log.warning(
+                    #    f"VMGuest::process_event: Cannot find a VM (or theres more than one)"
+                    #    f" for guest metrics {event['ref']}")
+                    # TODO Snapshots
                     return
                 vm_uuid = rec[0]['uuid']
                 new_rec = {'uuid': vm_uuid, 'os_version': record['os_version'],'interfaces': {},
@@ -49,5 +52,5 @@ class VMGuest(XenObject):
                 #new_rec = {'uuid': vm_uuid, 'networks' : {record['device']:
                 #{'VIF': record['uuid'], 'network': net.uuid, 'attached': record['currently_attached'], 'MAC': record['MAC'], 'status': record['status_detail']}} }
 
-                CHECK_ER(db.table(VM.db_table_name).insert(new_rec, conflict='update').run())
+                CHECK_ER(db.table(VM.db_table_name).insert(new_rec, conflict="update").run())
 
