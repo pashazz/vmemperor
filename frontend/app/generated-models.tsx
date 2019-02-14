@@ -646,6 +646,14 @@ export namespace IsoListFragment {
     __typename?: "GSR";
 
     isToolsSr: boolean;
+
+    PBDs: (Maybe<PbDs>)[];
+  };
+
+  export type PbDs = {
+    __typename?: "GPBD";
+
+    currentlyAttached: boolean;
   };
 }
 
@@ -690,6 +698,14 @@ export namespace StorageListFragment {
     spaceAvailable: number;
 
     contentType: SrContentType;
+
+    PBDs: (Maybe<PbDs>)[];
+  };
+
+  export type PbDs = {
+    __typename?: "GPBD";
+
+    currentlyAttached: boolean;
   };
 }
 
@@ -841,6 +857,9 @@ export namespace IsoListFragment {
       nameLabel
       SR {
         isToolsSr
+        PBDs {
+          currentlyAttached
+        }
       }
     }
   `;
@@ -875,6 +894,9 @@ export namespace StorageListFragment {
       nameLabel
       spaceAvailable
       contentType
+      PBDs {
+        currentlyAttached
+      }
     }
   `;
 }
@@ -2825,6 +2847,8 @@ export namespace GpbdResolvers {
     deviceConfig?: DeviceConfigResolver<JsonString, TypeParent, Context>;
 
     SR?: SrResolver<Gsr, TypeParent, Context>;
+
+    currentlyAttached?: CurrentlyAttachedResolver<boolean, TypeParent, Context>;
   }
 
   export type RefResolver<R = string, Parent = Gpbd, Context = {}> = Resolver<
@@ -2852,6 +2876,11 @@ export namespace GpbdResolvers {
     Parent,
     Context
   >;
+  export type CurrentlyAttachedResolver<
+    R = boolean,
+    Parent = Gpbd,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
 }
 
 export namespace GHostResolvers {
@@ -4601,6 +4630,8 @@ export interface Gpbd {
   deviceConfig: JsonString;
 
   SR: Gsr;
+
+  currentlyAttached: boolean;
 }
 
 export interface GHost extends GXenObject {

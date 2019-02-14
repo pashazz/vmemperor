@@ -55,11 +55,11 @@ class Attachable:
         if (vm.get_power_state() == 'Running'):
             try:
                 self.auth.xen.api.VBD.plug(vbd_ref)
-            except Exception as e:
-                self.auth.xen.log.warning(f"Disk will be attached after reboot with VBD UUID {vbd_uuid}")
+            except Exception:
+                self.auth.xen.log.warning(f"will be attached after reboot to {vm}")
                 return vbd_uuid
 
-        self.auth.xen.log.info (f"Disk is attached with VBD UUID: {vbd_uuid}")
+        self.auth.xen.log.info (f"attached to {vm}")
 
         return vbd_uuid
 

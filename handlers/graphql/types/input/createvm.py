@@ -46,7 +46,7 @@ def createvm(ctx : ContextProtocol, task_id : str, template: str, VCPUs : int, d
     r = RethinkDB()
     with ReDBConnection().get_connection():
         auth = ctx.user_authenticator
-        auth.xen = XenAdapterPool.get()
+        auth.xen = XenAdapterPool().get()
         task_list = CreateVMTaskList(r.db(opts.database))
         task_list.upsert_task(auth, CreateVMTask(id=task_id, uuid=template, state='cloning',
                                                  message=f'cloning template'))

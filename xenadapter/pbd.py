@@ -16,6 +16,7 @@ class GPBD(GXenObjectType):
     host = graphene.Field(hostType, required=True, description="Host to which the SR is supposed to be connected to", resolver=resolve_host)
     device_config = graphene.Field(graphene.JSONString, required=True)
     SR = graphene.Field(srType, required=True, resolver=resolve_sr)
+    currently_attached = graphene.Field(graphene.Boolean, required=True)
 
 
 class PBD (XenObject):

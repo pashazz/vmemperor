@@ -48,7 +48,9 @@ const VMForm = (props: FormikPropsValues) => {
   const templateOptions = useReactSelectFromRecord(templates);
 
   const {data: srData} = useQuery<StorageList.Query>(StorageList.Document);
-  const srs = useMemo(() => srData.srs.filter(sr => sr.contentType === SrContentType.User), [srData])
+  const srs = useMemo(() => srData.srs.filter(
+    sr => sr.contentType === SrContentType.User &&
+      !sr.PBDs.every(pbd => !pbd.currentlyAttached)), [srData])
   const srOptions = useReactSelectFromRecord(srs, (item: StorageListFragment.Fragment) => {
     return `${item.nameLabel} (${formatBytes(item.spaceAvailable, 2)} available)`
   });
@@ -57,7 +59,9 @@ const VMForm = (props: FormikPropsValues) => {
   const networkOptions = useReactSelectFromRecord(networks);
 
   const {data: isoData} = useQuery<IsoList.Query>(IsoList.Document);
-  const isos = useMemo(() => isoData.isos.filter(iso => !iso.SR.isToolsSr), [isoData]);
+  const isos = useMemo(() => isoData.isos.filter(iso =>
+    !iso.SR.isToolsSr && !iso.SR.PBDs.every(pbd => !pbd.currentlyAttached)),
+    [isoData]);
   const isoOptions = useReactSelectFromRecord(isos);
 
   console.log("Errors:", props.errors);

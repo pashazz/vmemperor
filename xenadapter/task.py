@@ -1,4 +1,4 @@
-from xenadapter import XenAdapter
+from xenadapter import XenAdapter, XenAdapterPool
 from .xenobject import ACLXenObject, GAclXenObject
 from handlers.graphql.types.gxenobjecttype import GXenObjectType
 import graphene
@@ -51,8 +51,12 @@ class Task(ACLXenObject):
                 new_rec = cls.process_record(auth, event['ref'], record)
                 CHECK_ER(db.table(cls.db_table_name).insert(new_rec, conflict='update').run())
                 if record['status'] in ['success', 'failure', 'cancelled'] and new_rec['access']: # only our tasks have non-empty 'access'
-                    xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
-                    xen.api.task.destroy(event['ref'])
+                    if not hasattr(auth, 'xen'):
+                        auth.log.warning("Creating a XenAdaptor when it's likely should be provided")
+                        auth.xen = XenAdapterPool().get()
+                    auth.xen.api.task.destroy(event['ref'])
+                    if not hasattr(auth, 'xen'):
+                        XenAdapterPool().unget(auth.xen)
 
 
         

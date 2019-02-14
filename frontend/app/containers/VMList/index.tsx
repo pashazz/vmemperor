@@ -169,6 +169,7 @@ export default function ({history}:  RouteComponentProps) {
         switch (change.changeType) {
           case Change.Add:
           case Change.Remove:
+            console.log("Add/Remove: ", change);
             handleAddRemove(client, VmList.Document, 'vms', change);
             break;
           case Change.Change: //Update our internal state

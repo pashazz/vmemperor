@@ -6,7 +6,7 @@ import pickle
 from authentication import BasicAuthenticator
 from connman import ReDBConnection
 from handlers.base import BaseHandler, BaseWSHandler
-from xenadapter import XenAdapter
+from xenadapter import XenAdapter, XenAdapterPool
 from tornado.options import options as opts
 from typing import _Protocol, Mapping, Any, ContextManager
 from logging import Logger
@@ -85,7 +85,11 @@ class GraphQLSubscriptionHandler(BaseWSHandler, BaseGQLSubscriptionHandler):
         if not isinstance(value, BasicAuthenticator):
             self.log.error("GraphQL connection initiated, Loaded authToken, not a BasicAuthenticator")
             return False
-        value.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
+        value.xen = XenAdapterPool().get()
         self.request.user_authenticator = value
         self.log.debug(f"GraphQL subscription authentication successful (as {value.get_id()})")
         return True
+
+    def on_finish(self):
+        if hasattr(self.request, 'user_authenticator'):
+            XenAdapterPool().unget(self.request.user_authenticator.xen)

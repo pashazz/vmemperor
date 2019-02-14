@@ -1,10 +1,13 @@
 fragment ISOListFragment on GISO {
-    uuid
-    nameLabel
-    SR {
-      isToolsSr
+  uuid
+  nameLabel
+  SR {
+    isToolsSr
+    PBDs {
+      currentlyAttached
     }
   }
+}
 
 
 query ISOList {

@@ -10,6 +10,7 @@ from handlers.graphql.types.blockdevice import BlockDevice
 
 from handlers.graphql.types.interface import Interface
 from handlers.graphql.types.vm import resolve_disks
+from xenadapter import XenAdapterPool
 from xenadapter.xenobject import GAclXenObject
 from handlers.graphql.types.gxenobjecttype import GXenObjectType
 from xenadapter.abstractvm import AbstractVM
@@ -288,9 +289,9 @@ class VM (AbstractVM):
         self.set_xenstore_data(xenstore_data)
 
 
-
+    @use_logger
     def create(self, insert_log_entry, provision_config : Sequence[SetDisksEntry], net, ram_size, template=None, ip=None, install_url=None, override_pv_args=None, iso=None,
-               username=None, password=None, hostname=None, partition=None, fullname=None, vcpus=1):
+               username=None, password=None, hostname=None, partition=None, fullname=None, vcpus=1, return_xenadapter_to_query=True):
         '''
         Creates a virtual machine and installs an OS
 
@@ -315,14 +316,19 @@ class VM (AbstractVM):
         self.remove_tags('vmemperor')
         if not self.auth.is_admin():
             self.manage_actions('all',  user=self.auth.get_id())
-
         self.set_ram_size(ram_size)
         self.set_VCPUs_max(vcpus)
         self.set_VCPUs_at_startup(vcpus)
         self.set_disks(provision_config)
+
+        if iso:
+            try:
+                iso.attach(self)
+            except XenAdapterAPIError as e:
+                self.insert_log_entry(self=self, state="failed-iso", message=e.message)
+                raise e
+
         device = self.install_guest_tools()
-
-
 
         if net:
             try:
@@ -342,14 +348,6 @@ class VM (AbstractVM):
             self.os_detect(template.get_os_kind(), device, ip, hostname, install_url, override_pv_args, fullname, username, password, partition)
             self.log.debug(f"OS successfully detected, proceeding with auto installation mode")
 
-        if iso:
-            try:
-                iso.attach(self)
-            except XenAdapterAPIError as e:
-                self.insert_log_entry(self=self, state="failed-iso", message=e.message)
-                raise e
-
-
 
         self.insert_log_entry('installing', f'The OS is installing')
         try:
@@ -367,12 +365,21 @@ class VM (AbstractVM):
 
         state = self.db.table(VM.db_table_name).get(self.uuid).pluck('power_state').run()['power_state']
         if state != 'Running':
-            self.insert_log_entry(self.uuid, 'failed',
+            self.insert_log_entry('failed',
                                   f"failed to start VM for installation (low resources?). State: {state}")
             return
 
         cur = self.db.table('vms').get(self.uuid).changes().run()
-        self.log.debug(f"Waiting for VM to finish installing")
+        other_config = self.get_other_config()
+
+        self.log.debug(f"Waiting for {self} to finish installing")
+        if 'convert-to-hvm' in other_config and other_config['convert-to-hvm']:
+            self.log.debug(f"Changing {self} type to HVM after reboot")
+        else:
+            if return_xenadapter_to_query:
+                XenAdapterPool().unget(self.auth.xen)
+
+
         while True:
             try:
                 change = cur.next(wait=1)
@@ -388,10 +395,12 @@ class VM (AbstractVM):
 
             if change['new_val']['power_state'] == 'Halted':
                 try:
-                    self.log.debug("Finalizing installation of VM")
-                    other_config = self.get_other_config()
+                    self.log.debug(f"Halted: finalizing installation of {self}")
                     if 'convert-to-hvm' in other_config and other_config['convert-to-hvm']:
                         self.set_domain_type('hvm')
+                        if return_xenadapter_to_query:
+                            XenAdapterPool().unget(self.auth.xen)
+
 
                     self.start_stop_vm(True)
                     self.insert_log_entry(self.uuid, "installed", "OS successfully installed")
@@ -593,7 +602,7 @@ class VM (AbstractVM):
                         vbd = vdi.attach(self)
                         #get_device won't work here so we'll hack based on our vdi.attach implementation
                         device = chr(ord('a') + int(vbd.get_userdevice()))
-
+                        self.log.debug(f"Installing guest tools: UNIX device /dev/{device}")
                         return f'xvd{device}'
 
     def set_memory(self, memory: int):

@@ -3,6 +3,9 @@ fragment StorageListFragment on GSR {
   nameLabel
   spaceAvailable
   contentType
+  PBDs{
+    currentlyAttached
+  }
 }
 
 query StorageList {

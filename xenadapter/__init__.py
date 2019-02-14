@@ -60,15 +60,24 @@ class XenAdapterPool(metaclass=Singleton):
     def __init__(self, qty=200):
         self._xens = []
         self.qty = qty
+
+
+
     def get(self):
         if len(self._xens) == self.qty:
             #waiting for lock to be unlocked in at least one XenAdapter
            for xen in self._xens:
                if not xen.session.locked:
+                   xen.log.debug("Getting existing XenAdapter from XenAdapterPool")
                    return xen
         else:
             from vmemperor import opts
             self._xens.append(XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')}, nosingleton=True))
-            return self._xens[-1]
+            xen = self._xens[-1]
+            xen.log.debug("Getting new XenAdapter from XenAdapterPool")
+            return xen
 
         #TODO dont know what to do if limit exceeded
+
+    def unget(self, xen):
+        xen.log.debug("Pushing back into XenPool")

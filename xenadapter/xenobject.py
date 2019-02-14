@@ -12,7 +12,7 @@ from rethinkdb import RethinkDB
 from handlers.graphql.types.gxenobjecttype import GXenObjectType
 
 r = RethinkDB()
-from typing import Optional, Type
+from typing import Optional, Type, Callable
 from xenadapter.helpers import use_logger
 import threading
 import graphene
@@ -439,6 +439,9 @@ class XenObject(metaclass=XenObjectMeta):
                         return lambda: data
                     except r.ReqlNonExistenceError as e:
                         pass
+                    except KeyError: # Returning a db-only field (i.e. not that of XenAPI) that is not computed (yet or purposefully)
+                        return lambda: None
+
 
 
         if name.startswith('async_'):
