@@ -69,6 +69,7 @@ const VMFormContainer: React.FunctionComponent = () => {
   const createVM = useMutation<CreateVm.Mutation, CreateVm.Variables>(CreateVm.Document);
 
   const onSumbit = async (values: Values, formikActions: FormikActions<Values>) => {
+    const hddSizeMegabytes = values.hdd * 1024;
     const staticNetworkConfiguration: NetworkConfiguration = values.autoMode && values.networkType.value === 'static' ? {
       ip: values.ip,
       gateway: values.gateway,
@@ -80,7 +81,7 @@ const VMFormContainer: React.FunctionComponent = () => {
       hostname: values.hostname,
       username: values.username,
       password: values.password,
-      partition: `/-${values.hdd}-`,
+      partition: `/-${hddSizeMegabytes}-`,
       staticIpConfig: staticNetworkConfiguration
     } : null;
 
@@ -96,7 +97,7 @@ const VMFormContainer: React.FunctionComponent = () => {
         iso: values.autoMode ? null : values.iso.value,
         disks: [{
           SR: values.storage.value,
-          size: values.hdd * 1024, //Input: GB; Output: MB
+          size: hddSizeMegabytes //Input: GB; Output: MB
         }],
         installParams: autoInstallParams,
       }
