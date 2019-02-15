@@ -21,8 +21,7 @@ from xenadapter.network import Network
 from xenadapter.vm import VM
 from rethinkdb import RethinkDB
 from tornado.options import options as opts
-from ruamel import yaml
-
+import ruamel.yaml
 
 def launch_playbook(ctx: ContextProtocol, task_id, playbook_id, vms: Optional[List], variables: Optional[Dict[str, Any]]):
     with ReDBConnection().get_connection():
@@ -41,6 +40,8 @@ def launch_playbook(ctx: ContextProtocol, task_id, playbook_id, vms: Optional[Li
                 return f'PlaybookLauncher <{task_id} ({playbook_id})>'
         launcher = LaunchPlaybook()
         log = launcher.log
+        yaml = ruamel.yaml.YAML()
+
 
         log.debug("Checking access rights for VMs")
         def check_access(uuid):
@@ -115,8 +116,11 @@ def launch_playbook(ctx: ContextProtocol, task_id, playbook_id, vms: Optional[Li
                     this_variables[variable] = value
                 file_name = temp_path.joinpath(location, 'all')
                 if this_variables:
+                    log.debug(f"Loading file {file_name}")
+                    with open(file_name, 'r') as file:
+                        original_variables = yaml.load(file)
                     with open(file_name, 'w') as file:
-                        yaml.dump(this_variables, file)
+                        yaml.dump({**original_variables, **this_variables}, file)
 
                     log.info(f'File {file_name} patched')
 
