@@ -1,15 +1,14 @@
 import pathlib
-from collections import OrderedDict
 import signal
 import atexit
 
 import db_classes
-import tornadoql
 import constants
 from connman import ReDBConnection
 import subprocess
 
 import handlers.graphql.graphql_handler as gql_handler
+from datetimeencoder import DateTimeEncoder
 from handlers.rest.base import RESTHandler, auth_required, admin_required
 from handlers.base import BaseWSHandler
 from handlers.graphql.root import schema
@@ -17,17 +16,11 @@ from handlers.rest.createvm import CreateVM
 from rethinkdb_helper import CHECK_ER
 from quota import Quota
 from xenadapter import XenAdapter, XenAdapterPool
-from xenadapter.pbd import PBD
-from xenadapter.task import Task
+from xenadapter.event_queue import EventQueue
 from xenadapter.template import Template
 from xenadapter.vm import VM
-from xenadapter.network import Network, VIF
+from xenadapter.network import Network
 from xenadapter.disk import ISO, VDI, VDIorISO
-from xenadapter.sr import SR
-from xenadapter.vbd import VBD
-from xenadapter.pool import Pool
-from xenadapter.host import Host, HostMetrics
-from xenadapter.console import Console #for XenObjectMeta magic
 from playbookloader import PlaybookLoader, PlaybookEncoder
 import traceback
 import tornado.web
@@ -36,11 +29,10 @@ import tornado.iostream
 from dynamicloader import DynamicLoader
 import socket
 from tornado import ioloop
-from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
 import pickle
-from rethinkdb.errors import ReqlTimeoutError, ReqlCursorEmpty, ReqlDriverError
+from rethinkdb.errors import ReqlTimeoutError
 from authentication import BasicAuthenticator
 from loggable import Loggable
 from pathlib import Path
@@ -50,11 +42,9 @@ import time
 import logging
 from tornado.options import define, options as opts, parse_config_file
 import threading
-import datetime
 import tempfile
 import shutil
 from ruamel import yaml
-from xmlrpc.client import DateTime as xmldt
 from frozendict import frozendict, FrozenDictEncoder
 from authentication import AdministratorAuthenticator
 from tornado.websocket import *
@@ -73,17 +63,6 @@ def table_drop(db, table_name):
         print(e.message)
         r.db('rethinkdb').table('table_config').filter(
             {'db': opts.database, 'name': table_name}).delete().run()
-
-
-class DateTimeEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, xmldt):
-            t = datetime.datetime.strptime(o.value, "%Y%m%dT%H:%M:%SZ")
-            return t.isoformat()
-        elif isinstance(o, datetime.datetime):
-            return o.isoformat()
-
-        return super().default(o)
 
 
 class AuthHandler(RESTHandler):
@@ -196,7 +175,7 @@ class AllTemplates(RESTHandler):
     @admin_required
     def get(self):
         tmpl = Template.get_all_records(self.user_authenticator)
-        self.write(json.dumps(tmpl, cls=DateTimeEncoder ))
+        self.write(json.dumps(tmpl, cls=DateTimeEncoder))
 
 class SetQuota(RESTHandler):
     @admin_required
@@ -438,7 +417,7 @@ class TaskStatus(RESTHandler):
 
         try:
             self.write(json.dumps({k: v for k, v in operation.items() if k != 'auth'},
-                       cls=DateTimeEncoder))
+                                  cls=DateTimeEncoder))
         except Exception as e:
             self.write({'status': 'error', 'details': 'no such task'})
             self.set_status(400)
@@ -1272,17 +1251,14 @@ class EventLoop(Loggable):
     def process_xen_events(self):
         self.log.debug(f"Started process_xen_events in thread {threading.get_ident()}")
         from XenAPI import Failure
-        from xenadapter.event_dispatcher import EVENT_DISPATCHER
 
-        self.log.debug(f"Event dispatcher configuration: {EVENT_DISPATCHER}")
         event_types = None
         timeout = None
         xen = None
         token_from = None
         def init_xen():
             nonlocal  xen, event_types, token_from, timeout
-            self.authenticator.xen = XenAdapterPool().get()
-            xen = self.authenticator.xen
+            xen = XenAdapterPool().get()
             event_types = ["*"]
             token_from = ''
             timeout = 1.0
@@ -1293,16 +1269,13 @@ class EventLoop(Loggable):
         init_xen()
         conn = ReDBConnection().get_connection()
 
-        def print_event(event):
-            ordered = OrderedDict(event)
-            ordered.move_to_end("operation", last=False)
-            ordered.move_to_end("class", last=False)
-            return ordered
+
 
         with conn:
             self.log.debug("Started process_xen_events. You can kill this thread and 'freeze'"
                            " cache databases (except for access) by sending signal USR2")
             constants.first_batch_of_events.clear()
+            queue = EventQueue(self.authenticator, self.db)
 
             while True:
                 try:
@@ -1324,30 +1297,11 @@ class EventLoop(Loggable):
                     token_from = event_from_ret['token']
 
                     for event in events:
-                        if event['class'] == 'message':
-                            continue  # temporary hardcode to fasten event handling
-                        log_this = opts.log_events and event['class'] in opts.log_events.split(',') \
-                        or not opts.log_events
-
-                        if not event['class'] in EVENT_DISPATCHER:
-                            if log_this:
-                                self.log.debug(
-                                    f"Ignored Event: {json.dumps(print_event(event), cls=DateTimeEncoder)}")
-                            continue
-
-                        if log_this:
-                            self.log.debug(f"Event: {json.dumps(print_event(event), cls=DateTimeEncoder)}")
-
-
-                        for ev_class in EVENT_DISPATCHER[event['class']]:
-                            try:
-                                ev_class.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
-                            except Exception as e:
-                                self.log.error(f"Failed to process event by {ev_class.__name__}: {e}")
+                        queue.put(event)
 
                     if not constants.first_batch_of_events.is_set():
+                        queue.join()
                         constants.first_batch_of_events.set()
-
 
                 except Failure as f:
                     if f.details == ["EVENTS_LOST"]:
