@@ -3,9 +3,9 @@ from typing import Union, Type
 
 from rethinkdb import RethinkDB
 from tornado.options import options as opts
-from tornado import
 
 from authentication import with_default_authentication
+from db_classes import create_db_for_me
 from handlers.graphql.resolvers import with_connection
 from handlers.graphql.types.objecttype import ObjectType, InputObjectType
 from handlers.graphql.utils.paging import do_paging
@@ -37,7 +37,6 @@ class GrapheneTaskList(TaskList):
         @with_connection
         @with_default_authentication
         def resolver(root, info, **kwargs):
-            cls.create_db()
 
             if 'id' in kwargs:
                 id = kwargs['id']
@@ -45,7 +44,8 @@ class GrapheneTaskList(TaskList):
                 id = getattr(root, field_name)
 
             try:
-                record = cls.table().get(id).run()
+                record = cls.db.table(cls.table_name()).get(id).\
+                pluck(*cls.task_type()._meta.fields).run()
             except Exception as e:
                 return None
             if not record:
@@ -65,9 +65,10 @@ class GrapheneTaskList(TaskList):
         @with_connection
         @with_default_authentication
         def resolver(root, info, **kwargs):
-            cls.create_db()
 
-            query =cls.table().coerce_to('array')
+
+            query = cls.db.table(cls.table_name()).\
+                pluck(*cls.task_type()._meta.fields).coerce_to('array')
 
             if 'page' in kwargs:
                 if 'page_size' in kwargs:
@@ -90,3 +91,4 @@ class GrapheneTaskList(TaskList):
         task = self.task_type()
         for field in task._meta.fields.keys():
             setattr(task, field, data[field])
+

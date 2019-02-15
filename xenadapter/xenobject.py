@@ -13,10 +13,12 @@ from handlers.graphql.types.gxenobjecttype import GXenObjectType
 from handlers.graphql.utils.paging import do_paging
 
 r = RethinkDB()
+import logging
 from typing import Optional, Type, Callable
 from xenadapter.helpers import use_logger
 import threading
 import graphene
+
 
 def dict_deep_convert(d):
     def convert_to_bool(v):
@@ -35,6 +37,7 @@ def dict_deep_convert(d):
 
 
 class XenObjectMeta(type):
+
     def __getattr__(cls, item):
         if item[0] == '_':
             item = item[1:]
@@ -55,10 +58,21 @@ class XenObjectMeta(type):
                 raise XenAdapterAPIError(auth.xen.log, f"Failed to execute static method {api_class}::{item}", f.details)
         return method
 
+
     def __init__(cls, what, bases=None, dict=None):
+        from db_classes import create_db_for_me, create_acl_db_for_me
         super().__init__(what, bases, dict)
-        cls.db_ready = threading.Event()
-        cls.db_ready.clear()
+        if 'db_table_name' in dict:
+
+            if any((base.__name__ == 'ACLXenObject' for base in cls.mro())):
+                create_acl_db_for_me(cls)
+            else:
+                create_db_for_me(cls)
+
+
+
+
+
 
 
 class GXenObject(graphene.Interface):
@@ -324,7 +338,6 @@ class XenObject(metaclass=XenObjectMeta):
                     db.table(cls.db_table_name).wait().run()
 
             cls.db = db
-            cls.db_ready.set()
 
 
 

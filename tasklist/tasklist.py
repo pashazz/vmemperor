@@ -15,8 +15,6 @@ class TaskList(ABC, Loggable):
 
     def __init__(self):
         self.init_log()
-        if not self.db:
-            self.create_db()
 
 
 
@@ -24,22 +22,18 @@ class TaskList(ABC, Loggable):
         return self.__class__.__name__
 
     @classmethod
-    def create_db(cls):
+    def create_db(cls, db):
         if cls.db:
             return
-        db = r.db(opts.database)
         cls.db = db
         if cls.table_name not in cls.db.table_list().run():
             cls.db.table_create(cls.table_name()).run()
+            cls.db.table(cls.table_name()).wait().run()
 
     @staticmethod
     @abstractmethod
     def table_name():
         ...
-
-    @classmethod
-    def table(cls):
-        return cls.db.table(cls.table_name)
 
     def upsert_task(self, auth, task_data):
         '''
@@ -54,7 +48,7 @@ class TaskList(ABC, Loggable):
         self.log.debug(f"Upserting task: {task_data['id']}")
         if auth:  # replace
             user_id = auth.get_id()
-            CHECK_ER(self.table().insert({**task_data, **{'userid': user_id}}, conflict='replace').run())
+            query = self.db.table(self.table_name()).insert({**task_data, **{'userid': user_id}}, conflict='replace').run()
         else:  # update
             CHECK_ER(self.table().insert({**task_data}, conflict='update').run())
         self.log.debug(f"Task upserted: {task_data['id']}")

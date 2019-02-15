@@ -1,5 +1,6 @@
 import graphene
 
+from db_classes import create_db_for_me
 from handlers.graphql.types.objecttype import ObjectType
 from handlers.graphql.types.tasks.graphenetasklist import GrapheneTaskList
 
@@ -21,3 +22,4 @@ class CreateVMTaskList(GrapheneTaskList):
     def task_type():
         return CreateVMTask
 
+create_db_for_me(CreateVMTaskList)

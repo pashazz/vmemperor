@@ -2,6 +2,8 @@ import pathlib
 from collections import OrderedDict
 import signal
 import atexit
+
+import db_classes
 import tornadoql
 import constants
 from connman import ReDBConnection
@@ -667,7 +669,7 @@ class SetAccessHandler(RESTHandler):
                     return
 
             type_obj = None
-            for obj in constants.objects:
+            for obj in db_classes.CREATE_DB_FOR_CLASSES_WITH_ACL:
                 if obj.__name__ == _type:
                     type_obj = obj
                     break
@@ -729,7 +731,7 @@ class GetAccessHandler(RESTHandler):
             uuid = self.get_argument('uuid')
             type = self.get_argument('type')
             type_obj = None
-            for obj in constants.objects:
+            for obj in db_classes.CREATE_DB_FOR_CLASSES_WITH_ACL:
                 if obj.__name__ == type:
                     type_obj = obj
                     break
@@ -1095,26 +1097,7 @@ class EventLoop(Loggable):
         self.authenticator = authenticator
 
         self.log.info(f"Using database {opts.database}")
-        conn = ReDBConnection().get_connection()
-        with conn:
-            self.log.debug("Creating databases...")
-            if opts.database in r.db_list().run():
-                r.db_drop(opts.database).run()
-
-            r.db_create(opts.database).run()
-            self.db = r.db(opts.database)
-
-            try:
-                authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
-            except XenAdapterConnectionError as e:
-                raise XenAdapterAPIError(self.log, "XenServer not reached", e.message)
-
-            self.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
-            for obj in constants.objects:
-                obj.create_db(self.db)
-
-            del authenticator.xen
-
+        self.db = r.db(opts.database)
 
 
     def do_user_table(self):
@@ -1174,8 +1157,9 @@ class EventLoop(Loggable):
             with conn:
                 table_list = self.db.table_list().run()
 
-                query = self.db.table(constants.objects[0].db_table_name).pluck('uuid', 'access') \
-                    .merge({'table': constants.objects[0].db_table_name}).changes(include_initial=True, include_types=True)
+                class_list = list(db_classes.CREATE_DB_FOR_CLASSES_WITH_ACL)
+                query = self.db.table(class_list[0].db_table_name).pluck('uuid', 'access') \
+                .merge({'table': class_list[0].db_table_name}).changes(include_initial=True, include_types=True)
 
                 def initial_merge(table):
                     nonlocal table_list
@@ -1196,14 +1180,14 @@ class EventLoop(Loggable):
                     # self.db.table(table_user).index_wait('uuid').run()
 
                 i = 0
-                while i < len(constants.objects):
+                while i < len(class_list):
 
-                    initial_merge(constants.objects[i].db_table_name)
+                    initial_merge(class_list[i].db_table_name)
 
                     if i > 0:
-                        query = query.union(self.db.table(constants.objects[i].db_table_name).pluck('uuid', 'access') \
-                                            .merge({'table': constants.objects[i].db_table_name}).changes(include_initial=True,
-                                                                                                include_types=True))
+                        query = query.union(self.db.table(class_list[i].db_table_name).pluck('uuid', 'access') \
+                                            .merge({'table': class_list[i].db_table_name}).changes(include_initial=True,
+                                                                                                                    include_types=True))
                     i += 1
 
                 # indicate that vms_user table is ready
@@ -1279,8 +1263,6 @@ class EventLoop(Loggable):
                     db.table_drop(PlaybookLoader.PLAYBOOK_TABLE_NAME).run()
 
                 db.table_create(PlaybookLoader.PLAYBOOK_TABLE_NAME, durability='soft').run()
-                db.table_create('tasks_playbooks', durability='soft').run()
-                db.table_create('tasks_createvm', durability='soft').run()
                 PlaybookLoader.load_playbooks()
             constants.load_playbooks.clear()
 
@@ -1833,13 +1815,31 @@ def rotateLogs():
         log_path.rename(opts.log_file_name + '.0')
 
 
+def create_dbs():
+    with ReDBConnection().get_connection():
+        logging.debug(f"Creating tables for {db_classes.CREATE_DB_FOR_CLASSES}")
+        if opts.database in r.db_list().run():
+            r.db_drop(opts.database).run()
+
+        r.db_create(opts.database).run()
+        db = r.db(opts.database)
+        logging.debug(f"Creating tables (with ACL) for {db_classes.CREATE_DB_FOR_CLASSES_WITH_ACL}")
+        for obj in db_classes.CREATE_DB_FOR_CLASSES_WITH_ACL:
+            obj.create_db(db)
+
+
+
+        for cl in db_classes.CREATE_DB_FOR_CLASSES:
+            cl.create_db(db=r.db(opts.database))
+
+
 def main():
     """ reads settings in ini configures and starts system"""
-    asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
 
+    create_dbs()
+    asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
     constants.URL = f"http://{opts.vmemperor_host}:{opts.vmemperor_port}"
     logger.debug(f"Listening on: {constants.URL}")
-
     executor = ThreadPoolExecutor(max_workers=2048)
     app = make_app(executor)
     server = tornado.httpserver.HTTPServer(app)

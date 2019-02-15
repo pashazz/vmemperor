@@ -41,8 +41,6 @@ def launch_playbook(ctx: ContextProtocol, task_id, playbook_id, vms: Optional[Li
                 return f'PlaybookLauncher <{task_id} ({playbook_id})>'
         launcher = LaunchPlaybook()
         log = launcher.log
-        launcher.task_list.upsert_task(ctx.user_authenticator, PlaybookTask(
-            id=task_id, playbook_id=playbook_id, state=PlaybookTaskState.Preparing, message=""))
 
         log.debug("Checking access rights for VMs")
         def check_access(uuid):
@@ -174,6 +172,9 @@ class PlaybookLaunchMutation(graphene.Mutation):
         if not data:
             raise ValueError(f"No such playbook: {id}")
         task_id = str(uuid.uuid4())
+        task_list = PlaybookTaskList()
+        task_list.upsert_task(ctx.user_authenticator, PlaybookTask(
+            id=task_id, playbook_id=id, state=PlaybookTaskState.Preparing, message=""))
         tornado.ioloop.IOLoop.current().run_in_executor(ctx.executor,
                                                         lambda: launch_playbook(ctx, task_id, id, vms, variables))
 

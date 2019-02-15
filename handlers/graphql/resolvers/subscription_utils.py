@@ -73,7 +73,9 @@ def resolve_item_by_key(item_class: type, db, table_name : str, key_name: str='u
                 yield None
                 return
             table = db.table(table_name)
-            changes = await table.get(key).changes(include_types=True, include_initial=True).run(conn)
+            changes = await table.get_all(key) \
+                                 .pluck(*item_class._meta.fields)\
+                                 .changes(include_types=True, include_initial=True).run(conn)
             while True:
                 change = await changes.next()
                 if not change:
