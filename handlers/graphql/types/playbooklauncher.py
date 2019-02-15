@@ -34,7 +34,7 @@ def launch_playbook(ctx: ContextProtocol, task_id, playbook_id, vms: Optional[Li
             task_list : PlaybookTaskList
 
             def __init__(self):
-                self.task_list = PlaybookTaskList(db=r.db(opts.database))
+                self.task_list = PlaybookTaskList()
                 self.init_log()
 
             def __repr__(self):

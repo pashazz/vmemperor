@@ -9,6 +9,8 @@ import {OrderedMap} from "immutable";
 
 import {mapValues} from 'lodash';
 import {useMutation, useQuery} from "react-apollo-hooks";
+import CardFooter from "reactstrap/lib/CardFooter";
+import PlaybookWatcher from "../../components/PlaybookWatcher";
 
 
 interface Props {
@@ -54,8 +56,10 @@ const PlaybookForm = ({book, vms}: Props) => {
   }, [setVariables, variables]);
 
   const launch = useMutation<PlaybookLaunch.Mutation, PlaybookLaunch.Variables>(PlaybookLaunch.Document);
+  const [currentTaskId, setCurrentTaskId] = useState<string>(null);
+
   const onSubmit = useCallback(async (e: Event) => {
-    return await launch(
+    const {data} = await launch(
       {
         variables: {
           id: book.id,
@@ -63,8 +67,9 @@ const PlaybookForm = ({book, vms}: Props) => {
           variables: JSON.stringify(variables.toJS()),
         }
       }
-    )
-  }, [book.id, vms, variables]);
+    );
+    setCurrentTaskId(data.playbookLaunch.taskId);
+  }, [book.id, vms, variables, setCurrentTaskId]);
 
   const generateField = useCallback((id) => {
     const fieldValue = variables.get(id);
@@ -165,6 +170,11 @@ const PlaybookForm = ({book, vms}: Props) => {
           </AvForm>
         </CardText>
       </CardBody>
+      {currentTaskId && (
+        <CardFooter>
+          <PlaybookWatcher taskId={currentTaskId} key={currentTaskId}/>
+        </CardFooter>
+      )}
     </FullHeightCard>);
 };
 export default PlaybookForm;

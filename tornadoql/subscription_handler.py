@@ -2,6 +2,7 @@
 
 from __future__ import absolute_import, division, print_function
 
+import json
 import sys
 from collections import OrderedDict
 from traceback import print_exc
@@ -228,8 +229,14 @@ class GQLSubscriptionHandler(websocket.WebSocketHandler, Loggable):
                 context=self.context,
                 executor=executor
             )
-            assert isinstance(
-                execution_result, Observable), "A subscription must return an observable"
+            if not isinstance(execution_result, Observable):
+                execution_info = json.dumps({
+                    'data' : execution_result.data,
+                    'errors' : [str(error) for error in execution_result.errors]
+                })
+                app_log.error(f"GraphQL error: GraphQL execution result returned {execution_info}. Expected: Observable")
+                raise ValueError(f"A subscription must return an observable. Got: {execution_info}")
+
             subscription = execution_result.subscribe(SubscriptionObserver(
                     op_id,
                     self.send_execution_result,

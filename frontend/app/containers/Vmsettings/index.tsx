@@ -37,7 +37,12 @@ const VmSettings = ({match: {params: {uuid}}}: Props) => {
         uuid,
       }
     });
-  useSubscription<VmInfoUpdate.Subscription>(VmInfoUpdate.Document); //Memoization inside
+  useSubscription<VmInfoUpdate.Subscription>(VmInfoUpdate.Document,
+    {
+      variables: {
+        uuid,
+      }
+    }); //Memoization inside
   return <VmsettingsForm vm={vm}/>;
 }
 /*

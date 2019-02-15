@@ -1,6 +1,7 @@
 import graphene
 
-from handlers.graphql.types.objecttype import ObjectType, GrapheneTaskList
+from handlers.graphql.types.objecttype import ObjectType
+from handlers.graphql.types.tasks.graphenetasklist import GrapheneTaskList
 
 
 class CreateVMTask(ObjectType):
@@ -11,11 +12,12 @@ class CreateVMTask(ObjectType):
 
 
 class CreateVMTaskList(GrapheneTaskList):
-    @property
-    def table_name(self):
+
+    @staticmethod
+    def table_name():
         return 'tasks_vms_created'
 
-    @property
-    def task_type(self):
+    @staticmethod
+    def task_type():
         return CreateVMTask
 

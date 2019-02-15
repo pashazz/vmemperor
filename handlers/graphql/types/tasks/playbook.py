@@ -2,7 +2,9 @@ from enum import Enum
 
 import graphene
 
-from handlers.graphql.types.objecttype import ObjectType, GrapheneTaskList
+from handlers.graphql.types.objecttype import ObjectType
+from handlers.graphql.types.tasks.graphenetasklist import GrapheneTaskList
+
 
 class PlaybookTaskState(graphene.Enum):
     Preparing = 'preparing'
@@ -21,10 +23,10 @@ class PlaybookTask(ObjectType):
 
 class PlaybookTaskList(GrapheneTaskList):
 
-    @property
-    def table_name(self):
+    @staticmethod
+    def table_name():
         return 'tasks_playbooks'
 
-    @property
-    def task_type(self):
+    @staticmethod
+    def task_type():
         return PlaybookTask

@@ -53,7 +53,7 @@ def createvm(ctx : ContextProtocol, task_id : str, template: str, VCPUs : int, d
         tmpl = Template(auth, uuid=template)
         net = Network(auth=auth, uuid=network)
         iso = ISO(auth=auth, uuid=iso) if iso else None
-        # TODO: Check quotes here as well as in create vdi method
+        # TODO: Check quotas here as well as in create vdi method
         provision_config = [SetDisksEntry(SR=SR(auth=auth, uuid=entry.SR), size=entry.size)
                             for entry in disks]
 

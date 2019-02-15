@@ -1,5 +1,4 @@
 import json
-import time
 from typing import Optional
 
 from rethinkdb import RethinkDB
@@ -14,8 +13,6 @@ from connman import ReDBConnection
 from constants import first_batch_of_events
 from exc import XenAdapterUnauthorizedActionException, EmperorException
 from loggable import Loggable
-from tasks import TaskList
-from xenadapter.task import Task
 
 
 class HandlerMethods(Loggable):

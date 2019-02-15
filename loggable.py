@@ -4,7 +4,10 @@ from tornado.options import options as opts
 import os
 
 class Loggable:
-
+    '''
+    TODO: Rewrite using http://code.activestate.com/recipes/474089-extending-the-logging-module/
+    TODO https://docs.python.org/3/library/logging.html#logging.setLogRecordFactory
+    '''
 
     def init_log(self):
         self.log = logging.getLogger(self.__class__.__name__)
