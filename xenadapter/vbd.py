@@ -13,7 +13,6 @@ class VBD(XenObject):
         from .disk import ISO, VDI
         from rethinkdb_helper import CHECK_ER
         from XenAPI import Failure
-        cls.create_db(db)
 
 
         if event['class'] in cls.EVENT_CLASSES:

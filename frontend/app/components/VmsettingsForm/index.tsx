@@ -131,10 +131,10 @@ const VmsettingsForm = ({vm}: Props) => {
         </TabPane>
         <TabPane tabId={Tab.VNC}>
           {/*
-              this.state.vncActivated && (
-                <Vncview uuid={this.props.data.uuid}/>
-              ) || (<h1>NO VNC HERE</h1>)
-            */}
+            vncActivated && (
+              <Vncview uuid={uuid}/>
+            ) || (<h1>NO VNC HERE</h1>)
+*/}
         </TabPane>
         <TabPane tabId={Tab.Network}>
           <Row>

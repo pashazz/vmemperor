@@ -61,13 +61,16 @@ class XenObjectMeta(type):
 
     def __init__(cls, what, bases=None, dict=None):
         from db_classes import create_db_for_me, create_acl_db_for_me
+        from xenadapter.event_dispatcher import add_to_event_dispatcher
         super().__init__(what, bases, dict)
-        if 'db_table_name' in dict:
-
+        logging.debug(f"Add XenObject class {cls}")
+        add_to_event_dispatcher(cls)
+        if 'db_table_name' in dict and dict['db_table_name']:
             if any((base.__name__ == 'ACLXenObject' for base in cls.mro())):
                 create_acl_db_for_me(cls)
             else:
                 create_db_for_me(cls)
+
 
 
 
@@ -282,7 +285,7 @@ class XenObject(metaclass=XenObjectMeta):
         pass
 
     @classmethod
-    def process_event(cls, auth, event, db, authenticator_name):
+    def process_event(cls,  auth, event, db, authenticator_name, ):
         '''
         Make changes to a RethinkDB-based cache, processing a XenServer event
         :param auth: auth object
@@ -292,8 +295,6 @@ class XenObject(metaclass=XenObjectMeta):
         :return: nothing
         '''
         from rethinkdb_helper import CHECK_ER
-
-        cls.create_db(db)
 
         if event['class'] in cls.EVENT_CLASSES:
             if event['operation'] == 'del':

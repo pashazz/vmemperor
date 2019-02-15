@@ -21,13 +21,13 @@ from xenadapter.pbd import PBD
 from xenadapter.task import Task
 from xenadapter.template import Template
 from xenadapter.vm import VM
-from xenadapter.vmguest import VMGuest
 from xenadapter.network import Network, VIF
 from xenadapter.disk import ISO, VDI, VDIorISO
 from xenadapter.sr import SR
 from xenadapter.vbd import VBD
 from xenadapter.pool import Pool
 from xenadapter.host import Host, HostMetrics
+from xenadapter.console import Console #for XenObjectMeta magic
 from playbookloader import PlaybookLoader, PlaybookEncoder
 import traceback
 import tornado.web
@@ -1272,7 +1272,9 @@ class EventLoop(Loggable):
     def process_xen_events(self):
         self.log.debug(f"Started process_xen_events in thread {threading.get_ident()}")
         from XenAPI import Failure
+        from xenadapter.event_dispatcher import EVENT_DISPATCHER
 
+        self.log.debug(f"Event dispatcher configuration: {EVENT_DISPATCHER}")
         event_types = None
         timeout = None
         xen = None
@@ -1327,53 +1329,21 @@ class EventLoop(Loggable):
                         log_this = opts.log_events and event['class'] in opts.log_events.split(',') \
                         or not opts.log_events
 
-                        # similarly to list_vms -> process
-                        if event['class'] == 'vm_metrics':
-                            ev_class = VM  # use methods filter_record, process_record (classmethods)
-                        elif event['class'] == 'vm':
-                            ev_class = [VM, Template]
-
-                        elif event['class'] == 'network':
-                            ev_class = Network
-                        elif event['class'] == 'sr':
-                            ev_class = SR
-
-                        elif event['class'] == 'vdi':
-                            ev_class = [ISO, VDI]
-                        elif event['class'] == 'vif':
-                            ev_class = VIF
-                        elif event['class'] == 'vm_guest_metrics':
-                            ev_class = VMGuest
-                        elif event['class'] == 'vbd':
-                            ev_class = VBD
-                        elif event['class'] == 'pool':
-                            ev_class = Pool
-                        elif event['class'] == 'host':
-                            ev_class = Host
-                        elif event['class'] == 'task':
-                            ev_class = Task
-                        elif event['class'] == 'host_metrics':
-                            ev_class = HostMetrics
-                        elif event['class'] == 'pbd':
-                            ev_class = PBD
-                        else:  # Implement ev_classes for all types of events
+                        if not event['class'] in EVENT_DISPATCHER:
                             if log_this:
                                 self.log.debug(
-                                    "Ignored Event: %s" % json.dumps(print_event(event), cls=DateTimeEncoder))
+                                    f"Ignored Event: {json.dumps(print_event(event), cls=DateTimeEncoder)}")
                             continue
 
                         if log_this:
-                            self.log.debug("Event: %s" % json.dumps(print_event(event), cls=DateTimeEncoder))
+                            self.log.debug(f"Event: {json.dumps(print_event(event), cls=DateTimeEncoder)}")
 
-                        try:
-                            if isinstance(ev_class, list):
-                                for cl in ev_class:
-                                    cl.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
-                            else:
+
+                        for ev_class in EVENT_DISPATCHER[event['class']]:
+                            try:
                                 ev_class.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
-                        except Exception as e:
-                            self.log.error("Failed to process event: class %s, error: %s" % (ev_class, e))
-                            traceback.print_exc()
+                            except Exception as e:
+                                self.log.error(f"Failed to process event by {ev_class.__name__}: {e}")
 
                     if not constants.first_batch_of_events.is_set():
                         constants.first_batch_of_events.set()
@@ -1381,7 +1351,7 @@ class EventLoop(Loggable):
 
                 except Failure as f:
                     if f.details == ["EVENTS_LOST"]:
-                        self.log.warning("Reregistering for events")
+                        self.log.warning("Reregistering for events...")
                         xen.api.event.register(event_types)
                     else:
                         raise f

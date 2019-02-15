@@ -2,7 +2,7 @@ from .xenobject import XenObject
 
 class VMGuest(XenObject):
     api_class = 'VM_guest_metrics'
-    EVENT_CLASSES = ['vm_guest_metrics']
+    #EVENT_CLASSES = ['vm_guest_metrics']
 
     @classmethod
     def process_event(cls, auth, event, db, authenticator_name):

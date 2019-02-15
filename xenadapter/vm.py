@@ -126,8 +126,9 @@ class GVM(GXenObjectType):
     power_state = graphene.Field(PowerState, required=True)
     start_time = graphene.Field(graphene.DateTime, required=True)
 
-class VM (AbstractVM):
 
+class VM (AbstractVM):
+    EVENT_CLASSES = ['vm', 'vm_metrics', 'vm_guest_metrics']
     db_table_name = 'vms'
     GraphQLType = GVM
     def __init__(self, auth, uuid=None, ref=None):
@@ -145,35 +146,41 @@ class VM (AbstractVM):
         except:
             pass
 
-        super(cls, VM).process_event(auth, event, db, authenticator_name)
         if event['class'] == 'vm':
-            return # handled by supermethod
-        elif event['class'] == 'vm_metrics':
+            super(cls, VM).process_event(auth, event, db, authenticator_name)
+        else:
             if event['operation'] == 'del':
-                return #vm_metrics is removed when  VM has already been removed
-
-            new_rec = cls.process_metrics_record(auth, event['snapshot'])
-            # get VM by metrics ref
-            metrics_query = db.table(cls.db_table_name).get_all(event['ref'], index='metrics')
-            rec_len = len(metrics_query.run().items)
-            if rec_len == 0:
-                #auth.xen.log.warning("VM: Cannot find a VM for metrics {0}".format(event['ref']))
-                return
-            elif rec_len > 1:
-                auth.xen.log.warning("VM::process_event: More than one ({1}) VM for metrics {0}: DB broken?".format(event['ref'], rec_len))
-                return
+                return # Metrics removed when VM has already been removed
+            if event['class'] == 'vm_metrics':
 
 
-            CHECK_ER(metrics_query.update(new_rec).run())
+                new_rec = cls.process_metrics_record(auth, event['snapshot'])
+                # get VM by metrics ref
+                metrics_query = db.table(cls.db_table_name).get_all(event['ref'], index='metrics')
+                rec_len = len(metrics_query.run().items)
+                if rec_len == 0:
+                    #auth.xen.log.warning("VM: Cannot find a VM for metrics {0}".format(event['ref']))
+                    return
+                elif rec_len > 1:
+                    auth.xen.log.warning("VM::process_event: More than one ({1}) VM for metrics {0}: DB broken?".format(event['ref'], rec_len))
+                    return
 
-        #elif
-        #else:
-        #    raise XenAdapterArgumentError(auth.xen.log, "this method accepts only 'vm' and 'vm_metrics' events")
 
+                CHECK_ER(metrics_query.update(new_rec).run())
+            elif event['class'] == 'vm_guest_metrics':
 
+                new_rec = cls.process_guest_record(auth, event['snapshot'])
+                guest_metics_query = db.table(VM.db_table_name).get_all(event['ref'], index='guest_metrics')
+                rec_len = len(guest_metics_query.run().items)
+                if rec_len != 1:
+                    # TODO Snapshots
+                    auth.xen.log.warning(
+                        f"VMGuest::process_event: Cannot find a VM (or theres more than one)"
+                        f" for guest metrics {event['ref']}")
 
+                    return
 
-
+                CHECK_ER(guest_metics_query.update(new_rec).run())
 
     @classmethod
     def filter_record(cls, record):
@@ -210,6 +217,24 @@ class VM (AbstractVM):
         # NB: ensure that keys and process_record.keys have no intersection
         keys = ['start_time', 'install_time', 'memory_actual']
         return XenObjectDict({k: v for k, v in record.items() if k in keys})
+
+    @classmethod
+    def process_guest_record(cls, auth, record):
+        new_rec = {'os_version': record['os_version'], 'interfaces': {},
+                   'PV_drivers_version': record['PV_drivers_version'],
+                   'PV_drivers_up_to_date': record['PV_drivers_up_to_date']}
+
+        for k, v in record['networks'].items():
+            try:
+                net_name, key, *rest = k.split('/')
+                new_rec['interfaces'][net_name] = {**new_rec['interfaces'][net_name], **{key: v}} if net_name in \
+                                                                                                     new_rec[
+                                                                                                         'interfaces'] else {
+                    key: v}
+            except ValueError:
+                auth.xen.log.warning(f"Can't get network information for VM {record['VM']}: {k}:{v}")
+
+        return new_rec
 
     @classmethod
     def get_access_data(cls, record, authenticator_name) -> List[Dict]:

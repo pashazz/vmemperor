@@ -10,4 +10,4 @@ from .osdetect import *
 
 class AbstractVM(ACLXenObject):
     api_class = 'VM'
-    EVENT_CLASSES = ['vm']
+

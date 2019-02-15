@@ -4,7 +4,7 @@ r = RethinkDB()
 import tornado.options as opts
 class EmperorException(Exception):
     def __init__(self, log, message):
-        log.error("{0}: {1}".format(type(self).__name__, message))
+        log.error(f"{type(self).__name__}: {message}", exc_info=True)
         super().__init__()
         self.message = message
         self.log = log

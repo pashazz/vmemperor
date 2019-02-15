@@ -10,7 +10,6 @@ from xenadapter.helpers import use_logger
 
 class GTemplate(GXenObjectType):
 
-
     class Meta:
         interfaces = (GAclXenObject,)
 
@@ -18,7 +17,9 @@ class GTemplate(GXenObjectType):
     hvm = graphene.Field(graphene.Boolean, required=True, description="True if this template works with hardware assisted virtualization")
     enabled = graphene.Field(graphene.Boolean, required=True, description="True if this template is available for regular users")
 
+
 class Template(AbstractVM):
+    EVENT_CLASSES = ['vm']
     ALLOW_EMPTY_XENSTORE = True
     VMEMPEROR_TEMPLATE_PREFIX = 'vm/data/vmemperor/template'
     db_table_name = 'tmpls'
