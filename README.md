@@ -1,5 +1,7 @@
 # VMEmperor
 
+## DISCLAIMER: We're moving to GraphQL and Typescript. Latest developments are available at `typescript-graphql` branch
+
 ## Configuration
 
 File: `login.ini`
