@@ -25,6 +25,7 @@ class EventQueue(queue.Queue, Loggable):
         super().init_log()
         self.db = db
         self.authenticator= authenticator
+        self.log.debug(f"Processing Xen events using {num_workers} workers")
         self.log.debug(f"Event dispatcher configuration: {EVENT_DISPATCHER}")
 
         for i in range(num_workers):
@@ -33,6 +34,9 @@ class EventQueue(queue.Queue, Loggable):
             t.start()
 
 
+    def __repr__(self):
+        return 'EventQueue'
+
     def process_events(self, authenticator):
         with ReDBConnection().get_connection():
             authenticator.xen = XenAdapterPool().get()
@@ -40,6 +44,7 @@ class EventQueue(queue.Queue, Loggable):
                 event = self.get()
 
                 if event['class'] == 'message':
+                    self.task_done()
                     continue  # temporary hardcode to fasten event handling
                 log_this = opts.log_events and event['class'] in opts.log_events.split(',') \
                            or not opts.log_events
@@ -48,6 +53,7 @@ class EventQueue(queue.Queue, Loggable):
                     if log_this:
                         self.log.debug(
                             f"Ignored Event: {json.dumps(print_event(event), cls=DateTimeEncoder)}")
+                    self.task_done()
                     continue
 
                 if log_this:
@@ -59,7 +65,4 @@ class EventQueue(queue.Queue, Loggable):
                         ev_class.process_event(authenticator, event, self.db, self.authenticator.__name__)
                     except Exception as e:
                         self.log.error(f"Failed to process event by {ev_class.__name__}: {e}")
-
                 self.task_done()
-
-
