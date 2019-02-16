@@ -1,3 +1,6 @@
+import sentry_sdk
+sentry_sdk.init("https://0d8af126e03f447fbdf43ef5afc9efc0@sentry.io/1395379")
+
 import pathlib
 import signal
 import atexit
