@@ -52,7 +52,7 @@ const Power = ({vm}: Props) => {
     }
   });
 
-  const onChangeDomainType = useMutation<VmEditOptions.Mutation, VmEditOptions.Variables>(ShutdownVm.Document, {
+  const onChangeDomainType = useMutation<VmEditOptions.Mutation, VmEditOptions.Variables>(VmEditOptions.Document, {
     variables: {
       vm: {
         uuid: vm.uuid,
