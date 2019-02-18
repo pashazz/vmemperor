@@ -3,6 +3,8 @@ from rethinkdb import RethinkDB
 import queue
 from xenadapter import singleton
 from loggable import Loggable
+import asyncio
+
 class ReDBConnection(Loggable, metaclass=singleton.Singleton):
     def __init__(self):
 
@@ -16,6 +18,7 @@ class ReDBConnection(Loggable, metaclass=singleton.Singleton):
 
     def set_options(self, host, port, db=None, user='admin', password=None):
         self.conn_queue = queue.Queue()
+        self.conn_queue_async = asyncio.Queue()
         self.host = host
         self.port = port
         self.db = db
@@ -27,6 +30,33 @@ class ReDBConnection(Loggable, metaclass=singleton.Singleton):
     def __repr__(self):
         return f"ReDBConnection <host {self.host}, port {self.port}, db '{self.db}', user '{self.user}', password '{self.password}'>"
 
+    def _get_new_connection_async(self):
+        class AsyncConnection:
+            async def __aenter__(myself):
+                r = RethinkDB()
+                r.set_loop_type('asyncio')
+                if not hasattr(myself, 'conn') or not myself.conn or not myself.conn.is_open():
+
+                    myself.conn = await r.connect(self.host, self.port, self.db, user=self.user, password=self.password)
+                    self.log.debug(f"Connecting using connection: {myself} (AsyncIO)")
+
+                if not myself.conn.is_open():
+                    raise Exception("Cannot open a new rethinkdb connection...")
+
+                return myself.conn
+
+            async def __aexit__(myself, exc_type, exc_val, exc_tb):
+                try:
+                    if not myself.conn or not myself.conn.is_open():
+                        return
+                    await self.conn_queue_async.put_nowait(myself.conn)
+                    self.log.debug("Releasing connection into async queue: {0}".format(myself))
+                except Exception as e:
+                    self.log.error(f"Exception while releasing connection into async queue: {e}")
+
+        return AsyncConnection
+
+
     def _get_new_connection(self):
         class Connection:
             def __enter__(myself):
@@ -34,14 +64,13 @@ class ReDBConnection(Loggable, metaclass=singleton.Singleton):
                 if not hasattr(myself, 'conn') or not myself.conn  or not myself.conn.is_open():
 
                     myself.conn = r.connect(self.host, self.port, self.db, user=self.user, password=self.password)
-                    self.log.debug("Connecting using connection: {0}".format(myself))
+                    self.log.debug(f"Connecting using connection: {myself}")
 
                 if not myself.conn.is_open():
                     raise Exception("Cannot open a new rethinkdb connection...")
 
-                self.log.debug("Repl-ing connection: {0}".format(myself))
+                self.log.debug(f"Repl-ing connection: {myself}")
                 myself.conn.repl()
-
 
                 return myself.conn
 
@@ -60,11 +89,9 @@ class ReDBConnection(Loggable, metaclass=singleton.Singleton):
 
         return Connection()
 
-
-
     def get_connection(self):
         try:
-            conn =  self.conn_queue.get_nowait()
+            conn = self.conn_queue.get_nowait()
             self.log.debug("Getting connection from Queue: {0}".format(conn))
             try:
                 if not conn.conn.is_open():
@@ -79,7 +106,22 @@ class ReDBConnection(Loggable, metaclass=singleton.Singleton):
             self.log.debug("No connections in Queue, creating a new one...")
             return self._get_new_connection()
 
+    async def get_async_connection(self):
+        try:
+            conn = self.conn_queue.get_nowait()
+            self.log.debug("Getting connection from Queue: {0}".format(conn))
+            try:
+                if not conn.conn.is_open():
+                    self.log.debug("Connection from queue is not opened, skipping")
+                    return self._get_new_connection()
+            except Exception as e:
+                self.log.error(f"Error while trying to obtain a Connection: {e}, returning new Connection")
+                return self._get_new_connection()
 
+            return conn
+        except queue.Empty:
+            self.log.debug("No connections in Queue, creating a new one...")
+            return self._get_new_connection()
 
 
 
