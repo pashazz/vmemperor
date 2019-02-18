@@ -88,6 +88,7 @@ class GQLHandler(web.RequestHandler):
             for error in result.errors:
                 if hasattr(error, 'original_error'):
                     print_graphql_exception(error.original_error)
+                    raise error.original_error
 
                 elif isinstance(error, str):
                     app_log.error(error)
