@@ -1,7 +1,7 @@
 import graphene
 from graphene.types.resolver import dict_resolver
 from handlers.graphql.resolvers.vm import vmType, resolve_vms
-from rethinkdb_helper import CHECK_ER
+from rethinkdb_tools.helper import CHECK_ER
 from xenadapter.pbd import GPBD, PBD
 from xenadapter.xenobjectdict import XenObjectDict
 from .xenobject import XenObject, GXenObject

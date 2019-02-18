@@ -1,10 +1,8 @@
-from enum import Enum
-
 import graphene
 
-from db_classes import create_db_for_me
 from handlers.graphql.types.objecttype import ObjectType
 from handlers.graphql.types.tasks.graphenetasklist import GrapheneTaskList
+from rethinkdb_tools.dbcreator import create_db_for_me
 
 
 class PlaybookTaskState(graphene.Enum):
@@ -23,7 +21,6 @@ class PlaybookTask(ObjectType):
     message = graphene.Field(graphene.String, required=True, description="Human-readable message: error description or return code")
 
 class PlaybookTaskList(GrapheneTaskList):
-
     @staticmethod
     def table_name():
         return 'tasks_playbooks'

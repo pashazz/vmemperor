@@ -1,8 +1,8 @@
 import graphene
 
-from db_classes import create_db_for_me
 from handlers.graphql.types.objecttype import ObjectType
 from handlers.graphql.types.tasks.graphenetasklist import GrapheneTaskList
+from rethinkdb_tools.dbcreator import create_db_for_me
 
 
 class CreateVMTask(ObjectType):

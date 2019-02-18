@@ -2,6 +2,7 @@ import graphene
 
 from graphene import ObjectType, Schema
 
+from handlers.graphql.resolvers.console import resolve_console
 from handlers.graphql.resolvers.subscription_utils import MakeSubscription, resolve_item_by_key, \
     MakeSubscriptionWithChangeType, resolve_all_items_changes
 from handlers.graphql.types.input.createvm import CreateVM
@@ -55,13 +56,17 @@ class Query(ObjectType):
                          description="Information about a single ISO image")
 
     playbooks = graphene.List(GPlaybook,  required=True, resolver=resolve_playbooks, description="List of Ansible-powered playbooks")
-    playbook = graphene.Field(GPlaybook, required=True, id=graphene.ID(), resolver=resolve_playbook,
+    playbook = graphene.Field(GPlaybook, id=graphene.ID(), resolver=resolve_playbook,
                               description="Information about Ansible-powered playbook")
 
-    playbook_task = graphene.Field(PlaybookTask, required=True, id=graphene.NonNull(graphene.ID),
+    playbook_task = graphene.Field(PlaybookTask, id=graphene.NonNull(graphene.ID),
                                    description="Info about a playbook task", resolver=PlaybookTaskList.resolve_one())
     playbook_tasks = graphene.List(PlaybookTask, required=True,
                                     description="All Playbook Tasks", resolver=PlaybookTaskList.resolve_all())
+
+    console = graphene.Field(graphene.String, required=False, vm_uuid=graphene.NonNull(graphene.ID),
+                             description="One-time link to RFB console for a VM", resolver=resolve_console)
+
 
 
 class Mutation(ObjectType):

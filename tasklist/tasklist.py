@@ -1,13 +1,9 @@
-
-import pickle
-
 from loggable import Loggable
-from rethinkdb_helper import  CHECK_ER
+from rethinkdb_tools.helper import  CHECK_ER
 from xenadapter.xenobjectdict import XenObjectDict
-from connman import ReDBConnection
 from abc import ABC, abstractmethod
 from rethinkdb import RethinkDB
-from tornado.options import options as opts
+
 r = RethinkDB()
 
 class TaskList(ABC, Loggable):

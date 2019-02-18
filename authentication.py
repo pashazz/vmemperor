@@ -170,7 +170,7 @@ class NotAuthenticatedAsAdminException(Exception):
     def __init__(self):
         super().__init__("You are not authenticated as administrator")
 
-def with_authentication(access_class : type = None, access_action : str = None):
+def with_authentication(access_class : type = None, access_action : str = None, id_field="uuid"):
     def decorator(method):
         from xenadapter.xenobject import ACLXenObject
         @wraps(method)
@@ -179,7 +179,7 @@ def with_authentication(access_class : type = None, access_action : str = None):
                 raise NotAuthenticatedException()
 
             if access_class:
-                obj : ACLXenObject = access_class(auth=info.context.user_authenticator, uuid=kwargs['uuid'])
+                obj : ACLXenObject = access_class(auth=info.context.user_authenticator, uuid=kwargs[id_field])
                 obj.check_access(access_action)
 
 

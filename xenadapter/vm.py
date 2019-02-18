@@ -138,7 +138,7 @@ class VM (AbstractVM):
     @classmethod
     def process_event(cls,  auth, event, db, authenticator_name):
 
-        from rethinkdb_helper import CHECK_ER
+        from rethinkdb_tools.helper import CHECK_ER
         # patch event[snapshot] so that if it doesn't have domain_type, guess it from HVM_boot_policy
         try:
             if 'domain_type' not in event['snapshot']:
@@ -559,13 +559,6 @@ class VM (AbstractVM):
             raise XenAdapterAPIError(self.auth.xen.log, "Failed to create VBD", f.details)
 
         return VBD(auth=self.auth, ref=new_vbd)
-
-
-
-
-
-
-
 
     @use_logger
     def os_detect(self, os_kind, guest_device, net_conf, hostname, install_url, override_pv_args, fullname, username, password, partition):

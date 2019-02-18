@@ -1,5 +1,3 @@
-from rethinkdb_helper import CHECK_ER
-from xenadapter.vm import VM
 from xenadapter.xenobject import XenObject
 
 from rethinkdb import RethinkDB
@@ -13,3 +11,7 @@ class Console(XenObject):
     @classmethod
     def create_db(cls, db, indexes=None):
         super().create_db(db, indexes=['VM'])
+
+    @classmethod
+    def filter_record(cls, record):
+        return record['protocol'] == 'rfb'

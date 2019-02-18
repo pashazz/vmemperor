@@ -133,6 +133,18 @@ export type DateTime = any;
 // Documents
 // ====================================================
 
+export namespace Console {
+  export type Variables = {
+    id: string;
+  };
+
+  export type Query = {
+    __typename?: "Query";
+
+    console: Maybe<string>;
+  };
+}
+
 export namespace CreateVm {
   export type Variables = {
     VCPUs?: Maybe<number>;
@@ -433,7 +445,7 @@ export namespace PlaybookTask {
   export type Query = {
     __typename?: "Query";
 
-    playbookTask: PlaybookTask;
+    playbookTask: Maybe<PlaybookTask>;
   };
 
   export type PlaybookTask = {
@@ -1009,6 +1021,44 @@ export namespace VmListFragment {
 // Components
 // ====================================================
 
+export namespace Console {
+  export const Document = gql`
+    query Console($id: ID!) {
+      console(vmUuid: $id)
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.QueryProps<Query, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Query<Query, Variables>
+          query={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Query, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Query,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
 export namespace CreateVm {
   export const Document = gql`
     mutation createVm(
@@ -2305,15 +2355,21 @@ export namespace QueryResolvers {
     /** List of Ansible-powered playbooks */
     playbooks?: PlaybooksResolver<(Maybe<GPlaybook>)[], TypeParent, Context>;
     /** Information about Ansible-powered playbook */
-    playbook?: PlaybookResolver<GPlaybook, TypeParent, Context>;
+    playbook?: PlaybookResolver<Maybe<GPlaybook>, TypeParent, Context>;
     /** Info about a playbook task */
-    playbookTask?: PlaybookTaskResolver<PlaybookTask, TypeParent, Context>;
+    playbookTask?: PlaybookTaskResolver<
+      Maybe<PlaybookTask>,
+      TypeParent,
+      Context
+    >;
     /** All Playbook Tasks */
     playbookTasks?: PlaybookTasksResolver<
       (Maybe<PlaybookTask>)[],
       TypeParent,
       Context
     >;
+    /** One-time link to RFB console for a VM */
+    console?: ConsoleResolver<Maybe<string>, TypeParent, Context>;
 
     selectedItems?: SelectedItemsResolver<string[], TypeParent, Context>;
 
@@ -2444,7 +2500,7 @@ export namespace QueryResolvers {
     Context = {}
   > = Resolver<R, Parent, Context>;
   export type PlaybookResolver<
-    R = GPlaybook,
+    R = Maybe<GPlaybook>,
     Parent = {},
     Context = {}
   > = Resolver<R, Parent, Context, PlaybookArgs>;
@@ -2453,7 +2509,7 @@ export namespace QueryResolvers {
   }
 
   export type PlaybookTaskResolver<
-    R = PlaybookTask,
+    R = Maybe<PlaybookTask>,
     Parent = {},
     Context = {}
   > = Resolver<R, Parent, Context, PlaybookTaskArgs>;
@@ -2466,6 +2522,15 @@ export namespace QueryResolvers {
     Parent = {},
     Context = {}
   > = Resolver<R, Parent, Context>;
+  export type ConsoleResolver<
+    R = Maybe<string>,
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context, ConsoleArgs>;
+  export interface ConsoleArgs {
+    vmUuid: string;
+  }
+
   export type SelectedItemsResolver<
     R = string[],
     Parent = {},
@@ -4618,11 +4683,13 @@ export interface Query {
   /** List of Ansible-powered playbooks */
   playbooks: (Maybe<GPlaybook>)[];
   /** Information about Ansible-powered playbook */
-  playbook: GPlaybook;
+  playbook?: Maybe<GPlaybook>;
   /** Info about a playbook task */
-  playbookTask: PlaybookTask;
+  playbookTask?: Maybe<PlaybookTask>;
   /** All Playbook Tasks */
   playbookTasks: (Maybe<PlaybookTask>)[];
+  /** One-time link to RFB console for a VM */
+  console?: Maybe<string>;
 
   selectedItems: string[];
 
@@ -5205,6 +5272,9 @@ export interface PlaybookQueryArgs {
 }
 export interface PlaybookTaskQueryArgs {
   id: string;
+}
+export interface ConsoleQueryArgs {
+  vmUuid: string;
 }
 export interface SelectedItemsQueryArgs {
   tableId: Table;

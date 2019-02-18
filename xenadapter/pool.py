@@ -1,10 +1,9 @@
 import graphene
 
-from handlers.graphql.graphql_handler import ContextProtocol
 from handlers.graphql.resolvers.sr import srType, resolve_sr
 from handlers.graphql.types.gxenobjecttype import GXenObjectType
 from handlers.graphql.resolvers.host import hostType, resolve_host
-from rethinkdb_helper import CHECK_ER
+from rethinkdb_tools.helper import CHECK_ER
 from .xenobject import XenObject, GXenObject
 import json
 from json import JSONDecodeError

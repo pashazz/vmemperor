@@ -1,8 +1,8 @@
-from xenadapter import XenAdapter, XenAdapterPool
+from xenadapter import XenAdapterPool
 from .xenobject import ACLXenObject, GAclXenObject
 from handlers.graphql.types.gxenobjecttype import GXenObjectType
 import graphene
-from tornado.options import options as opts
+
 
 class GTask(GXenObjectType):
     class Meta:
@@ -34,7 +34,7 @@ class Task(ACLXenObject):
         :param authenticator_name: authenticator class name - used by access control
         :return: nothing
         '''
-        from rethinkdb_helper import CHECK_ER
+        from rethinkdb_tools.helper import CHECK_ER
 
         cls.create_db(db)
 

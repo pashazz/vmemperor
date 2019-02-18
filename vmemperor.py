@@ -1,12 +1,10 @@
 import sentry_sdk
-sentry_sdk.init("https://0d8af126e03f447fbdf43ef5afc9efc0@sentry.io/1395379")
 
 
 import pathlib
 import signal
 import atexit
 
-import db_classes
 import constants
 from connman import ReDBConnection
 import subprocess
@@ -14,10 +12,11 @@ import subprocess
 import handlers.graphql.graphql_handler as gql_handler
 from datetimeencoder import DateTimeEncoder
 from handlers.rest.base import RESTHandler, auth_required, admin_required
-from handlers.base import BaseWSHandler
 from handlers.graphql.root import schema
+from handlers.rest.console import ConsoleHandler
 from handlers.rest.createvm import CreateVM
-from rethinkdb_helper import CHECK_ER
+from rethinkdb_tools import db_classes
+from rethinkdb_tools.helper import CHECK_ER
 from quota import Quota
 from xenadapter import XenAdapter, XenAdapterPool
 from xenadapter.event_queue import EventQueue
@@ -31,7 +30,6 @@ import tornado.web
 import tornado.httpserver
 import tornado.iostream
 from dynamicloader import DynamicLoader
-import socket
 from tornado import ioloop
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
@@ -40,7 +38,6 @@ from rethinkdb.errors import ReqlTimeoutError
 from authentication import BasicAuthenticator
 from loggable import Loggable
 from pathlib import Path
-from urllib.parse import urlsplit, parse_qs
 from exc import *
 import time
 import logging
@@ -55,9 +52,10 @@ from tornado.websocket import *
 import asyncio
 from tornado.platform.asyncio import AnyThreadEventLoopPolicy
 from secrets import token_urlsafe
-
 from rethinkdb import RethinkDB
+
 r = RethinkDB()
+sentry_sdk.init("https://0d8af126e03f447fbdf43ef5afc9efc0@sentry.io/1395379")
 
 def table_drop(db, table_name):
     try:
@@ -914,32 +912,6 @@ class RebootVM(VMAbstractHandler):
         self.try_xenadapter(run)
 
 
-class VNC(VMAbstractHandler):
-    access = 'launch'
-    def get_data(self):
-        '''
-        Get VNC console url that supports HTTP CONNECT method. Requires permission 'launch'
-        Arguments:
-            uuid: VM UUID
-
-        '''
-
-        vm_uuid = self.get_argument('uuid')
-
-        def get_vnc(auth: BasicAuthenticator):
-            secret = token_urlsafe()
-            constants.secrets[secret] = {
-                'uuid': vm_uuid,
-                'auth' : auth
-            }
-
-
-            url = f'ws://{opts.vmemperor_host}:{opts.vmemperor_port}/console?secret={secret}'
-            self.log.debug(f"VNC Console URL for uuid: {vm_uuid}: {url}")
-            return url
-
-        self.try_xenadapter(get_vnc)
-
 
 class AttachDetachIso(VMAbstractHandler):
     access = 'attach'
@@ -1444,149 +1416,6 @@ class AutoInstall(RESTHandler):
                     postinst=f"{constants.URL}{constants.POSTINST_ROUTE}?{urlencode({'os': 'debian', 'device':device})}")
 
 
-class ConsoleHandler(BaseWSHandler):
-    def check_origin(self, origin):
-        return True
-
-    def initialize(self, pool_executor):
-        super().initialize(pool_executor=pool_executor)
-
-        username = opts.username
-        password = opts.password
-        self.auth_token = base64.encodebytes('{0}:{1}'.format
-                                             (username,
-                                              password).encode())
-
-
-    @tornado.web.asynchronous
-    def open(self):
-        '''
-        This method proxies WebSocket calls to XenServer
-        '''
-
-
-        # Get VM vnc url
-        url_parsed = urlparse(self.request.uri)
-        try:
-            secret = parse_qs(url_parsed.query)['secret'][0]
-        except KeyError:
-            self.write_message("No argument secret")
-            self.close()
-            return
-
-
-        try:
-            data = constants.secrets[secret]
-        except KeyError:
-            self.write_message("Invalid secret")
-            self.close()
-            return
-
-        try:
-            vm = VM(uuid=data['uuid'], auth=data['auth'])
-            vnc_url = vm.get_vnc()
-        except XenAdapterUnauthorizedActionException as ee:
-            self.set_status(403)
-            self.write(json.dumps({'status': 'not allowed', 'details': ee.message}))
-            self.finish()
-
-
-        except EmperorException as ee:
-            self.set_status(400)
-            self.write(json.dumps({'status': 'error', 'details': ee.message}))
-            self.finish()
-
-        vnc_url_parsed = urlsplit(vnc_url)
-        port = vnc_url_parsed.port
-        if port is None:
-            port = 80 # TODO: If scheme is HTTPS, use 443
-        self.sock = socket.create_connection((vnc_url_parsed.hostname, port))
-        self.sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
-        self.sock.setblocking(0)
-        self.halt = False
-        self.translate = False
-        self.key = None
-
-        uri = f'{vnc_url_parsed.path}?{vnc_url_parsed.query}'
-        lines = [
-            'CONNECT {0} HTTP/1.1'.format(uri),  # HTTP 1.1 creates Keep-alive connection
-            'Host: {0}'.format(opts.vmemperor_host),
-            #   'Authorization: Basic {0}'.format(self.auth_token),
-        ]
-        self.sock.send('\r\n'.join(lines).encode())
-        self.sock.send(b'\r\nAuthorization: Basic ' + self.auth_token)
-        self.sock.send(b'\r\n\r\n')
-        del constants.secrets[secret]
-        tornado.ioloop.IOLoop.current().spawn_callback(self.server_reading)
-
-    def on_message(self, message):
-        assert (isinstance(message, bytes))
-        self.sock.send(message)
-
-    def select_subprotocol(self, subprotocols):
-        if 'binary' in subprotocols:
-            proto = 'binary'
-        else:
-            proto = subprotocols[0] if len(subprotocols) else ""
-
-
-        return proto
-
-    @gen.coroutine
-    def server_reading(self):
-        try:
-            data_sent = False
-            http_header_read = False
-            stream = tornado.iostream.IOStream(self.sock)
-            while self.halt is False:
-                try:
-                    if not data_sent:
-                        data = yield stream.read_bytes(100, partial=True)
-                        if not http_header_read:
-                            notok = b'200 OK' not in data
-                            if notok:
-                                self.log.error(f"Unable to open VNC Console {self.request.uri}: Error: {data}")
-                                self.write_message(data)
-                                self.close()
-                                return
-                            else:
-                                http_header_read = True
-
-                        try:
-                            index = data.index(b'RFB')
-                        except ValueError:
-                            self.log.warning("server_reading: 200 OK returned, but no RFB in first data message. Continuing")
-                            continue
-
-
-                        data = data[index:]
-                        data_sent = True
-                    else:
-                        data = yield stream.read_bytes(1024, partial=True)
-                except StreamClosedError as e:
-                    self.log.info(f"{self.request.uri}: Stream closed: {e}")
-                    self.halt = True
-                    self.close()
-                    break
-                self.write_message(data, binary=True)
-
-        except:
-            if self.halt is False:
-                traceback.print_exc()
-            else:
-                pass
-
-    def on_close(self):
-        self.halt = True
-
-        try:
-            self.sock.send(b'close\n')
-        except:
-            pass
-        finally:
-            self.sock.close()
-
-
 def make_app(executor, auth_class=None, debug=False):
     if auth_class is None:
         d = DynamicLoader('auth')
@@ -1617,7 +1446,6 @@ def make_app(executor, auth_class=None, debug=False):
         (r'/tmpllist', TemplateList, dict(pool_executor=executor)),
         (r'/netlist', NetworkList, dict(pool_executor=executor)),
         (r'/enabledisabletmpl', EnableDisableTemplate, dict(pool_executor=executor)),
-        (r'/vnc', VNC, dict(pool_executor=executor)),
         (r'/attachdetachvdi', AttachDetachVDI, dict(pool_executor=executor)),
         (r'/attachdetachiso', AttachDetachIso, dict(pool_executor=executor)),
         (r'/netaction', NetworkAction, dict(pool_executor=executor)),

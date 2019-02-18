@@ -5,32 +5,11 @@
  */
 
 import React, {useCallback, useState} from 'react';
-import {VmInfo} from "../../generated-models";
+import {PowerState, VmInfo} from "../../generated-models";
 import Power from './subforms/power';
-//import Storage from './subforms/storage';
-//import Network from './subforms/network';
-// import styled from 'styled-components';
-
-import {FormattedMessage} from 'react-intl';
-import messages from './messages';
-import {
-  Nav,
-  NavItem,
-  Badge,
-  NavLink,
-  TabContent,
-  TabPane,
-  Row,
-  Col,
-  Card,
-  CardTitle,
-  CardText,
-  Button
-} from 'reactstrap';
+import {Badge, Col, Nav, NavItem, NavLink, Row, TabContent, TabPane} from 'reactstrap';
 import classnames from 'classnames';
-
-import T from 'prop-types';
-import Vncview from '../../containers/Vncview/Loadable';
+import Vncview from '../../containers/Vncview';
 import Vm = VmInfo.Vm;
 
 
@@ -86,6 +65,7 @@ const VmsettingsForm = ({vm}: Props) => {
             onClick={() => {
               toggleTab(Tab.VNC);
             }}
+            disabled={vm.powerState !== PowerState.Running}
           >
             VNC
           </NavLink>
@@ -130,11 +110,11 @@ const VmsettingsForm = ({vm}: Props) => {
           </Row>
         </TabPane>
         <TabPane tabId={Tab.VNC}>
-          {/*
+          {
             vncActivated && (
-              <Vncview uuid={uuid}/>
+              <Vncview vm={vm}/>
             ) || (<h1>NO VNC HERE</h1>)
-*/}
+          }
         </TabPane>
         <TabPane tabId={Tab.Network}>
           <Row>

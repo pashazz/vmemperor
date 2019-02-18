@@ -2,10 +2,8 @@ from abc import abstractmethod
 from typing import Union, Type
 
 from rethinkdb import RethinkDB
-from tornado.options import options as opts
 
 from authentication import with_default_authentication
-from db_classes import create_db_for_me
 from handlers.graphql.resolvers import with_connection
 from handlers.graphql.types.objecttype import ObjectType, InputObjectType
 from handlers.graphql.utils.paging import do_paging

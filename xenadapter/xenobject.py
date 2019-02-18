@@ -14,9 +14,8 @@ from handlers.graphql.utils.paging import do_paging
 
 r = RethinkDB()
 import logging
-from typing import Optional, Type, Callable
+from typing import Optional, Type
 from xenadapter.helpers import use_logger
-import threading
 import graphene
 
 
@@ -60,7 +59,7 @@ class XenObjectMeta(type):
 
 
     def __init__(cls, what, bases=None, dict=None):
-        from db_classes import create_db_for_me, create_acl_db_for_me
+        from rethinkdb_tools.db_classes import create_db_for_me, create_acl_db_for_me
         from xenadapter.event_dispatcher import add_to_event_dispatcher
         super().__init__(what, bases, dict)
         logging.debug(f"Add XenObject class {cls}")
@@ -294,7 +293,7 @@ class XenObject(metaclass=XenObjectMeta):
         :param authenticator_name: authenticator class name - used by access control
         :return: nothing
         '''
-        from rethinkdb_helper import CHECK_ER
+        from rethinkdb_tools.helper import CHECK_ER
 
         if event['class'] in cls.EVENT_CLASSES:
             if event['operation'] == 'del':
