@@ -39,7 +39,6 @@ class RequestHandler(tornado.web.RequestHandler):
 
     def on_finish(self):
         super().on_finish()
-        self.conn.close()
 
 class BaseHandler(RequestHandler, HandlerMethods):
     _ASYNC_KEY = None

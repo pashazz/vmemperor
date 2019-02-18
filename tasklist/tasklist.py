@@ -27,7 +27,7 @@ class TaskList(ABC, Loggable):
             return
         cls.db = db
         if cls.table_name not in cls.db.table_list().run():
-            cls.db.table_create(cls.table_name()).run()
+            cls.db.table_create(cls.table_name(), durability='soft').run()
             cls.db.table(cls.table_name()).wait().run()
 
     @staticmethod
@@ -67,5 +67,3 @@ class TaskList(ABC, Loggable):
         :param auth:
         :return:
         """
-
-
