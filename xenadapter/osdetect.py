@@ -235,7 +235,7 @@ class CentOS(GenericOS):
 
         # scenario set up
         scenario = self.get_scenario()
-        return "linux ks={0} ksdevice=eth0{1} sshd".format(scenario, net_config)
+        return "linux inst.cmdline inst.ks={0} ksdevice=eth0{1} sshd".format(scenario, net_config)
 
     def set_install_url(self, url):
 
