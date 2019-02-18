@@ -49,12 +49,12 @@ class ReDBConnection(Loggable, metaclass=singleton.Singleton):
                 try:
                     if not myself.conn or not myself.conn.is_open():
                         return
-                    await self.conn_queue_async.put_nowait(myself.conn)
+                    self.conn_queue_async.put_nowait(myself)
                     self.log.debug("Releasing connection into async queue: {0}".format(myself))
                 except Exception as e:
                     self.log.error(f"Exception while releasing connection into async queue: {e}")
 
-        return AsyncConnection
+        return AsyncConnection()
 
 
     def _get_new_connection(self):
@@ -106,22 +106,22 @@ class ReDBConnection(Loggable, metaclass=singleton.Singleton):
             self.log.debug("No connections in Queue, creating a new one...")
             return self._get_new_connection()
 
-    async def get_async_connection(self):
-        try:
-            conn = self.conn_queue.get_nowait()
+    def get_async_connection(self):
+        if not self.conn_queue_async.empty():
+            conn = self.conn_queue_async.get_nowait()
             self.log.debug("Getting connection from Queue: {0}".format(conn))
             try:
                 if not conn.conn.is_open():
                     self.log.debug("Connection from queue is not opened, skipping")
-                    return self._get_new_connection()
+                    return self._get_new_connection_async()
             except Exception as e:
                 self.log.error(f"Error while trying to obtain a Connection: {e}, returning new Connection")
-                return self._get_new_connection()
+                return self._get_new_connection_async()
 
             return conn
-        except queue.Empty:
+        else:
             self.log.debug("No connections in Queue, creating a new one...")
-            return self._get_new_connection()
+            return self._get_new_connection_async()
 
 
 
