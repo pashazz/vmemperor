@@ -37,24 +37,42 @@ def dict_deep_convert(d):
 
 class XenObjectMeta(type):
 
-    def __getattr__(cls, item):
-        if item[0] == '_':
-            item = item[1:]
-        def method(auth, *args, **kwargs):
+    def __getattr__(cls, name):
+        if name[0] == '_':
+            name = name[1:]
 
+        if name.startswith('async_'):
+            name = name[6:]
+            from .task import Task
+            def async_method(auth, *args, **kwargs):
+                try:
+                    async_method = getattr(auth.xen.api, 'Async')
+                    api = getattr(async_method, cls.api_class)
+                    attr = getattr(api, name)
+                    ret = attr(*args, **kwargs)
+                    t = Task(auth=auth, ref=ret)
+                    t.manage_actions('run', user=auth.get_id())
+                    return t.uuid
+
+                except XenAPI.Failure as f:
+                    raise XenAdapterAPIError(auth.xen.log, f"Failed to execute {cls.api_class}::{name} asynchronously", f.details)
+            return async_method
+
+        def method(auth, *args, **kwargs):
             if not hasattr(cls, 'api_class'):
                 raise XenAdapterArgumentError(auth.xen.log, "api_class not specified for XenObject")
 
             api_class = getattr(cls, 'api_class')
             api = getattr(auth.xen.api, api_class)
-            attr = getattr(api, item)
+            attr = getattr(api, name)
+
             try:
                 ret = attr(*args, **kwargs)
                 if isinstance(ret, dict):
                     ret = dict_deep_convert(ret)
                 return ret
             except XenAPI.Failure as f:
-                raise XenAdapterAPIError(auth.xen.log, f"Failed to execute static method {api_class}::{item}", f.details)
+                raise XenAdapterAPIError(auth.xen.log, f"Failed to execute static method {api_class}::{name}", f.details)
         return method
 
 
@@ -484,7 +502,7 @@ class XenObject(metaclass=XenObjectMeta):
 
                 return ret
             except XenAPI.Failure as f:
-                raise XenAdapterAPIError(self.log, f"Failed to execute {self.api_class}::{name}", f.details)
+                raise XenAdapterAPIError(self.log, f"Failed to execute {self.api_class}::{name} asynchronously", f.details)
         return method
 
 

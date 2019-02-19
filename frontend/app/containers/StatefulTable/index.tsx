@@ -31,7 +31,7 @@ export interface ColumnType<T> {
   formatter?: (cell: T[keyof T], row: T) => JSX.Element | string;
   headerFormatter?: (column: ColumnType<T>, colIndex: number, components: HeaderFormatterComponents) => JSX.Element | string;
   filter?: object;
-  headerClasses: ((column: ColumnType<T>, colIndex: number) => string) | string;
+  headerClasses?: ((column: ColumnType<T>, colIndex: number) => string) | string;
 }
 
 export type SelectOneVariablesArgs = {
@@ -59,7 +59,7 @@ interface Props<T> {
   tableSelectMany: DocumentNode;
   tableSelectionQuery: DocumentNode;
   columns: ColumnType<T>[];
-  props: any;
+  props?: any;
   onDoubleClick: (e: React.MouseEvent, row: T, rowIndex: number) => any;
   refetchQueriesOnSelect?: ((result: ExecutionResult) => RefetchQueryDescription) | RefetchQueryDescription;
   onSelect?: (key: string, isSelect: boolean) => any;

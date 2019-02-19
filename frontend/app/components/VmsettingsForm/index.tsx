@@ -11,6 +11,7 @@ import {Badge, Col, Nav, NavItem, NavLink, Row, TabContent, TabPane} from 'react
 import classnames from 'classnames';
 import Vncview from '../../containers/Vncview';
 import Vm = VmInfo.Vm;
+import Network from "./subforms/network";
 
 
 interface Props {
@@ -119,9 +120,9 @@ const VmsettingsForm = ({vm}: Props) => {
         <TabPane tabId={Tab.Network}>
           <Row>
             <Col sm="12">
-              {/*<Network
-                  data={vm}
-                />*/}
+              {<Network
+                vm={vm}
+              />}
             </Col>
           </Row>
         </TabPane>

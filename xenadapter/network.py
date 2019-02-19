@@ -77,39 +77,29 @@ class Network(ACLXenObject):
 
     @use_logger
     def attach(self, vm: VM) -> VIF:
-        self.check_access('attach')
-
         args = {'VM': vm.ref, 'network': self.ref , 'device': str(len(vm.get_VIFs())),
                 'MAC': '', 'MTU': self.get_MTU() , 'other_config': {},
                 'qos_algorithm_type': '', 'qos_algorithm_params': {}}
         try:
 
-            vif = VIF.create(self.auth, args)
-            #vif_uuid = self.auth.xen.api.VIF.get_uuid(vif_ref)
-
-            self.log.info("VM is connected to network: VIF UUID {0}".format(vif.uuid))
+            return VIF.async_create(self.auth, args)
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self.auth.xen.log, "Network::attach: Failed to create VIF",f.details)
 
-        return vif
 
     @use_logger
     def detach(self, vm: VM):
-        self.check_access('attach')
-
         for ref in vm.get_VIFs():
             vif = VIF(self.auth, ref=ref)
             if vif.get_network() == self.ref:
                 try:
-                    vif.destroy()
+                    return vif.async_destroy()
                 except XenAPI.Failure as f:
                     raise XenAdapterAPIError(self.log, "Network::detach: Failed to detach VIF", f.details)
                 break
         else:
-            raise XenAdapterAPIError(self.log, "Network::detach: Network {0} is not attached to vm {1}".format(
-                self.uuid, vm.uuid
-            ))
-
+            self.log.warning(f"Not attached to {vm}")
+            return None
 
 
     @classmethod

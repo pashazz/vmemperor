@@ -1,15 +1,21 @@
+fragment VMInterfaceFragment on Interface {
+  network {
+    uuid
+    nameLabel
+  }
+  ip
+  ipv6
+  id
+  MAC
+  attached
+}
+
 fragment VMInfoFragment on GVM {
   uuid
   nameLabel
   nameDescription
   interfaces {
-    network {
-      uuid
-      nameLabel
-    }
-    ip
-    ipv6
-    id
+    ...VMInterfaceFragment
   }
   disks
   {
@@ -41,7 +47,7 @@ query VMInfo ($uuid: ID!) {
 
 subscription VMInfoUpdate($uuid: ID!) {
   vm (uuid: $uuid) {
-   ...VMInfoFragment
+    ...VMInfoFragment
   }
 }
 

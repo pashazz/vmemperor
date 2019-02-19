@@ -108,7 +108,8 @@ export enum PlaybookTaskState {
 }
 
 export enum Table {
-  Vms = "VMS"
+  Vms = "VMS",
+  NetworkAttach = "NetworkAttach"
 }
 
 export enum ShutdownForce {
@@ -132,6 +133,44 @@ export type DateTime = any;
 // ====================================================
 // Documents
 // ====================================================
+
+export namespace NetAttach {
+  export type Variables = {
+    vmUuid: string;
+    netUuid: string;
+  };
+
+  export type Mutation = {
+    __typename?: "Mutation";
+
+    netAttach: Maybe<NetAttach>;
+  };
+
+  export type NetAttach = {
+    __typename?: "AttachNetworkMutation";
+
+    taskId: Maybe<string>;
+  };
+}
+
+export namespace NetDetach {
+  export type Variables = {
+    vmUuid: string;
+    netUuid: string;
+  };
+
+  export type Mutation = {
+    __typename?: "Mutation";
+
+    netAttach: Maybe<NetAttach>;
+  };
+
+  export type NetAttach = {
+    __typename?: "AttachNetworkMutation";
+
+    taskId: Maybe<string>;
+  };
+}
 
 export namespace Console {
   export type Variables = {
@@ -249,6 +288,42 @@ export namespace IsoList {
   };
 
   export type Isos = IsoListFragment.Fragment;
+}
+
+export namespace NetAttachTableSelection {
+  export type Variables = {};
+
+  export type Query = {
+    __typename?: "Query";
+
+    selectedItems: string[];
+  };
+}
+
+export namespace NetAttachTableSelect {
+  export type Variables = {
+    item: string;
+    isSelect: boolean;
+  };
+
+  export type Mutation = {
+    __typename?: "Mutation";
+
+    selectedItems: Maybe<string[]>;
+  };
+}
+
+export namespace NetAttachTableSelectAll {
+  export type Variables = {
+    items: string[];
+    isSelect: boolean;
+  };
+
+  export type Mutation = {
+    __typename?: "Mutation";
+
+    selectedItems: Maybe<string[]>;
+  };
 }
 
 export namespace SelectedItemsQuery {
@@ -722,6 +797,8 @@ export namespace NetworkListFragment {
     uuid: string;
 
     nameLabel: string;
+
+    nameDescription: string;
   };
 }
 
@@ -779,6 +856,32 @@ export namespace TemplateListFragment {
   };
 }
 
+export namespace VmInterfaceFragment {
+  export type Fragment = {
+    __typename?: "Interface";
+
+    network: Network;
+
+    ip: Maybe<string>;
+
+    ipv6: Maybe<string>;
+
+    id: string;
+
+    MAC: string;
+
+    attached: boolean;
+  };
+
+  export type Network = {
+    __typename?: "GNetwork";
+
+    uuid: string;
+
+    nameLabel: string;
+  };
+}
+
 export namespace VmInfoFragment {
   export type Fragment = {
     __typename?: "GVM";
@@ -802,25 +905,7 @@ export namespace VmInfoFragment {
     domainType: DomainType;
   };
 
-  export type Interfaces = {
-    __typename?: "Interface";
-
-    network: Network;
-
-    ip: Maybe<string>;
-
-    ipv6: Maybe<string>;
-
-    id: string;
-  };
-
-  export type Network = {
-    __typename?: "GNetwork";
-
-    uuid: string;
-
-    nameLabel: string;
-  };
+  export type Interfaces = VmInterfaceFragment.Fragment;
 
   export type Disks = {
     __typename?: "BlockDevice";
@@ -928,6 +1013,7 @@ export namespace NetworkListFragment {
     fragment NetworkListFragment on GNetwork {
       uuid
       nameLabel
+      nameDescription
     }
   `;
 }
@@ -969,6 +1055,22 @@ export namespace TemplateListFragment {
   `;
 }
 
+export namespace VmInterfaceFragment {
+  export const FragmentDoc = gql`
+    fragment VMInterfaceFragment on Interface {
+      network {
+        uuid
+        nameLabel
+      }
+      ip
+      ipv6
+      id
+      MAC
+      attached
+    }
+  `;
+}
+
 export namespace VmInfoFragment {
   export const FragmentDoc = gql`
     fragment VMInfoFragment on GVM {
@@ -976,13 +1078,7 @@ export namespace VmInfoFragment {
       nameLabel
       nameDescription
       interfaces {
-        network {
-          uuid
-          nameLabel
-        }
-        ip
-        ipv6
-        id
+        ...VMInterfaceFragment
       }
       disks {
         id
@@ -1004,6 +1100,8 @@ export namespace VmInfoFragment {
       startTime
       domainType
     }
+
+    ${VmInterfaceFragment.FragmentDoc}
   `;
 }
 
@@ -1021,6 +1119,88 @@ export namespace VmListFragment {
 // Components
 // ====================================================
 
+export namespace NetAttach {
+  export const Document = gql`
+    mutation NetAttach($vmUuid: ID!, $netUuid: ID!) {
+      netAttach(vmUuid: $vmUuid, netUuid: $netUuid, isAttach: true) {
+        taskId
+      }
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.MutationProps<Mutation, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Mutation<Mutation, Variables>
+          mutation={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.MutateProps<Mutation, Variables>
+  > &
+    TChildProps;
+  export type MutationFn = ReactApollo.MutationFn<Mutation, Variables>;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Mutation,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace NetDetach {
+  export const Document = gql`
+    mutation NetDetach($vmUuid: ID!, $netUuid: ID!) {
+      netAttach(vmUuid: $vmUuid, netUuid: $netUuid, isAttach: false) {
+        taskId
+      }
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.MutationProps<Mutation, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Mutation<Mutation, Variables>
+          mutation={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.MutateProps<Mutation, Variables>
+  > &
+    TChildProps;
+  export type MutationFn = ReactApollo.MutationFn<Mutation, Variables>;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Mutation,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
 export namespace Console {
   export const Document = gql`
     query Console($id: ID!) {
@@ -1328,6 +1508,127 @@ export namespace IsoList {
       | undefined
   ) {
     return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace NetAttachTableSelection {
+  export const Document = gql`
+    query NetAttachTableSelection {
+      selectedItems(tableId: NetworkAttach) @client
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.QueryProps<Query, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Query<Query, Variables>
+          query={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Query, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Query,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace NetAttachTableSelect {
+  export const Document = gql`
+    mutation NetAttachTableSelect($item: ID!, $isSelect: Boolean!) {
+      selectedItems(
+        tableId: NetworkAttach
+        items: [$item]
+        isSelect: $isSelect
+      ) @client
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.MutationProps<Mutation, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Mutation<Mutation, Variables>
+          mutation={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.MutateProps<Mutation, Variables>
+  > &
+    TChildProps;
+  export type MutationFn = ReactApollo.MutationFn<Mutation, Variables>;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Mutation,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace NetAttachTableSelectAll {
+  export const Document = gql`
+    mutation NetAttachTableSelectAll($items: [ID!]!, $isSelect: Boolean!) {
+      selectedItems(tableId: NetworkAttach, items: $items, isSelect: $isSelect)
+        @client
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.MutationProps<Mutation, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Mutation<Mutation, Variables>
+          mutation={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.MutateProps<Mutation, Variables>
+  > &
+    TChildProps;
+  export type MutationFn = ReactApollo.MutationFn<Mutation, Variables>;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Mutation,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
       Document,
       operationOptions
     );
@@ -3936,6 +4237,12 @@ export namespace MutationResolvers {
     >;
     /** Delete a Halted VM */
     vmDelete?: VmDeleteResolver<Maybe<VmDeleteMutation>, TypeParent, Context>;
+    /** Attach VM to a Network by creating a new Interface */
+    netAttach?: NetAttachResolver<
+      Maybe<AttachNetworkMutation>,
+      TypeParent,
+      Context
+    >;
 
     selectedItems?: SelectedItemsResolver<Maybe<string[]>, TypeParent, Context>;
   }
@@ -4051,6 +4358,20 @@ export namespace MutationResolvers {
   > = Resolver<R, Parent, Context, VmDeleteArgs>;
   export interface VmDeleteArgs {
     uuid: string;
+  }
+
+  export type NetAttachResolver<
+    R = Maybe<AttachNetworkMutation>,
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context, NetAttachArgs>;
+  export interface NetAttachArgs {
+    /** True if attach, False if detach */
+    isAttach: boolean;
+
+    netUuid: string;
+
+    vmUuid: string;
   }
 
   export type SelectedItemsResolver<
@@ -4181,6 +4502,19 @@ export namespace VmDeleteMutationResolvers {
   export type TaskIdResolver<
     R = string,
     Parent = VmDeleteMutation,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+}
+
+export namespace AttachNetworkMutationResolvers {
+  export interface Resolvers<Context = {}, TypeParent = AttachNetworkMutation> {
+    /** Attach/Detach task ID. If already attached/detached, returns null */
+    taskId?: TaskIdResolver<Maybe<string>, TypeParent, Context>;
+  }
+
+  export type TaskIdResolver<
+    R = Maybe<string>,
+    Parent = AttachNetworkMutation,
     Context = {}
   > = Resolver<R, Parent, Context>;
 }
@@ -4573,6 +4907,7 @@ export interface IResolvers<Context = {}> {
   VmPauseMutation?: VmPauseMutationResolvers.Resolvers<Context>;
   PlaybookLaunchMutation?: PlaybookLaunchMutationResolvers.Resolvers<Context>;
   VmDeleteMutation?: VmDeleteMutationResolvers.Resolvers<Context>;
+  AttachNetworkMutation?: AttachNetworkMutationResolvers.Resolvers<Context>;
   Subscription?: SubscriptionResolvers.Resolvers<Context>;
   GvMsSubscription?: GvMsSubscriptionResolvers.Resolvers<Context>;
   GHostsSubscription?: GHostsSubscriptionResolvers.Resolvers<Context>;
@@ -5112,6 +5447,8 @@ export interface Mutation {
   playbookLaunch?: Maybe<PlaybookLaunchMutation>;
   /** Delete a Halted VM */
   vmDelete?: Maybe<VmDeleteMutation>;
+  /** Attach VM to a Network by creating a new Interface */
+  netAttach?: Maybe<AttachNetworkMutation>;
 
   selectedItems?: Maybe<string[]>;
 }
@@ -5158,6 +5495,11 @@ export interface PlaybookLaunchMutation {
 export interface VmDeleteMutation {
   /** Deleting task ID */
   taskId: string;
+}
+
+export interface AttachNetworkMutation {
+  /** Attach/Detach task ID. If already attached/detached, returns null */
+  taskId?: Maybe<string>;
 }
 
 /** All subscriptions must return  Observable */
@@ -5337,6 +5679,14 @@ export interface PlaybookLaunchMutationArgs {
 }
 export interface VmDeleteMutationArgs {
   uuid: string;
+}
+export interface NetAttachMutationArgs {
+  /** True if attach, False if detach */
+  isAttach: boolean;
+
+  netUuid: string;
+
+  vmUuid: string;
 }
 export interface SelectedItemsMutationArgs {
   tableId: Table;

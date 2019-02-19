@@ -1,6 +1,7 @@
 fragment NetworkListFragment on GNetwork {
   uuid
   nameLabel
+  nameDescription
 }
 
 query NetworkList {
