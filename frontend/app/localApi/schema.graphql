@@ -1,6 +1,7 @@
 enum Table {
   VMS,
-  NetworkAttach
+  NetworkAttach,
+  DiskAttach
 }
 
 type VMSelectedIDLists {

@@ -109,7 +109,8 @@ export enum PlaybookTaskState {
 
 export enum Table {
   Vms = "VMS",
-  NetworkAttach = "NetworkAttach"
+  NetworkAttach = "NetworkAttach",
+  DiskAttach = "DiskAttach"
 }
 
 export enum ShutdownForce {
@@ -133,6 +134,82 @@ export type DateTime = any;
 // ====================================================
 // Documents
 // ====================================================
+
+export namespace IsoAttach {
+  export type Variables = {
+    vmUuid: string;
+    isoUuid: string;
+  };
+
+  export type Mutation = {
+    __typename?: "Mutation";
+
+    isoAttach: Maybe<IsoAttach>;
+  };
+
+  export type IsoAttach = {
+    __typename?: "AttachISOMutation";
+
+    taskId: Maybe<string>;
+  };
+}
+
+export namespace IsoDetach {
+  export type Variables = {
+    vmUuid: string;
+    isoUuid: string;
+  };
+
+  export type Mutation = {
+    __typename?: "Mutation";
+
+    isoAttach: Maybe<IsoAttach>;
+  };
+
+  export type IsoAttach = {
+    __typename?: "AttachISOMutation";
+
+    taskId: Maybe<string>;
+  };
+}
+
+export namespace VdiAttach {
+  export type Variables = {
+    vmUuid: string;
+    vdiUuid: string;
+  };
+
+  export type Mutation = {
+    __typename?: "Mutation";
+
+    vdiAttach: Maybe<VdiAttach>;
+  };
+
+  export type VdiAttach = {
+    __typename?: "AttachVDIMutation";
+
+    taskId: Maybe<string>;
+  };
+}
+
+export namespace VdiDetach {
+  export type Variables = {
+    vmUuid: string;
+    vdiUuid: string;
+  };
+
+  export type Mutation = {
+    __typename?: "Mutation";
+
+    vdiAttach: Maybe<VdiAttach>;
+  };
+
+  export type VdiAttach = {
+    __typename?: "AttachVDIMutation";
+
+    taskId: Maybe<string>;
+  };
+}
 
 export namespace NetAttach {
   export type Variables = {
@@ -288,6 +365,42 @@ export namespace IsoList {
   };
 
   export type Isos = IsoListFragment.Fragment;
+}
+
+export namespace DiskAttachTableSelection {
+  export type Variables = {};
+
+  export type Query = {
+    __typename?: "Query";
+
+    selectedItems: string[];
+  };
+}
+
+export namespace DiskAttachTableSelect {
+  export type Variables = {
+    item: string;
+    isSelect: boolean;
+  };
+
+  export type Mutation = {
+    __typename?: "Mutation";
+
+    selectedItems: Maybe<string[]>;
+  };
+}
+
+export namespace DiskAttachTableSelectAll {
+  export type Variables = {
+    items: string[];
+    isSelect: boolean;
+  };
+
+  export type Mutation = {
+    __typename?: "Mutation";
+
+    selectedItems: Maybe<string[]>;
+  };
 }
 
 export namespace NetAttachTableSelection {
@@ -622,6 +735,22 @@ export namespace StartVm {
   };
 }
 
+export namespace StorageAttachList {
+  export type Variables = {};
+
+  export type Query = {
+    __typename?: "Query";
+
+    vdis: (Maybe<Vdis>)[];
+
+    isos: (Maybe<Isos>)[];
+  };
+
+  export type Vdis = DiskFragment.Fragment;
+
+  export type Isos = DiskFragment.Fragment;
+}
+
 export namespace StorageList {
   export type Variables = {};
 
@@ -822,6 +951,20 @@ export namespace PoolListFragment {
   };
 }
 
+export namespace DiskFragment {
+  export type Fragment = {
+    __typename?: "DiskImage";
+
+    uuid: string;
+
+    nameLabel: string;
+
+    nameDescription: string;
+
+    virtualSize: number;
+  };
+}
+
 export namespace StorageListFragment {
   export type Fragment = {
     __typename?: "GSR";
@@ -882,32 +1025,8 @@ export namespace VmInterfaceFragment {
   };
 }
 
-export namespace VmInfoFragment {
+export namespace VmDiskFragment {
   export type Fragment = {
-    __typename?: "GVM";
-
-    uuid: string;
-
-    nameLabel: string;
-
-    nameDescription: string;
-
-    interfaces: Maybe<(Maybe<Interfaces>)[]>;
-
-    disks: Maybe<(Maybe<Disks>)[]>;
-
-    powerState: PowerState;
-
-    osVersion: Maybe<OsVersion>;
-
-    startTime: DateTime;
-
-    domainType: DomainType;
-  };
-
-  export type Interfaces = VmInterfaceFragment.Fragment;
-
-  export type Disks = {
     __typename?: "BlockDevice";
 
     id: string;
@@ -933,7 +1052,37 @@ export namespace VmInfoFragment {
     nameDescription: string;
 
     nameLabel: string;
+
+    virtualSize: number;
   };
+}
+
+export namespace VmInfoFragment {
+  export type Fragment = {
+    __typename?: "GVM";
+
+    uuid: string;
+
+    nameLabel: string;
+
+    nameDescription: string;
+
+    interfaces: Maybe<(Maybe<Interfaces>)[]>;
+
+    disks: Maybe<(Maybe<Disks>)[]>;
+
+    powerState: PowerState;
+
+    osVersion: Maybe<OsVersion>;
+
+    startTime: DateTime;
+
+    domainType: DomainType;
+  };
+
+  export type Interfaces = VmInterfaceFragment.Fragment;
+
+  export type Disks = VmDiskFragment.Fragment;
 
   export type OsVersion = {
     __typename?: "OSVersion";
@@ -1031,6 +1180,17 @@ export namespace PoolListFragment {
   `;
 }
 
+export namespace DiskFragment {
+  export const FragmentDoc = gql`
+    fragment DiskFragment on DiskImage {
+      uuid
+      nameLabel
+      nameDescription
+      virtualSize
+    }
+  `;
+}
+
 export namespace StorageListFragment {
   export const FragmentDoc = gql`
     fragment StorageListFragment on GSR {
@@ -1071,6 +1231,25 @@ export namespace VmInterfaceFragment {
   `;
 }
 
+export namespace VmDiskFragment {
+  export const FragmentDoc = gql`
+    fragment VMDiskFragment on BlockDevice {
+      id
+      mode
+      type
+      device
+      attached
+      bootable
+      VDI {
+        uuid
+        nameDescription
+        nameLabel
+        virtualSize
+      }
+    }
+  `;
+}
+
 export namespace VmInfoFragment {
   export const FragmentDoc = gql`
     fragment VMInfoFragment on GVM {
@@ -1081,17 +1260,7 @@ export namespace VmInfoFragment {
         ...VMInterfaceFragment
       }
       disks {
-        id
-        mode
-        type
-        device
-        attached
-        bootable
-        VDI {
-          uuid
-          nameDescription
-          nameLabel
-        }
+        ...VMDiskFragment
       }
       powerState
       osVersion {
@@ -1102,6 +1271,7 @@ export namespace VmInfoFragment {
     }
 
     ${VmInterfaceFragment.FragmentDoc}
+    ${VmDiskFragment.FragmentDoc}
   `;
 }
 
@@ -1119,6 +1289,170 @@ export namespace VmListFragment {
 // Components
 // ====================================================
 
+export namespace IsoAttach {
+  export const Document = gql`
+    mutation ISOAttach($vmUuid: ID!, $isoUuid: ID!) {
+      isoAttach(vmUuid: $vmUuid, isoUuid: $isoUuid, isAttach: true) {
+        taskId
+      }
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.MutationProps<Mutation, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Mutation<Mutation, Variables>
+          mutation={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.MutateProps<Mutation, Variables>
+  > &
+    TChildProps;
+  export type MutationFn = ReactApollo.MutationFn<Mutation, Variables>;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Mutation,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace IsoDetach {
+  export const Document = gql`
+    mutation ISODetach($vmUuid: ID!, $isoUuid: ID!) {
+      isoAttach(vmUuid: $vmUuid, isoUuid: $isoUuid, isAttach: false) {
+        taskId
+      }
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.MutationProps<Mutation, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Mutation<Mutation, Variables>
+          mutation={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.MutateProps<Mutation, Variables>
+  > &
+    TChildProps;
+  export type MutationFn = ReactApollo.MutationFn<Mutation, Variables>;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Mutation,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace VdiAttach {
+  export const Document = gql`
+    mutation VDIAttach($vmUuid: ID!, $vdiUuid: ID!) {
+      vdiAttach(vmUuid: $vmUuid, vdiUuid: $vdiUuid, isAttach: true) {
+        taskId
+      }
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.MutationProps<Mutation, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Mutation<Mutation, Variables>
+          mutation={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.MutateProps<Mutation, Variables>
+  > &
+    TChildProps;
+  export type MutationFn = ReactApollo.MutationFn<Mutation, Variables>;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Mutation,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace VdiDetach {
+  export const Document = gql`
+    mutation VDIDetach($vmUuid: ID!, $vdiUuid: ID!) {
+      vdiAttach(vmUuid: $vmUuid, vdiUuid: $vdiUuid, isAttach: false) {
+        taskId
+      }
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.MutationProps<Mutation, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Mutation<Mutation, Variables>
+          mutation={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.MutateProps<Mutation, Variables>
+  > &
+    TChildProps;
+  export type MutationFn = ReactApollo.MutationFn<Mutation, Variables>;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Mutation,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
 export namespace NetAttach {
   export const Document = gql`
     mutation NetAttach($vmUuid: ID!, $netUuid: ID!) {
@@ -1508,6 +1842,124 @@ export namespace IsoList {
       | undefined
   ) {
     return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace DiskAttachTableSelection {
+  export const Document = gql`
+    query DiskAttachTableSelection {
+      selectedItems(tableId: DiskAttach) @client
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.QueryProps<Query, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Query<Query, Variables>
+          query={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Query, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Query,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace DiskAttachTableSelect {
+  export const Document = gql`
+    mutation DiskAttachTableSelect($item: ID!, $isSelect: Boolean!) {
+      selectedItems(tableId: DiskAttach, items: [$item], isSelect: $isSelect)
+        @client
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.MutationProps<Mutation, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Mutation<Mutation, Variables>
+          mutation={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.MutateProps<Mutation, Variables>
+  > &
+    TChildProps;
+  export type MutationFn = ReactApollo.MutationFn<Mutation, Variables>;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Mutation,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace DiskAttachTableSelectAll {
+  export const Document = gql`
+    mutation DiskAttachTableSelectAll($items: [ID!]!, $isSelect: Boolean!) {
+      selectedItems(tableId: DiskAttach, items: $items, isSelect: $isSelect)
+        @client
+    }
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.MutationProps<Mutation, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Mutation<Mutation, Variables>
+          mutation={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.MutateProps<Mutation, Variables>
+  > &
+    TChildProps;
+  export type MutationFn = ReactApollo.MutationFn<Mutation, Variables>;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Mutation,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
       Document,
       operationOptions
     );
@@ -2300,6 +2752,51 @@ export namespace StartVm {
       | undefined
   ) {
     return ReactApollo.graphql<TProps, Mutation, Variables, Props<TChildProps>>(
+      Document,
+      operationOptions
+    );
+  }
+}
+export namespace StorageAttachList {
+  export const Document = gql`
+    query StorageAttachList {
+      vdis {
+        ...DiskFragment
+      }
+      isos {
+        ...DiskFragment
+      }
+    }
+
+    ${DiskFragment.FragmentDoc}
+  `;
+  export class Component extends React.Component<
+    Partial<ReactApollo.QueryProps<Query, Variables>>
+  > {
+    render() {
+      return (
+        <ReactApollo.Query<Query, Variables>
+          query={Document}
+          {...(this as any)["props"] as any}
+        />
+      );
+    }
+  }
+  export type Props<TChildProps = any> = Partial<
+    ReactApollo.DataProps<Query, Variables>
+  > &
+    TChildProps;
+  export function HOC<TProps, TChildProps = any>(
+    operationOptions:
+      | ReactApollo.OperationOption<
+          TProps,
+          Query,
+          Variables,
+          Props<TChildProps>
+        >
+      | undefined
+  ) {
+    return ReactApollo.graphql<TProps, Query, Variables, Props<TChildProps>>(
       Document,
       operationOptions
     );
@@ -4243,6 +4740,18 @@ export namespace MutationResolvers {
       TypeParent,
       Context
     >;
+    /** Attach ISO to a VM by creating a new virtual block device */
+    isoAttach?: IsoAttachResolver<
+      Maybe<AttachIsoMutation>,
+      TypeParent,
+      Context
+    >;
+    /** Attach VDI to a VM by creating a new virtual block device */
+    vdiAttach?: VdiAttachResolver<
+      Maybe<AttachVdiMutation>,
+      TypeParent,
+      Context
+    >;
 
     selectedItems?: SelectedItemsResolver<Maybe<string[]>, TypeParent, Context>;
   }
@@ -4370,6 +4879,34 @@ export namespace MutationResolvers {
     isAttach: boolean;
 
     netUuid: string;
+
+    vmUuid: string;
+  }
+
+  export type IsoAttachResolver<
+    R = Maybe<AttachIsoMutation>,
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context, IsoAttachArgs>;
+  export interface IsoAttachArgs {
+    /** True if attach, False if detach */
+    isAttach: boolean;
+
+    isoUuid: string;
+
+    vmUuid: string;
+  }
+
+  export type VdiAttachResolver<
+    R = Maybe<AttachVdiMutation>,
+    Parent = {},
+    Context = {}
+  > = Resolver<R, Parent, Context, VdiAttachArgs>;
+  export interface VdiAttachArgs {
+    /** True if attach, False if detach */
+    isAttach: boolean;
+
+    vdiUuid: string;
 
     vmUuid: string;
   }
@@ -4515,6 +5052,32 @@ export namespace AttachNetworkMutationResolvers {
   export type TaskIdResolver<
     R = Maybe<string>,
     Parent = AttachNetworkMutation,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+}
+
+export namespace AttachIsoMutationResolvers {
+  export interface Resolvers<Context = {}, TypeParent = AttachIsoMutation> {
+    /** Attach/Detach task ID. If already attached/detached, returns null */
+    taskId?: TaskIdResolver<Maybe<string>, TypeParent, Context>;
+  }
+
+  export type TaskIdResolver<
+    R = Maybe<string>,
+    Parent = AttachIsoMutation,
+    Context = {}
+  > = Resolver<R, Parent, Context>;
+}
+
+export namespace AttachVdiMutationResolvers {
+  export interface Resolvers<Context = {}, TypeParent = AttachVdiMutation> {
+    /** Attach/Detach task ID. If already attached/detached, returns null */
+    taskId?: TaskIdResolver<Maybe<string>, TypeParent, Context>;
+  }
+
+  export type TaskIdResolver<
+    R = Maybe<string>,
+    Parent = AttachVdiMutation,
     Context = {}
   > = Resolver<R, Parent, Context>;
 }
@@ -4908,6 +5471,8 @@ export interface IResolvers<Context = {}> {
   PlaybookLaunchMutation?: PlaybookLaunchMutationResolvers.Resolvers<Context>;
   VmDeleteMutation?: VmDeleteMutationResolvers.Resolvers<Context>;
   AttachNetworkMutation?: AttachNetworkMutationResolvers.Resolvers<Context>;
+  AttachIsoMutation?: AttachIsoMutationResolvers.Resolvers<Context>;
+  AttachVdiMutation?: AttachVdiMutationResolvers.Resolvers<Context>;
   Subscription?: SubscriptionResolvers.Resolvers<Context>;
   GvMsSubscription?: GvMsSubscriptionResolvers.Resolvers<Context>;
   GHostsSubscription?: GHostsSubscriptionResolvers.Resolvers<Context>;
@@ -5449,6 +6014,10 @@ export interface Mutation {
   vmDelete?: Maybe<VmDeleteMutation>;
   /** Attach VM to a Network by creating a new Interface */
   netAttach?: Maybe<AttachNetworkMutation>;
+  /** Attach ISO to a VM by creating a new virtual block device */
+  isoAttach?: Maybe<AttachIsoMutation>;
+  /** Attach VDI to a VM by creating a new virtual block device */
+  vdiAttach?: Maybe<AttachVdiMutation>;
 
   selectedItems?: Maybe<string[]>;
 }
@@ -5498,6 +6067,16 @@ export interface VmDeleteMutation {
 }
 
 export interface AttachNetworkMutation {
+  /** Attach/Detach task ID. If already attached/detached, returns null */
+  taskId?: Maybe<string>;
+}
+
+export interface AttachIsoMutation {
+  /** Attach/Detach task ID. If already attached/detached, returns null */
+  taskId?: Maybe<string>;
+}
+
+export interface AttachVdiMutation {
   /** Attach/Detach task ID. If already attached/detached, returns null */
   taskId?: Maybe<string>;
 }
@@ -5685,6 +6264,22 @@ export interface NetAttachMutationArgs {
   isAttach: boolean;
 
   netUuid: string;
+
+  vmUuid: string;
+}
+export interface IsoAttachMutationArgs {
+  /** True if attach, False if detach */
+  isAttach: boolean;
+
+  isoUuid: string;
+
+  vmUuid: string;
+}
+export interface VdiAttachMutationArgs {
+  /** True if attach, False if detach */
+  isAttach: boolean;
+
+  vdiUuid: string;
 
   vmUuid: string;
 }

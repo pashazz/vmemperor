@@ -12,6 +12,7 @@ import classnames from 'classnames';
 import Vncview from '../../containers/Vncview';
 import Vm = VmInfo.Vm;
 import Network from "./subforms/network";
+import Storage from "./subforms/storage";
 
 
 interface Props {
@@ -105,8 +106,8 @@ const VmsettingsForm = ({vm}: Props) => {
         <TabPane tabId={Tab.Storage}>
           <Row>
             <Col sm="12">
-              {/*<Storage
-                  vm={vm}/>*/}
+              {<Storage
+                vm={vm}/>}
             </Col>
           </Row>
         </TabPane>

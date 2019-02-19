@@ -10,6 +10,21 @@ fragment VMInterfaceFragment on Interface {
   attached
 }
 
+fragment VMDiskFragment on BlockDevice {
+  id
+  mode
+  type
+  device
+  attached
+  bootable
+  VDI {
+    uuid
+    nameDescription
+    nameLabel
+    virtualSize
+  }
+}
+
 fragment VMInfoFragment on GVM {
   uuid
   nameLabel
@@ -19,17 +34,7 @@ fragment VMInfoFragment on GVM {
   }
   disks
   {
-    id
-    mode
-    type
-    device
-    attached
-    bootable
-    VDI {
-      uuid
-      nameDescription
-      nameLabel
-    }
+    ...VMDiskFragment
   }
   powerState
   osVersion{

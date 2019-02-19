@@ -26,7 +26,9 @@ class XenAdapterUnauthorizedActionException(XenAdapterException):
 
 class XenAdapterAPIError(XenAdapterException):
     def __init__(self, log, message, details=None):
-        super().__init__(log, message=json.dumps({'message' : message, 'details' : self.print_details(details)}))
+        self.details = self.print_details(details)
+        super().__init__(log, message=json.dumps({'message' : message, 'details' : self.details}))
+
 
     @staticmethod
     def print_details(details):

@@ -11,7 +11,7 @@ import XenAPI
 class Attachable:
     import xenadapter.vm
     @use_logger
-    def _attach(self : XenObject, vm: xenadapter.vm.VM, type : str, mode: str, empty=False) -> str:
+    def _attach(self : XenObject, vm: xenadapter.vm.VM, type : str, mode: str, empty=False, sync=False) -> str:
         '''
         Attach self (XenObject - either ISO or Disk) to vm VM with disk type type
         :param vm:VM to attach to
@@ -47,25 +47,36 @@ class Attachable:
         'other_config' : {},'qos_algorithm_type': '', 'qos_algorithm_params': {}}
 
         try:
-            vbd_ref = self.auth.xen.api.VBD.create(args)
+            vbd_ref =  VBD.create(self.auth, args)
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self.auth.xen.log, "Failed to create VBD", f.details)
 
-        vbd_uuid = self.auth.xen.api.VBD.get_uuid(vbd_ref)
-        if (vm.get_power_state() == 'Running'):
+
+        # Plug
+        if vm.get_power_state() == 'Running':
             try:
-                self.auth.xen.api.VBD.plug(vbd_ref)
-            except Exception:
-                self.auth.xen.log.warning(f"will be attached after reboot to {vm}")
-                return vbd_uuid
+                if sync:
+                     vbd = VBD(self.auth, ref=vbd_ref)
+                     vbd.plug()
+                     return vbd
+                else:
+                    return VBD(self.auth, ref=vbd_ref).async_plug()
+            except:
+                if sync:
+                    return vbd
+                else:
+                    return None
+        else:
+            if sync:
+                return VBD(self.auth, ref=vbd_ref)
+            else:
+                return None
 
-        self.auth.xen.log.info (f"attached to {vm}")
 
-        return vbd_uuid
+
 
     @use_logger
-    def _detach(self : XenObject, vm):
-        #vm.check_access('attach') #done by vmemperor
+    def _detach(self : XenObject, vm, sync=False):
         vbds = vm.get_VBDs()
         for vbd_ref in vbds:
 
@@ -74,24 +85,17 @@ class Attachable:
                 vbd_uuid = self.auth.xen.api.VBD.get_uuid(vbd_ref)
                 break
         else:
-            vbd_uuid = None
-        if not vbd_uuid:
-            raise XenAdapterAPIError(self.log, "Failed to detach disk: Disk isn't attached")
+            return None
 
         vbd = VBD(auth=self.auth, uuid=vbd_uuid)
 
-        if vm.get_power_state() == 'Running':
-            try:
-                vbd.unplug()
-            except Exception as e:
-                self.log.warning("Failed to detach disk from running VM")
-                return
-
         try:
-            vbd.destroy()
-            self.log.info("VBD UUID {0} is destroyed".format(vbd_uuid))
+            if sync:
+                return vbd.destroy()
+            else:
+                return vbd.async_destroy()
         except XenAPI.Failure as f:
-            raise XenAdapterAPIError(self.log, "Failed to detach disk: {0}".format(f.details))
+            raise XenAdapterAPIError(self.log, "Failed to detach disk:", f.details)
 
 
 
@@ -144,17 +148,17 @@ class ISO(XenObject, Attachable):
         del record['VBDs']
         return super().process_record(auth, ref, record)
 
-    def attach(self, vm : VM) -> VBD:
+    def attach(self, vm : VM, sync=False) -> VBD:
         '''
         Attaches VDI to a vm as RW
         :param vm:
         WARNING: It does not check whether self is a real ISO, do it for yourself.
 
         '''
-        return VBD(auth=self.auth, uuid=self._attach(vm, 'CD', 'RO'))
+        return self._attach(vm, 'CD', 'RO', sync=sync)
 
-    def detach(self, vm: VM):
-        self._detach(vm)
+    def detach(self, vm: VM, sync=False):
+        return self._detach(vm, sync=sync)
 
 
 class GVDI(GXenObjectType):
@@ -193,12 +197,12 @@ class VDI(ACLXenObject, Attachable):
                 'name_label': name_label}
         try:
             vdi_ref = auth.xen.api.VDI.create(args)
-            vdi_uuid = auth.xen.api.VDI.get_uuid(vdi_ref)
-            auth.log.info("VDI is created: UUID {0}".format(vdi_uuid))
+            return vdi_ref
         except XenAPI.Failure as f:
-            raise XenAdapterAPIError(auth.log, "Failed to create VDI: {0}".format(f.details))
+            raise XenAdapterAPIError(auth.log, "Failed to create VDI:",f.details)
 
-        return vdi_uuid
+
+
 
     @classmethod
     def filter_record(cls, record):
@@ -220,22 +224,22 @@ class VDI(ACLXenObject, Attachable):
     def destroy(self):
         sr = SR(auth=self.auth, ref=self.get_SR())
         if 'vdi_destroy' in sr.get_allowed_operations():
-            self._destroy()
+            self.async_destroy()
             return True
         else:
             return False
 
 
-    def attach(self, vm) -> VBD:
+    def attach(self, vm, sync=False) -> VBD:
         '''
         Attaches ISO to a vm
         :param vm:
         :return:
         '''
-        return VBD(auth=self.auth, uuid=self._attach(vm, 'Disk', 'RW'))
+        return self._attach(vm, 'Disk', 'RW', sync=sync)
 
-    def detach(self, vm):
-        self._detach(vm)
+    def detach(self, vm, sync=False):
+        return self._detach(vm, sync=sync)
 
 
 class VDIorISO:

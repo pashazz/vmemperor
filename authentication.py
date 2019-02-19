@@ -3,6 +3,8 @@ from functools import wraps
 import logging
 from typing import Union, Sequence
 
+from exc import XenAdapterAPIError
+
 
 class Authentication(metaclass=ABCMeta):
 
@@ -179,8 +181,14 @@ def with_authentication(access_class : type = None, access_action : str = None, 
                 raise NotAuthenticatedException()
 
             if access_class:
-                obj : ACLXenObject = access_class(auth=info.context.user_authenticator, uuid=kwargs[id_field])
-                obj.check_access(access_action)
+                try:
+                    obj : ACLXenObject = access_class(auth=info.context.user_authenticator, uuid=kwargs[id_field])
+                    obj.check_access(access_action)
+                except XenAdapterAPIError as e:
+                    if e.details['error_code'] == 'UUID_INVALID':
+                        kwargs[id_field] = None
+                    else:
+                        raise e
 
 
             return method(root, info, *args, **kwargs)

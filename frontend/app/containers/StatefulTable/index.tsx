@@ -60,7 +60,7 @@ interface Props<T> {
   tableSelectionQuery: DocumentNode;
   columns: ColumnType<T>[];
   props?: any;
-  onDoubleClick: (e: React.MouseEvent, row: T, rowIndex: number) => any;
+  onDoubleClick?: (e: React.MouseEvent, row: T, rowIndex: number) => any;
   refetchQueriesOnSelect?: ((result: ExecutionResult) => RefetchQueryDescription) | RefetchQueryDescription;
   onSelect?: (key: string, isSelect: boolean) => any;
 }

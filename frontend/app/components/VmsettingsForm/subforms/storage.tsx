@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react';
+import React, {PureComponent, useCallback, useMemo, useState} from 'react';
 import {
   Button,
   Card,
@@ -11,21 +11,35 @@ import {
   Row,
   UncontrolledAlert
 } from 'reactstrap';
-import {sizeFormatter} from "../../../utils/formatters";
+import {sizeFormatter, checkBoxFormatter} from "../../../utils/formatters";
 import StorageAttach from "./storageAttach";
-import {detachvdi} from "../../../api/vdi";
 
-import StatefulTable, {ColumnType, selectors} from '../../../containers/StatefulTable';
-import {connect} from 'react-redux';
-import {compose} from 'redux';
-import {createStructuredSelector} from 'reselect';
-import {checkBoxFormatter} from "../../../utils/formatters";
-import {VmInfo} from "../../../generated-models";
+import StatefulTable, {ColumnType} from '../../../containers/StatefulTable';
+
+import {
+  DiskAttachTableSelect, DiskAttachTableSelectAll,
+  DiskAttachTableSelection,
+  IsoAttach, StorageAttachList,
+  VdiDetach,
+  VmDiskFragment,
+  VmInfo
+} from "../../../generated-models";
 import Vm = VmInfo.Vm;
+import {useMutation, useQuery} from "react-apollo-hooks";
+import Variables = IsoAttach.Variables;
 
+interface DataType {
+  device: string;
+  nameLabel: string;
+  virtualSize: number;
+  attached: boolean;
+  bootable: boolean;
+  type: string;
+  id: string;
+  vdiUuid: string;
+}
 
-
-const columns = [
+const columns: ColumnType<DataType>[] = [
   {
     dataField: 'device',
     text: 'Name'
@@ -37,13 +51,13 @@ const columns = [
 
   },
   {
-    dataField: 'name_label',
+    dataField: 'nameLabel',
     text: 'Disk name',
 
   },
 
   {
-    dataField: 'virtual_size',
+    dataField: 'virtualSize',
     text: 'Size',
     formatter: sizeFormatter,
   },
@@ -62,104 +76,48 @@ const columns = [
 
 ];
 
-interface InjectedProps {
-  table_selection: string[],
+
+interface Props {
+  vm: Vm
 }
 
-interface Props extends InjectedProps
-{
-  vm : Vm
-}
+const Storage: React.FunctionComponent<Props> = ({vm}) => {
+  const [vdiAttach, setVdiAttach] = useState(false);
+  const [isoAttach, setIsoAttach] = useState(false);
 
-interface State {
-  vdiAttach: boolean, //If user attaches a VDI
-  isoAttach: boolean, // If user attaches an ISO
-  detachDisabled: boolean,
-}
-
-class Storage extends PureComponent<Props, State> {
-  constructor(props)
-  {
-    super(props);
-    this.state = {
-      vdiAttach: false,
-      isoAttach: false,
-
-      detachDisabled: false,
-    };
-    this.toggleVdiAttach = this.toggleVdiAttach.bind(this);
-    this.toggleIsoAttach = this.toggleIsoAttach.bind(this);
-    this.onDetach = this.onDetach.bind(this);
-
-  }
-
-  onDetach()
-  {
-    for (const ref of this.props.table_selection)
-    {
-      const vdi = this.props.vm.disks.filter(row => {return  row.id === ref})[0].VDI.uuid;
-      this.props.onDetachVdi(vdi);
-    }
-
-  }
-  toggleIsoAttach()
-  {
-    let set : Partial<State> = {
-      isoAttach: !this.state.isoAttach,
-    };
-    if (set.isoAttach)
-      set.vdiAttach = false;
-    this.setState(
-      set as State
-    );
-  }
-  toggleVdiAttach()
-  {
-    let set : Partial<State> = {
-      vdiAttach: !this.state.vdiAttach,
-    };
-    if (set.vdiAttach)
-      set.isoAttach = false;
-    this.setState(
-      set as State
-    );
-  }
-
-  static getDerivedStateFromProps(props, state)
-  {
-    if (!props.table_selection)
-      return state;
-     return {
-       ...state,
-       detachDisabled: props.table_selection.length === 0
-     }
-  }
-  render()
-  {
-    const actions = [
-      {
-        text: "Create",
-        color: "info",
-        type: "always",
-        handler: () => { console.log("EMIT Create new Disk!")}
-
-      },
-      {
-        text: "Delete",
-        color: "danger",
-        type: "selection",
-        handler: (row) => { console.log ("Delete a Disk!", row); },
-        filter: (row) => {return row.VMs.length === 0;}
+  const tableData: DataType[] = useMemo(() => {
+    return vm.disks.map(({id, device, type, attached, bootable, VDI: {nameLabel, virtualSize, uuid}}: VmDiskFragment.Fragment): DataType => {
+      return {
+        id,
+        device,
+        type,
+        attached,
+        bootable,
+        nameLabel,
+        virtualSize,
+        vdiUuid: uuid,
       }
+    })
+  }, [vm.disks]);
+  const onDetach = useMutation<VdiDetach.Mutation, VdiDetach.Variables>(VdiDetach.Document);
+  const tableSelection = useQuery<DiskAttachTableSelection.Query, DiskAttachTableSelection.Variables>(DiskAttachTableSelection.Document);
+  const selectedData = useMemo(() => tableData.filter(item => tableSelection.data.selectedItems.includes(item.id)), [tableData, tableSelection]);
 
-    ];
+  const onDetachDoubleClick = useCallback(async () => {
+    for (const row of selectedData)
+      await onDetach({
+        variables: {
+          vmUuid: vm.uuid,
+          vdiUuid: row.vdiUuid,
+        }
+      })
+  }, [selectedData, vm.uuid, tableData]);
+
+  const {data: {isos, vdis}} = useQuery<StorageAttachList.Query, StorageAttachList.Variables>(StorageAttachList.Document);
 
 
-
-    const DiskTable = StatefulTable("disks");
-
-    return (
-      <React.Fragment>
+  return (
+    <React.Fragment>
 
       <Row>
         <Col sm={12}>
@@ -167,40 +125,40 @@ class Storage extends PureComponent<Props, State> {
             <CardBody>
               <CardTitle>Virtual disks</CardTitle>
               <CardText>
-                <DiskTable
+                <StatefulTable
                   columns={columns}
-                  data={this.props.diskInfo}
-                  keyField="key"
-                  />
+                  data={tableData}
+                  keyField="id"
+                  tableSelectMany={DiskAttachTableSelectAll.Document}
+                  tableSelectOne={DiskAttachTableSelect.Document}
+                  tableSelectionQuery={DiskAttachTableSelection.Document}
+                />
               </CardText>
             </CardBody>
             <CardFooter>
-              <Button size="lg" color="success" onClick={this.toggleVdiAttach} active={this.state.vdiAttach} aria-pressed="true"> Attach virtual hard disk </Button>
-              <Button size="lg" color="success" onClick={this.toggleIsoAttach} active={this.state.isoAttach} aria-pressed="true"> Attach ISO image </Button>
-              <Button size="lg" color="danger" disabled={this.state.detachDisabled} onClick={this.onDetach}> Detach </Button>
+              <Button size="lg" color="success" onClick={() => setVdiAttach(!vdiAttach)} active={vdiAttach}
+                      aria-pressed="true"> Attach virtual hard disk </Button>
+              <Button size="lg" color="success" onClick={() => setIsoAttach(!isoAttach)} active={isoAttach}
+                      aria-pressed="true"> Attach ISO image </Button>
+              <Button size="lg" color="danger" disabled={selectedData.length === 0}
+                      onClick={onDetachDoubleClick}> Detach </Button>
               <Collapse id="collVdi"
-                isOpen={this.state.vdiAttach}>
-                <UncontrolledAlert color='info'>Double-click to attach a disk. You can't delete an attached disk</UncontrolledAlert>
-              <StorageAttach
-                  uuid={this.props.data.get('uuid')}
-                  caption="Hard disks"
-                  fetch={this.props.requestVdi}
-                  data={this.props.vdiList}
-                  showConnectedTo
-                  onAttach={this.props.onAttachVdi}
-                  actions={actions}
-                  />
+                        isOpen={vdiAttach}>
+                <UncontrolledAlert color='info'>Double-click to attach a disk. You can't delete an attached
+                  disk</UncontrolledAlert>
+                <StorageAttach
+                  diskImageList={vdis}
+                  vm={vm}
+                  caption="Hard disk images"
+                />
               </Collapse>
               <Collapse id="collIso"
-                        isOpen={this.state.isoAttach}>
+                        isOpen={isoAttach}>
                 <UncontrolledAlert color='info'>Double-click to attach an ISO</UncontrolledAlert>
                 <StorageAttach
-                  uuid={this.props.data.get('uuid')}
                   caption="ISO images"
-                  fetch={this.props.requestIso}
-                  data={this.props.isoList}
-                  showConnectedTo={false}
-                  onAttach={this.props.onAttachIso}
+                  diskImageList={isos}
+                  vm={vm}
                 />
               </Collapse>
 
@@ -209,15 +167,9 @@ class Storage extends PureComponent<Props, State> {
 
         </Col>
       </Row>
-      </React.Fragment>
-    );
-  }
-}
+    </React.Fragment>
+  );
+};
 
-const mapStateToProps = createStructuredSelector({
-  table_selection: selectors("disks").makeSelectionSelector()
-});
-const mapDispatchToProps = {};
-const withConnect = connect(mapStateToProps, mapDispatchToProps);
 
-export default compose(withConnect)(Storage);
+export default Storage;

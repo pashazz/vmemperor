@@ -348,7 +348,7 @@ class VM (AbstractVM):
 
         if iso:
             try:
-                iso.attach(self)
+                iso.attach(self, sync=True)
             except XenAdapterAPIError as e:
                 self.insert_log_entry(self=self, state="failed-iso", message=e.message)
                 raise e
@@ -357,7 +357,7 @@ class VM (AbstractVM):
 
         if net:
             try:
-                net.attach(self)
+                net.attach(self, sync=True)
             except XenAdapterAPIError as e:
                 self.insert_log_entry(self=self, state="failed-network", message=e.message)
                 raise e
@@ -617,7 +617,7 @@ class VM (AbstractVM):
                 for vdi_ref in sr.get_VDIs():
                     vdi = ISO(ref=vdi_ref, auth=self.auth)
                     if vdi.get_is_tools_iso():
-                        vbd = vdi.attach(self)
+                        vbd = vdi.attach(self, sync=True)
                         #get_device won't work here so we'll hack based on our vdi.attach implementation
                         device = chr(ord('a') + int(vbd.get_userdevice()))
                         self.log.debug(f"Installing guest tools: UNIX device /dev/{device}")

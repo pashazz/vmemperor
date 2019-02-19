@@ -5,7 +5,9 @@ from graphene import ObjectType, Schema
 from handlers.graphql.resolvers.console import resolve_console
 from handlers.graphql.resolvers.subscription_utils import MakeSubscription, resolve_item_by_key, \
     MakeSubscriptionWithChangeType, resolve_all_items_changes
+from handlers.graphql.types.input.attachiso import AttachISOMutation
 from handlers.graphql.types.input.attachnet import AttachNetworkMutation
+from handlers.graphql.types.input.attachvdi import AttachVDIMutation
 from handlers.graphql.types.input.createvm import CreateVM
 from handlers.graphql.types.input.vm import VMMutation, VMStartMutation, VMShutdownMutation, VMRebootMutation, \
     VMPauseMutation, VMDeleteMutation
@@ -82,8 +84,8 @@ class Mutation(ObjectType):
     vm_delete = VMDeleteMutation.Field(description="Delete a Halted VM")
 
     net_attach = AttachNetworkMutation.Field(description="Attach VM to a Network by creating a new Interface")
-
-
+    iso_attach = AttachISOMutation.Field(description="Attach ISO to a VM by creating a new virtual block device")
+    vdi_attach = AttachVDIMutation.Field(description="Attach VDI to a VM by creating a new virtual block device")
 
 
 
@@ -132,13 +134,6 @@ class Subscription(ObjectType):
 
     def resolve_playbook_tasks(*args, **kwargs):
         return resolve_all_items_changes(PlaybookTask, r.db(opts.database), 'tasks_playbooks')(*args, **kwargs)
-
-
-
-
-
-
-
 
 
 schema = Schema(query=Query, mutation=Mutation, types=[GISO, GVDI], subscription=Subscription)

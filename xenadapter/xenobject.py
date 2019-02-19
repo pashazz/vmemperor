@@ -199,6 +199,13 @@ class XenObject(metaclass=XenObjectMeta):
                     obj = cls(ref=uuid, auth=info.context.user_authenticator)
             except AttributeError:
                 raise NotAuthenticatedException()
+            except XenAdapterAPIError as e:
+                if e.details['error_code'] == 'UUID_INVALID':
+                    return None
+
+
+
+
 
             obj.check_access(action=None)
 

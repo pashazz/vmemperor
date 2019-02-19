@@ -76,13 +76,15 @@ class Network(ACLXenObject):
         super().__init__(auth, uuid=uuid, ref=ref)
 
     @use_logger
-    def attach(self, vm: VM) -> VIF:
+    def attach(self, vm: VM, sync=False) -> VIF:
         args = {'VM': vm.ref, 'network': self.ref , 'device': str(len(vm.get_VIFs())),
                 'MAC': '', 'MTU': self.get_MTU() , 'other_config': {},
                 'qos_algorithm_type': '', 'qos_algorithm_params': {}}
         try:
-
-            return VIF.async_create(self.auth, args)
+            if sync:
+                return VIF.create(self.auth, args)
+            else:
+                return VIF.async_create(self.auth, args)
         except XenAPI.Failure as f:
             raise XenAdapterAPIError(self.auth.xen.log, "Network::attach: Failed to create VIF",f.details)
 

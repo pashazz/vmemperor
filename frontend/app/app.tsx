@@ -151,7 +151,13 @@ const initializeCache = () => {
       variables: {tableId: Table.NetworkAttach},
       data: {selectedItems: []}
     });
-
+  //Disk attach table has empty selection
+  client.cache.writeQuery<SelectedItemsQuery.Query, SelectedItemsQuery.Variables>(
+    {
+      query: SelectedItemsQuery.Document,
+      variables: {tableId: Table.DiskAttach},
+      data: {selectedItems: []}
+    });
 };
 initializeCache();
 
