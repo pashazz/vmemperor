@@ -1,0 +1,58 @@
+fragment VMInterfaceFragment on Interface {
+  network {
+    uuid
+    nameLabel
+  }
+  ip
+  ipv6
+  id
+  MAC
+  attached
+}
+
+fragment VMDiskFragment on BlockDevice {
+  id
+  mode
+  type
+  device
+  attached
+  bootable
+  VDI {
+    uuid
+    nameDescription
+    nameLabel
+    virtualSize
+  }
+}
+
+fragment VMInfoFragment on GVM {
+  uuid
+  nameLabel
+  nameDescription
+  interfaces {
+    ...VMInterfaceFragment
+  }
+  disks
+  {
+    ...VMDiskFragment
+  }
+  powerState
+  osVersion{
+    name
+  }
+  startTime
+  domainType
+}
+
+query VMInfo ($uuid: ID!) {
+  vm (uuid: $uuid) {
+    ...VMInfoFragment
+  }
+}
+
+subscription VMInfoUpdate($uuid: ID!) {
+  vm (uuid: $uuid) {
+    ...VMInfoFragment
+  }
+}
+

@@ -1,25 +1,36 @@
+import graphene
+
+from xenadapter.xenobject import GAclXenObject
+from handlers.graphql.types.gxenobjecttype import GXenObjectType
 from .abstractvm import AbstractVM
 from exc import *
 import XenAPI
 from .vm import VM
-from . import use_logger
+from xenadapter.helpers import use_logger
+
+class GTemplate(GXenObjectType):
+
+    class Meta:
+        interfaces = (GAclXenObject,)
+
+    os_kind = graphene.Field(graphene.String, description="If a template supports auto-installation, here a distro name is provided")
+    hvm = graphene.Field(graphene.Boolean, required=True, description="True if this template works with hardware assisted virtualization")
+    enabled = graphene.Field(graphene.Boolean, required=True, description="True if this template is available for regular users")
 
 
 class Template(AbstractVM):
+    EVENT_CLASSES = ['vm']
     ALLOW_EMPTY_XENSTORE = True
     VMEMPEROR_TEMPLATE_PREFIX = 'vm/data/vmemperor/template'
     db_table_name = 'tmpls'
+    GraphQLType = GTemplate
 
     @classmethod
     def filter_record(cls, record):
         return record['is_a_template']
 
     @classmethod
-    def is_hidden(self, record):
-        return 'vmemperor' not in record['tags']
-
-    @classmethod
-    def process_record(self, auth, ref, record):
+    def process_record(cls, auth, ref, record):
         '''
         Contary to parent method, this method can return many records as one XenServer template may convert to many
         VMEmperor templates
@@ -28,19 +39,18 @@ class Template(AbstractVM):
         :param record:
         :return:
         '''
-        record = super().process_record(auth, ref, record)
+        new_rec = super().process_record(auth, ref, record)
 
-        keys = ['hvm', 'name_label', 'uuid', 'ref']
-        new_rec = {k: v for k, v in record.items() if k in keys}
         if record['HVM_boot_policy'] == '':
             new_rec['hvm'] = False
         else:
             new_rec['hvm'] = True
 
+        new_rec['enabled'] = cls.is_enabled(record)
+
         #read xenstore data
         xenstore_data = record['xenstore_data']
-        if not self.VMEMPEROR_TEMPLATE_PREFIX in xenstore_data:
-            # TODO: Try to detect os_kind from other_config
+        if not cls.VMEMPEROR_TEMPLATE_PREFIX in xenstore_data:
             if new_rec['hvm'] is False:
                 if 'os_kind' in record['other_config']:
                     new_rec['os_kind'] = record['other_config']['os_kind']
@@ -53,36 +63,47 @@ class Template(AbstractVM):
 
             return new_rec
 
-        template_settings = json.load(xenstore_data[self.VMEMPEROR_TEMPLATE_PREFIX])
+        template_settings = json.load(xenstore_data[cls.VMEMPEROR_TEMPLATE_PREFIX])
         new_rec['os_kind'] = template_settings['os_kind']
         return new_rec
+
+    @classmethod
+    def get_access_data(cls, record, authenticator_name):
+        if cls.is_enabled(record):
+            return super().get_access_data(record, authenticator_name)
+        else:
+            return []
+
+    @classmethod
+    def is_enabled(cls, record):
+        return 'vmemperor' in record['tags']
+
 
     @use_logger
     def clone(self, name_label):
         try:
-
             new_vm_ref = self.__getattr__('clone')(name_label)
             vm = VM(self.auth, ref=new_vm_ref)
-            self.log.info("New VM is created: UUID {0}".format(vm.uuid))
+            self.log.info(f"New VM is created: UUID:{vm.uuid}, name_label: {name_label}")
             return vm
         except XenAPI.Failure as f:
-            raise XenAdapterAPIError(self.log, "Failed to clone template: {0}".format(f.details))
+            raise XenAdapterAPIError(self.log, f"Failed to clone template: {f.details}")
 
     @use_logger
-    def enable_disable(self, enable):
+    def set_enabled(self, enabled):
         '''
         Adds/removes tag 'vmemperor'
-        :param enable:
+        :param enabled:
         :return:
         '''
         try:
-            if enable:
+            if enabled:
                 self.add_tags('vmemperor')
-                self.log.info("Enabled template UUID {0}".format(self.uuid))
+                self.log.info(f"Enabled template UUID {self.uuid}")
             else:
                 self.remove_tags('vmemperor')
-                self.log.info("Disabled template UUID {0}".format(self.uuid))
+                self.log.info(f"Disabled template UUID {self.uuid}")
         except XenAPI.Failure as f:
-            raise XenAdapterAPIError(self.log, "Failed to {0} template: {1}".format(
-                'enable' if enable else 'disable', f.details))
+            raise XenAdapterAPIError(self.log, f"Failed to {'enable' if enabled else 'disable'} template: {f.details}")
+
 

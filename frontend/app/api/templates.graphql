@@ -1,0 +1,11 @@
+fragment TemplateListFragment on GTemplate {
+  uuid
+  nameLabel
+  osKind
+}
+
+query TemplateList {
+  templates {
+    ...TemplateListFragment
+  }
+}

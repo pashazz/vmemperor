@@ -1,7 +1,7 @@
 /*
- * VMList Messages
+ * VMListForm Messages
  *
- * This contains all the text for the VMList component.
+ * This contains all the text for the VMListForm component.
  */
 import { defineMessages } from 'react-intl';
 

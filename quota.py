@@ -58,8 +58,9 @@ class Quota:
         Else returns stats for specified user and all his groups, ignoring userid
         :return:
         '''
-        import rethinkdb as r
-        if isinstance(self.auth, AdministratorAuthenticator):
+        from rethinkdb import  RethinkDB
+        r = RethinkDB()
+        if self.auth.is_admin():
             if userid:
                 data = self.pool.db.table(Pool.quotas_table_name).get(userid)\
                     .merge({'storage_usage': self.pool.db.table('vdis_user').merge(lambda rec: {'virtual_size': self.pool.db.table('vdis').get(rec['uuid'])['virtual_size']})\
@@ -73,7 +74,7 @@ class Quota:
 
         else:
             userid = self.auth.get_id()
-            entities = list(map(lambda n: 'groups/' + n, self.auth.get_user_groups()))
+            entities = list(map(lambda n: f'groups/{n}', self.auth.get_user_groups()))
             entities.append('users/' + userid)
             data = self.pool.db.table('vdis_user').get_all(*entities, index='userid').merge(
                 lambda rec: {'virtual_size':
@@ -87,15 +88,16 @@ class Quota:
 
     def space_left_after_disk_creation(self, size, userid):
         '''
-        :param size:
-        :return:
+        return how much space will be left after we create a disk there
+        :param size: disk size, in bytes
+        :return: free space, in bytes or None if no quota for this user
         '''
         resources = self.get_storage_usage(userid)
         for i in resources:
             if i['userid'] == userid:
                 return i['storage'] - i['storage_usage'] - size
 
-        raise ValueError(f"No such userid: {userid}")
+        return None
 
 
 

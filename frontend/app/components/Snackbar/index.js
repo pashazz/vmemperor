@@ -1,5 +1,13 @@
-import React, { PropTypes as T } from 'react';
+/**
+*
+* Snackbar
+*
+*/
+
+import React from 'react';
 import styles from './styles.css';
+import T from 'prop-types';
+
 
 const RENDER_TICK = 500;
 const TTR = 3000;
@@ -40,7 +48,7 @@ class Snackbar extends React.Component {
   render() {
     const renderStamp = +new Date();
     const alerts = this.props.logs
-      .filter(alert => renderStamp - alert.timestamp < TTL)
+      .filter(alert => rednerStamp - alert.timestamp < TTL)
       .slice(0, 10);
 
     return (
@@ -59,3 +67,5 @@ class Snackbar extends React.Component {
 }
 
 export default Snackbar;
+
+

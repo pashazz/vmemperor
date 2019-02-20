@@ -20,6 +20,7 @@ d-i netcfg/choose_interface select eth0
 # from being shown, even if values come from dhcp.
 d-i netcfg/get_hostname string {{ hostname }}
 d-i netcfg/get_domain string unassigned-domain
+{% if ip %}
 d-i netcfg/disable_autoconfig boolean true
 d-i netcfg/use_autoconfig boolean false
 d-i netcfg/disable_dhcp boolean true
@@ -28,6 +29,7 @@ d-i netcfg/get_ipaddress string {{ ip }}
 d-i netcfg/get_netmask string {{ netmask }}
 d-i netcfg/get_gateway string {{ gateway }}
 d-i netcfg/get_nameservers string {{ dns0 }}
+{% end %}
 d-i netcfg/get_domain string vmemperor
 
 d-i netcfg/dhcp_failed note
@@ -39,11 +41,12 @@ d-i netcfg/wireless_wep string
 ### Mirror settings
 # If you select ftp, the mirror/country string does not need to be set.
 #d-i mirror/protocol string ftp
+{% if mirror_url %}
 d-i mirror/country string manual
 d-i mirror/http/hostname string {{ mirror_url }}
 d-i mirror/http/directory string {{ mirror_path }}
 d-i mirror/http/proxy string
-
+{% end %}
 ### Clock and time zone setup
 # Controls whether or not the hardware clock is set to UTC.
 d-i clock-setup/utc boolean true
@@ -143,13 +146,20 @@ d-i partman-partitioning/confirm_write_new_label boolean true
 ### Account setup
 
 # To create a normal user account.
+{% if fullname %}
 d-i passwd/user-fullname string {{ fullname }}
+{% end %}
+{% if username %}
 d-i passwd/username string {{ username }}
+{% end %}
 # Normal user's password
+{% if password %}
 d-i passwd/user-password password {{ password }}
 d-i passwd/user-password-again password {{ password }}
+
 d-i passwd/root-password password {{ password }}
 d-i passwd/root-password-again password {{ password }}
+{% end %}
 #d-i passwd/user-password-crypted password $1$DNhkrozT$wd.eE93h82Y8wIuNhWlMf/
 # The installer will warn about weak passwords. If you are sure you know
 # what you're doing and want to override it, uncomment this.
@@ -252,6 +262,6 @@ d-i debian-installer/exit/poweroff boolean true
 #Mount /dev/cdrom
 d-i preseed/late_command string \
 in-target perl -pi -e 's/(err=remount-ro)/noatime,nodiratime,$1,barrier=1/' /etc/fstab ; \
-in-target wget -O /tmp/postinst.vmemperor.sh {{  postinst }} ; \
+in-target wget -O /tmp/postinst.vmemperor.sh "{{  postinst }}" ; \
 in-target bash /tmp/postinst.vmemperor.sh ; \
 in-target rm /tmp/postinst.vmemperor.sh

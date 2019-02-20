@@ -1,13 +1,15 @@
 #!/bin/bash
+<<<<<<< HEAD
 mount "/dev/disk/by-label/XCP-ng\x20Tools" /mnt
+=======
+#mount "/dev/disk/by-label/XenServer\x20Tools" /mnt
+ls /dev
+mount /dev/{{ device }} /mnt
+>>>>>>> devil
 cd /mnt/Linux
-source versions.deb
-case $(uname -m) in
-*64) dpkg -i $XE_GUEST_UTILITIES_PKG_FILE_amd64 ;;
-*) dpkg -i $XE_GUEST_UTILITIES_PKG_FILE_i386 ;;
-esac
+./install.sh -n
 
-mkdir /root/.ssh/
+mkdir -p /root/.ssh/
 echo "{{ pubkey }}" >> /root/.ssh/authorized_keys
 chmod  700 /root/.ssh
 chmod -R 600 /root/.ssh/*

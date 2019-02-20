@@ -1,0 +1,15 @@
+fragment StorageListFragment on GSR {
+  uuid
+  nameLabel
+  spaceAvailable
+  contentType
+  PBDs{
+    currentlyAttached
+  }
+}
+
+query StorageList {
+  srs {
+    ...StorageListFragment
+  }
+}

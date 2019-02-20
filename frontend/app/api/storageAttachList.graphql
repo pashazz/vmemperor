@@ -1,0 +1,15 @@
+fragment DiskFragment on DiskImage {
+  uuid
+  nameLabel
+  nameDescription
+  virtualSize
+}
+
+query StorageAttachList {
+  vdis {
+    ...DiskFragment
+  }
+  isos {
+    ...DiskFragment
+  }
+}

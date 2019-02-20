@@ -3,27 +3,28 @@ import { createSelector } from 'reselect';
 /**
  * Direct selector to the loginPage state domain
  */
-const selectLoginPageDomain = () => state => state.get('login');
+const selectLoginPageDomain = (state) => state.get('loginPage');
 
 /**
  * Other specific selectors
  */
 
+
 /**
  * Default selector used by LoginPage
  */
-const selectLoginPage = () => createSelector(
-  selectLoginPageDomain(),
+
+const makeSelectLoginPage = () => createSelector(
+  selectLoginPageDomain,
   (substate) => substate.toJS()
 );
 
-const selectPools = () => createSelector(
-  selectLoginPage(),
+const makeSelectPools = () => createSelector(
+  makeSelectLoginPage(),
   (substate) => substate.pools
 );
-
-export default selectLoginPage;
+export default makeSelectLoginPage;
 export {
   selectLoginPageDomain,
-  selectPools,
+  makeSelectPools
 };

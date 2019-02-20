@@ -2,66 +2,139 @@
  * COMMON WEBPACK CONFIGURATION
  */
 
+
 const path = require('path');
 const webpack = require('webpack');
+const getTransformer = require('ts-transform-graphql-tag').getTransformer;
 
-// PostCSS plugins
-const cssnext = require('postcss-cssnext');
-const postcssFocus = require('postcss-focus');
-const postcssReporter = require('postcss-reporter');
+//const TsConfigPathsPlugin = require('awesome-typescript-loader').TsConfigPathsPlugin;
+//const CheckerPlugin = require('awesome-typescript-loader').CheckerPlugin;
+const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 
-const srcPath = path.resolve(process.cwd(), 'app');
+
+
+// Remove this line once the following warning goes away (it was meant for webpack loader authors not users):
+// 'DeprecationWarning: loaderUtils.parseQuery() received a non-string value which can be problematic,
+// see https://github.com/webpack/loader-utils/issues/56 parseQuery() will be replaced with getOptions()
+// in the next major version of loader-utils.'
+process.noDeprecation = true;
 
 module.exports = (options) => ({
+  node: {
+    fs: 'empty',
+  },
   entry: options.entry,
   output: Object.assign({ // Compile into js/build.js
     path: path.resolve(process.cwd(), 'build'),
     publicPath: '/',
   }, options.output), // Merge with env dependent settings
   module: {
-    loaders: [{
-      test: /\.js$/, // Transform all .js files required somewhere with Babel
-      loader: 'babel',
-      exclude: /node_modules/,
-      query: options.babelQuery,
-    }, {
-      // Transform our own .css files with PostCSS and CSS-modules
-      test: /\.css$/,
-      exclude: /(node_modules)/,
-      loader: options.cssLoaders,
-    }, {
-      // Do not transform vendor's CSS with CSS-modules
-      // The point is that they remain in global scope.
-      // Since we require these CSS files in our JS or CSS files,
-      // they will be a part of our compilation either way.
-      // So, no need for ExtractTextPlugin here.
-      test: /\.css$/,
-      include: /node_modules/,
-      loaders: ['style-loader', 'css-loader'],
-    }, {
-      test: /\.(eot|svg|ttf|woff|woff2)$/,
-      loader: 'file-loader',
-    }, {
-      test: /\.(jpg|png|gif)$/,
-      loaders: [
-        'file-loader',
-        'image-webpack?{progressive:true, optimizationLevel: 7, interlaced: false, pngquant:{quality: "65-90", speed: 4}}',
+    rules: [
+      {
+      test: /\.(ts|tsx)$/,
+      use: [
+        'babel-loader',
+        {
+          loader: 'ts-loader',
+          options: {
+            transpileOnly: true,
+            getCustomTransformers: () => ({before: [getTransformer()]})
+          }
+        }
       ],
-    }, {
-      test: /\.html$/,
-      loader: 'html-loader',
-    }, {
-      test: /\.json$/,
-      loader: 'json-loader',
-    }, {
-      test: /\.(mp4|webm)$/,
-      loader: 'url-loader?limit=10000',
-    }],
+        exclude: [/node_modules/],
+      },
+      {
+        test: /\.js$/, // Transform all .js files required somewhere with Babel
+        //exclude: /node_modules/,
+        exclude: /node_modules[\\/](?!@av).*/,
+        use: {
+          loader: 'babel-loader',
+          options: options.babelQuery,
+        },
+      },
+      {
+        // Preprocess our own .css files
+        // This is the place to add your own loaders (e.g. sass/less etc.)
+        // for a list of loaders, see https://webpack.js.org/loaders/#styling
+        test: /\.css$/,
+        exclude: /node_modules/,
+        use: [
+        'style-loader',
+        {
+          loader: 'typings-for-css-modules-loader',
+          options: {
+            modules: true,
+            namedExport: true
+          }
+        }
+      ]
+      },
+      {
+        // Preprocess our own .css files
+        // This is the place to add your own loaders (e.g. sass/less etc.)
+        // for a list of loaders, see https://webpack.js.org/loaders/#styling
+        test: /\.scss$/,
+        exclude: /node_modules/,
+        use: ['style-loader', 'css-loader', 'sass-loader'],
+      },
+      {
+        // Preprocess 3rd party .css files located in node_modules
+        test: /\.css$/,
+        include: /node_modules/,
+        use: ['style-loader', 'css-loader'],
+      },
+       {
+         test: /\.(graphql|gql)$/,
+         exclude: /node_modules/,
+         loader: 'graphql-tag/loader'
+       },
+      {
+        test: /\.(eot|svg|otf|ttf|woff|woff2)$/,
+        use: 'file-loader',
+      },
+      {
+        test: /\.(jpg|png|gif)$/,
+        use: [
+          'file-loader',
+          {
+            loader: 'image-webpack-loader',
+            options: {
+              progressive: true,
+              optimizationLevel: 7,
+              interlaced: false,
+              pngquant: {
+                quality: '65-90',
+                speed: 4,
+              },
+            },
+          },
+        ],
+      },
+      {
+        test: /\.html$/,
+        use: 'html-loader',
+      },
+      {
+        test: /\.json$/,
+        use: 'json-loader',
+      },
+      {
+        test: /\.(mp4|webm)$/,
+        use: {
+          loader: 'url-loader',
+          options: {
+            limit: 10000,
+          },
+        },
+      },
+    ],
   },
   plugins: options.plugins.concat([
+    new ForkTsCheckerWebpackPlugin(),
     new webpack.ProvidePlugin({
       // make fetch available
-      fetch: 'exports?self.fetch!whatwg-fetch',
+      fetch: 'exports-loader?self.fetch!whatwg-fetch',
     }),
 
     // Always expose NODE_ENV to webpack, in order to use `process.env.NODE_ENV`
@@ -72,39 +145,25 @@ module.exports = (options) => ({
         NODE_ENV: JSON.stringify(process.env.NODE_ENV),
       },
     }),
+    new webpack.NamedModulesPlugin(),
+
   ]),
-  postcss: () => [
-    postcssFocus(), // Add a :focus to every :hover
-    cssnext({ // Allow future CSS features to be used, also auto-prefixes the CSS...
-      browsers: ['last 2 versions', 'IE > 10'], // ...based on this browser list
-    }),
-    postcssReporter({ // Posts messages from plugins to the terminal
-      clearMessages: true,
-    }),
-  ],
   resolve: {
-    alias: {
-      api: `${srcPath}/api/`,
-      models: `${srcPath}/models/`,
-      components: `${srcPath}/components/`,
-      containers: `${srcPath}/containers/`,
-      tests: `${srcPath}/tests/`,
-      utils: `${srcPath}/utils/`,
-    },
     modules: ['app', 'node_modules'],
     extensions: [
-      '',
       '.js',
       '.jsx',
       '.react.js',
+      '.ts',
+      '.tsx',
     ],
     mainFields: [
-      'jsnext:main',
+      'browser',
       'main',
+      'jsnext:main',
     ],
   },
   devtool: options.devtool,
   target: 'web', // Make web variables accessible to webpack, e.g. window
-  stats: false, // Don't show stats in the console
-  progress: true,
+  performance: options.performance || {},
 });

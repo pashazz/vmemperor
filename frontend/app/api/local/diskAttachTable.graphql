@@ -1,0 +1,11 @@
+query DiskAttachTableSelection {
+  selectedItems(tableId: DiskAttach ) @client
+}
+
+mutation DiskAttachTableSelect ($item: ID!, $isSelect: Boolean! ){
+  selectedItems(tableId: DiskAttach, items: [$item], isSelect: $isSelect) @client
+}
+
+mutation DiskAttachTableSelectAll ($items: [ID!]!, $isSelect: Boolean! ){
+  selectedItems(tableId: DiskAttach, items: $items, isSelect: $isSelect) @client
+}

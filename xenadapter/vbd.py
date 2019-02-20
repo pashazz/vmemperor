@@ -1,6 +1,7 @@
 from xenadapter.xenobject import XenObject
-import rethinkdb as r
 
+from rethinkdb import RethinkDB
+r = RethinkDB()
 
 class VBD(XenObject):
     api_class = 'VBD'
@@ -9,10 +10,8 @@ class VBD(XenObject):
     @classmethod
     def process_event(cls, auth, event, db, authenticator_name):
         from .vm import VM
-        from .disk import ISO, VDI
-        from rethinkdb_helper import CHECK_ER
+        from rethinkdb_tools.helper import CHECK_ER
         from XenAPI import Failure
-        cls.create_db(db)
 
 
         if event['class'] in cls.EVENT_CLASSES:
@@ -24,18 +23,30 @@ class VBD(XenObject):
 
             if event['operation'] in ('mod', 'add'):
                 vm = VM(auth=auth, ref=record['VM'])
-                if record['empty']:
-                    vdi = None
-                elif record['type'] == 'CD':
-                    vdi = ISO(auth=auth, ref=record['VDI']).uuid
-                else:
-                    vdi = VDI(auth=auth, ref=record['VDI']).uuid
+                if vm.get_is_a_snapshot():
+                    return # TODO Handle snapshots
                 try:
                     new_rec = {'uuid': vm.uuid, 'disks': {event['ref'] :
-                    {'VDI': vdi, 'bootable': record['bootable'], 'attached': record['currently_attached'], 'type' : record['type'],
+                    {'VDI': record['VDI'], 'bootable': record['bootable'], 'attached': record['currently_attached'], 'type' : record['type'],
                      'mode': record['mode'], 'device': record['device'] }}}
-                    CHECK_ER(db.table(vm.db_table_name).insert(new_rec, conflict='update').run())
+                    CHECK_ER(db.table(VM.db_table_name).insert(new_rec, conflict='update').run())
                 except Failure as f:
-                    auth.log.error("Failed to process VBD event due to XenAPI Failure: {0}".format(f.details))
+                    auth.log.error(f"Failed to process VBD event due to XenAPI Failure: {f.details}")
 
 
+
+    def delete(self) -> bool:
+        '''
+
+        :return: False if unable to unplug device from running VM
+        '''
+        from .vm import VM
+        vm = VM(auth=self.auth, ref=self.get_VM())
+
+        if vm.get_power_state() == 'Running' and self.get_unpluggable():
+            self.unplug()
+        else:
+            return False
+
+        self.destroy()
+        return True

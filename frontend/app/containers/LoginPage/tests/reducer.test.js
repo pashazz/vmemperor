@@ -1,12 +1,9 @@
-import expect from 'expect';
-import loginPageReducer from '../reducer';
+
 import { fromJS } from 'immutable';
+import loginPageReducer from '../reducer';
 
 describe('loginPageReducer', () => {
   it('returns the initial state', () => {
-    const initialState = fromJS({
-      pools: [],
-    });
-    expect(loginPageReducer(undefined, {})).toEqual(initialState);
+    expect(loginPageReducer(undefined, {})).toEqual(fromJS({}));
   });
 });

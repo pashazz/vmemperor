@@ -1,0 +1,14 @@
+subscription PlaybookTaskUpdate ($id: ID!) {
+  playbookTask(id: $id)  {
+    id
+    state
+    message
+  }
+}
+query PlaybookTask ($id: ID!) {
+  playbookTask(id: $id)  {
+    id
+    state
+    message
+  }
+}

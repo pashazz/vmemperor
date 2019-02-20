@@ -1,12 +1,16 @@
 from abc import ABCMeta, abstractmethod
-
+from functools import wraps
 import logging
+from typing import Union, Sequence
+
+from exc import XenAdapterAPIError
+
 
 class Authentication(metaclass=ABCMeta):
 
 
     @abstractmethod
-    def check_credentials(self, password, username, log=logging):
+    def check_credentials(self, password, username, log=logging) -> None:
         """
         asserts credentials using inner db, or some outer authentication system
         You should set username to self.username
@@ -18,18 +22,18 @@ class Authentication(metaclass=ABCMeta):
         :raise AuthenticationWithEmptyPasswordException if password is empty
         All exceptions are in exc.py
         """
-        return
+        ...
 
     @abstractmethod
     def get_user_groups(self):
         """
         Return a dict of user's groups with id as key and name as value"
         """
-        return
+        ...
 
     @classmethod
     @abstractmethod
-    def get_all_users(cls, log=logging):
+    def get_all_users(cls, log=logging) -> Sequence:
         '''
         Return a list of all users available in format of a list of dicts with the following fields:
         {
@@ -43,11 +47,11 @@ class Authentication(metaclass=ABCMeta):
         :return: list
 
         '''
-        return
+        ...
 
     @classmethod
     @abstractmethod
-    def get_all_groups(cls, log=logging):
+    def get_all_groups(cls, log=logging) -> Sequence:
         '''
         Return a list of all groups available in format of a list of dicts with the following fields:
         {
@@ -61,14 +65,23 @@ class Authentication(metaclass=ABCMeta):
         :return: list
 
         '''
-        return
+        ...
 
+    @abstractmethod
+    def is_admin(self) -> bool:
+        '''
+        Checks if this user is an administrator
+        :return:
+        '''
+        ...
 
-
-
-
-
-
+    @abstractmethod
+    def get_id(self) -> Union[str, int]:
+        '''
+        Return user id
+        :return:
+        '''
+        ...
 
 
 @Authentication.register
@@ -80,11 +93,13 @@ class BasicAuthenticator:
     def get_user_groups(self):
         return {}
 
+    def is_admin(self):
+        return False
+
+
 
 
 class AdministratorAuthenticator(BasicAuthenticator):
-    # TODO Implement check_credentials
-
     def __init__(self, user_auth: type):
         self.auth = False
         self.user_auth = user_auth
@@ -115,8 +130,8 @@ class AdministratorAuthenticator(BasicAuthenticator):
     def class_name(self):
         return self.user_auth.__name__
 
-
-
+    def is_admin(self):
+        return True
 
 
 
@@ -147,3 +162,49 @@ class DummyAuth(BasicAuthenticator):
 
     def get_name(self):
         return self.name
+
+
+class NotAuthenticatedException(Exception):
+    def __init__(self):
+        super().__init__("You are not authenticated")
+
+class NotAuthenticatedAsAdminException(Exception):
+    def __init__(self):
+        super().__init__("You are not authenticated as administrator")
+
+def with_authentication(access_class : type = None, access_action : str = None, id_field="uuid"):
+    def decorator(method):
+        from xenadapter.xenobject import ACLXenObject
+        @wraps(method)
+        def wrapper(root, info, *args, **kwargs):
+            if not hasattr(info.context, 'user_authenticator'):
+                raise NotAuthenticatedException()
+
+            if access_class:
+                try:
+                    obj : ACLXenObject = access_class(auth=info.context.user_authenticator, uuid=kwargs[id_field])
+                    obj.check_access(access_action)
+                except XenAdapterAPIError as e:
+                    if e.details['error_code'] == 'UUID_INVALID':
+                        kwargs[id_field] = None
+                    else:
+                        raise e
+
+
+            return method(root, info, *args, **kwargs)
+        return wrapper
+    return decorator
+
+with_default_authentication = with_authentication()
+
+def with_admin_authentication(method):
+    @wraps(method)
+    def decorator(root, info, *args, **kwargs):
+        if not hasattr(info.context, 'user_authenticator'):
+            raise NotAuthenticatedException()
+        if not info.context.user_authenticator.is_admin():
+            raise NotAuthenticatedAsAdminException()
+
+        return method(root, info, *args, **kwargs)
+    return decorator
+

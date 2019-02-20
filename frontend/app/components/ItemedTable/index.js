@@ -1,8 +1,27 @@
-import React, { PropTypes as T } from 'react';
+/**
+*
+* ItemedTable
+*
+*/
+
+import React from 'react';
+import T from 'prop-types';
 import { FormattedMessage } from 'react-intl';
 import { filterItems } from 'utils/filter';
-import styles from './styles.css';
+import styled from 'styled-components';
 import SortImg from './components/SortImg';
+
+const FilterInput = styled.input`
+  padding: 1px;
+  border: solid 1px #DCDCDC;
+  transition: box-shadow 0.3s, border 0.3s;
+  
+  &:focus {
+    border: solid 1px #707070;
+    box-shadow: 0 0 5px 1px #969696;
+  }
+`;
+
 
 const clickWrapper = func => column => {
   if (func) {
@@ -14,11 +33,38 @@ const clickWrapper = func => column => {
   }
   return null;
 };
-
+/*
 function sortClass(column, sort) {
   const ascOrDesc = sort.order === 'asc' ? styles.headerSortAsc : styles.headerSortDesc;
   return sort.column === column ? ascOrDesc : '';
 }
+*/
+
+const PlainTableHeader = ({ className, column, children }) => {
+  return (
+    <th className={className} key={column}>
+      {children}
+    </th>
+  );
+};
+
+const SortedTableHeader = styled(PlainTableHeader).attrs({ className: "header" })`
+  color: #333;
+  background: #f5f5f5;
+`;
+
+const TableHeader = ({column, sort, children}) =>
+{
+  return sort && sort.column === column ?
+    <SortedTableHeader> {children} </SortedTableHeader>
+    : <PlainTableHeader> {children} </PlainTableHeader>
+};
+
+TableHeader.propTypes = {
+  column: T.any.isRequired,
+  sort: T.any,
+}
+
 
 function sortFunction(first, second, { order, column }) {
   const multiplier = order === 'asc' ? 1 : -1;
@@ -44,13 +90,14 @@ class ItemedTable extends React.Component { // eslint-disable-line react/prefer-
     itemActions: T.object.isRequired,
     itemMessages: T.object.isRequired,
     ItemComponent: T.any.isRequired,
-  }
+  };
 
   static defaultProps = {
     onFilter: false,
     onSort: false,
     sort: false,
-  }
+  };
+
 
   render() {
     const columnNames = Object.keys(this.props.filters);
@@ -59,20 +106,20 @@ class ItemedTable extends React.Component { // eslint-disable-line react/prefer-
     const { ItemComponent, itemMessages } = this.props;
 
     const header = columnNames.map(column =>
-      <th key={column} className={`header ${sortClass(column, this.props.sort)}`} onClick={wrappedOnSort(column)}>
+     <TableHeader column={column} sort={this.props.sort} onClick={wrappedOnSort(column)}> */
         <FormattedMessage {...itemMessages[column]} />
         {
           this.props.sort ?
-            <SortImg className={styles.sortImg} isCurrent={this.props.sort.column === column} order={this.props.sort.order} /> :
+            <SortImg isCurrent={this.props.sort.column === column} order={this.props.sort.order} /> :
             null
         }
-      </th>
+     </TableHeader>
     );
 
     const filterInputs = this.props.onFilter ?
       columnNames.map(column =>
         <td key={column}>
-          <input className={styles.filterInput} type="text" value={this.props.filters[column]} onChange={wrappedOnFilter(column)} />
+          <FilterInput type="text" value={this.props.filters[column]} onChange={wrappedOnFilter(column)} />
         </td>
       ) : null;
 
@@ -85,16 +132,16 @@ class ItemedTable extends React.Component { // eslint-disable-line react/prefer-
     return (
       <table className="table table-hover">
         <thead>
-          <tr>
-            { header }
-            <th><FormattedMessage {...itemMessages.actions} /></th>
-          </tr>
-          <tr>
-            { filterInputs }
-          </tr>
+        <tr>
+          { header }
+          <th><FormattedMessage {...itemMessages.actions} /></th>
+        </tr>
+        <tr>
+          { filterInputs }
+        </tr>
         </thead>
         <tbody>
-          { rows }
+        { rows }
         </tbody>
       </table>
     );

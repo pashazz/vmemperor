@@ -2,6 +2,8 @@ import ascImg from './img/asc.gif';
 import descImg from './img/desc.gif';
 import sortImg from './img/sort.gif';
 import React, { PropTypes as T } from 'react';
+import styled from 'styled-components';
+
 
 const sortImgs = {
   base: sortImg,
@@ -18,4 +20,7 @@ SortImg.propTypes = {
   order: T.oneOf(['asc', 'desc']),
 };
 
-export default SortImg;
+export default styled(SortImg)`
+float: right;
+margin: 5px;
+`;

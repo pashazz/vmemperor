@@ -8,10 +8,10 @@ import { defineMessages } from 'react-intl';
 export default defineMessages({
   loginPlaceholder: {
     id: 'app.components.SinglePoolLogin.loginPlaceholder',
-    defaultMessage: 'Login',
+    defaultMessage: 'login',
   },
   passwordPlaceholder: {
     id: 'app.components.SinglePoolLogin.passwordPlaceholder',
-    defaultMessage: 'Password',
+    defaultMessage: 'password',
   },
 });

@@ -1,80 +1,61 @@
+import sentry_sdk
+
+
 import pathlib
-from collections import OrderedDict
 import signal
 import atexit
+
+import constants
 from connman import ReDBConnection
 import subprocess
-from rethinkdb_helper import CHECK_ER
+
+import handlers.graphql.graphql_handler as gql_handler
+from datetimeencoder import DateTimeEncoder
+from handlers.rest.base import RESTHandler, auth_required, admin_required
+from handlers.graphql.root import schema
+from handlers.rest.console import ConsoleHandler
+from handlers.rest.createvm import CreateVM
+from rethinkdb_tools import db_classes
+from rethinkdb_tools.helper import CHECK_ER
 from quota import Quota
 from xenadapter import XenAdapter, XenAdapterPool
+from xenadapter.event_queue import EventQueue
 from xenadapter.template import Template
 from xenadapter.vm import VM
-from xenadapter.vmguest import VMGuest
-from xenadapter.network import Network, VIF
+from xenadapter.network import Network
 from xenadapter.disk import ISO, VDI, VDIorISO
-from xenadapter.sr import SR
-from xenadapter.vbd import VBD
-from xenadapter.pool import Pool
-from xenadapter.task import Task
-from xenadapter.host import Host
-from playbook import Playbook, PlaybookEncoder
-from tasks import Operations
-import copy
+from playbookloader import PlaybookLoader, PlaybookEncoder
 import traceback
 import tornado.web
 import tornado.httpserver
 import tornado.iostream
 from dynamicloader import DynamicLoader
-import socket
 from tornado import ioloop
-from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
 import pickle
-import rethinkdb as r
-from rethinkdb.errors import ReqlDriverError, ReqlTimeoutError
-from rethinkdb.net import DefaultCursorEmpty
+from rethinkdb.errors import ReqlTimeoutError
 from authentication import BasicAuthenticator
 from loggable import Loggable
 from pathlib import Path
-from urllib.parse import urlsplit, parse_qs
 from exc import *
 import time
 import logging
-import uuid
 from tornado.options import define, options as opts, parse_config_file
 import threading
-import datetime
 import tempfile
 import shutil
 from ruamel import yaml
-from xmlrpc.client import DateTime as xmldt
 from frozendict import frozendict, FrozenDictEncoder
 from authentication import AdministratorAuthenticator
 from tornado.websocket import *
 import asyncio
 from tornado.platform.asyncio import AnyThreadEventLoopPolicy
-from typing import Dict, Optional
 from secrets import token_urlsafe
+from rethinkdb import RethinkDB
 
-logger = None # global logger
-
-POSTINST_ROUTE = r'/postinst'
-# Objects with ACL enabled
-objects = [VM, Network, VDI]
-
-user_table_ready = threading.Event()
-first_batch_of_events = threading.Event()
-need_exit = threading.Event()
-xen_events_run = threading.Event()  # called by USR2 signal handler
-URL = ""
-ansible_pubkey = ""
-auth_class_name = ""
-playbooks = Dict[str, Playbook]
-
-
-
-secrets = {}
+r = RethinkDB()
+sentry_sdk.init("https://0d8af126e03f447fbdf43ef5afc9efc0@sentry.io/1395379")
 
 def table_drop(db, table_name):
     try:
@@ -86,190 +67,15 @@ def table_drop(db, table_name):
             {'db': opts.database, 'name': table_name}).delete().run()
 
 
-class DateTimeEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, xmldt):
-            t = datetime.datetime.strptime(o.value, "%Y%m%dT%H:%M:%SZ")
-            return t.isoformat()
-        elif isinstance(o, datetime.datetime):
-            return o.isoformat()
+class AuthHandler(RESTHandler):
 
-        return super().default(o)
-
-
-def auth_required(method):
-    def decorator(self, *args, **kwargs):
-        user = HandlerMethods.get_current_user(self)
-        if not user:
-            self.set_status(401)
-            self.write({'status': 'error', 'message': 'not authorized'})
-        else:
-            self.user_authenticator = pickle.loads(user)
-            self.user_authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
-            self.xen = self.user_authenticator.xen
-            return method(self)
-
-    return decorator
-
-
-def admin_required(method):
-    def decorator(self, *args, **kwargs):
-        user = HandlerMethods.get_current_user(self)
-        if not user:
-            self.set_status(401)
-            self.write({'status': 'error', 'message': 'not authorized'})
-        else:
-            self.user_authenticator = pickle.loads(user)
-            if not isinstance(self.user_authenticator, AdministratorAuthenticator):
-                self.set_status(403)
-                self.write({'status': 'error', 'message': 'administrator required'})
-                return
-            self.user_authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
-            self.xen = self.user_authenticator.xen
-            return method(self)
-
-    return decorator
-
-
-class HandlerMethods(Loggable):
-    def init_executor(self, executor):
-        self.executor = executor
-        self.debug = opts.debug
-        self.init_log()
-        self.conn = ReDBConnection().get_connection()
-        first_batch_of_events.wait()
-        self.actions_log = self.create_additional_log('actions')
-
-    def get_current_user(self):
-        return self.get_secure_cookie("user")
-
-
-class BaseHandler(tornado.web.RequestHandler, HandlerMethods):
-    _ASYNC_KEY = None
-
-    def initialize(self, executor):
-        self.init_executor(executor)
-        self.user_authenticator = Optional[BasicAuthenticator]
-
-        self.op = Operations(r.db(opts.database))
-
-        super().initialize()
-
-
-    def prepare(self):
-        super().prepare()
-        if not 'Content-Type' in self.request.headers:
-            return
-        content_type = self.request.headers['Content-Type'].split(';')
-        if content_type[0] == 'application/json':
-            encoding = 'utf-8'
-            try:
-                encoding = content_type[1].split('=')[1]
-            except:
-                pass
-
-            body = self.request.body.decode(encoding=encoding).strip()
-            if body:
-                json_data = json.loads(body)
-                json_data_lists = {k: [v] for k, v in json_data.items()}
-                self.request.arguments.update(json_data_lists)
-
-                # monkey-patch decode argument
-                self.decode_argument = lambda value, name: value
-
-                # monkey-patch _get_arguments
-                old_get_arguments = self._get_arguments
-                self._get_arguments = lambda name, source, strip: old_get_arguments(name, source, False)
-
-    def get_current_user(self):
-        return self.get_secure_cookie("user")
-
-
-    def async_run(self, task_ref):
-        self._run_task = task_ref
-        ioloop = tornado.ioloop.IOLoop.instance()
-        ioloop.run_in_executor(self.executor, self.run_async_task)
-
-
-    def run_async_task(self):
-        task = Task(auth=self.user_authenticator, ref=self._run_task)
-
-        with ReDBConnection().get_connection():
-            write_in = {'id' : self._run_task}
-            self.op.set_operation(self.user_authenticator, write_in)
-            write_in['created'] = task.get_created()
-            while task.get_status() == 'pending':
-                write_in['status'] = task.get_status()
-                write_in['progress'] =  task.get_progress()
-                self.op.set_operation(None, write_in)
-                time.sleep(1)
-
-            write_in['finished'] = task.get_finished()
-            write_in['status'] = task.get_status()
-            write_in['progress'] = task.get_progress()
-
-            if write_in['status'] == 'failure':
-                write_in['error_info'] = task.get_error_info()
-
-
-            self.op.set_operation(None, write_in)
-        task.destroy()
-
-
-    def try_xenadapter(self, func, post_hook=None):
+    def initialize(self, pool_executor, authenticator):
         '''
-        Call a xenadapter method, handle exceptions
-        :param func:
-        :param post_hook: call this function with a xenadapter method's return value and an authenticator object  as arguments argument (optional)        :return:
-        '''
-        auth = self.user_authenticator
-
-        try:
-            ret = func(auth)
-
-        except XenAdapterUnauthorizedActionException as ee:
-            self.set_status(403)
-            self.write(json.dumps({'status': 'not allowed', 'details': ee.message}))
-            self.finish()
-
-
-        except EmperorException as ee:
-            self.set_status(400)
-            self.write(json.dumps({'status': 'error', 'details': ee.message}))
-            self.finish()
-
-
-
-        else:
-            if ret:
-                self.write(ret)
-            else:
-                self.write(json.dumps({'status': 'ok'}))
-
-            self.finish()
-            try:
-                if post_hook:
-                    post_hook(ret, auth)
-            except EmperorException as e:
-                self.log.error("try_xenadapter: exception catched in post_hook: %s" % e.message)
-
-
-class BaseWSHandler(WebSocketHandler, HandlerMethods):
-    def initialize(self, executor):
-        self.init_executor(executor)
-        super().initialize()
-
-
-class AuthHandler(BaseHandler):
-
-    def initialize(self, executor, authenticator):
-        '''
-
         :param executor:
         :param authenticator: authentication object derived from BasicAuthenticator
         :return:
         '''
-        super().initialize(executor)
+        super().initialize(pool_executor=pool_executor)
         self.authenticator = authenticator()
 
     def post(self):
@@ -302,26 +108,12 @@ different users should see different info (i.e. only vms created by that user)
 
 
 views should return info in json format
-errors should be returned in next format: {'status': 'error', 'details': string, 'reason': string}
-
 """
 
 
-class Test(BaseHandler):
-
-    @run_on_executor
-    def heavy_task(self):
-        return {'status': 'ok'}
-
-    @gen.coroutine
-    def get(self):
-        res = yield self.heavy_task()
-        self.write(json.dumps(res))
-
-
-class AdminAuth(BaseHandler):
-    def initialize(self, executor, authenticator):
-        super().initialize(executor)
+class AdminAuth(RESTHandler):
+    def initialize(self, pool_executor, authenticator):
+        super().initialize(pool_executor=pool_executor)
         self.user_auth = authenticator
 
     def post(self):
@@ -344,24 +136,25 @@ class AdminAuth(BaseHandler):
         self.set_secure_cookie("user", pickle.dumps(authenticator))
 
 
-class LogOut(BaseHandler):
+class LogOut(RESTHandler):
     def get(self):
         self.clear_cookie('user')
         # self.redirect(self.get_argument("next", "/login"))
         self.write({'status': 'ok'})
 
 
-class Playbooks(BaseHandler):
+class Playbooks(RESTHandler):
     @auth_required
     def get(self):
-        _playbooks = playbooks.values();
+
+        _playbooks = constants.playbooks.values()
         if not isinstance(self.user_authenticator, AdministratorAuthenticator):
             _playbooks = filter(lambda playbook: not playbook.get_inventory(), _playbooks)
         _playbooks = list(_playbooks)
         self.write(json.dumps(list(_playbooks), cls=PlaybookEncoder))
 
 
-class TurnTemplate(BaseHandler):
+class TurnTemplate(RESTHandler):
     @admin_required
     def post(self):
         uuid = self.get_argument('uuid')
@@ -380,46 +173,46 @@ class TurnTemplate(BaseHandler):
 
         self.write({'status': 'ok'})
 
-class AllTemplates(BaseHandler):
+class AllTemplates(RESTHandler):
     @admin_required
     def get(self):
         tmpl = Template.get_all_records(self.user_authenticator)
-        self.write(json.dumps(tmpl, cls=DateTimeEncoder ))
+        self.write(json.dumps(tmpl, cls=DateTimeEncoder))
 
-class SetQuota(BaseHandler):
+class SetQuota(RESTHandler):
     @admin_required
     def post(self):
         userid = self.get_argument('userid')
         name = self.get_argument('name')
         value = self.get_argument('value')
-        quota = Quota(self.user_authenticator, auth_class_name)
+        quota = Quota(self.user_authenticator, constants.auth_class_name)
         if name == 'storage':
             quota.set_storage_quota(userid, int(value))
 
         self.write({'status':'ok'})
 
-class GetQuota(BaseHandler):
+class GetQuota(RESTHandler):
     @admin_required
     def post(self):
         userid = self.get_argument('userid', None)
         with self.conn:
-            quota = Quota(self.user_authenticator, auth_class_name)
+            quota = Quota(self.user_authenticator, constants.auth_class_name)
             self.write(json.dumps(quota.get_storage_usage(userid)))
 
     @auth_required
     def get(self):
         with self.conn:
-            quota = Quota(self.user_authenticator, auth_class_name)
+            quota = Quota(self.user_authenticator, constants.auth_class_name)
             self.write(json.dumps(quota.get_storage_usage()))
 
 
 
-class ResourceList(BaseHandler):
+class ResourceList(RESTHandler):
     @auth_required
     def get(self):
         with self.conn:
             db = r.db(opts.database)
-            user_table_ready.wait()
+            constants.user_table_ready.wait()
             try:
                 if isinstance(self.user_authenticator, AdministratorAuthenticator):
                     query = db.table(self.table).coerce_to('array')
@@ -457,160 +250,8 @@ class VDIList(ResourceList):
     table = 'vdis'
 
 
-class VMList(BaseWSHandler):
-    connections = []
 
-    @auth_required
-    @tornado.web.asynchronous
-    def open(self):
-        self.connections.append(self)
-        with self.conn:
-            db = r.db(opts.database)
-            self.db = db
-            if isinstance(self.user_authenticator, AdministratorAuthenticator):  # get all vms
-                self.changes_query = db.table('vms').changes(include_types=True, include_initial=True)
-
-            else:
-                user_table_ready.wait()
-                userid = str(self.user_authenticator.get_id())
-                # Get all changes from VMS table (only changes, not removals) and mark them as 'state' changes
-                # Plus get all initial values and changes from vms_user table and mark them as 'access' changes
-                #
-                self.changes_query = self.db.table('vms').changes(include_types=True).filter(
-                    r.row['type'].eq(r.expr('change')).or_(r.row['type'].eq('remove'))) \
-                    .union(
-                    self.db.table('vms_user').get_all('users/%s' % userid, index='userid').without('id').
-                        changes(include_types=True, include_initial=True).
-                        merge(r.branch((r.row['type'] == 'initial') | (r.row['type'] == 'add'),
-                                       self.db.table('vms').get(r.row['new_val']['uuid']),
-                                       {})))
-
-                for group in self.user_authenticator.get_user_groups():
-                    group = str(group)
-
-                    self.changes_query = self.changes_query.union(
-                        self.db.table('vms_user').get_all('groups/%s' % group, index='userid')
-                        .without('id').changes(include_types=True, include_initial=True)
-                        .merge(r.branch((r.row['type'] == 'initial') | (r.row['type'] == 'add'),
-                                        self.db.table('vms').get(r.row['new_val']['uuid']),
-                                        {})))
-
-            ioloop = tornado.ioloop.IOLoop.instance()
-            ioloop.run_in_executor(self.executor, self.items_changes)
-
-    def items_changes(self):
-        '''
-        Monitor for User table (access rules) items' changes with the following considerations:
-        - We only monitor for changes in vms table. We need to filter them manually, as there's no way for such
-        complicated filter in ReQL. These have 'type' == 'change'
-        - We know about new entries in vms table because vms_user table provides that for us. Every addition to vms_user
-        gets merged with the corresponding record from vms
-        - All entries from vms_user table have 'type' in ('initial', 'add', 'remove') because do_access_monitor only operates
-        with 'insert' and 'remove'
-        - When
-        '''
-        try:
-            conn = ReDBConnection().get_connection()
-            with conn:
-                valid_uuids = set()
-                cur = None
-
-                def create_cursor():
-                    nonlocal cur
-                    cur = self.changes_query.run()
-
-                def check_access_entry(access_entry):
-                    if access_entry['userid'] == 'users/{0}'.format(self.user_authenticator.get_id()):
-                        return True
-
-                    for group in self.user_authenticator.get_user_groups():
-                        if access_entry['userid'] == 'groups/{0}'.format(group):
-                            return True
-
-                    return False
-
-                self.log.debug('Changes query: {0}'.format(self.changes_query))
-                create_cursor()
-                self.cur = cur
-
-                while True:
-                    try:
-                        change = cur.next(1)
-                    except (ReqlTimeoutError, DefaultCursorEmpty) as e:  # Monitor if we need to exit
-                        if not self.ws_connection or need_exit.is_set():
-                            return
-                        else:
-                            continue
-
-                    if not self.ws_connection or need_exit.is_set():
-                        return
-
-                    if isinstance(self.user_authenticator, AdministratorAuthenticator):
-                        if change['type'] in ('initial', 'add'):
-                            if change['new_val']:
-                                new_val = change['new_val'].copy()
-                                del change['new_val']
-                                change.update(new_val)
-                        elif change['type'] == 'remove':
-                            del change['new_val']
-
-                    else:
-                        if change['type'] == 'change':  # these are sent from vms
-                            if change['new_val']:
-                                record = change['new_val']
-                            elif change['type'] == 'remove':
-                                record = change['old_val']
-                            else:
-                                record = change
-
-                            # for access_entry in record['access']:
-                            #    if check_access_enSacceetry(access_entry):
-                            #        break
-                            # else: #Normal quit, not via break
-                            #    continue #filter this entry
-                            if record['uuid'] not in valid_uuids:
-                                continue
-
-
-                        elif change['type'] in ('initial', 'add'):  # these are access only
-                            del change['new_val']  # we merge them with entries from vms, we don't need new_val
-                            if 'old_val' in change:
-                                del change['old_val']
-
-                            if change['uuid'] not in valid_uuids:
-                                valid_uuids.add(change['uuid'])
-                            else:
-                                continue  # we will get this change as we're subscribed anyway
-
-
-                        elif change['type'] == 'remove':
-                            del change['new_val']  # always null
-
-                            if change['old_val']['uuid'] not in valid_uuids:
-                                continue
-
-                            valid_uuids.remove(change['old_val']['uuid'])
-
-                    try:
-                        self.write_message(json.dumps(change, cls=DateTimeEncoder))
-                    except WebSocketClosedError:
-                        return
-
-        except Exception as e:
-            self.log.error("Exception in items_changes', user: {0}: {1}, restarting..."
-                           .format(self.user_authenticator.get_id(), e))
-            traceback.print_exc()
-            ioloop = tornado.ioloop.IOLoop.instance()
-            ioloop.run_in_executor(self.executor, self.items_changes)
-
-    def on_close(self):
-        if hasattr(self, 'cur'):
-            self.log.info("Closing websocket connection: {0}".format(self.ws_connection))
-
-            self.cur.close()
-
-
-class PoolListPublic(BaseHandler):
+class PoolListPublic(RESTHandler):
     def get(self):
         '''
 
@@ -619,7 +260,7 @@ class PoolListPublic(BaseHandler):
         self.write(json.dumps([{'id': 1}]))
 
 
-class PoolList(BaseHandler):
+class PoolList(RESTHandler):
     @auth_required
     def get(self):
         """
@@ -698,7 +339,7 @@ class PoolList(BaseHandler):
         self.write(json.dumps([pool_info]))
 
 
-class TemplateList(BaseHandler):
+class TemplateList(RESTHandler):
     @auth_required
     def get(self):
         """
@@ -719,7 +360,7 @@ class TemplateList(BaseHandler):
             self.write(json.dumps(list))
 
 
-class ISOList(BaseHandler):
+class ISOList(RESTHandler):
     @auth_required
     def get(self):
         """
@@ -739,6 +380,7 @@ class ISOList(BaseHandler):
             self.write(json.dumps(list))
 
 
+<<<<<<< HEAD
 class CreateVM(BaseHandler):
     _ASYNC_KEY = 'createvm'
 
@@ -996,14 +638,17 @@ class CreateVM(BaseHandler):
 
 
 class ConvertVM(BaseHandler):
+=======
+class ConvertVM(RESTHandler):
+>>>>>>> devil
     @auth_required
     def post(self):
         vm_uuid = self.get_argument('uuid')
         mode = self.get_argument('mode')
-        self.try_xenadapter(lambda auth: VM(auth, uuid=vm_uuid).convert(mode))
+        self.try_xenadapter(lambda auth: VM(auth, uuid=vm_uuid).set_domain_type(mode))
 
 
-class EnableDisableTemplate(BaseHandler):
+class EnableDisableTemplate(RESTHandler):
     @auth_required
     def post(self):
         """
@@ -1018,14 +663,14 @@ class EnableDisableTemplate(BaseHandler):
         self.try_xenadapter(lambda auth: Template(auth, uuid=uuid).enable_disable(bool(enable)))
 
 
-class TaskStatus(BaseHandler):
+class TaskStatus(RESTHandler):
     @auth_required
     def post(self):
         task = self.get_argument('task')
 
         operation = None
         try:
-            operation = self.op.get_operation(self.user_authenticator, task)
+            operation = self.op.get_task(self.user_authenticator, task)
         except KeyError:
             self.set_status(404)
             self.finish()
@@ -1034,7 +679,7 @@ class TaskStatus(BaseHandler):
 
         try:
             self.write(json.dumps({k: v for k, v in operation.items() if k != 'auth'},
-                       cls=DateTimeEncoder))
+                                  cls=DateTimeEncoder))
         except Exception as e:
             self.write({'status': 'error', 'details': 'no such task'})
             self.set_status(400)
@@ -1042,7 +687,7 @@ class TaskStatus(BaseHandler):
             self.finish()
 
 
-class ExecutePlaybook(BaseHandler):
+class ExecutePlaybook(RESTHandler):
     _ASYNC_KEY = 'pb'
 
     def run_ansible(self):
@@ -1055,15 +700,15 @@ class ExecutePlaybook(BaseHandler):
             with open(log_path.joinpath('stdout'), 'w') as _stdout:
                 with open(log_path.joinpath('stderr'), 'w') as _stderr:
                     task['returncode'] = None
-                    self.op.set_operation(self.user_authenticator, task)
+                    self.op.upsert_task(self.user_authenticator, task)
                     proc = subprocess.run(self.cmd_line,
                                           cwd=self.cwd, stdout=_stdout, stderr=_stderr,
                                           env={"ANSIBLE_HOST_KEY_CHECKING":"False"})
 
                     task['returncode'] = proc.returncode
-                    self.op.set_operation(None, task)
+                    self.op.upsert_task(None, task)
 
-            self.log.info(f'Finished {self.cwd.name} with return code {tasks[self.cwd.name]["returncode"]}')
+            self.log.info(f'Finished {self.cwd.name} with return code {constants.tasks[self.cwd.name]["returncode"]}')
 
     @auth_required
     def post(self):
@@ -1080,11 +725,11 @@ class ExecutePlaybook(BaseHandler):
                     return
 
             _playbook = self.get_argument('playbook')
-            if not _playbook in playbooks:
+            if not _playbook in constants.playbooks:
                 self.set_status(400)
                 self.write({'status': 'error', 'message': 'no such playbook: {0}'.format(_playbook)})
                 return
-            p = playbooks[_playbook]
+            p = constants.playbooks[_playbook]
 
             temp_dir = tempfile.mkdtemp(prefix='vmemperor-', suffix=f'-playbook-{_playbook}')
             self.log.info(f"Creating temporary directory {temp_dir}")
@@ -1162,7 +807,7 @@ class ExecutePlaybook(BaseHandler):
             self.finish()
 
 
-class ResourceAbstractHandler(BaseHandler):
+class ResourceAbstractHandler(RESTHandler):
     '''
     Abstact handler for resource requests
     requires: function self.get_data returning something we can write
@@ -1220,7 +865,7 @@ class ISOAbstractHandler(ResourceAbstractHandler):
     resource = ISO
 
 
-class SetAccessHandler(BaseHandler):
+class SetAccessHandler(RESTHandler):
     @auth_required
     def post(self):
         with self.conn:
@@ -1265,7 +910,7 @@ class SetAccessHandler(BaseHandler):
                     return
 
             type_obj = None
-            for obj in objects:
+            for obj in db_classes.CREATE_DB_FOR_CLASSES_WITH_ACL:
                 if obj.__name__ == _type:
                     type_obj = obj
                     break
@@ -1291,7 +936,7 @@ class SetAccessHandler(BaseHandler):
                 return
 
 
-class UserInfo(BaseHandler):
+class UserInfo(RESTHandler):
     @auth_required
     def get(self):
         auth = self.user_authenticator
@@ -1305,21 +950,21 @@ class UserInfo(BaseHandler):
         )
 
 
-class UserList(BaseHandler):
+class UserList(RESTHandler):
     @auth_required
     def get(self):
         with self.conn:
             self.write(json.dumps(r.db(opts.database).table('users').coerce_to('array').run()))
 
 
-class GroupList(BaseHandler):
+class GroupList(RESTHandler):
     @auth_required
     def get(self):
         with self.conn:
             self.write(json.dumps(r.db(opts.database).table('groups').coerce_to('array').run()))
 
 
-class GetAccessHandler(BaseHandler):
+class GetAccessHandler(RESTHandler):
     @auth_required
     def post(self):
         with self.conn:
@@ -1327,7 +972,7 @@ class GetAccessHandler(BaseHandler):
             uuid = self.get_argument('uuid')
             type = self.get_argument('type')
             type_obj = None
-            for obj in objects:
+            for obj in db_classes.CREATE_DB_FOR_CLASSES_WITH_ACL:
                 if obj.__name__ == type:
                     type_obj = obj
                     break
@@ -1351,7 +996,7 @@ class GetAccessHandler(BaseHandler):
             self.write(db.table(type_obj.db_table_name).get(uuid).pluck('access').run())
 
 
-class InstallStatus(BaseHandler):
+class InstallStatus(RESTHandler):
     @auth_required
     def post(self):
         taskid = self.get_argument('taskid')
@@ -1527,32 +1172,6 @@ class RebootVM(VMAbstractHandler):
         self.try_xenadapter(run)
 
 
-class VNC(VMAbstractHandler):
-    access = 'launch'
-    def get_data(self):
-        '''
-        Get VNC console url that supports HTTP CONNECT method. Requires permission 'launch'
-        Arguments:
-            uuid: VM UUID
-
-        '''
-
-        vm_uuid = self.get_argument('uuid')
-
-        def get_vnc(auth: BasicAuthenticator):
-            secret = token_urlsafe()
-            secrets[secret] = {
-                'uuid': vm_uuid,
-                'auth' : auth
-            }
-
-
-            url = f'ws://{opts.vmemperor_host}:{opts.vmemperor_port}/console?secret={secret}'
-            self.log.debug(f"VNC Console URL for uuid: {vm_uuid}: {url}")
-            return url
-
-        self.try_xenadapter(get_vnc)
-
 
 class AttachDetachIso(VMAbstractHandler):
     access = 'attach'
@@ -1681,6 +1300,9 @@ class EventLoop(Loggable):
     of corresponding user, if they are logged in (have open connection to dbms notifications)
      and admin db if admin is logged in"""
 
+    def __repr__(self):
+        return "EventLoop"
+
     def __init__(self, executor, authenticator):
         self.debug = opts.debug
 
@@ -1690,30 +1312,7 @@ class EventLoop(Loggable):
         self.authenticator = authenticator
 
         self.log.info(f"Using database {opts.database}")
-        conn = ReDBConnection().get_connection()
-        with conn:
-            self.log.debug("Creating databases...")
-            if opts.database in r.db_list().run():
-                r.db_drop(opts.database).run()
-
-            r.db_create(opts.database).run()
-            self.db = r.db(opts.database)
-
-            # create database for async tasks
-            self.db.table_create('tasks', durability='soft').run()
-            self.db.table('tasks').wait()
-
-            try:
-                authenticator.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
-            except XenAdapterConnectionError as e:
-                raise XenAdapterAPIError(self.log, "XenServer not reached", e.message)
-
-            self.xen = XenAdapter({**opts.group_dict('xenadapter'), **opts.group_dict('rethinkdb')})
-            for obj in objects:
-                obj.create_db(self.db)
-
-            del authenticator.xen
-
+        self.db = r.db(opts.database)
 
 
     def do_user_table(self):
@@ -1728,13 +1327,13 @@ class EventLoop(Loggable):
                 self.db.table('users').insert(users, conflict='update').run()
                 self.db.table('groups').insert(groups, conflict='update').run()
                 while True:
-                    if need_exit.is_set():
+                    if constants.need_exit.is_set():
                         return
                     delay = 0
                     while True:
                         if opts.user_source_delay <= delay:
                             break
-                        if need_exit.is_set():
+                        if constants.need_exit.is_set():
                             return
                         sleep_time = 2
                         time.sleep(sleep_time)
@@ -1773,8 +1372,9 @@ class EventLoop(Loggable):
             with conn:
                 table_list = self.db.table_list().run()
 
-                query = self.db.table(objects[0].db_table_name).pluck('uuid', 'access') \
-                    .merge({'table': objects[0].db_table_name}).changes(include_initial=True, include_types=True)
+                class_list = list(db_classes.CREATE_DB_FOR_CLASSES_WITH_ACL)
+                query = self.db.table(class_list[0].db_table_name).pluck('uuid', 'access') \
+                .merge({'table': class_list[0].db_table_name}).changes(include_initial=True, include_types=True)
 
                 def initial_merge(table):
                     nonlocal table_list
@@ -1795,18 +1395,18 @@ class EventLoop(Loggable):
                     # self.db.table(table_user).index_wait('uuid').run()
 
                 i = 0
-                while i < len(objects):
+                while i < len(class_list):
 
-                    initial_merge(objects[i].db_table_name)
+                    initial_merge(class_list[i].db_table_name)
 
                     if i > 0:
-                        query = query.union(self.db.table(objects[i].db_table_name).pluck('uuid', 'access') \
-                                            .merge({'table': objects[i].db_table_name}).changes(include_initial=True,
-                                                                                                include_types=True))
+                        query = query.union(self.db.table(class_list[i].db_table_name).pluck('uuid', 'access') \
+                                            .merge({'table': class_list[i].db_table_name}).changes(include_initial=True,
+                                                                                                                    include_types=True))
                     i += 1
 
                 # indicate that vms_user table is ready
-                user_table_ready.set()
+                constants.user_table_ready.set()
                 self.log.debug("Changes query: {0}".format(query))
                 cur = query.run()
                 self.log.debug("Started access_monitor in thread {0}".format(threading.get_ident()))
@@ -1818,7 +1418,7 @@ class EventLoop(Loggable):
                     try:
                         record = cur.next(1)
                     except ReqlTimeoutError as e:
-                        if need_exit.is_set():
+                        if constants.need_exit.is_set():
                             self.log.debug("Exiting access_monitor")
                             return
                         else:
@@ -1864,101 +1464,87 @@ class EventLoop(Loggable):
             # tornado.ioloop.IOLoop.current().run_in_executor(self.executor, self.do_access_monitor)
             raise e
 
+    def load_playbooks(self):
+        '''
+        Load playbooks into RethinkDB. To trigger reloading, send USR1 signal to this process
+        :return:
+        '''
+        self.log.debug("Starting load_playbooks. You can re-trigger playbook loading by sending USR1 signal")
+        while True:
+            constants.load_playbooks.wait()
+            with ReDBConnection().get_connection():
+                db = r.db(opts.database)
+                if PlaybookLoader.PLAYBOOK_TABLE_NAME in db.table_list().run():
+                    db.table_drop(PlaybookLoader.PLAYBOOK_TABLE_NAME).run()
+
+                db.table_create(PlaybookLoader.PLAYBOOK_TABLE_NAME, durability='soft').run()
+                PlaybookLoader.load_playbooks()
+            constants.load_playbooks.clear()
+
+
+
+
     def process_xen_events(self):
-        self.log.debug("Started process_xen_events in thread {0}".format(threading.get_ident()))
+        self.log.debug(f"Started process_xen_events in thread {threading.get_ident()}")
         from XenAPI import Failure
 
-        self.authenticator.xen = XenAdapterPool().get()
-        xen = self.authenticator.xen
-        event_types = ["*"]
-        token_from = ''
-        timeout = 1.0
+        event_types = None
+        timeout = None
+        xen = None
+        token_from = None
+        def init_xen():
+            nonlocal  xen, event_types, token_from, timeout
+            xen = XenAdapterPool().get()
+            event_types = ["*"]
+            token_from = ''
+            timeout = 1.0
 
-        xen.api.event.register(event_types)
+            xen.api.event.register(event_types)
+            return
+
+        init_xen()
         conn = ReDBConnection().get_connection()
 
-        def print_event(event):
-            ordered = OrderedDict(event)
-            ordered.move_to_end("operation", last=False)
-            ordered.move_to_end("class", last=False)
-            return ordered
+
 
         with conn:
             self.log.debug("Started process_xen_events. You can kill this thread and 'freeze'"
                            " cache databases (except for access) by sending signal USR2")
-            first_batch_of_events.clear()
+            constants.first_batch_of_events.clear()
+            queue = EventQueue(self.authenticator, self.db)
 
             while True:
                 try:
-                    if not xen_events_run.is_set():
+                    if not constants.xen_events_run.is_set():
                         self.log.debug("Freezing process_xen_events")
-                        xen_events_run.wait()
+                        constants.xen_events_run.wait()
                         self.log.debug("Unfreezing process_xen_events")
-                    if need_exit.is_set():
+                    if constants.need_exit.is_set():
                         self.log.debug("Exiting process_xen_events")
                         return
+                    try:
+                        event_from_ret = xen.api.event_from(event_types, token_from, timeout)
+                    except Exception:
+                        self.log.error("Connection error,trying to reconnect")
+                        init_xen()
+                        continue
 
-                    event_from_ret = xen.api.event_from(event_types, token_from, timeout)
                     events = event_from_ret['events']
                     token_from = event_from_ret['token']
 
                     for event in events:
-                        if event['class'] == 'message':
-                            continue  # temporary hardcode to fasten event handling
-                        log_this = opts.log_events and event['class'] in opts.log_events.split(',') \
-                                   or not opts.log_events
+                        queue.put(event)
 
-                        # similarly to list_vms -> process
-                        if event['class'] == 'vm_metrics':
-                            ev_class = VM  # use methods filter_record, process_record (classmethods)
-                        elif event['class'] == 'vm':
-                            ev_class = [VM, Template]
-
-                        elif event['class'] == 'network':
-                            ev_class = Network
-                        elif event['class'] == 'sr':
-                            ev_class = SR
-
-                        elif event['class'] == 'vdi':
-                            ev_class = [ISO, VDI]
-                        elif event['class'] == 'vif':
-                            ev_class = VIF
-                        elif event['class'] == 'vm_guest_metrics':
-                            ev_class = VMGuest
-                        elif event['class'] == 'vbd':
-                            ev_class = VBD
-                        elif event['class'] == 'pool':
-                            ev_class = Pool
-                        elif event['class'] == 'host':
-                            ev_class = Host
-
-                        else:  # Implement ev_classes for all types of events
-                            if log_this:
-                                self.log.debug(
-                                    "Ignored Event: %s" % json.dumps(print_event(event), cls=DateTimeEncoder))
-                            continue
-
-                        if log_this:
-                            self.log.debug("Event: %s" % json.dumps(print_event(event), cls=DateTimeEncoder))
-
-                        try:
-                            if isinstance(ev_class, list):
-                                for cl in ev_class:
-                                    cl.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
-                            else:
-                                ev_class.process_event(self.authenticator, event, self.db, self.authenticator.__name__)
-                        except Exception as e:
-                            self.log.error("Failed to process event: class %s, error: %s" % (ev_class, e))
-                            traceback.print_exc()
-
-                    if not first_batch_of_events.is_set():
-                        first_batch_of_events.set()
-
+                    if not constants.first_batch_of_events.is_set():
+                        queue.join()
+                        constants.first_batch_of_events.set()
 
                 except Failure as f:
                     if f.details == ["EVENTS_LOST"]:
-                        self.log.warning("Reregistering for events")
+                        self.log.warning("Reregistering for events...")
                         xen.api.event.register(event_types)
+                    else:
+                        raise f
 
 
 def event_loop(executor, authenticator=None, ioloop=None):
@@ -1975,44 +1561,64 @@ def event_loop(executor, authenticator=None, ioloop=None):
 
     ioloop.run_in_executor(executor, loop_object.do_access_monitor)
     ioloop.run_in_executor(executor, loop_object.do_user_table)
-    xen_events_run.set()
+    constants.xen_events_run.set()
     ioloop.run_in_executor(executor, loop_object.process_xen_events)
+
+    constants.load_playbooks.set()
+    ioloop.run_in_executor(executor, loop_object.load_playbooks)
 
 
     def usr2_signal_handler(num, stackframe):
-        if xen_events_run.is_set():
-            xen_events_run.clear()
+        '''
+        Send USR2 signal to freeze/unfreeze loading of Xen events
+        :param num:
+        :param stackframe:
+        :return:
+        '''
+        if constants.xen_events_run.is_set():
+            constants.xen_events_run.clear()
         else:
-            xen_events_run.set()
+            constants.xen_events_run.set()
+
+    def usr1_signal_handler(num, stackframe):
+        '''
+        Send USR1 signal to reload Playbook configuration
+        :param num:
+        :param stackframe:
+        :return:
+        '''
+        constants.load_playbooks.set()
 
     signal.signal(signal.SIGUSR2, usr2_signal_handler)
+    signal.signal(signal.SIGUSR1, usr1_signal_handler)
+
 
     return ioloop
 
 
-class Postinst(BaseHandler):
+class Postinst(RESTHandler):
     def get(self):
         os = self.get_argument("os")
-        pubkey_path = pathlib.Path(ansible_pubkey)
+        device = self.get_argument("device")
+        pubkey_path = pathlib.Path(constants.ansible_pubkey)
         pubkey = pubkey_path.read_text()
-        self.render('templates/installation-scenarios/postinst/{0}'.format(os), pubkey=pubkey)
+        self.render(f'templates/installation-scenarios/postinst/{os}', pubkey=pubkey, device=device)
 
 
-class AutoInstall(BaseHandler):
+class AutoInstall(RESTHandler):
     def get(self, os_kind):
         '''
         This is used by CreateVM
         :param os_kind:
         :return:
         '''
-        if os_kind == 'test':
-            self.render("templates/installation-scenarios/test.cfg")
-            return
-        hostname = self.get_argument('hostname', default='xen_vm')
+        filename = None
+        hostname = self.get_argument('hostname')
+        device = self.get_argument('device')
         username = self.get_argument('username', default='')
-        password = self.get_argument('password')
-        mirror_url = self.get_argument('mirror_url')
-        fullname = self.get_argument('fullname')
+        password = self.get_argument('password', default='')
+        mirror_url = self.get_argument('mirror_url', default='')
+        fullname = self.get_argument('fullname', default='')
         ip = self.get_argument('ip', default='')
         gateway = self.get_argument('gateway', default='')
         netmask = self.get_argument('netmask', default='')
@@ -2059,159 +1665,15 @@ class AutoInstall(BaseHandler):
                     part['name'] = part['mp'].replace('/', '')
             filename = 'centos-ks.cfg'
             mirror_path = ''
-            pubkey_path = pathlib.Path(ansible_pubkey)
+            pubkey_path = pathlib.Path(constants.ansible_pubkey)
             pubkey = pubkey_path.read_text()
         if not filename:
             raise ValueError("OS {0} doesn't support autoinstallation".format(os_kind))
         # filename = 'raid10.cfg'
-        self.render("templates/installation-scenarios/{0}".format(filename), hostname=hostname, username=username,
+        self.render(f"templates/installation-scenarios/{filename}", hostname=hostname, username=username,
                     fullname=fullname, password=password, mirror_url=mirror_url, mirror_path=mirror_path,
-                    ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, partition=partition, pubkey=pubkey,
-                    postinst=URL + POSTINST_ROUTE + "?" + urlencode({'os': 'debian'}, doseq=True)
-                    )
-
-
-class ConsoleHandler(BaseWSHandler):
-    def check_origin(self, origin):
-        return True
-
-    def initialize(self, executor):
-        super().initialize(executor)
-
-        username = opts.username
-        password = opts.password
-        self.auth_token = base64.encodebytes('{0}:{1}'.format
-                                             (username,
-                                              password).encode())
-
-
-    @tornado.web.asynchronous
-    def open(self):
-        '''
-        This method proxies WebSocket calls to XenServer
-        '''
-
-
-        # Get VM vnc url
-        url_parsed = urlparse(self.request.uri)
-        try:
-            secret = parse_qs(url_parsed.query)['secret'][0]
-        except KeyError:
-            self.write_message("No argument secret")
-            self.close()
-            return
-
-
-        try:
-            data = secrets[secret]
-        except KeyError:
-            self.write_message("Invalid secret")
-            self.close()
-            return
-
-        try:
-            vm = VM(uuid=data['uuid'], auth=data['auth'])
-            vnc_url = vm.get_vnc()
-        except XenAdapterUnauthorizedActionException as ee:
-            self.set_status(403)
-            self.write(json.dumps({'status': 'not allowed', 'details': ee.message}))
-            self.finish()
-
-
-        except EmperorException as ee:
-            self.set_status(400)
-            self.write(json.dumps({'status': 'error', 'details': ee.message}))
-            self.finish()
-
-        vnc_url_parsed = urlsplit(vnc_url)
-        port = vnc_url_parsed.port
-        if port is None:
-            port = 80 # TODO: If scheme is HTTPS, use 443
-        self.sock = socket.create_connection((vnc_url_parsed.hostname, port))
-        self.sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
-        self.sock.setblocking(0)
-        self.halt = False
-        self.translate = False
-        self.key = None
-
-        uri = f'{vnc_url_parsed.path}?{vnc_url_parsed.query}'
-        lines = [
-            'CONNECT {0} HTTP/1.1'.format(uri),  # HTTP 1.1 creates Keep-alive connection
-            'Host: {0}'.format(opts.vmemperor_host),
-            #   'Authorization: Basic {0}'.format(self.auth_token),
-        ]
-        self.sock.send('\r\n'.join(lines).encode())
-        self.sock.send(b'\r\nAuthorization: Basic ' + self.auth_token)
-        self.sock.send(b'\r\n\r\n')
-        del secrets[secret]
-        tornado.ioloop.IOLoop.current().spawn_callback(self.server_reading)
-
-    def on_message(self, message):
-        assert (isinstance(message, bytes))
-        self.sock.send(message)
-
-    def select_subprotocol(self, subprotocols):
-        if 'binary' in subprotocols:
-            proto = 'binary'
-        else:
-            proto = subprotocols[0] if len(subprotocols) else ""
-
-
-        return proto
-
-    @gen.coroutine
-    def server_reading(self):
-        try:
-            data_sent = False
-            http_header_read = False
-            stream = tornado.iostream.IOStream(self.sock)
-            while self.halt is False:
-                try:
-                    if not data_sent:
-                        data = yield stream.read_bytes(100, partial=True)
-                        if not http_header_read:
-                            notok = b'200 OK' not in data
-                            if notok:
-                                self.log.error(f"Unable to open VNC Console {self.request.uri}: Error: {data}")
-                                self.write_message(data)
-                                self.close()
-                                return
-                            else:
-                                http_header_read = True
-
-                        try:
-                            index = data.index(b'RFB')
-                        except ValueError:
-                            self.log.warning("server_reading: 200 OK returned, but no RFB in first data message. Continuing")
-                            continue
-
-
-                        data = data[index:]
-                        data_sent = True
-                    else:
-                        data = yield stream.read_bytes(1024, partial=True)
-                except StreamClosedError as e:
-                    self.log.info(f"{self.request.uri}: Stream closed: {e}")
-                    self.halt = True
-                    self.close()
-                    break
-                self.write_message(data, binary=True)
-
-        except:
-            if self.halt is False:
-                traceback.print_exc()
-            else:
-                pass
-
-    def on_close(self):
-        self.halt = True
-
-        try:
-            self.sock.send(b'close\n')
-        except:
-            pass
-        finally:
-            self.sock.close()
+                    ip=ip, gateway=gateway, netmask=netmask, dns0=dns0, dns1=dns1, partition=partition, pubkey=pubkey,device=device,
+                    postinst=f"{constants.URL}{constants.POSTINST_ROUTE}?{urlencode({'os': 'debian', 'device':device})}")
 
 
 def make_app(executor, auth_class=None, debug=False):
@@ -2222,62 +1684,66 @@ def make_app(executor, auth_class=None, debug=False):
         if not auth_class:
             auth_class = d.load_class(class_base=BasicAuthenticator, module=module)[0]
 
-    classes = [auth_class, Test, AutoInstall, ConsoleHandler]
-
     settings = {
         "cookie_secret": "SADFccadaeqw221fdssdvxccvsdf",
         "login_url": "/login",
         "debug": debug
     }
-    for cls in classes:
-        cls.debug = debug
+
 
     app = tornado.web.Application([
 
-        (r"/login", AuthHandler, dict(executor=executor, authenticator=auth_class)),
-        (r"/logout", LogOut, dict(executor=executor)),
-        (r'/test', Test, dict(executor=executor)),
-        (XenAdapter.AUTOINSTALL_PREFIX + r'/([^/]+)', AutoInstall, dict(executor=executor)),
-        (POSTINST_ROUTE + r'.*', Postinst, dict(executor=executor)),
-        (r'/console.*', ConsoleHandler, dict(executor=executor)),
-        (r'/createvm', CreateVM, dict(executor=executor)),
-        (r'/startstopvm', StartStopVM, dict(executor=executor)),
-        (r'/rebootvm', RebootVM, dict(executor=executor)),
-        (r'/vmlist', VMList, dict(executor=executor)),
-        (r'/poollist', PoolList, dict(executor=executor)),
-        (r'/list_pools', PoolListPublic, dict(executor=executor)),
-        (r'/tmpllist', TemplateList, dict(executor=executor)),
-        (r'/netlist', NetworkList, dict(executor=executor)),
-        (r'/enabledisabletmpl', EnableDisableTemplate, dict(executor=executor)),
-        (r'/vnc', VNC, dict(executor=executor)),
-        (r'/attachdetachvdi', AttachDetachVDI, dict(executor=executor)),
-        (r'/attachdetachiso', AttachDetachIso, dict(executor=executor)),
-        (r'/netaction', NetworkAction, dict(executor=executor)),
-        (r'/destroyvm', DestroyVM, dict(executor=executor)),
-        (r'/adminauth', AdminAuth, dict(executor=executor, authenticator=auth_class)),
-        (r'/convertvm', ConvertVM, dict(executor=executor)),
-        (r'/installstatus', InstallStatus, dict(executor=executor)),
-        (r'/vminfo', VMInfo, dict(executor=executor)),
-        (r'/isolist', ISOList, dict(executor=executor)),
-        (r'/vdilist', VDIList, dict(executor=executor)),
-        (r'/setaccess', SetAccessHandler, dict(executor=executor)),
-        (r'/getaccess', GetAccessHandler, dict(executor=executor)),
-        (r'/netinfo', NetworkInfo, dict(executor=executor)),
-        (r'/userinfo', UserInfo, dict(executor=executor)),
-        (r'/vdiinfo', VDIInfo, dict(executor=executor)),
-        (r'/isoinfo', ISOInfo, dict(executor=executor)),
-        (r'/vmdiskinfo', VMDiskInfo, dict(executor=executor)),
-        (r'/vmnetinfo', VMNetInfo, dict(executor=executor)),
-        (r'/turntemplate', TurnTemplate, dict(executor=executor)),
-        (r'/playbooks', Playbooks, dict(executor=executor)),
-        (r'/executeplaybook', ExecutePlaybook, dict(executor=executor)),
-        (r'/taskstatus', TaskStatus, dict(executor=executor)),
-        (r'/userlist', UserList, dict(executor=executor)),
-        (r'/grouplist', GroupList, dict(executor=executor)),
-        (r'/alltemplates', AllTemplates, dict(executor=executor)),
-        (r'/destroyvdi', DestroyVDI, dict(executor=executor)),
-        (r'/setquota', SetQuota, dict(executor=executor)),
-        (r'/getquota', GetQuota, dict(executor=executor)),
+        (r"/login", AuthHandler, dict(pool_executor=executor, authenticator=auth_class)),
+        (r"/logout", LogOut, dict(pool_executor=executor)),
+        (XenAdapter.AUTOINSTALL_PREFIX + r'/([^/]+)', AutoInstall, dict(pool_executor=executor)),
+        (constants.POSTINST_ROUTE + r'.*', Postinst, dict(pool_executor=executor)),
+        (r'/console.*', ConsoleHandler, dict(pool_executor=executor)),
+        (r'/createvm', CreateVM, dict(pool_executor=executor)),
+        (r'/startstopvm', StartStopVM, dict(pool_executor=executor)),
+        (r'/rebootvm', RebootVM, dict(pool_executor=executor)),
+        (r'/poollist', PoolList, dict(pool_executor=executor)),
+        (r'/list_pools', PoolListPublic, dict(pool_executor=executor)),
+        (r'/tmpllist', TemplateList, dict(pool_executor=executor)),
+        (r'/netlist', NetworkList, dict(pool_executor=executor)),
+        (r'/enabledisabletmpl', EnableDisableTemplate, dict(pool_executor=executor)),
+        (r'/attachdetachvdi', AttachDetachVDI, dict(pool_executor=executor)),
+        (r'/attachdetachiso', AttachDetachIso, dict(pool_executor=executor)),
+        (r'/netaction', NetworkAction, dict(pool_executor=executor)),
+        (r'/destroyvm', DestroyVM, dict(pool_executor=executor)),
+        (r'/adminauth', AdminAuth, dict(pool_executor=executor, authenticator=auth_class)),
+        (r'/convertvm', ConvertVM, dict(pool_executor=executor)),
+        (r'/installstatus', InstallStatus, dict(pool_executor=executor)),
+        (r'/vminfo', VMInfo, dict(pool_executor=executor)),
+        (r'/isolist', ISOList, dict(pool_executor=executor)),
+        (r'/vdilist', VDIList, dict(pool_executor=executor)),
+        (r'/setaccess', SetAccessHandler, dict(pool_executor=executor)),
+        (r'/getaccess', GetAccessHandler, dict(pool_executor=executor)),
+        (r'/netinfo', NetworkInfo, dict(pool_executor=executor)),
+        (r'/userinfo', UserInfo, dict(pool_executor=executor)),
+        (r'/vdiinfo', VDIInfo, dict(pool_executor=executor)),
+        (r'/isoinfo', ISOInfo, dict(pool_executor=executor)),
+        (r'/vmdiskinfo', VMDiskInfo, dict(pool_executor=executor)),
+        (r'/vmnetinfo', VMNetInfo, dict(pool_executor=executor)),
+        (r'/turntemplate', TurnTemplate, dict(pool_executor=executor)),
+        (r'/playbooks', Playbooks, dict(pool_executor=executor)),
+        (r'/executeplaybook', ExecutePlaybook, dict(pool_executor=executor)),
+        (r'/taskstatus', TaskStatus, dict(pool_executor=executor)),
+        (r'/userlist', UserList, dict(pool_executor=executor)),
+        (r'/grouplist', GroupList, dict(pool_executor=executor)),
+        (r'/alltemplates', AllTemplates, dict(pool_executor=executor)),
+        (r'/destroyvdi', DestroyVDI, dict(pool_executor=executor)),
+        (r'/setquota', SetQuota, dict(pool_executor=executor)),
+        (r'/getquota', GetQuota, dict(pool_executor=executor)),
+
+        (r'/graphql', gql_handler.GraphQLHandler, dict(pool_executor=executor, graphiql=False, schema=schema)),
+        #(r'/graphql/batch', gql_handler.GraphQLHandler, dict(pool_executor=executor, graphiql=True, schema=schema, batch=True)),
+        (r'/graphiql', gql_handler.GraphQLHandler, dict(pool_executor=executor, graphiql=True, schema=schema)),
+        #(r'/graphql', tornadoql.GraphQLHandler, dict(pool_executor=executor, schema=schema)),
+        #(r'/graphql/graphiql', tornadoql.GraphiQLHandler, dict(pool_executor=executor, schema=schema)),
+        (r'/subscriptions', gql_handler.GraphQLSubscriptionHandler, dict(pool_executor=executor, schema=schema))
+
+
+
 
     ], **settings)
 
@@ -2322,23 +1788,30 @@ def read_settings():
     define('ansible_dir', group='ansible', default='./ansible')
     define('ansible_logs', group='ansible', default='./ansible_logs')
     define('ansible_networks', group='ansible', default='', multiple=True)
+    define('graphql_error_log_file', group='graphql', default='graphql_errors.log')
 
     from os import path
 
     file_path = path.join(path.dirname(path.realpath(__file__)), 'login.ini')
     parse_config_file(file_path)
-    global ansible_pubkey
-    ansible_pubkey = path.expanduser(opts.ansible_pubkey)
+
+    rotateLogs()
+
+    constants.ansible_pubkey = path.expanduser(opts.ansible_pubkey)
     ReDBConnection().set_options(opts.host, opts.port)
-    if not os.access(ansible_pubkey, os.R_OK):
-        logger.warning("WARNING: Ansible pubkey {0} (ansible_pubkey config option) is not readable".format(ansible_pubkey))
+    if not os.access(constants.ansible_pubkey, os.R_OK):
+        logger.warning(
+            f"WARNING: Ansible pubkey {constants.ansible_pubkey} (ansible_pubkey config option) is not readable")
 
     def on_exit():
-        xen_events_run.set()
-        need_exit.set()
+        constants.xen_events_run.set()
+        constants.need_exit.set()
 
     atexit.register(on_exit)
     # do log rotation
+
+
+def rotateLogs():
     log_path = pathlib.Path(opts.log_file_name)
     if log_path.exists():
         number = 0
@@ -2358,26 +1831,38 @@ def read_settings():
         log_path.rename(opts.log_file_name + '.0')
 
 
+def create_dbs():
+    with ReDBConnection().get_connection():
+        logging.debug(f"Creating tables for {db_classes.CREATE_DB_FOR_CLASSES}")
+        if opts.database in r.db_list().run():
+            r.db_drop(opts.database).run()
+
+        r.db_create(opts.database).run()
+        db = r.db(opts.database)
+        logging.debug(f"Creating tables (with ACL) for {db_classes.CREATE_DB_FOR_CLASSES_WITH_ACL}")
+        for obj in db_classes.CREATE_DB_FOR_CLASSES_WITH_ACL:
+            obj.create_db(db)
+
+
+
+        for cl in db_classes.CREATE_DB_FOR_CLASSES:
+            cl.create_db(db=r.db(opts.database))
+
+
 def main():
     """ reads settings in ini configures and starts system"""
+
+    create_dbs()
     asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
-
-    global URL
-    global auth_class_name
-    URL = f"http://{opts.vmemperor_host}:{opts.vmemperor_port}"
-    logger.debug(f"Listening on: {URL}")
-
+    constants.URL = f"http://{opts.vmemperor_host}:{opts.vmemperor_port}"
+    logger.debug(f"Listening on: {constants.URL}")
     executor = ThreadPoolExecutor(max_workers=2048)
     app = make_app(executor)
     server = tornado.httpserver.HTTPServer(app)
     server.listen(opts.vmemperor_port, address="0.0.0.0")
     ioloop = event_loop(executor, authenticator=app.auth_class)
     logger.debug(f"Using authentication: {app.auth_class.__name__}")
-    auth_class_name = app.auth_class.__name__
-    logger.debug("Loading playbooks...")
-    global playbooks
-    playbooks = {p.get_id(): p for p in Playbook.get_playbooks()}
-    logger.debug(f"loaded  {len(playbooks)}")
+    constants.auth_class_name = app.auth_class.__name__
     ioloop.start()
 
     return

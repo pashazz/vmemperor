@@ -1,0 +1,11 @@
+query NetAttachTableSelection {
+  selectedItems(tableId: NetworkAttach ) @client
+}
+
+mutation NetAttachTableSelect ($item: ID!, $isSelect: Boolean! ){
+  selectedItems(tableId: NetworkAttach, items: [$item], isSelect: $isSelect) @client
+}
+
+mutation NetAttachTableSelectAll ($items: [ID!]!, $isSelect: Boolean! ){
+  selectedItems(tableId: NetworkAttach, items: $items, isSelect: $isSelect) @client
+}

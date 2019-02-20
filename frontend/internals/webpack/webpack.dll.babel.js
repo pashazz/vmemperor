@@ -19,7 +19,7 @@ if (!pkg.dllPlugin) { process.exit(0); }
 const dllConfig = defaults(pkg.dllPlugin, dllPlugin.defaults);
 const outputPath = join(process.cwd(), dllConfig.path);
 
-module.exports = {
+module.exports = require('./webpack.base.babel')({
   context: process.cwd(),
   entry: dllConfig.dlls ? dllConfig.dlls : dllPlugin.entry(pkg),
   devtool: 'eval',
@@ -29,6 +29,12 @@ module.exports = {
     library: '[name]',
   },
   plugins: [
-    new webpack.DllPlugin({ name: '[name]', path: join(outputPath, '[name].json') }), // eslint-disable-line no-new
+    new webpack.DllPlugin({
+      name: '[name]',
+      path: join(outputPath, '[name].json'),
+    }),
   ],
-};
+  performance: {
+    hints: false,
+  },
+});

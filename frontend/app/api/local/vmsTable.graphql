@@ -1,0 +1,28 @@
+
+
+query VmTableSelection {
+  selectedItems(tableId: VMS ) @client
+}
+
+mutation VmTableSelect ($item: ID!, $isSelect: Boolean! ){
+  selectedItems(tableId: VMS, items: [$item], isSelect: $isSelect) @client
+}
+
+mutation VmTableSelectAll ($items: [ID!]!, $isSelect: Boolean! ){
+  selectedItems(tableId: VMS, items: $items, isSelect: $isSelect) @client
+}
+
+query VmPowerState {
+  vms {
+    uuid
+    powerState
+  }
+}
+
+query VMStateForButtonToolbar{
+  vmSelectedReadyFor @client {
+    start
+    stop
+    trash
+  }
+}

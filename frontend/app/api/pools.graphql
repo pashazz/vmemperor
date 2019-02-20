@@ -1,0 +1,23 @@
+fragment PoolListFragment on GPool {
+  master{
+    uuid
+  }
+  nameLabel
+  nameDescription
+  uuid
+}
+
+query PoolList{
+  pools{
+    ...PoolListFragment
+  }
+}
+
+subscription PoolListUpdate{
+  pools {
+    value{
+      ...PoolListFragment
+    }
+    changeType
+  }
+}

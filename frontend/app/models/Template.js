@@ -1,53 +1,25 @@
 import { Record } from 'immutable';
+import T from 'prop-types';
+import {Access} from "./types";
 
-const Template = Record({ // eslint-disable-line new-cap
-  endpoint: {},
-  uuid: null,
-  tags: [],
-  other_config: {},
+const Template = Record({
+  hvm: false,
   name_label: '',
-  default_mirror: '',
-  install_repository: null,
-  allowed_operations: [],
-  is_a_template: true,
-  name_description: '',
-  is_control_domain: false,
-  is_a_snapshot: false,
-  changing: false,
+  os_kind: '',
+  ref: '',
+  uuid: '',
+
 });
 
-Template.prototype.key = function key() {
-  return this.uuid;
-};
+Template.prototype.shape = T.shape(
+  {
+    uuid: T.string.isRequired,
+    name_label: T.string.isRequired,
+    os_kind: T.oneOf(['', 'ubuntu', 'debian', 'centos']).isRequired,
+    ref: T.string.isRequired,
+    hvm: T.bool.isRequired,
+  });
 
-Template.prototype.name = function name() {
-  return this.name_label;
-};
-
-Template.prototype.state = function state() {
-  return this.changing ? 'Changing' : 'Stable';
-};
-
-Template.prototype.description = function description() {
-  return this.name_description;
-};
-
-Template.prototype.pool = function pool() {
-  return this.endpoint.description;
-};
-
-Template.prototype.mirror = function mirror() {
-  return this.other_config.install_repository || this.other_config.default_mirror;
-};
-
-Template.prototype.toApi = function toApi() {
-  return {
-    vm_uuid: this.uuid,
-    endpoint_url: this.endpoint.url,
-    endpoint_description: this.endpoint.description,
-    default_mirror: this.default_mirror,
-    vmemperor_hooks: this.other_config.vmemperor_hooks,
-  };
-};
+Template.prototype.key = () => { return this.uuid };
 
 export default Template;

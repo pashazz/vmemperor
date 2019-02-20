@@ -1,14 +1,27 @@
-from rethinkdb_helper import CHECK_ER
-from .xenobject import XenObject
+import graphene
+
+from handlers.graphql.resolvers.sr import srType, resolve_sr
+from handlers.graphql.types.gxenobjecttype import GXenObjectType
+from handlers.graphql.resolvers.host import hostType, resolve_host
+from rethinkdb_tools.helper import CHECK_ER
+from .xenobject import XenObject, GXenObject
 import json
 from json import JSONDecodeError
+
+class GPool(GXenObjectType):
+    class Meta:
+        interfaces = (GXenObject,)
+    master = graphene.Field(hostType, description="Pool master",
+                            resolver=lambda *args, **kwargs: resolve_host(field_name='master', *args, **kwargs), required=True)
+    default_SR = graphene.Field(srType, description="Default SR", resolver=resolve_sr)
+
 
 class Pool (XenObject):
     db_table_name = 'pools'
     api_class = 'pool'
     EVENT_CLASSES = ['pool']
-    PROCESS_KEYS = ['name_label', 'name_description', 'uuid', 'master']
     quotas_table_name = 'quotas'
+    GraphQLType = GPool
 
     @classmethod
     def create_db(cls, db, indexes=None):

@@ -4,4 +4,4 @@
  *
  */
 
-export const SET_POOLS = 'app/LoginPage/SET_POOLS';
+export const SET_POOLS = 'emperor/LoginPage/SET_POOLS';

@@ -1,0 +1,19 @@
+enum Table {
+  VMS,
+  NetworkAttach,
+  DiskAttach
+}
+
+type VMSelectedIDLists {
+  start: [ID]
+  stop: [ID]
+  trash: [ID]
+}
+
+extend type Mutation {
+  selectedItems(tableId: Table!,items: [ID!]!, isSelect: Boolean!): [ID!]
+}
+extend type Query {
+  selectedItems(tableId: Table!): [ID!]!
+  vmSelectedReadyFor: VMSelectedIDLists!
+}

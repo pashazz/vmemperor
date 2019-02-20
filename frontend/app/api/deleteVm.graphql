@@ -1,0 +1,5 @@
+mutation DeleteVM ($uuid : ID!) {
+  vmDelete(uuid: $uuid) {
+    taskId
+  }
+}

@@ -1,19 +1,18 @@
-import expect from 'expect';
+
 import {
-  setPools,
+  defaultAction,
 } from '../actions';
 import {
-  SET_POOLS,
+  DEFAULT_ACTION,
 } from '../constants';
 
 describe('LoginPage actions', () => {
-  describe('Set Pools Action', () => {
-    it('has a type of SET_POOLS', () => {
+  describe('Default Action', () => {
+    it('has a type of DEFAULT_ACTION', () => {
       const expected = {
-        type: SET_POOLS,
-        pools: [1, 2, 3],
+        type: DEFAULT_ACTION,
       };
-      expect(setPools([1, 2, 3])).toEqual(expected);
+      expect(defaultAction()).toEqual(expected);
     });
   });
 });

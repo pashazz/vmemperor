@@ -1,0 +1,15 @@
+{
+  "name": "VMEmperor",
+  "schemaPath": "schema.graphql",
+  "extensions": {
+    "endpoints": {
+      "Default GraphQL Endpoint": {
+        "url": "http://localhost:8889/graphql",
+        "subscription": "http://localhost:8889/subscriptions",
+        "headers": {
+          "user-agent": "VMEmperor"
+        }
+      }
+    }
+  }
+}

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 from vmemperor import read_settings, opts
 
-import rethinkdb as r
+from rethinkdb import RethinkDB
+r = RethinkDB()
 if __name__ == '__main__':
     read_settings()
     conn = r.connect(opts.host, opts.port).repl()

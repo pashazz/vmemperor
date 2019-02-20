@@ -1,0 +1,12 @@
+fragment NetworkListFragment on GNetwork {
+  uuid
+  nameLabel
+  nameDescription
+}
+
+query NetworkList {
+  networks {
+    ...NetworkListFragment
+  }
+}
+
