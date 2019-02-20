@@ -1,11 +1,7 @@
 #!/bin/bash
-<<<<<<< HEAD
-mount "/dev/disk/by-label/XCP-ng\x20Tools" /mnt
-=======
 #mount "/dev/disk/by-label/XenServer\x20Tools" /mnt
 ls /dev
 mount /dev/{{ device }} /mnt
->>>>>>> devil
 cd /mnt/Linux
 ./install.sh -n
 
@@ -13,4 +9,3 @@ mkdir -p /root/.ssh/
 echo "{{ pubkey }}" >> /root/.ssh/authorized_keys
 chmod  700 /root/.ssh
 chmod -R 600 /root/.ssh/*
-

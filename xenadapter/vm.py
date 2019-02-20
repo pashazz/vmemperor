@@ -333,40 +333,7 @@ class VM (AbstractVM):
         :param name_label: Name for created VM
         :param start: if True, start VM immediately
         :param override_pv_args: if specified, overrides all pv_args for Linux kernel
-<<<<<<< HEAD
-        :param iso: ISO Image UUID. If specified, will be mounted
-        :return: VM UUID
-        '''
-        #new_vm_uuid = self.clone_tmpl(tmpl_uuid, name_label, os_kind)
-        cls.insert_log_entry = lambda self, *args, **kwargs: insert_log_entry(new_vm_uuid, *args, **kwargs)
-        vm = VM(auth, uuid=new_vm_uuid)
-        vm.install = True
-        vm.remove_tags('vmemperor')
-        if isinstance(auth, BasicAuthenticator):
-            vm.manage_actions('all',  user=auth.get_id())
-
-        vm.set_ram_size(ram_size)
-        vm.set_VCPUs_max(vcpus)
-        vm.set_VCPUs_at_startup(vcpus)
-        vm.set_disks(sr_uuid, vdi_size)
-        # After provision. manage disks actions
-
-        if isinstance(auth, BasicAuthenticator):
-            for vbd_ref in vm.get_VBDs():
-                from .vbd import VBD
-                from .disk import VDI
-
-                vbd = VBD(auth=auth, ref=vbd_ref)
-                if vbd.get_type() != 'Disk':
-                    continue
-                vdi = VDI(auth=auth, ref=vbd.get_VDI())
-                vdi.manage_actions('all', user=auth.get_id())
-
-
-
-=======
         :param iso: ISO Image object. If specified, will be mounted
->>>>>>> devil
 
         '''
         self.insert_log_entry = lambda *args, **kwargs: insert_log_entry(self.uuid, *args, **kwargs)
@@ -413,14 +380,9 @@ class VM (AbstractVM):
         except Exception as e:
             try:
                 raise e
-<<<<<<< HEAD
-        else:
-            vm.install_guest_tools()
-=======
             except XenAPI.Failure as f:
                 self.insert_log_entry('failed', f'Failed to start OS installation:  {f.details}')
                 raise XenAdapterAPIError(self.log, 'Failed to start OS installation', f.details)
->>>>>>> devil
 
         # Wait for installation to finish
 
